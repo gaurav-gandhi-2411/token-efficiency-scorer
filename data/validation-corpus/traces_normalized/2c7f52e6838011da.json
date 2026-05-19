@@ -1,0 +1,1669 @@
+{
+  "session_id": "2c7f52e6838011da",
+  "source_dataset": "nebius/SWE-rebench-openhands-trajectories",
+  "scaffold": "openhands_nebius",
+  "model": "unknown",
+  "license": "CC-BY-4.0",
+  "instance_id": "getsentry__responses-673",
+  "outcome": {
+    "result": "pass",
+    "patch_diff": "diff --git a/issue.md b/issue.md\nnew file mode 100644\nindex 0000000..54575e9\n--- /dev/null\n+++ b/issue.md\n@@ -0,0 +1,48 @@\n+### Setting explicit Content-Type header in addition to json body results in comma-delimited Content-Type\n+### Describe the bug\n+\n+When passing a JSON payload to a response object as `json=...`, the content-type is automatically set to `application/json`.\n+Attempting to set Content-Type explicitly results in a malformed header, with the content-type values comma-separated.\n+\n+### Additional context\n+\n+Explicitly setting `Content-Type: application/json` causes this, but is easily rectified by removing that value and relying on `json=...`.\n+However, setting a specialized JSON media type is not supported via this path, e.g. `application/custom+json; my-parameter`.\n+\n+It is possible to work around this today by using `body=...` and avoiding `json=...` entirely, but this violates the principle of least-surprise. One would expect a valid Content-Type to come out of the combination of `json=..., headers=...`.\n+\n+### Version of `responses`\n+\n+0.23.1\n+\n+### Steps to Reproduce\n+\n+```python\n+import requests\n+import responses\n+\n+responses.add(\n+    responses.GET,\n+    \"https://example.org/\",\n+    json={},\n+    headers={\"Content-Type\": \"application/json\"},\n+)\n+responses.start()\n+\n+r = requests.get(\"https://example.org/\")\n+print(r.headers.get(\"Content-Type\"))  # \"application/json, application/json\"\n+```\n+\n+This happens with any Content-Type value, not only the JSON one. e.g. Setting `Content-Type: foo` results in `application/json, foo`.\n+\n+### Expected Result\n+\n+Content-Type should only ever have a single value, although some HTTP client implementations attempt to parse it as a list for broader compatibility with malformed data. ([Relevant section of RFC 9110](https://www.rfc-editor.org/rfc/rfc9110#field.content-type).)\n+\n+There are various behaviors which could be chosen here. e.g. Any match for `application/.*\\+json;.*` could be used as a replacement, but"
+  },
+  "turns": [
+    {
+      "turn_index": 0,
+      "role": "system",
+      "content_text": "You are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\n\n<ROLE>\nYour primary role is to assist users by executing commands, modifying code, and solving technical problems effectively. You should be thorough, methodical, and prioritize quality over speed.\n* If the user asks a question, like \"why is X happening\", don't try to fix the problem. Just give an answer to the question.\n</ROLE>\n\n<EFFICIENCY>\n* Each action you take is somewhat expensive. Wherever possible, combine multiple actions into a single action, e.g. combine multiple bash commands into one, using sed and grep to edit/view multiple files at once.\n* When exploring the codebase, use efficient tools like find, grep, and git commands with appropriate filters to minimize unnecessary operations.\n</EFFICIENCY>\n\n<FILE_SYSTEM_GUIDELINES>\n* When a user provides a file path, do NOT assume it's relative to the current working directory. First explore the file system to locate the file before working on it.\n* If asked to edit a file, edit the file directly, rather than creating a new file with a different filename.\n* For global search-and-replace operations, consider using `sed` instead of opening file editors multiple times.\n* NEVER create multiple versions of the same file with different suffixes (e.g., file_test.py, file_fix.py, file_simple.py). Instead:\n  - Always modify the original file directly when making changes\n  - If you need to create a temporary file for testing, delete it once you've confirmed your solution works\n  - If you decide a file you created is no longer useful, delete it instead of creating a new version\n* Do NOT include documentation files explaining your changes in version control unless the user explicitly requests it\n* When reproducing bugs or implementing fixes, use a single file rather than creating multiple files with different versions\n</FILE_SYSTEM_GUIDELINES>\n\n<CODE_QUALITY>\n* Write clean, efficient code with minimal comments. Avoid redundancy in comments: Do not repeat information that can be easily inferred from the code itself.\n* When implementing solutions, focus on making the minimal changes needed to solve the problem.\n* Before implementing any changes, first thoroughly understand the codebase through exploration.\n* If you are adding a lot of code to a function or file, consider splitting the function or file into smaller pieces when appropriate.\n* Place all imports at the top of the file unless explicitly requested otherwise or if placing imports at the top would cause issues (e.g., circular imports, conditional imports, or imports that need to be delayed for specific reasons).\n</CODE_QUALITY>\n\n<VERSION_CONTROL>\n* If there are existing git user credentials already configured, use them and add Co-authored-by: openhands <openhands@all-hands.dev> to any commits messages you make. if a git config doesn't exist use \"openhands\" as the user.name and \"openhands@all-hands.dev\" as the user.email by default, unless explicitly instructed otherwise.\n* Exercise caution with git operations. Do NOT make potentially dangerous changes (e.g., pushing to main, deleting repositories) unless explicitly asked to do so.\n* When committing changes, use `git status` to see all modified files, and stage all files necessary for the commit. Use `git commit -a` whenever possible.\n* Do NOT commit files that typically shouldn't go into version control (e.g., node_modules/, .env files, build directories, cache files, large binaries) unless explicitly instructed by the user.\n* If unsure about committing certain files, check for the presence of .gitignore files or ask the user for clarification.\n</VERSION_CONTROL>\n\n<PULL_REQUESTS>\n* **Important**: Do not push to the remote branch and/or start a pull request unless explicitly asked to do so.\n* When creating pull requests, create only ONE per session/issue unless explicitly instructed otherwise.\n* When working with an existing PR, update it with new commits rather than creating additi",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 0,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 1,
+      "role": "user",
+      "content_text": "<uploaded_files>\n/workspace/getsentry__responses__0.23\n</uploaded_files>\n\nI've uploaded a python code repository in the directory getsentry__responses__0.23. Consider the following issue description:\n\n<issue_description>\nSetting explicit Content-Type header in addition to json body results in comma-delimited Content-Type\n### Describe the bug\n\nWhen passing a JSON payload to a response object as `json=...`, the content-type is automatically set to `application/json`.\r\nAttempting to set Content-Type explicitly results in a malformed header, with the content-type values comma-separated.\n\n### Additional context\n\nExplicitly setting `Content-Type: application/json` causes this, but is easily rectified by removing that value and relying on `json=...`.\r\nHowever, setting a specialized JSON media type is not supported via this path, e.g. `application/custom+json; my-parameter`.\r\n\r\nIt is possible to work around this today by using `body=...` and avoiding `json=...` entirely, but this violates the principle of least-surprise. One would expect a valid Content-Type to come out of the combination of `json=..., headers=...`.\n\n### Version of `responses`\n\n0.23.1\n\n### Steps to Reproduce\n\n```python\r\nimport requests\r\nimport responses\r\n\r\nresponses.add(\r\n    responses.GET,\r\n    \"https://example.org/\",\r\n    json={},\r\n    headers={\"Content-Type\": \"application/json\"},\r\n)\r\nresponses.start()\r\n\r\nr = requests.get(\"https://example.org/\")\r\nprint(r.headers.get(\"Content-Type\"))  # \"application/json, application/json\"\r\n```\r\n\r\nThis happens with any Content-Type value, not only the JSON one. e.g. Setting `Content-Type: foo` results in `application/json, foo`.\n\n### Expected Result\n\nContent-Type should only ever have a single value, although some HTTP client implementations attempt to parse it as a list for broader compatibility with malformed data. ([Relevant section of RFC 9110](https://www.rfc-editor.org/rfc/rfc9110#field.content-type).)\r\n\r\nThere are various behaviors which could be chosen here. e.g. Any match for `application/.*\\+json;.*` could be used as a replacement, but headers could be otherwise concatenated.\r\n\r\nHowever, the least surprising behavior would be for the explicit `Content-Type` header to _always_ override the implicit one from `json=...`.\n\n### Actual Result\n\nContent-Type header values are comma-joined, producing a header which does not consistently parse as JSON depending on the mimetype detection algorithm used.\n</issue_description>\n\nCan you help me implement the necessary changes to the repository so that the requirements specified in the <issue_description> are met?\nI've already taken care of all changes to any of the test files described in the <issue_description>. This means you DON'T have to modify the testing logic or any of the tests in any way!\nAlso the development Python environment is already set up for you (i.e., all dependencies already installed), so you don't need to install other packages.\nYour task is to make the minimal changes to non-test files in the /workspace/getsentry__responses__0.23 directory to ensure the <issue_description> is satisfied.\n\nFollow these phases to resolve the issue:\n\nPhase 1. READING: read the problem and reword it in clearer terms\n   1.1 If there are code or config snippets. Express in words any best practices or conventions in them.\n   1.2 Hightlight message errors, method names, variables, file names, stack traces, and technical details.\n   1.3 Explain the problem in clear terms.\n   1.4 Enumerate the steps to reproduce the problem.\n   1.5 Hightlight any best practices to take into account when testing and fixing the issue\n\nPhase 2. RUNNING: install and run the tests on the repository\n   2.1 Follow the readme\n   2.2 Install the environment and anything needed\n   2.2 Iterate and figure out how to run the tests\n\nPhase 3. EXPLORATION: find the files that are related to the problem and possible solutions\n   3.1 Use `grep` to search for relevant methods, classes, keywords and error messages.\n   3.2 Identify",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 1102,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 2,
+      "role": "assistant",
+      "content_text": "I'll help you implement the necessary changes to fix the Content-Type header duplication issue. Let's start by following the phases you outlined.\n\n## Phase 1. READING: Understanding the Problem\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "think",
+          "tool_input": {
+            "thought": "Let me carefully read and understand the issue:\n\n1.1 Code snippets analysis:\n- The example shows using responses.add() with both json={} and headers={\"Content-Type\": \"application/json\"}\n- This results in a comma-delimited Content-Type header: \"application/json, application/json\"\n- The issue also occurs with other Content-Type values like \"foo\" resulting in \"application/json, foo\"\n\n1.2 Technical details:\n- Library: responses (version 0.23.1)\n- Method: responses.add()\n- Parameters involved: json=..., headers=...\n- Error: Content-Type header values are comma-joined instead of overridden\n- RFC reference: RFC 9110 section on Content-Type field\n\n1.3 Problem explanation:\nWhen using the responses library to mock HTTP responses, if you specify both a JSON payload (using the json parameter) and explicitly set a Content-Type header, the library incorrectly combines both values with a comma instead of letting the explicit header override the implicit one. This violates HTTP standards where Content-Type should have only one value.\n\n1.4 Steps to reproduce:\n1. Import requests and responses\n2. Call responses.add() with a URL, json={}, and headers={\"Content-Type\": \"application/json\"}\n3. Start responses\n4. Make a request to that URL\n5. Check the Content-Type header - it will show \"application/json, application/json\" instead of just \"application/json\"\n\n1.5 Best practices for fixing:\n- The explicit Content-Type header should always override the implicit one from json parameter\n- Content-Type should never have multiple values (comma-separated)\n- The fix should be minimal and not break existing functionality\n- Need to handle edge cases like custom JSON media types (application/custom+json; my-parameter)"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 37,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 3,
+      "role": "tool",
+      "content_text": "Your thought has been logged.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 4,
+      "role": "assistant",
+      "content_text": "## Phase 2. RUNNING: Setting up and Running Tests\n\nLet me first explore the repository structure and understand how to run tests.\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getsentry__responses__0.23"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 28,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 5,
+      "role": "tool",
+      "content_text": "Here's the files and directories up to 2 levels deep in /workspace/getsentry__responses__0.23, excluding hidden items:\n/workspace/getsentry__responses__0.23/\n/workspace/getsentry__responses__0.23/CHANGES\n/workspace/getsentry__responses__0.23/LICENSE\n/workspace/getsentry__responses__0.23/MANIFEST.in\n/workspace/getsentry__responses__0.23/Makefile\n/workspace/getsentry__responses__0.23/README.rst\n/workspace/getsentry__responses__0.23/issue.md\n/workspace/getsentry__responses__0.23/mypy.ini\n/workspace/getsentry__responses__0.23/responses/\n/workspace/getsentry__responses__0.23/responses.egg-info/\n/workspace/getsentry__responses__0.23/responses.egg-info/PKG-INFO\n/workspace/getsentry__responses__0.23/responses.egg-info/SOURCES.txt\n/workspace/getsentry__responses__0.23/responses.egg-info/dependency_links.txt\n/workspace/getsentry__responses__0.23/responses.egg-info/not-zip-safe\n/workspace/getsentry__responses__0.23/responses.egg-info/requires.txt\n/workspace/getsentry__responses__0.23/responses.egg-info/top_level.txt\n/workspace/getsentry__responses__0.23/responses/__init__.py\n/workspace/getsentry__responses__0.23/responses/_recorder.py\n/workspace/getsentry__responses__0.23/responses/matchers.py\n/workspace/getsentry__responses__0.23/responses/py.typed\n/workspace/getsentry__responses__0.23/responses/registries.py\n/workspace/getsentry__responses__0.23/responses/tests/\n/workspace/getsentry__responses__0.23/scripts/\n/workspace/getsentry__responses__0.23/scripts/bump-version.sh\n/workspace/getsentry__responses__0.23/setup.py\n/workspace/getsentry__responses__0.23/tox.ini\n\n6 hidden files/directories in this directory are excluded. You can use 'ls -la /workspace/getsentry__responses__0.23' to see them.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 75,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 6,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/README.rst",
+            "command": "view"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 7,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/README.rst:\n     1\tResponses\n     2\t=========\n     3\t\n     4\t.. image:: https://img.shields.io/pypi/v/responses.svg\n     5\t    :target: https://pypi.python.org/pypi/responses/\n     6\t\n     7\t.. image:: https://img.shields.io/pypi/pyversions/responses.svg\n     8\t    :target: https://pypi.org/project/responses/\n     9\t\n    10\t.. image:: https://img.shields.io/pypi/dm/responses\n    11\t   :target: https://pypi.python.org/pypi/responses/\n    12\t\n    13\t.. image:: https://codecov.io/gh/getsentry/responses/branch/master/graph/badge.svg\n    14\t    :target: https://codecov.io/gh/getsentry/responses/\n    15\t\n    16\tA utility library for mocking out the ``requests`` Python library.\n    17\t\n    18\t..  note::\n    19\t\n    20\t    Responses requires Python 3.7 or newer, and requests >= 2.30.0\n    21\t\n    22\t\n    23\tTable of Contents\n    24\t-----------------\n    25\t\n    26\t.. contents::\n    27\t\n    28\t\n    29\tInstalling\n    30\t----------\n    31\t\n    32\t``pip install responses``\n    33\t\n    34\t\n    35\tDeprecations and Migration Path\n    36\t-------------------------------\n    37\t\n    38\tHere you will find a list of deprecated functionality and a migration path for each.\n    39\tPlease ensure to update your code according to the guidance.\n    40\t\n    41\t.. list-table:: Deprecation and Migration\n    42\t   :widths: 50 25 50\n    43\t   :header-rows: 1\n    44\t\n    45\t   * - Deprecated Functionality\n    46\t     - Deprecated in Version\n    47\t     - Migration Path\n    48\t   * - ``responses.json_params_matcher``\n    49\t     - 0.14.0\n    50\t     - ``responses.matchers.json_params_matcher``\n    51\t   * - ``responses.urlencoded_params_matcher``\n    52\t     - 0.14.0\n    53\t     - ``responses.matchers.urlencoded_params_matcher``\n    54\t   * - ``stream`` argument in ``Response`` and ``CallbackResponse``\n    55\t     - 0.15.0\n    56\t     - Use ``stream`` argument in request directly.\n    57\t   * - ``match_querystring`` argument in ``Response`` and ``CallbackResponse``.\n    58\t     - 0.17.0\n    59\t     - Use ``responses.matchers.query_param_matcher`` or ``responses.matchers.query_string_matcher``\n    60\t   * - ``responses.assert_all_requests_are_fired``, ``responses.passthru_prefixes``, ``responses.target``\n    61\t     - 0.20.0\n    62\t     - Use ``responses.mock.assert_all_requests_are_fired``,\n    63\t       ``responses.mock.passthru_prefixes``, ``responses.mock.target`` instead.\n    64\t\n    65\tBETA Features\n    66\t-------------\n    67\tBelow you can find a list of BETA features. Although we will try to keep the API backwards compatible\n    68\twith released version, we reserve the right to change these APIs before they are considered stable. Please share your feedback via\n    69\t`GitHub Issues <https://github.com/getsentry/responses/issues>`_.\n    70\t\n    71\tRecord Responses to files\n    72\t^^^^^^^^^^^^^^^^^^^^^^^^^\n    73\t\n    74\tYou can perform real requests to the server and ``responses`` will automatically record the output to the\n    75\tfile. Recorded data is stored in `YAML <https://yaml.org>`_ format.\n    76\t\n    77\tApply ``@responses._recorder.record(file_path=\"out.yaml\")`` decorator to any function where you perform\n    78\trequests to record responses to ``out.yaml`` file.\n    79\t\n    80\tFollowing code\n    81\t\n    82\t.. code-block:: python\n    83\t\n    84\t    import requests\n    85\t    from responses import _recorder\n    86\t\n    87\t\n    88\t    def another():\n    89\t        rsp = requests.get(\"https://httpstat.us/500\")\n    90\t        rsp = requests.get(\"https://httpstat.us/202\")\n    91\t\n    92\t\n    93\t    @_recorder.record(file_path=\"out.yaml\")\n    94\t    def test_recorder():\n    95\t        rsp = requests.get(\"https://httpstat.us/404\")\n    96\t        rsp = requests.get(\"https://httpbin.org/status/wrong\")\n    97\t        another()\n    98\t\n    99\twill produce next output:\n   100\t\n   101\t.. code-block:: yaml\n   102\t\n   103\t    responses:\n   104\t    - response:\n   105\t        auto_calc",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 2726,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 8,
+      "role": "assistant",
+      "content_text": "Let me check the test structure and see how to run tests:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/tests",
+            "command": "view"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 15,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 9,
+      "role": "tool",
+      "content_text": "Here's the files and directories up to 2 levels deep in /workspace/getsentry__responses__0.23/responses/tests, excluding hidden items:\n/workspace/getsentry__responses__0.23/responses/tests/\n/workspace/getsentry__responses__0.23/responses/tests/__init__.py\n/workspace/getsentry__responses__0.23/responses/tests/test_matchers.py\n/workspace/getsentry__responses__0.23/responses/tests/test_multithreading.py\n/workspace/getsentry__responses__0.23/responses/tests/test_recorder.py\n/workspace/getsentry__responses__0.23/responses/tests/test_registries.py\n/workspace/getsentry__responses__0.23/responses/tests/test_responses.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 28,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 10,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/tox.ini",
+            "command": "view"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 11,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/tox.ini:\n     1\t[tox]\n     2\tenvlist = py37,py38,py39,py310,py311,mypy,precom\n     3\t\n     4\t[testenv]\n     5\textras = tests\n     6\tcommands =\n     7\t    pytest . --asyncio-mode=auto --cov responses --cov-report term-missing\n     8\t\n     9\t\n    10\t[testenv:mypy]\n    11\tdescription = Check types using 'mypy'\n    12\tbasepython = python3.10\n    13\tcommands =\n    14\t    python -m mypy --config-file=mypy.ini -p responses\n    15\t    # see https://github.com/getsentry/responses/issues/556\n    16\t    python -m mypy --config-file=mypy.ini --namespace-packages -p responses\n    17\t\n    18\t[testenv:precom]\n    19\tdescription = Run pre-commit hooks (black, flake, etc)\n    20\tbasepython = python3.10\n    21\tdeps = pre-commit>=2.9.2\n    22\tcommands =\n    23\t    pre-commit run --all-files\n    24\t\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 127,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 12,
+      "role": "assistant",
+      "content_text": "Let me check the setup.py to understand dependencies:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/setup.py",
+            "command": "view"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 10,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 13,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/setup.py:\n     1\t#!/usr/bin/env python\n     2\t\"\"\"\n     3\tresponses\n     4\t=========\n     5\t\n     6\tA utility library for mocking out the `requests` Python library.\n     7\t\n     8\t:copyright: (c) 2015 David Cramer\n     9\t:license: Apache 2.0\n    10\t\"\"\"\n    11\t\n    12\timport sys\n    13\t\n    14\tfrom setuptools import setup\n    15\tfrom setuptools.command.test import test as TestCommand\n    16\t\n    17\tsetup_requires = []\n    18\t\n    19\tinstall_requires = [\n    20\t    \"requests>=2.30.0,<3.0\",\n    21\t    \"urllib3>=1.25.10,<3.0\",\n    22\t    \"pyyaml\",\n    23\t    \"typing_extensions; python_version < '3.8'\",\n    24\t]\n    25\t\n    26\ttests_require = [\n    27\t    \"pytest>=7.0.0\",\n    28\t    \"coverage >= 6.0.0\",\n    29\t    \"pytest-cov\",\n    30\t    \"pytest-asyncio\",\n    31\t    \"pytest-httpserver\",\n    32\t    \"flake8\",\n    33\t    \"types-PyYAML\",\n    34\t    \"types-requests\",\n    35\t    \"mypy\",\n    36\t    # for check of different parsers in recorder\n    37\t    \"tomli; python_version < '3.11'\",\n    38\t    \"tomli-w\",\n    39\t]\n    40\t\n    41\tif \"test\" in sys.argv:\n    42\t    setup_requires.extend(tests_require)\n    43\t\n    44\textras_require = {\"tests\": tests_require}\n    45\t\n    46\t\n    47\tclass PyTest(TestCommand):\n    48\t    \"\"\"Designed to be run via `python setup.py test`\"\"\"\n    49\t\n    50\t    def finalize_options(self):\n    51\t        TestCommand.finalize_options(self)\n    52\t        self.test_args = []\n    53\t        self.test_suite = True\n    54\t\n    55\t    def run_tests(self):\n    56\t        # import here, cause outside the eggs aren't loaded\n    57\t        import pytest\n    58\t\n    59\t        errno = pytest.main(self.test_args)\n    60\t        sys.exit(errno)\n    61\t\n    62\t\n    63\tsetup(\n    64\t    name=\"responses\",\n    65\t    version=\"0.23.3\",\n    66\t    author=\"David Cramer\",\n    67\t    description=\"A utility library for mocking out the `requests` Python library.\",\n    68\t    url=\"https://github.com/getsentry/responses\",\n    69\t    project_urls={\n    70\t        \"Bug Tracker\": \"https://github.com/getsentry/responses/issues\",\n    71\t        \"Changes\": \"https://github.com/getsentry/responses/blob/master/CHANGES\",\n    72\t        \"Documentation\": \"https://github.com/getsentry/responses/blob/master/README.rst\",\n    73\t        \"Source Code\": \"https://github.com/getsentry/responses\",\n    74\t    },\n    75\t    license=\"Apache 2.0\",\n    76\t    long_description=open(\"README.rst\").read(),\n    77\t    long_description_content_type=\"text/x-rst\",\n    78\t    packages=[\"responses\"],\n    79\t    zip_safe=False,\n    80\t    python_requires=\">=3.7\",\n    81\t    install_requires=install_requires,\n    82\t    extras_require=extras_require,\n    83\t    tests_require=tests_require,\n    84\t    setup_requires=setup_requires,\n    85\t    cmdclass={\"test\": PyTest},\n    86\t    include_package_data=True,\n    87\t    classifiers=[\n    88\t        \"Intended Audience :: Developers\",\n    89\t        \"Intended Audience :: System Administrators\",\n    90\t        \"Operating System :: OS Independent\",\n    91\t        \"Programming Language :: Python\",\n    92\t        \"Programming Language :: Python :: 3\",\n    93\t        \"Programming Language :: Python :: 3.7\",\n    94\t        \"Programming Language :: Python :: 3.8\",\n    95\t        \"Programming Language :: Python :: 3.9\",\n    96\t        \"Programming Language :: Python :: 3.10\",\n    97\t        \"Programming Language :: Python :: 3.11\",\n    98\t        \"Topic :: Software Development\",\n    99\t    ],\n   100\t)\n   101\t\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 436,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 14,
+      "role": "assistant",
+      "content_text": "Now let me try running the tests to understand the current setup:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/ -v"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 15,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 15,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0 -- /opt/conda/envs/testbed/bin/python\ncachedir: .pytest_cache\nUsing --randomly-seed=1904150371\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspace/getsentry__responses__0.23/.hypothesis/examples'))\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 208 items\n\nresponses/tests/test_registries.py::TestOrderedRegistry::test_not_match PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   [  0%]\nresponses/tests/test_registries.py::TestOrderedRegistry::test_invocation_index PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 2091,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 16,
+      "role": "assistant",
+      "content_text": "Good! Most tests pass, there's just one unrelated test failure. Now let me create a simple reproduction script to understand the issue:\n\n## Phase 3. EXPLORATION: Finding Related Files\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses",
+            "command": "view"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 37,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 17,
+      "role": "tool",
+      "content_text": "Here's the files and directories up to 2 levels deep in /workspace/getsentry__responses__0.23/responses, excluding hidden items:\n/workspace/getsentry__responses__0.23/responses/\n/workspace/getsentry__responses__0.23/responses/__init__.py\n/workspace/getsentry__responses__0.23/responses/__pycache__/\n/workspace/getsentry__responses__0.23/responses/__pycache__/__init__.cpython-39.pyc\n/workspace/getsentry__responses__0.23/responses/__pycache__/_recorder.cpython-39.pyc\n/workspace/getsentry__responses__0.23/responses/__pycache__/matchers.cpython-39.pyc\n/workspace/getsentry__responses__0.23/responses/__pycache__/registries.cpython-39.pyc\n/workspace/getsentry__responses__0.23/responses/_recorder.py\n/workspace/getsentry__responses__0.23/responses/matchers.py\n/workspace/getsentry__responses__0.23/responses/py.typed\n/workspace/getsentry__responses__0.23/responses/registries.py\n/workspace/getsentry__responses__0.23/responses/tests/\n/workspace/getsentry__responses__0.23/responses/tests/__init__.py\n/workspace/getsentry__responses__0.23/responses/tests/__pycache__/\n/workspace/getsentry__responses__0.23/responses/tests/test_matchers.py\n/workspace/getsentry__responses__0.23/responses/tests/test_multithreading.py\n/workspace/getsentry__responses__0.23/responses/tests/test_recorder.py\n/workspace/getsentry__responses__0.23/responses/tests/test_registries.py\n/workspace/getsentry__responses__0.23/responses/tests/test_responses.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 44,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 18,
+      "role": "assistant",
+      "content_text": "Let me look at the main __init__.py file to understand the structure:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              1,
+              100
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 15,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 19,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n     1\timport inspect\n     2\timport json as json_module\n     3\timport logging\n     4\tfrom collections import namedtuple\n     5\tfrom functools import partialmethod\n     6\tfrom functools import wraps\n     7\tfrom http import client\n     8\tfrom itertools import groupby\n     9\tfrom re import Pattern\n    10\tfrom threading import Lock as _ThreadingLock\n    11\tfrom typing import TYPE_CHECKING\n    12\tfrom typing import Any\n    13\tfrom typing import Callable\n    14\tfrom typing import Dict\n    15\tfrom typing import Iterable\n    16\tfrom typing import Iterator\n    17\tfrom typing import List\n    18\tfrom typing import Mapping\n    19\tfrom typing import Optional\n    20\tfrom typing import Sequence\n    21\tfrom typing import Sized\n    22\tfrom typing import Tuple\n    23\tfrom typing import Type\n    24\tfrom typing import Union\n    25\tfrom typing import overload\n    26\tfrom warnings import warn\n    27\t\n    28\timport yaml\n    29\tfrom requests.adapters import HTTPAdapter\n    30\tfrom requests.adapters import MaxRetryError\n    31\tfrom requests.exceptions import ConnectionError\n    32\tfrom requests.exceptions import RetryError\n    33\t\n    34\tfrom responses.matchers import json_params_matcher as _json_params_matcher\n    35\tfrom responses.matchers import query_string_matcher as _query_string_matcher\n    36\tfrom responses.matchers import urlencoded_params_matcher as _urlencoded_params_matcher\n    37\tfrom responses.registries import FirstMatchRegistry\n    38\t\n    39\ttry:\n    40\t    from typing_extensions import Literal\n    41\texcept ImportError:  # pragma: no cover\n    42\t    from typing import Literal  # type: ignore  # pragma: no cover\n    43\t\n    44\ttry:\n    45\t    from requests.packages.urllib3.response import HTTPResponse\n    46\texcept ImportError:  # pragma: no cover\n    47\t    from urllib3.response import HTTPResponse  # pragma: no cover\n    48\t\n    49\ttry:\n    50\t    from requests.packages.urllib3.connection import HTTPHeaderDict\n    51\texcept ImportError:  # pragma: no cover\n    52\t    from urllib3.response import HTTPHeaderDict\n    53\t\n    54\ttry:\n    55\t    from requests.packages.urllib3.util.url import parse_url\n    56\texcept ImportError:  # pragma: no cover\n    57\t    from urllib3.util.url import parse_url  # pragma: no cover\n    58\t\n    59\tfrom io import BufferedReader\n    60\tfrom io import BytesIO\n    61\tfrom unittest import mock as std_mock\n    62\tfrom urllib.parse import parse_qsl\n    63\tfrom urllib.parse import quote\n    64\tfrom urllib.parse import urlsplit\n    65\tfrom urllib.parse import urlunparse\n    66\tfrom urllib.parse import urlunsplit\n    67\t\n    68\tif TYPE_CHECKING:  # pragma: no cover\n    69\t    # import only for linter run\n    70\t    import os\n    71\t    from typing import Protocol\n    72\t    from unittest.mock import _patch as _mock_patcher\n    73\t\n    74\t    from requests import PreparedRequest\n    75\t    from requests import models\n    76\t    from urllib3 import Retry as _Retry\n    77\t\n    78\t    class UnboundSend(Protocol):\n    79\t        def __call__(\n    80\t            self,\n    81\t            adapter: HTTPAdapter,\n    82\t            request: PreparedRequest,\n    83\t            *args: Any,\n    84\t            **kwargs: Any,\n    85\t        ) -> models.Response:\n    86\t            ...\n    87\t\n    88\t    # Block of type annotations\n    89\t    _Body = Union[str, BaseException, \"Response\", BufferedReader, bytes, None]\n    90\t    _F = Callable[..., Any]\n    91\t    _HeaderSet = Optional[Union[Mapping[str, str], List[Tuple[str, str]]]]\n    92\t    _MatcherIterable = Iterable[Callable[..., Tuple[bool, str]]]\n    93\t    _HTTPMethodOrResponse = Optional[Union[str, \"BaseResponse\"]]\n    94\t    _URLPatternType = Union[\"Pattern[str]\", str]\n    95\t    _HTTPAdapterSend = Callable[\n    96\t        [\n    97\t            HTTPAdapter,\n    98\t            PreparedRequest,\n    99\t            bool,\n   100\t            float | tuple[float, float] | tuple[f",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 607,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 20,
+      "role": "assistant",
+      "content_text": "Let me search for where the Response class is defined and where headers are handled:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n \"class.*Response\" responses/__init__.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 19,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 21,
+      "role": "tool",
+      "content_text": "382:class BaseResponse:\n543:class Response(BaseResponse):\n619:class CallbackResponse(BaseResponse):\n670:class PassthroughResponse(BaseResponse):\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 36,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 22,
+      "role": "assistant",
+      "content_text": "Let me look at the Response class:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              540,
+              620
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 9,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 23,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n   540\t    )\n   541\t\n   542\t\n   543\tclass Response(BaseResponse):\n   544\t    def __init__(\n   545\t        self,\n   546\t        method: str,\n   547\t        url: \"_URLPatternType\",\n   548\t        body: \"_Body\" = \"\",\n   549\t        json: Optional[Any] = None,\n   550\t        status: int = 200,\n   551\t        headers: Optional[Mapping[str, str]] = None,\n   552\t        stream: Optional[bool] = None,\n   553\t        content_type: Union[str, object] = _UNSET,\n   554\t        auto_calculate_content_length: bool = False,\n   555\t        **kwargs: Any,\n   556\t    ) -> None:\n   557\t        # if we were passed a `json` argument,\n   558\t        # override the body and content_type\n   559\t        if json is not None:\n   560\t            assert not body\n   561\t            body = json_module.dumps(json)\n   562\t            if content_type is _UNSET:\n   563\t                content_type = \"application/json\"\n   564\t\n   565\t        if content_type is _UNSET:\n   566\t            if isinstance(body, str) and _has_unicode(body):\n   567\t                content_type = \"text/plain; charset=utf-8\"\n   568\t            else:\n   569\t                content_type = \"text/plain\"\n   570\t\n   571\t        self.body: \"_Body\" = body\n   572\t        self.status: int = status\n   573\t        self.headers: Optional[Mapping[str, str]] = headers\n   574\t\n   575\t        if stream is not None:\n   576\t            warn(\n   577\t                \"stream argument is deprecated. Use stream parameter in request directly\",\n   578\t                DeprecationWarning,\n   579\t            )\n   580\t\n   581\t        self.stream: Optional[bool] = stream\n   582\t        self.content_type: str = content_type  # type: ignore[assignment]\n   583\t        self.auto_calculate_content_length: bool = auto_calculate_content_length\n   584\t        super().__init__(method, url, **kwargs)\n   585\t\n   586\t    def get_response(self, request: \"PreparedRequest\") -> HTTPResponse:\n   587\t        if self.body and isinstance(self.body, Exception):\n   588\t            setattr(self.body, \"request\", request)\n   589\t            raise self.body\n   590\t\n   591\t        headers = self.get_headers()\n   592\t        status = self.status\n   593\t\n   594\t        assert not isinstance(self.body, (Response, BaseException))\n   595\t        body = _handle_body(self.body)\n   596\t\n   597\t        if (\n   598\t            self.auto_calculate_content_length\n   599\t            and isinstance(body, BytesIO)\n   600\t            and \"Content-Length\" not in headers\n   601\t        ):\n   602\t            content_length = len(body.getvalue())\n   603\t            headers[\"Content-Length\"] = str(content_length)\n   604\t\n   605\t        return _form_response(body, headers, status)\n   606\t\n   607\t    def __repr__(self) -> str:\n   608\t        return (\n   609\t            \"<Response(url='{url}' status={status} \"\n   610\t            \"content_type='{content_type}' headers='{headers}')>\".format(\n   611\t                url=self.url,\n   612\t                status=self.status,\n   613\t                content_type=self.content_type,\n   614\t                headers=json_module.dumps(self.headers),\n   615\t            )\n   616\t        )\n   617\t\n   618\t\n   619\tclass CallbackResponse(BaseResponse):\n   620\t    def __init__(\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 397,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 24,
+      "role": "assistant",
+      "content_text": "Now let me look at the `get_headers()` method:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n \"def get_headers\" responses/__init__.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 10,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 25,
+      "role": "tool",
+      "content_text": "492:    def get_headers(self) -> HTTPHeaderDict:\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 32,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 26,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              490,
+              540
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 27,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n   490\t        return True, \"\"\n   491\t\n   492\t    def get_headers(self) -> HTTPHeaderDict:\n   493\t        headers = HTTPHeaderDict()  # Duplicate headers are legal\n   494\t        if self.content_type is not None:\n   495\t            headers[\"Content-Type\"] = self.content_type\n   496\t        if self.headers:\n   497\t            headers.extend(self.headers)\n   498\t        return headers\n   499\t\n   500\t    def get_response(self, request: \"PreparedRequest\") -> HTTPResponse:\n   501\t        raise NotImplementedError\n   502\t\n   503\t    def matches(self, request: \"PreparedRequest\") -> Tuple[bool, str]:\n   504\t        if request.method != self.method:\n   505\t            return False, \"Method does not match\"\n   506\t\n   507\t        if not self._url_matches(self.url, str(request.url)):\n   508\t            return False, \"URL does not match\"\n   509\t\n   510\t        valid, reason = self._req_attr_matches(self.match, request)\n   511\t        if not valid:\n   512\t            return False, reason\n   513\t\n   514\t        return True, \"\"\n   515\t\n   516\t\n   517\tdef _form_response(\n   518\t    body: Union[BufferedReader, BytesIO],\n   519\t    headers: Optional[Mapping[str, str]],\n   520\t    status: int,\n   521\t) -> HTTPResponse:\n   522\t    # The requests library's cookie handling depends on the response object\n   523\t    # having an original response object with the headers as the `msg`, so\n   524\t    # we give it what it needs.\n   525\t    data = BytesIO()\n   526\t    data.close()\n   527\t\n   528\t    orig_response = HTTPResponse(\n   529\t        body=data,  # required to avoid \"ValueError: Unable to determine whether fp is closed.\"\n   530\t        msg=headers,\n   531\t        preload_content=False,\n   532\t    )\n   533\t    return HTTPResponse(\n   534\t        status=status,\n   535\t        reason=client.responses.get(status, None),\n   536\t        body=body,\n   537\t        headers=headers,\n   538\t        original_response=orig_response,\n   539\t        preload_content=False,\n   540\t    )\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 278,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 28,
+      "role": "assistant",
+      "content_text": "Perfect! I found the issue. In the `get_headers()` method on lines 492-498, we can see the problem:\n\n1. Line 495: `headers[\"Content-Type\"] = self.content_type` - sets the Content-Type from the response's content_type attribute \n2. Line 497: `headers.extend(self.headers)` - extends with additional headers, including any Content-Type from the headers dict\n\nThe `HTTPHeaderDict.extend()` method allows duplicate keys, which results in comma-separated values when retrieved later.\n\nLet me also look at the `add` function to understand how responses are created:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n \"^def add\" responses/__init__.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 98,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 29,
+      "role": "tool",
+      "content_text": "\n[The command completed with exit code 1.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 1]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 26,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 30,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n \"def.*add\" responses/__init__.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 31,
+      "role": "tool",
+      "content_text": "265:    def add(self, request: \"PreparedRequest\", response: \"_Body\") -> None:\n742:    def add(\n783:            kwargs.setdefault(\"headers\", adding_headers)\n812:    def _add_from_file(self, file_path: \"Union[str, bytes, os.PathLike[Any]]\") -> None:\n826:    def add_passthru(self, prefix: \"_URLPatternType\") -> None:\n916:    def add_callback(\n1237:add = _default_mock.add\n1238:_add_from_file = _default_mock._add_from_file\n1239:add_callback = _default_mock.add_callback\n1240:add_passthru = _default_mock.add_passthru\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 85,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 32,
+      "role": "assistant",
+      "content_text": "Let me look at the main add function around line 742:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              740,
+              790
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 14,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 33,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n   740\t        self.passthru_prefixes = ()\n   741\t\n   742\t    def add(\n   743\t        self,\n   744\t        method: \"_HTTPMethodOrResponse\" = None,\n   745\t        url: \"Optional[_URLPatternType]\" = None,\n   746\t        body: \"_Body\" = \"\",\n   747\t        adding_headers: \"_HeaderSet\" = None,\n   748\t        *args: Any,\n   749\t        **kwargs: Any,\n   750\t    ) -> BaseResponse:\n   751\t        \"\"\"\n   752\t        >>> import responses\n   753\t\n   754\t        A basic request:\n   755\t        >>> responses.add(responses.GET, 'http://example.com')\n   756\t\n   757\t        You can also directly pass an object which implements the\n   758\t        ``BaseResponse`` interface:\n   759\t\n   760\t        >>> responses.add(Response(...))\n   761\t\n   762\t        A JSON payload:\n   763\t\n   764\t        >>> responses.add(\n   765\t        >>>     method='GET',\n   766\t        >>>     url='http://example.com',\n   767\t        >>>     json={'foo': 'bar'},\n   768\t        >>> )\n   769\t\n   770\t        Custom headers:\n   771\t\n   772\t        >>> responses.add(\n   773\t        >>>     method='GET',\n   774\t        >>>     url='http://example.com',\n   775\t        >>>     headers={'X-Header': 'foo'},\n   776\t        >>> )\n   777\t\n   778\t        \"\"\"\n   779\t        if isinstance(method, BaseResponse):\n   780\t            return self._registry.add(method)\n   781\t\n   782\t        if adding_headers is not None:\n   783\t            kwargs.setdefault(\"headers\", adding_headers)\n   784\t        if \"content_type\" in kwargs and \"headers\" in kwargs:\n   785\t            header_keys = [header.lower() for header in kwargs[\"headers\"]]\n   786\t            if \"content-type\" in header_keys:\n   787\t                raise RuntimeError(\n   788\t                    \"You cannot define both `content_type` and `headers[Content-Type]`.\"\n   789\t                    \" Using the `content_type` kwarg is recommended.\"\n   790\t                )\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 245,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 34,
+      "role": "assistant",
+      "content_text": "Let me see more of this function:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              790,
+              810
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 9,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 35,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n   790\t                )\n   791\t\n   792\t        assert url is not None\n   793\t        assert isinstance(method, str)\n   794\t        response = Response(method=method, url=url, body=body, **kwargs)\n   795\t        return self._registry.add(response)\n   796\t\n   797\t    delete = partialmethod(add, DELETE)\n   798\t    get = partialmethod(add, GET)\n   799\t    head = partialmethod(add, HEAD)\n   800\t    options = partialmethod(add, OPTIONS)\n   801\t    patch = partialmethod(add, PATCH)\n   802\t    post = partialmethod(add, POST)\n   803\t    put = partialmethod(add, PUT)\n   804\t\n   805\t    def _parse_response_file(\n   806\t        self, file_path: \"Union[str, bytes, os.PathLike[Any]]\"\n   807\t    ) -> \"Dict[str, Any]\":\n   808\t        with open(file_path) as file:\n   809\t            data = yaml.safe_load(file)\n   810\t        return data\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 123,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 36,
+      "role": "assistant",
+      "content_text": "Now let me search for where the issue actually manifests. Let me look at some tests to understand the expected behavior:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n -A5 -B5 \"Content-Type.*json\" responses/tests/test_responses.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 27,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 37,
+      "role": "tool",
+      "content_text": "536-    body = b\"test callback\"\n537-    status = 400\n538-    reason = \"Bad Request\"\n539-    headers = {\n540-        \"foo\": \"bar\",\n541:        \"Content-Type\": \"application/json\",\n542-        \"Content-Length\": \"13\",\n543-    }\n544-    url = \"http://example.com/\"\n545-\n546-    def request_callback(_request):\n--\n680-\n681-def test_callback_content_type_dict():\n682-    def request_callback(_request):\n683-        return (\n684-            200,\n685:            {\"Content-Type\": \"application/json\"},\n686-            b\"foo\",\n687-        )\n688-\n689-    @responses.activate\n690-    def run():\n--\n699-\n700-def test_callback_matchers():\n701-    def request_callback(_request):\n702-        return (\n703-            200,\n704:            {\"Content-Type\": \"application/json\"},\n705-            b\"foo\",\n706-        )\n707-\n708-    @responses.activate\n709-    def run():\n--\n755-\n756-def test_callback_content_type_tuple():\n757-    def request_callback(_request):\n758-        return (\n759-            200,\n760:            [(\"Content-Type\", \"application/json\")],\n761-            b\"foo\",\n762-        )\n763-\n764-    @responses.activate\n765-    def run():\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 171,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 38,
+      "role": "assistant",
+      "content_text": "Let me search for any existing tests related to the specific issue:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n -A10 -B5 \"json.*headers\" responses/tests/test_responses.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 15,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 39,
+      "role": "tool",
+      "content_text": "552-        resp = requests.get(url)\n553-        assert resp.text == \"test callback\"\n554-        assert resp.status_code == status\n555-        assert resp.reason == reason\n556-        assert \"bar\" == resp.headers.get(\"foo\")\n557:        assert \"application/json\" == resp.headers.get(\"Content-Type\")\n558-        assert \"13\" == resp.headers.get(\"Content-Length\")\n559-\n560-    run()\n561-    assert_reset()\n562-\n563-\n564-def test_deprecated_package_attributes():\n565-    \"\"\"Validates that deprecation warning is raised when package attributes are called.\"\"\"\n566-    # keep separate context manager to avoid leakage\n567-    with pytest.deprecated_call():\n--\n2055-                \"content_type\": \"application/json\",\n2056-                \"status\": 404,\n2057-            },\n2058-            (\n2059-                \"<Response(url='http://another-domain.com/' status=404 \"\n2060:                \"content_type='application/json' headers='null')>\"\n2061-            ),\n2062-        ),\n2063-        (\n2064-            {\n2065-                \"method\": responses.PUT,\n2066-                \"url\": \"http://abcd.com/\",\n2067-                \"content_type\": \"text/html\",\n2068-                \"status\": 500,\n2069-                \"headers\": {\"X-Test\": \"foo\"},\n2070-                \"body\": {\"it_wont_be\": \"considered\"},\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 174,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 40,
+      "role": "assistant",
+      "content_text": "Let me search more specifically:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n -A10 -B5 \"json.*Content-Type\\|Content-Type.*json\" responses/tests/test_responses.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 6,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 41,
+      "role": "tool",
+      "content_text": "536-    body = b\"test callback\"\n537-    status = 400\n538-    reason = \"Bad Request\"\n539-    headers = {\n540-        \"foo\": \"bar\",\n541:        \"Content-Type\": \"application/json\",\n542-        \"Content-Length\": \"13\",\n543-    }\n544-    url = \"http://example.com/\"\n545-\n546-    def request_callback(_request):\n547-        return status, headers, body\n548-\n549-    @responses.activate\n550-    def run():\n551-        responses.add_callback(responses.GET, url, request_callback)\n552-        resp = requests.get(url)\n553-        assert resp.text == \"test callback\"\n554-        assert resp.status_code == status\n555-        assert resp.reason == reason\n556-        assert \"bar\" == resp.headers.get(\"foo\")\n557:        assert \"application/json\" == resp.headers.get(\"Content-Type\")\n558-        assert \"13\" == resp.headers.get(\"Content-Length\")\n559-\n560-    run()\n561-    assert_reset()\n562-\n563-\n564-def test_deprecated_package_attributes():\n565-    \"\"\"Validates that deprecation warning is raised when package attributes are called.\"\"\"\n566-    # keep separate context manager to avoid leakage\n567-    with pytest.deprecated_call():\n--\n680-\n681-def test_callback_content_type_dict():\n682-    def request_callback(_request):\n683-        return (\n684-            200,\n685:            {\"Content-Type\": \"application/json\"},\n686-            b\"foo\",\n687-        )\n688-\n689-    @responses.activate\n690-    def run():\n691-        responses.add_callback(\"GET\", \"http://mockhost/.foo\", callback=request_callback)\n692-        resp = requests.get(\"http://mockhost/.foo\")\n693-        assert resp.text == \"foo\"\n694-        assert resp.headers[\"content-type\"] == \"application/json\"\n695-\n--\n699-\n700-def test_callback_matchers():\n701-    def request_callback(_request):\n702-        return (\n703-            200,\n704:            {\"Content-Type\": \"application/json\"},\n705-            b\"foo\",\n706-        )\n707-\n708-    @responses.activate\n709-    def run():\n710-        req_data = {\"some\": \"other\", \"data\": \"fields\"}\n711-        req_files = {\"file_name\": b\"Old World!\"}\n712-\n713-        responses.add_callback(\n714-            responses.POST,\n--\n755-\n756-def test_callback_content_type_tuple():\n757-    def request_callback(_request):\n758-        return (\n759-            200,\n760:            [(\"Content-Type\", \"application/json\")],\n761-            b\"foo\",\n762-        )\n763-\n764-    @responses.activate\n765-    def run():\n766-        responses.add_callback(\"GET\", \"http://mockhost/.foo\", callback=request_callback)\n767-        resp = requests.get(\"http://mockhost/.foo\")\n768-        assert resp.text == \"foo\"\n769-        assert resp.headers[\"content-type\"] == \"application/json\"\n770-\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 352,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 42,
+      "role": "assistant",
+      "content_text": "These are callback tests, not the specific issue we're dealing with. Let me search for tests that combine `json=` and `headers=` parameters:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && grep -n -A10 -B5 \"json.*headers\\|headers.*json\" responses/tests/test_responses.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 28,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 43,
+      "role": "tool",
+      "content_text": "552-        resp = requests.get(url)\n553-        assert resp.text == \"test callback\"\n554-        assert resp.status_code == status\n555-        assert resp.reason == reason\n556-        assert \"bar\" == resp.headers.get(\"foo\")\n557:        assert \"application/json\" == resp.headers.get(\"Content-Type\")\n558-        assert \"13\" == resp.headers.get(\"Content-Length\")\n559-\n560-    run()\n561-    assert_reset()\n562-\n563-\n564-def test_deprecated_package_attributes():\n565-    \"\"\"Validates that deprecation warning is raised when package attributes are called.\"\"\"\n566-    # keep separate context manager to avoid leakage\n567-    with pytest.deprecated_call():\n--\n689-    @responses.activate\n690-    def run():\n691-        responses.add_callback(\"GET\", \"http://mockhost/.foo\", callback=request_callback)\n692-        resp = requests.get(\"http://mockhost/.foo\")\n693-        assert resp.text == \"foo\"\n694:        assert resp.headers[\"content-type\"] == \"application/json\"\n695-\n696-    run()\n697-    assert_reset()\n698-\n699-\n700-def test_callback_matchers():\n701-    def request_callback(_request):\n702-        return (\n703-            200,\n704-            {\"Content-Type\": \"application/json\"},\n--\n716-            match=[matchers.multipart_matcher(req_files, data=req_data)],\n717-            callback=request_callback,\n718-        )\n719-        resp = requests.post(\"http://httpbin.org/post\", data=req_data, files=req_files)\n720-        assert resp.text == \"foo\"\n721:        assert resp.headers[\"content-type\"] == \"application/json\"\n722-\n723-    run()\n724-    assert_reset()\n725-\n726-\n727-def test_callback_matchers_fail():\n728-    @responses.activate\n729-    def run():\n730-        req_data = {\"some\": \"other\", \"data\": \"fields\"}\n731-        req_files = {\"file_name\": b\"Old World!\"}\n--\n764-    @responses.activate\n765-    def run():\n766-        responses.add_callback(\"GET\", \"http://mockhost/.foo\", callback=request_callback)\n767-        resp = requests.get(\"http://mockhost/.foo\")\n768-        assert resp.text == \"foo\"\n769:        assert resp.headers[\"content-type\"] == \"application/json\"\n770-\n771-    run()\n772-    assert_reset()\n773-\n774-\n775-def test_regular_expression_url():\n776-    @responses.activate\n777-    def run():\n778-        url = re.compile(r\"https?://(.*\\.)?example.com\")\n779-        responses.add(responses.GET, url, body=b\"test\")\n--\n2055-                \"content_type\": \"application/json\",\n2056-                \"status\": 404,\n2057-            },\n2058-            (\n2059-                \"<Response(url='http://another-domain.com/' status=404 \"\n2060:                \"content_type='application/json' headers='null')>\"\n2061-            ),\n2062-        ),\n2063-        (\n2064-            {\n2065-                \"method\": responses.PUT,\n2066-                \"url\": \"http://abcd.com/\",\n2067-                \"content_type\": \"text/html\",\n2068-                \"status\": 500,\n2069-                \"headers\": {\"X-Test\": \"foo\"},\n2070-                \"body\": {\"it_wont_be\": \"considered\"},\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 357,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 44,
+      "role": "assistant",
+      "content_text": "It seems there aren't existing tests for the specific scenario described in the issue. Let me examine the HTTPHeaderDict behavior to understand how it handles duplicates:\n\n## Phase 4. TEST CREATION: Creating a Reproduction Script\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/reproduce_issue.py",
+            "command": "create",
+            "file_text": "#!/usr/bin/env python3\n\"\"\"\nScript to reproduce the Content-Type header duplication issue.\n\"\"\"\n\nimport requests\nimport responses\n\ndef test_basic_reproduction():\n    \"\"\"Test the basic case from the issue description.\"\"\"\n    print(\"=== Basic Reproduction Test ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/\",\n        json={},\n        headers={\"Content-Type\": \"application/json\"},\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        \n        # Check if we have the problematic comma-separated values\n        if \",\" in content_type:\n            print(\"❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\")\n            return False\n        else:\n            print(\"✅ No issue found\")\n            return True\n            \n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_different_content_type():\n    \"\"\"Test with a different Content-Type value.\"\"\"\n    print(\"\\n=== Different Content-Type Test ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/test2\",\n        json={},\n        headers={\"Content-Type\": \"foo\"},\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/test2\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        \n        # Check if we have the problematic comma-separated values\n        if \",\" in content_type:\n            print(\"❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\")\n            return False\n        else:\n            print(\"✅ No issue found\")\n            return True\n            \n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_custom_json_content_type():\n    \"\"\"Test with a custom JSON Content-Type.\"\"\"\n    print(\"\\n=== Custom JSON Content-Type Test ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/test3\",\n        json={},\n        headers={\"Content-Type\": \"application/custom+json; my-parameter\"},\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/test3\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        \n        # Check if we have the problematic comma-separated values\n        if \",\" in content_type:\n            print(\"❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\")\n            return False\n        elif content_type == \"application/custom+json; my-parameter\":\n            print(\"✅ Correct behavior: explicit Content-Type overrides implicit one\")\n            return True\n        else:\n            print(f\"❓ Unexpected Content-Type: {content_type}\")\n            return False\n            \n    finally:\n        responses.stop()\n        responses.reset()\n\n\nif __name__ == \"__main__\":\n    print(\"Testing Content-Type header duplication issue...\")\n    \n    results = []\n    results.append(test_basic_reproduction())\n    results.append(test_different_content_type()) \n    results.append(test_custom_json_content_type())\n    \n    print(f\"\\n=== Summary ===\")\n    print(f\"Tests passed: {sum(results)}/{len(results)}\")\n    \n    if not all(results):\n        print(\"❌ Issue reproduced successfully!\")\n        exit(1)\n    else:\n        print(\"✅ No issues found!\")\n        exit(0)"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 45,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 45,
+      "role": "tool",
+      "content_text": "File created successfully at: /workspace/getsentry__responses__0.23/reproduce_issue.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 46,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python reproduce_issue.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 47,
+      "role": "tool",
+      "content_text": "Testing Content-Type header duplication issue...\n=== Basic Reproduction Test ===\nContent-Type header: 'application/json, application/json'\n❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\n\n=== Different Content-Type Test ===\nContent-Type header: 'application/json, foo'\n❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\n\n=== Custom JSON Content-Type Test ===\nContent-Type header: 'application/json, application/custom+json; my-parameter'\n❌ ISSUE REPRODUCED: Content-Type has comma-separated values!\n\n=== Summary ===\nTests passed: 0/3\n❌ Issue reproduced successfully!\n[The command completed with exit code 1.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 1]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 110,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 48,
+      "role": "assistant",
+      "content_text": "Perfect! I've successfully reproduced the issue. As described:\n1. With `json={}` and `headers={\"Content-Type\": \"application/json\"}`, we get `\"application/json, application/json\"`\n2. With `json={}` and `headers={\"Content-Type\": \"foo\"}`, we get `\"application/json, foo\"`  \n3. With `json={}` and `headers={\"Content-Type\": \"application/custom+json; my-parameter\"}`, we get `\"application/json, application/custom+json; my-parameter\"`\n\n## Phase 5. FIX ANALYSIS: Understanding the Problem and Solution\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "think",
+          "tool_input": {
+            "thought": "Let me clearly analyze the problem:\n\n5.1 What the problem is:\nIn the `BaseResponse.get_headers()` method, the Content-Type header from `self.content_type` is first set on line 495, then `self.headers` is extended on line 497. When both contain Content-Type, HTTPHeaderDict allows duplicates, which results in comma-separated values when accessed later.\n\n5.2 Where the problem is located:\nFile: `/workspace/getsentry__responses__0.23/responses/__init__.py`\nMethod: `BaseResponse.get_headers()` (lines 492-498)\n\n5.3 How the test reproduces the issue:\nThe test creates a Response with `json={}` (which sets content_type to \"application/json\") and explicit headers containing \"Content-Type\", causing both to be added to the headers dict.\n\n5.4 Best practices to consider:\n- The explicit Content-Type header should override the implicit one (principle of least surprise)\n- Content-Type should never have multiple values according to HTTP standards\n- The fix should be minimal and not break existing functionality\n- Need to handle case-insensitive header names properly\n\n5.5 How to fix the problem:\nIn the `get_headers()` method, we need to check if there's already a Content-Type in `self.headers` and if so, skip setting the one from `self.content_type`, or vice versa (explicit should override implicit).\n\nThe cleanest approach is to:\n1. Check if `self.headers` contains a Content-Type header\n2. If it does, don't set the content_type from `self.content_type` \n3. Otherwise, set it as before\n\nThis preserves the explicit header taking precedence over the implicit one."
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 65,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 49,
+      "role": "tool",
+      "content_text": "Your thought has been logged.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 50,
+      "role": "assistant",
+      "content_text": "## Phase 6. FIX IMPLEMENTATION: Editing the Source Code\n\nLet me examine the HTTPHeaderDict behavior first to understand how to properly check for existing Content-Type headers:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/debug_headers.py",
+            "command": "create",
+            "file_text": "#!/usr/bin/env python3\n\"\"\"\nDebug script to understand HTTPHeaderDict behavior.\n\"\"\"\n\nfrom requests.packages.urllib3.response import HTTPHeaderDict\n\ndef test_header_dict_behavior():\n    print(\"=== Testing HTTPHeaderDict behavior ===\")\n    \n    # Test normal dict behavior\n    headers = HTTPHeaderDict()\n    headers[\"Content-Type\"] = \"application/json\"\n    headers[\"Content-Type\"] = \"text/html\"  # This replaces, not appends\n    print(f\"After two assignments: {dict(headers)}\")\n    print(f\"Content-Type value: {headers.get('Content-Type')}\")\n    \n    # Test extend behavior\n    headers2 = HTTPHeaderDict()\n    headers2[\"Content-Type\"] = \"application/json\"\n    headers2.extend({\"Content-Type\": \"text/html\"})  # This appends\n    print(f\"After extend: {dict(headers2)}\")\n    print(f\"Content-Type value: {headers2.get('Content-Type')}\")\n    \n    # Test case sensitivity\n    headers3 = HTTPHeaderDict()\n    headers3[\"content-type\"] = \"application/json\"\n    print(f\"Keys in headers3: {list(headers3.keys())}\")\n    print(f\"Has 'Content-Type': {headers3.get('Content-Type')}\")\n    print(f\"Has 'content-type': {headers3.get('content-type')}\")\n\nif __name__ == \"__main__\":\n    test_header_dict_behavior()"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 33,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 51,
+      "role": "tool",
+      "content_text": "File created successfully at: /workspace/getsentry__responses__0.23/debug_headers.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 52,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python debug_headers.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 53,
+      "role": "tool",
+      "content_text": "=== Testing HTTPHeaderDict behavior ===\nAfter two assignments: {'Content-Type': 'text/html'}\nContent-Type value: text/html\nAfter extend: {'Content-Type': 'application/json, text/html'}\nContent-Type value: application/json, text/html\nKeys in headers3: ['content-type']\nHas 'Content-Type': application/json\nHas 'content-type': application/json\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 67,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 54,
+      "role": "assistant",
+      "content_text": "Perfect! This confirms the issue:\n1. Direct assignment replaces the value\n2. `extend()` method concatenates values with commas (this is what's happening in our code)\n3. HTTPHeaderDict is case-insensitive for lookups\n\nNow let me implement the fix. The solution is to check if there's already a Content-Type header in `self.headers` before setting the one from `self.content_type`:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "str_replace",
+            "old_str": "    def get_headers(self) -> HTTPHeaderDict:\n        headers = HTTPHeaderDict()  # Duplicate headers are legal\n        if self.content_type is not None:\n            headers[\"Content-Type\"] = self.content_type\n        if self.headers:\n            headers.extend(self.headers)\n        return headers",
+            "new_str": "    def get_headers(self) -> HTTPHeaderDict:\n        headers = HTTPHeaderDict()  # Duplicate headers are legal\n        # Check if Content-Type is explicitly set in headers\n        content_type_explicitly_set = (\n            self.headers and \n            any(header.lower() == \"content-type\" for header in self.headers)\n        )\n        \n        # Only set content_type from self.content_type if not explicitly set in headers\n        if self.content_type is not None and not content_type_explicitly_set:\n            headers[\"Content-Type\"] = self.content_type\n        if self.headers:\n            headers.extend(self.headers)\n        return headers"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 72,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 55,
+      "role": "tool",
+      "content_text": "The file /workspace/getsentry__responses__0.23/responses/__init__.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/getsentry__responses__0.23/responses/__init__.py:\n   489\t\n   490\t        return True, \"\"\n   491\t\n   492\t    def get_headers(self) -> HTTPHeaderDict:\n   493\t        headers = HTTPHeaderDict()  # Duplicate headers are legal\n   494\t        # Check if Content-Type is explicitly set in headers\n   495\t        content_type_explicitly_set = (\n   496\t            self.headers and \n   497\t            any(header.lower() == \"content-type\" for header in self.headers)\n   498\t        )\n   499\t        \n   500\t        # Only set content_type from self.content_type if not explicitly set in headers\n   501\t        if self.content_type is not None and not content_type_explicitly_set:\n   502\t            headers[\"Content-Type\"] = self.content_type\n   503\t        if self.headers:\n   504\t            headers.extend(self.headers)\n   505\t        return headers\n   506\t\n   507\t    def get_response(self, request: \"PreparedRequest\") -> HTTPResponse:\n   508\t        raise NotImplementedError\n   509\t\n   510\t\nReview the changes and make sure they are as expected. Edit the file again if necessary.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 167,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 56,
+      "role": "assistant",
+      "content_text": "## Phase 7. VERIFICATION: Testing the Implementation\n\nNow let's test our fix:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python reproduce_issue.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 15,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 57,
+      "role": "tool",
+      "content_text": "Testing Content-Type header duplication issue...\n=== Basic Reproduction Test ===\nContent-Type header: 'application/json'\n✅ No issue found\n\n=== Different Content-Type Test ===\nContent-Type header: 'foo'\n✅ No issue found\n\n=== Custom JSON Content-Type Test ===\nContent-Type header: 'application/custom+json; my-parameter'\n✅ Correct behavior: explicit Content-Type overrides implicit one\n\n=== Summary ===\nTests passed: 3/3\n✅ No issues found!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 100,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 58,
+      "role": "assistant",
+      "content_text": "Excellent! Our fix works perfectly. Now let's create a more comprehensive test to cover edge cases:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/comprehensive_test.py",
+            "command": "create",
+            "file_text": "#!/usr/bin/env python3\n\"\"\"\nComprehensive test script for Content-Type header fix.\n\"\"\"\n\nimport requests\nimport responses\n\ndef test_no_json_no_explicit_content_type():\n    \"\"\"Test normal case with neither json nor explicit Content-Type.\"\"\"\n    print(\"=== Test: No JSON, No Explicit Content-Type ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/normal\",\n        body=\"Hello World\",\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/normal\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be text/plain (default)\n        if \"text/plain\" in content_type:\n            print(\"✅ Correct default Content-Type\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_json_no_explicit_content_type():\n    \"\"\"Test case with json but no explicit Content-Type.\"\"\"\n    print(\"\\n=== Test: JSON, No Explicit Content-Type ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/json\",\n        json={\"key\": \"value\"},\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/json\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be application/json\n        if content_type == \"application/json\":\n            print(\"✅ Correct JSON Content-Type\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_json_with_explicit_content_type():\n    \"\"\"Test case with both json and explicit Content-Type.\"\"\"\n    print(\"\\n=== Test: JSON with Explicit Content-Type ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/explicit\",\n        json={\"key\": \"value\"},\n        headers={\"Content-Type\": \"application/custom+json\"},\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/explicit\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be the explicit one\n        if content_type == \"application/custom+json\":\n            print(\"✅ Explicit Content-Type correctly overrides implicit one\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_case_insensitive_headers():\n    \"\"\"Test that Content-Type header matching is case-insensitive.\"\"\"\n    print(\"\\n=== Test: Case-Insensitive Header Matching ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/case\",\n        json={\"key\": \"value\"},\n        headers={\"content-type\": \"application/vnd.api+json\"},  # lowercase\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/case\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be the explicit one\n        if content_type == \"application/vnd.api+json\":\n            print(\"✅ Case-insensitive matching works correctly\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_other_headers_unaffected():\n    \"\"\"Test that other headers are not affected by the fix.\"\"\"\n    print(\"\\n=== Test: Other Headers Unaffected ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/other\",\n        json={\"key\": \"value\"},\n        headers={\n            \"Content-Type\": \"application/custom+json\",\n            \"X-Custom-Header\": \"custom-value\",\n            \"Authorization\": \"Bearer token\"\n        },\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/other\")\n        content_type = r.headers.get(\"Content-Type\")\n        custom_header = r.headers.get(\"X-Custom-Header\")\n        auth_header = r.headers.get(\"Authorization\")\n        \n        print(f\"Content-Type header: '{content_type}'\")\n        print(f\"X-Custom-Header: '{custom_header}'\")\n        print(f\"Authorization: '{auth_header}'\")\n        \n        # Check all headers\n        content_type_ok = content_type == \"application/custom+json\"\n        custom_header_ok = custom_header == \"custom-value\"\n        auth_header_ok = auth_header == \"Bearer token\"\n        \n        if content_type_ok and custom_header_ok and auth_header_ok:\n            print(\"✅ All headers work correctly\")\n            return True\n        else:\n            print(\"❌ Some headers are incorrect\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_no_content_type_at_all():\n    \"\"\"Test case where no Content-Type should be set.\"\"\"\n    print(\"\\n=== Test: No Content-Type At All ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/no-content-type\",\n        body=\"\",\n        content_type=None,\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/no-content-type\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be None or not present\n        if content_type is None:\n            print(\"✅ No Content-Type header as expected\")\n            return True\n        else:\n            print(f\"⚠️  Unexpected Content-Type (but may be acceptable): {content_type}\")\n            return True  # This might be OK depending on implementation\n    finally:\n        responses.stop()\n        responses.reset()\n\n\nif __name__ == \"__main__\":\n    print(\"Running comprehensive tests for Content-Type header fix...\")\n    \n    tests = [\n        test_no_json_no_explicit_content_type,\n        test_json_no_explicit_content_type,\n        test_json_with_explicit_content_type,\n        test_case_insensitive_headers,\n        test_other_headers_unaffected,\n        test_no_content_type_at_all,\n    ]\n    \n    results = []\n    for test in tests:\n        try:\n            results.append(test())\n        except Exception as e:\n            print(f\"❌ Test failed with exception: {e}\")\n            results.append(False)\n    \n    print(f\"\\n=== Final Summary ===\")\n    print(f\"Tests passed: {sum(results)}/{len(results)}\")\n    \n    if all(results):\n        print(\"🎉 All tests passed!\")\n        exit(0)\n    else:\n        print(\"❌ Some tests failed!\")\n        exit(1)"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 20,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 59,
+      "role": "tool",
+      "content_text": "File created successfully at: /workspace/getsentry__responses__0.23/comprehensive_test.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 60,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python comprehensive_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 61,
+      "role": "tool",
+      "content_text": "Running comprehensive tests for Content-Type header fix...\n=== Test: No JSON, No Explicit Content-Type ===\nContent-Type header: 'text/plain'\n✅ Correct default Content-Type\n\n=== Test: JSON, No Explicit Content-Type ===\nContent-Type header: 'application/json'\n✅ Correct JSON Content-Type\n\n=== Test: JSON with Explicit Content-Type ===\nContent-Type header: 'application/custom+json'\n✅ Explicit Content-Type correctly overrides implicit one\n\n=== Test: Case-Insensitive Header Matching ===\nContent-Type header: 'application/vnd.api+json'\n✅ Case-insensitive matching works correctly\n\n=== Test: Other Headers Unaffected ===\nContent-Type header: 'application/custom+json'\nX-Custom-Header: 'custom-value'\nAuthorization: 'Bearer token'\n✅ All headers work correctly\n\n=== Test: No Content-Type At All ===\nContent-Type header: 'None'\n✅ No Content-Type header as expected\n\n=== Final Summary ===\nTests passed: 6/6\n🎉 All tests passed!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 172,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 62,
+      "role": "assistant",
+      "content_text": "Great! All comprehensive tests pass. Now let's run the existing test suite to make sure we didn't break anything:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/test_responses.py -v"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 24,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 63,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0 -- /opt/conda/envs/testbed/bin/python\ncachedir: .pytest_cache\nUsing --randomly-seed=1157442120\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspace/getsentry__responses__0.23/.hypothesis/examples'))\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 152 items\n\nresponses/tests/test_responses.py::TestAdapters::test_custom_adapter[PositionalArgsIncompleteAdapter] PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     [  0%]\nresponses/tests/test_responses.py::TestAdapters::test_custom_adapter[CustomAdapter] PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 3348,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 64,
+      "role": "assistant",
+      "content_text": "I see the issue! My fix assumes that `self.headers` is always a dictionary-like object, but some tests are using tuples or lists for headers. I need to handle different header formats properly. Looking at the error, it seems that `self.headers` can be a list of tuples like `[(\"Set-cookie\", \"mycookie=cookieval; path=/; secure\")]`.\n\nLet me examine how headers are supposed to work:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "command": "view",
+            "view_range": [
+              85,
+              95
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 78,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 65,
+      "role": "tool",
+      "content_text": "Here's the result of running `cat -n` on /workspace/getsentry__responses__0.23/responses/__init__.py:\n    85\t        ) -> models.Response:\n    86\t            ...\n    87\t\n    88\t    # Block of type annotations\n    89\t    _Body = Union[str, BaseException, \"Response\", BufferedReader, bytes, None]\n    90\t    _F = Callable[..., Any]\n    91\t    _HeaderSet = Optional[Union[Mapping[str, str], List[Tuple[str, str]]]]\n    92\t    _MatcherIterable = Iterable[Callable[..., Tuple[bool, str]]]\n    93\t    _HTTPMethodOrResponse = Optional[Union[str, \"BaseResponse\"]]\n    94\t    _URLPatternType = Union[\"Pattern[str]\", str]\n    95\t    _HTTPAdapterSend = Callable[\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 81,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 66,
+      "role": "assistant",
+      "content_text": "So `_HeaderSet` can be either a `Mapping[str, str]` (like a dict) or `List[Tuple[str, str]]` (like a list of tuples). I need to handle both cases properly.\n\nLet me fix my implementation:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/responses/__init__.py",
+            "old_str": "    def get_headers(self) -> HTTPHeaderDict:\n        headers = HTTPHeaderDict()  # Duplicate headers are legal\n        # Check if Content-Type is explicitly set in headers\n        content_type_explicitly_set = (\n            self.headers and \n            any(header.lower() == \"content-type\" for header in self.headers)\n        )\n        \n        # Only set content_type from self.content_type if not explicitly set in headers\n        if self.content_type is not None and not content_type_explicitly_set:\n            headers[\"Content-Type\"] = self.content_type\n        if self.headers:\n            headers.extend(self.headers)\n        return headers",
+            "new_str": "    def get_headers(self) -> HTTPHeaderDict:\n        headers = HTTPHeaderDict()  # Duplicate headers are legal\n        # Check if Content-Type is explicitly set in headers\n        content_type_explicitly_set = False\n        if self.headers:\n            if hasattr(self.headers, 'keys'):\n                # Mapping (dict-like) headers\n                content_type_explicitly_set = any(\n                    header.lower() == \"content-type\" for header in self.headers.keys()\n                )\n            else:\n                # List of tuples headers\n                content_type_explicitly_set = any(\n                    header[0].lower() == \"content-type\" for header in self.headers\n                )\n        \n        # Only set content_type from self.content_type if not explicitly set in headers\n        if self.content_type is not None and not content_type_explicitly_set:\n            headers[\"Content-Type\"] = self.content_type\n        if self.headers:\n            headers.extend(self.headers)\n        return headers",
+            "command": "str_replace"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 40,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 67,
+      "role": "tool",
+      "content_text": "The file /workspace/getsentry__responses__0.23/responses/__init__.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/getsentry__responses__0.23/responses/__init__.py:\n   489\t\n   490\t        return True, \"\"\n   491\t\n   492\t    def get_headers(self) -> HTTPHeaderDict:\n   493\t        headers = HTTPHeaderDict()  # Duplicate headers are legal\n   494\t        # Check if Content-Type is explicitly set in headers\n   495\t        content_type_explicitly_set = False\n   496\t        if self.headers:\n   497\t            if hasattr(self.headers, 'keys'):\n   498\t                # Mapping (dict-like) headers\n   499\t                content_type_explicitly_set = any(\n   500\t                    header.lower() == \"content-type\" for header in self.headers.keys()\n   501\t                )\n   502\t            else:\n   503\t                # List of tuples headers\n   504\t                content_type_explicitly_set = any(\n   505\t                    header[0].lower() == \"content-type\" for header in self.headers\n   506\t                )\n   507\t        \n   508\t        # Only set content_type from self.content_type if not explicitly set in headers\n   509\t        if self.content_type is not None and not content_type_explicitly_set:\n   510\t            headers[\"Content-Type\"] = self.content_type\n   511\t        if self.headers:\n   512\t            headers.extend(self.headers)\n   513\t        return headers\n   514\t\n   515\t    def get_response(self, request: \"PreparedRequest\") -> HTTPResponse:\n   516\t        raise NotImplementedError\n   517\t\n   518\t\nReview the changes and make sure they are as expected. Edit the file again if necessary.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 213,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 68,
+      "role": "assistant",
+      "content_text": "Now let's test our fix:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python reproduce_issue.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 6,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 69,
+      "role": "tool",
+      "content_text": "Testing Content-Type header duplication issue...\n=== Basic Reproduction Test ===\nContent-Type header: 'application/json'\n✅ No issue found\n\n=== Different Content-Type Test ===\nContent-Type header: 'foo'\n✅ No issue found\n\n=== Custom JSON Content-Type Test ===\nContent-Type header: 'application/custom+json; my-parameter'\n✅ Correct behavior: explicit Content-Type overrides implicit one\n\n=== Summary ===\nTests passed: 3/3\n✅ No issues found!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 100,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 70,
+      "role": "assistant",
+      "content_text": "Good! Now let's test the comprehensive test:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python comprehensive_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 9,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 71,
+      "role": "tool",
+      "content_text": "Running comprehensive tests for Content-Type header fix...\n=== Test: No JSON, No Explicit Content-Type ===\nContent-Type header: 'text/plain'\n✅ Correct default Content-Type\n\n=== Test: JSON, No Explicit Content-Type ===\nContent-Type header: 'application/json'\n✅ Correct JSON Content-Type\n\n=== Test: JSON with Explicit Content-Type ===\nContent-Type header: 'application/custom+json'\n✅ Explicit Content-Type correctly overrides implicit one\n\n=== Test: Case-Insensitive Header Matching ===\nContent-Type header: 'application/vnd.api+json'\n✅ Case-insensitive matching works correctly\n\n=== Test: Other Headers Unaffected ===\nContent-Type header: 'application/custom+json'\nX-Custom-Header: 'custom-value'\nAuthorization: 'Bearer token'\n✅ All headers work correctly\n\n=== Test: No Content-Type At All ===\nContent-Type header: 'None'\n✅ No Content-Type header as expected\n\n=== Final Summary ===\nTests passed: 6/6\n🎉 All tests passed!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 172,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 72,
+      "role": "assistant",
+      "content_text": "Perfect! Now let's test the specific failing tests to make sure they pass:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/test_responses.py::test_response_cookies_session -v"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 16,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 73,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0 -- /opt/conda/envs/testbed/bin/python\ncachedir: .pytest_cache\nUsing --randomly-seed=853547316\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspace/getsentry__responses__0.23/.hypothesis/examples'))\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 9 items\n\nresponses/tests/test_responses.py::test_response_cookies_session[None-False] PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [ 11%]\nresponses/tests/test_responses.py::test_response_cookies_session[True-True] PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 267,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 74,
+      "role": "assistant",
+      "content_text": "Excellent! Now let's run the full test suite to make sure everything passes:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/test_responses.py -x"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 16,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 75,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0\nUsing --randomly-seed=2272493124\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 152 items\n\nresponses/tests/test_responses.py ..............................................................................................................s.........................................                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       [100%]\n\n=========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================== warnings summary =======================================================================================================================================================================================================================================================================================================",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 293,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 76,
+      "role": "assistant",
+      "content_text": "Perfect! All tests pass. Let's also run the other test files to make sure we haven't broken anything:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/ -x --tb=short"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 23,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 77,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0\nUsing --randomly-seed=1822343048\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 208 items\n\nresponses/tests/test_multithreading.py ..........                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                [  4%]\nresponses/tests/test_matchers.py .................................                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 313,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 78,
+      "role": "assistant",
+      "content_text": "Excellent! All tests pass now. Let me create one final test to verify that our fix handles edge cases with different header formats:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/final_edge_case_test.py",
+            "command": "create",
+            "file_text": "#!/usr/bin/env python3\n\"\"\"\nEdge case tests for the Content-Type header fix.\n\"\"\"\n\nimport requests\nimport responses\n\ndef test_tuple_headers_format():\n    \"\"\"Test with tuple headers format (the failing case from the test suite).\"\"\"\n    print(\"=== Test: Tuple Headers Format ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/tuple-headers\",\n        json={\"key\": \"value\"},\n        headers=[(\"Content-Type\", \"application/custom+json\")],\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/tuple-headers\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be the explicit one from tuple headers\n        if content_type == \"application/custom+json\":\n            print(\"✅ Tuple headers format works correctly\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_mixed_case_in_tuples():\n    \"\"\"Test mixed case Content-Type in tuple headers.\"\"\"\n    print(\"\\n=== Test: Mixed Case in Tuple Headers ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/mixed-case\",\n        json={\"key\": \"value\"},\n        headers=[(\"content-type\", \"application/vnd.api+json\")],  # lowercase\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/mixed-case\")\n        content_type = r.headers.get(\"Content-Type\")\n        print(f\"Content-Type header: '{content_type}'\")\n        # Should be the explicit one from tuple headers\n        if content_type == \"application/vnd.api+json\":\n            print(\"✅ Mixed case in tuple headers works correctly\")\n            return True\n        else:\n            print(f\"❌ Unexpected Content-Type: {content_type}\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\ndef test_multiple_headers_in_tuples():\n    \"\"\"Test multiple headers in tuple format.\"\"\"\n    print(\"\\n=== Test: Multiple Headers in Tuples ===\")\n    \n    responses.add(\n        responses.GET,\n        \"https://example.org/multiple-tuples\",\n        json={\"key\": \"value\"},\n        headers=[\n            (\"Content-Type\", \"application/custom+json\"),\n            (\"X-API-Key\", \"secret123\"),\n            (\"Authorization\", \"Bearer token456\")\n        ],\n    )\n    responses.start()\n\n    try:\n        r = requests.get(\"https://example.org/multiple-tuples\")\n        content_type = r.headers.get(\"Content-Type\")\n        api_key = r.headers.get(\"X-API-Key\")\n        auth = r.headers.get(\"Authorization\")\n        \n        print(f\"Content-Type header: '{content_type}'\")\n        print(f\"X-API-Key header: '{api_key}'\")\n        print(f\"Authorization header: '{auth}'\")\n        \n        # Check all headers\n        content_type_ok = content_type == \"application/custom+json\"\n        api_key_ok = api_key == \"secret123\"\n        auth_ok = auth == \"Bearer token456\"\n        \n        if content_type_ok and api_key_ok and auth_ok:\n            print(\"✅ Multiple tuple headers work correctly\")\n            return True\n        else:\n            print(\"❌ Some tuple headers are incorrect\")\n            return False\n    finally:\n        responses.stop()\n        responses.reset()\n\n\nif __name__ == \"__main__\":\n    print(\"Running edge case tests for Content-Type header fix...\")\n    \n    tests = [\n        test_tuple_headers_format,\n        test_mixed_case_in_tuples,\n        test_multiple_headers_in_tuples,\n    ]\n    \n    results = []\n    for test in tests:\n        try:\n            results.append(test())\n        except Exception as e:\n            print(f\"❌ Test failed with exception: {e}\")\n            results.append(False)\n    \n    print(f\"\\n=== Final Summary ===\")\n    print(f\"Tests passed: {sum(results)}/{len(results)}\")\n    \n    if all(results):\n        print(\"🎉 All edge case tests passed!\")\n        exit(0)\n    else:\n        print(\"❌ Some edge case tests failed!\")\n        exit(1)"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 29,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 79,
+      "role": "tool",
+      "content_text": "File created successfully at: /workspace/getsentry__responses__0.23/final_edge_case_test.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 80,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python final_edge_case_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 81,
+      "role": "tool",
+      "content_text": "Running edge case tests for Content-Type header fix...\n=== Test: Tuple Headers Format ===\nContent-Type header: 'application/custom+json'\n✅ Tuple headers format works correctly\n\n=== Test: Mixed Case in Tuple Headers ===\nContent-Type header: 'application/vnd.api+json'\n✅ Mixed case in tuple headers works correctly\n\n=== Test: Multiple Headers in Tuples ===\nContent-Type header: 'application/custom+json'\nX-API-Key header: 'secret123'\nAuthorization header: 'Bearer token456'\n✅ Multiple tuple headers work correctly\n\n=== Final Summary ===\nTests passed: 3/3\n🎉 All edge case tests passed!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 127,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 82,
+      "role": "assistant",
+      "content_text": "Perfect! Let's clean up our test files:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && rm reproduce_issue.py comprehensive_test.py debug_headers.py final_edge_case_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 9,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 83,
+      "role": "tool",
+      "content_text": "\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 26,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 84,
+      "role": "assistant",
+      "content_text": "## Phase 8. FINAL REVIEW\n\nLet me review the changes against the original issue requirements:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "think",
+          "tool_input": {
+            "thought": "Let me carefully review the requirements from the issue description:\n\n8.1 Requirements Analysis:\n✓ When passing JSON payload to response object as `json=...`, content-type is automatically set to `application/json`\n✓ Attempting to set Content-Type explicitly should NOT result in malformed header with comma-separated values\n✓ Explicit `Content-Type` header should ALWAYS override the implicit one from `json=...` (principle of least surprise)\n✓ Should work with specialized JSON media types like `application/custom+json; my-parameter`\n✓ Should work with any Content-Type value, not only JSON ones\n✓ Content-Type should only ever have a single value (per RFC 9110)\n\n8.2 My Implementation Review:\n✓ Modified `BaseResponse.get_headers()` method in `/workspace/getsentry__responses__0.23/responses/__init__.py`\n✓ Added logic to detect if Content-Type is explicitly set in headers (handles both dict and list-of-tuples formats)\n✓ Only sets `self.content_type` if Content-Type is NOT explicitly provided in headers\n✓ Preserves all other header functionality unchanged\n✓ Handles case-insensitive header matching correctly\n✓ Works with both mapping-style headers (dict) and sequence-style headers (list of tuples)\n\n8.3 Testing Results:\n✓ Original reproduction case now works: `json={}` + `headers={\"Content-Type\": \"application/json\"}` → `\"application/json\"` (no comma)\n✓ Different Content-Type values work: `json={}` + `headers={\"Content-Type\": \"foo\"}` → `\"foo\"` \n✓ Custom JSON media types work: `json={}` + `headers={\"Content-Type\": \"application/custom+json; my-parameter\"}` → `\"application/custom+json; my-parameter\"`\n✓ Normal cases without explicit Content-Type still work (backward compatibility)\n✓ Edge cases with tuple headers format work correctly\n✓ All existing tests pass (206 passed, 2 skipped)\n\nThe fix is minimal, targeted, and addresses all the requirements in the issue description."
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 19,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 85,
+      "role": "tool",
+      "content_text": "Your thought has been logged.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 86,
+      "role": "assistant",
+      "content_text": "Let me run one final test to confirm the exact examples from the issue description work correctly:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "path": "/workspace/getsentry__responses__0.23/issue_example_test.py",
+            "command": "create",
+            "file_text": "#!/usr/bin/env python3\n\"\"\"\nExact reproduction of the issue examples to confirm fix.\n\"\"\"\n\nimport requests\nimport responses\n\n# Exact example from issue description\nresponses.add(\n    responses.GET,\n    \"https://example.org/\",\n    json={},\n    headers={\"Content-Type\": \"application/json\"},\n)\nresponses.start()\n\nr = requests.get(\"https://example.org/\")\ncontent_type = r.headers.get(\"Content-Type\")\nprint(f\"Issue example result: '{content_type}'\")\n\n# Should be \"application/json\" not \"application/json, application/json\"\nexpected = \"application/json\"\nactual = content_type\n\nif actual == expected:\n    print(\"✅ FIXED: No more comma-separated Content-Type values!\")\nelse:\n    print(f\"❌ STILL BROKEN: Expected '{expected}', got '{actual}'\")\n\nresponses.stop()\nresponses.reset()"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 22,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 87,
+      "role": "tool",
+      "content_text": "File created successfully at: /workspace/getsentry__responses__0.23/issue_example_test.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 6,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 88,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python issue_example_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 89,
+      "role": "tool",
+      "content_text": "Issue example result: 'application/json'\n✅ FIXED: No more comma-separated Content-Type values!\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 40,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 90,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && rm issue_example_test.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 91,
+      "role": "tool",
+      "content_text": "\n[The command completed with exit code 0.]\n[Current working directory: /workspace/getsentry__responses__0.23]\n[Python interpreter: /opt/conda/envs/testbed/bin/python]\n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 26,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 92,
+      "role": "assistant",
+      "content_text": "Let me also check that we haven't introduced any regressions by running a few more targeted tests:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/test_responses.py -k \"json\" -v"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 22,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 93,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0 -- /opt/conda/envs/testbed/bin/python\ncachedir: .pytest_cache\nUsing --randomly-seed=2666835714\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspace/getsentry__responses__0.23/.hypothesis/examples'))\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 152 items / 149 deselected / 3 selected\n\nresponses/tests/test_responses.py::test_accept_json_body PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  [ 33%]\nresponses/tests/test_responses.py::test_auto_calculate_content_length_json_body PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 214,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 94,
+      "role": "assistant",
+      "content_text": "Perfect! Let me also check if there are any tests specifically for headers:\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "cd /workspace/getsentry__responses__0.23 && python -m pytest responses/tests/test_responses.py -k \"header\" -v"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 16,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 95,
+      "role": "tool",
+      "content_text": "/opt/conda/envs/testbed/lib/python3.9/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================= test session starts ==========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================\nplatform linux -- Python 3.9.20, pytest-8.3.3, pluggy-1.5.0 -- /opt/conda/envs/testbed/bin/python\ncachedir: .pytest_cache\nUsing --randomly-seed=3105734473\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/workspace/getsentry__responses__0.23/.hypothesis/examples'))\nbenchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)\nrootdir: /workspace/getsentry__responses__0.23\nplugins: cov-6.0.0, randomly-3.16.0, hypothesis-6.119.3, asyncio-0.24.0, xdist-3.6.1, benchmark-5.1.0, pytest_httpserver-1.1.0, requests-mock-1.12.1, mock-3.14.0, bdd-8.0.0\nasyncio: mode=strict, default_loop_scope=None\ncollected 152 items / 146 deselected / 6 selected\n\nresponses/tests/test_responses.py::test_headers PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           [ 16%]\nresponses/tests/test_responses.py::test_legacy_adding_headers PASSED                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 239,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 96,
+      "role": "assistant",
+      "content_text": "Excellent! All header-related tests pass as well.\n\n## Summary\n\nI have successfully implemented a fix for the Content-Type header duplication issue in the responses library. Here's what was accomplished:\n\n### Problem Fixed\nThe issue was that when using both `json=...` parameter and explicit `Content-Type` headers in `responses.add()`, the library would create comma-separated Content-Type values like `\"application/json, application/json\"` instead of allowing the explicit header to override the implicit one.\n\n### Root Cause\nIn `BaseResponse.get_headers()` method, the code was:\n1. Setting Content-Type from `self.content_type` (implicit from `json=...`)\n2. Then extending with `self.headers` (including explicit Content-Type)\n3. HTTPHeaderDict's `extend()` method allows duplicates, creating comma-separated values\n\n### Solution Implemented\nModified the `get_headers()` method in `/workspace/getsentry__responses__0.23/responses/__init__.py` (lines 492-513) to:\n\n1. **Check for explicit Content-Type**: Detect if Content-Type is already explicitly set in `self.headers`\n2. **Handle both header formats**: Support both dict-style (`{\"Content-Type\": \"...\"}`) and tuple-style (`[(\"Content-Type\", \"...\")]`) headers  \n3. **Override behavior**: Only set the implicit Content-Type from `self.content_type` if no explicit Content-Type is provided\n4. **Case-insensitive matching**: Properly handle case variations like \"content-type\" vs \"Content-Type\"\n\n### Key Features of the Fix\n- ✅ **Explicit overrides implicit**: `headers={\"Content-Type\": \"custom/type\"}` takes precedence over implicit `application/json` from `json={}`\n- ✅ **Standards compliant**: Content-Type header now has only one value as per RFC 9110\n- ✅ **Backward compatible**: All existing functionality preserved\n- ✅ **Robust**: Handles both dict and list-of-tuples header formats\n- ✅ **Case insensitive**: Works with any case variation of \"Content-Type\"\n\n### Verification\n- ✅ Original issue examples now work correctly\n- ✅ All existing tests pass (206 passed, 2 skipped)  \n- ✅ Edge cases with different header formats work\n- ✅ Custom JSON media types supported\n- ✅ No regression in JSON or header functionality\n\nThe fix is minimal, targeted, and fully addresses all requirements specified in the issue description while maintaining backward compatibility.\n\n",
+      "tool_uses": [
+        {
+          "tool_name": "finish",
+          "tool_input": {
+            "message": "I have successfully implemented a fix for the Content-Type header duplication issue in the responses library.\n\n## Problem Summary\nThe issue occurred when using both `json=...` parameter and explicit `Content-Type` headers in `responses.add()`. Instead of the explicit header overriding the implicit one, the library created malformed comma-separated Content-Type values like `\"application/json, application/json\"`.\n\n## Solution Implemented\nI modified the `BaseResponse.get_headers()` method in `/workspace/getsentry__responses__0.23/responses/__init__.py` to:\n\n1. **Detect explicit Content-Type headers** in both dict-style (`{\"Content-Type\": \"...\"}`) and tuple-style (`[(\"Content-Type\", \"...\")]`) formats\n2. **Implement override behavior** where explicit Content-Type headers always take precedence over implicit ones from `json=...`  \n3. **Maintain backward compatibility** by preserving all existing functionality\n\n## Key Changes\n- Modified lines 492-513 in `responses/__init__.py`\n- Added logic to check for explicit Content-Type before setting the implicit one\n- Handles both mapping and sequence header formats robustly\n- Implements case-insensitive header matching\n\n## Verification Results\n✅ **Original issue fixed**: `json={}` + `headers={\"Content-Type\": \"application/json\"}` now returns `\"application/json\"` (not `\"application/json, application/json\"`)\n✅ **All existing tests pass**: 206 passed, 2 skipped  \n✅ **Edge cases work**: Different header formats, custom JSON media types, case variations\n✅ **Backward compatible**: No breaking changes to existing functionality\n✅ **Standards compliant**: Content-Type now has single value per RFC 9110\n\nThe fix follows the principle of least surprise where explicit headers always override implicit ones, fully addressing all requirements in the issue description."
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 387,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    }
+  ],
+  "session_token_totals": {
+    "input": 15635,
+    "output": 1368,
+    "cache_read": 0,
+    "total": 17003
+  },
+  "turn_count": 97
+}

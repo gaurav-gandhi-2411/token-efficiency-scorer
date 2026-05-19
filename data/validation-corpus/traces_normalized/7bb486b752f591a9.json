@@ -1,0 +1,872 @@
+{
+  "session_id": "7bb486b752f591a9",
+  "source_dataset": "SWE-Gym/OpenHands-Sampled-Trajectories",
+  "scaffold": "openhands_swegym",
+  "model": "unknown",
+  "license": "unspecified_annotated_labels_only",
+  "instance_id": "getmoto__moto-6212",
+  "outcome": {
+    "result": "pass",
+    "patch_diff": null
+  },
+  "turns": [
+    {
+      "turn_index": 0,
+      "role": "system",
+      "content_text": "You are a helpful assistant that can interact with a computer to solve tasks.\n<IMPORTANT>\n* If user provides a path, you should NOT assume it's relative to the current working directory. Instead, you should explore the file system to find the file before working on it.\n</IMPORTANT>\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 0,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 1,
+      "role": "user",
+      "content_text": "<uploaded_files>\n/workspace/getmoto__moto__4.1\n</uploaded_files>\nI've uploaded a python code repository in the directory getmoto__moto__4.1. Consider the following PR description:\n\n<pr_description>\nmock_athena fails to get \"primary\" work group\nHello! After upgrading from moto version 4.1.4 to 4.1.7, we now experience errors when performing the `athena_client.get_work_group(WorkGroup=\"primary\")` call. Querying any other work group than \"primary\" (existent or non-existent work groups) works fine.\r\n\r\nThe only code adaption we performed when upgrading the moto version, was removing our creation of the \"primary\" work group due to the breaking change mentioned in the changelog (\"Athena: Now automatically creates the default WorkGroup called `primary`\").\r\n\r\n### How to reproduce the issue\r\n\r\n#### Successful calls for other work groups:\r\n```\r\nimport boto3\r\nimport moto\r\n\r\ndef test_non_existing_work_group():\r\n    with moto.mock_athena():\r\n        athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\r\n        athena_client.get_work_group(WorkGroup=\"nonexisting\")\r\n\r\n\r\ndef test_existing_work_group():\r\n    with moto.mock_athena():\r\n        athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\r\n        athena_client.create_work_group(Name=\"existing\")\r\n        athena_client.get_work_group(WorkGroup=\"existing\")\r\n```\r\n\r\n#### Failing call:\r\n```\r\nimport boto3\r\nimport moto\r\n\r\n\r\ndef test_get_primary_work_group():\r\n    with moto.mock_athena():\r\n        athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\r\n        athena_client.get_work_group(WorkGroup=\"primary\")\r\n```\r\nTraceback:\r\n```\r\n    def test_get_primary_work_group():\r\n        with moto.mock_athena():\r\n            athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\r\n>           athena_client.get_work_group(WorkGroup=\"primary\")\r\n\r\nplayground/some_test.py:21: \r\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/client.py:530: in _api_call\r\n    return self._make_api_call(operation_name, kwargs)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/client.py:943: in _make_api_call\r\n    http, parsed_response = self._make_request(\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/client.py:966: in _make_request\r\n    return self._endpoint.make_request(operation_model, request_dict)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/endpoint.py:119: in make_request\r\n    return self._send_request(request_dict, operation_model)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/endpoint.py:199: in _send_request\r\n    success_response, exception = self._get_response(\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/endpoint.py:241: in _get_response\r\n    success_response, exception = self._do_get_response(\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/endpoint.py:308: in _do_get_response\r\n    parsed_response = parser.parse(\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/parsers.py:252: in parse\r\n    parsed = self._do_parse(response, shape)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/parsers.py:849: in _do_parse\r\n    parsed = self._handle_json_body(response['body'], shape)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/parsers.py:873: in _handle_json_body\r\n    return self._parse_shape(shape, parsed_json)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/parsers.py:332: in _parse_shape\r\n    return handler(shape, node)\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/parsers.py:663: in _handle_structure\r\n    final_parsed[member_name] = self._parse_shape(\r\n../../../.pyenv/versions/core_api/lib/python3.9/site-packages/botocore/pars",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 834,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 2,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1",
+            "view_range": [
+              0,
+              20
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 3,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nThe `view_range` parameter is not allowed when `path` points to a directory.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 18,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 4,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 5,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nHere's the files and directories up to 2 levels deep in /workspace/getmoto__moto__4.1, excluding hidden items:\n/workspace/getmoto__moto__4.1",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 22,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 6,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1/moto"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 7,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nHere's the files and directories up to 2 levels deep in /workspace/getmoto__moto__4.1/moto, excluding hidden items:\n/workspace/getmoto__moto__4.1/moto\n/workspace/getmoto__moto__4.1/moto/__init__.py\n/workspace/getmoto__moto__4.1/moto/acm\n/workspace/getmoto__moto__4.1/moto/acm/__init__.py\n/workspace/getmoto__moto__4.1/moto/acm/exceptions.py\n/workspace/getmoto__moto__4.1/moto/acm/models.py\n/workspace/getmoto__moto__4.1/moto/acm/responses.py\n/workspace/getmoto__moto__4.1/moto/acm/urls.py\n/workspace/getmoto__moto__4.1/moto/acm/utils.py\n/workspace/getmoto__moto__4.1/moto/acmpca\n/workspace/getmoto__moto__4.1/moto/acmpca/__init__.py\n/workspace/getmoto__moto__4.1/moto/acmpca/exceptions.py\n/workspace/getmoto__moto__4.1/moto/acmpca/models.py\n/workspace/getmoto__moto__4.1/moto/acmpca/responses.py\n/workspace/getmoto__moto__4.1/moto/acmpca/urls.py\n/workspace/getmoto__moto__4.1/moto/amp\n/workspace/getmoto__moto__4.1/moto/amp/__init__.py\n/workspace/getmoto__moto__4.1/moto/amp/exceptions.py\n/workspace/getmoto__moto__4.1/moto/amp/models.py\n/workspace/getmoto__moto__4.1/moto/amp/responses.py\n/workspace/getmoto__moto__4.1/moto/amp/urls.py\n/workspace/getmoto__moto__4.1/moto/amp/utils.py\n/workspace/getmoto__moto__4.1/moto/apigateway\n/workspace/getmoto__moto__4.1/moto/apigateway/__init__.py\n/workspace/getmoto__moto__4.1/moto/apigateway/exceptions.py\n/workspace/getmoto__moto__4.1/moto/apigateway/integration_parsers\n/workspace/getmoto__moto__4.1/moto/apigateway/models.py\n/workspace/getmoto__moto__4.1/moto/apigateway/responses.py\n/workspace/getmoto__moto__4.1/moto/apigateway/urls.py\n/workspace/getmoto__moto__4.1/moto/apigateway/utils.py\n/workspace/getmoto__moto__4.1/moto/apigatewayv2\n/workspace/getmoto__moto__4.1/moto/apigatewayv2/__init__.py\n/workspace/getmoto__moto__4.1/moto/apigatewayv2/exceptions.py\n/workspace/getmoto__moto__4.1/moto/apigatewayv2/models.py\n/workspace/getmoto__moto__4.1/moto/apigatewayv2/responses.py\n/workspace/getmoto__moto__4.1/moto/apigatewayv2/urls.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/__init__.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/exceptions.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/models.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/responses.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/urls.py\n/workspace/getmoto__moto__4.1/moto/applicationautoscaling/utils.py\n/workspace/getmoto__moto__4.1/moto/appsync\n/workspace/getmoto__moto__4.1/moto/appsync/__init__.py\n/workspace/getmoto__moto__4.1/moto/appsync/exceptions.py\n/workspace/getmoto__moto__4.1/moto/appsync/models.py\n/workspace/getmoto__moto__4.1/moto/appsync/responses.py\n/workspace/getmoto__moto__4.1/moto/appsync/urls.py\n/workspace/getmoto__moto__4.1/moto/athena\n/workspace/getmoto__moto__4.1/moto/athena/__init__.py\n/workspace/getmoto__moto__4.1/moto/athena/exceptions.py\n/workspace/getmoto__moto__4.1/moto/athena/models.py\n/workspace/getmoto__moto__4.1/moto/athena/responses.py\n/workspace/getmoto__moto__4.1/moto/athena/urls.py\n/workspace/getmoto__moto__4.1/moto/athena/utils.py\n/workspace/getmoto__moto__4.1/moto/autoscaling\n/workspace/getmoto__moto__4.1/moto/autoscaling/__init__.py\n/workspace/getmoto__moto__4.1/moto/autoscaling/exceptions.py\n/workspace/getmoto__moto__4.1/moto/autoscaling/models.py\n/workspace/getmoto__moto__4.1/moto/autoscaling/responses.py\n/workspace/getmoto__moto__4.1/moto/autoscaling/urls.py\n/workspace/getmoto__moto__4.1/moto/awslambda\n/workspace/getmoto__moto__4.1/moto/awslambda/__init__.py\n/workspace/getmoto__moto__4.1/moto/awslambda/exceptions.py\n/workspace/getmoto__moto__4.1/moto/awslambda/models.py\n/workspace/getmoto__moto__4.1/moto/awslambda/policy.py\n/workspace/getmoto__moto__4.1/moto/awslambda/responses.py\n/workspace/getmoto__moto__4.1/moto/awslambda/urls.py\n/workspace/getmoto__moto__4.1/moto/awslambda/utils.py\n/workspace/getmoto__moto__4.1/moto/backend_index.py\n/workspace/getmoto__moto__4.1",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 462,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 8,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 9,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nHere's the files and directories up to 2 levels deep in /workspace/getmoto__moto__4.1/moto/athena, excluding hidden items:\n/workspace/getmoto__moto__4.1/moto/athena\n/workspace/getmoto__moto__4.1/moto/athena/__init__.py\n/workspace/getmoto__moto__4.1/moto/athena/exceptions.py\n/workspace/getmoto__moto__4.1/moto/athena/models.py\n/workspace/getmoto__moto__4.1/moto/athena/responses.py\n/workspace/getmoto__moto__4.1/moto/athena/urls.py\n/workspace/getmoto__moto__4.1/moto/athena/utils.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 29,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 10,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 11,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nHere's the result of running `cat -n` on /workspace/getmoto__moto__4.1/moto/athena/models.py:\n     1\timport time\n     2\tfrom datetime import datetime\n     3\tfrom moto.core import BaseBackend, BackendDict, BaseModel\n     4\tfrom moto.moto_api._internal import mock_random\n     5\tfrom moto.utilities.paginator import paginate\n     6\tfrom typing import Any, Dict, List, Optional\n     7\t\n     8\t\n     9\tclass TaggableResourceMixin(object):\n    10\t    # This mixing was copied from Redshift when initially implementing\n    11\t    # Athena. TBD if it's worth the overhead.\n    12\t\n    13\t    def __init__(\n    14\t        self,\n    15\t        account_id: str,\n    16\t        region_name: str,\n    17\t        resource_name: str,\n    18\t        tags: List[Dict[str, str]],\n    19\t    ):\n    20\t        self.region = region_name\n    21\t        self.resource_name = resource_name\n    22\t        self.tags = tags or []\n    23\t        self.arn = f\"arn:aws:athena:{region_name}:{account_id}:{resource_name}\"\n    24\t\n    25\t    def create_tags(self, tags: List[Dict[str, str]]) -> List[Dict[str, str]]:\n    26\t        new_keys = [tag_set[\"Key\"] for tag_set in tags]\n    27\t        self.tags = [tag_set for tag_set in self.tags if tag_set[\"Key\"] not in new_keys]\n    28\t        self.tags.extend(tags)\n    29\t        return self.tags\n    30\t\n    31\t    def delete_tags(self, tag_keys: List[str]) -> List[Dict[str, str]]:\n    32\t        self.tags = [tag_set for tag_set in self.tags if tag_set[\"Key\"] not in tag_keys]\n    33\t        return self.tags\n    34\t\n    35\t\n    36\tclass WorkGroup(TaggableResourceMixin, BaseModel):\n    37\t\n    38\t    resource_type = \"workgroup\"\n    39\t    state = \"ENABLED\"\n    40\t\n    41\t    def __init__(\n    42\t        self,\n    43\t        athena_backend: \"AthenaBackend\",\n    44\t        name: str,\n    45\t        configuration: str,\n    46\t        description: str,\n    47\t        tags: List[Dict[str, str]],\n    48\t    ):\n    49\t        self.region_name = athena_backend.region_name\n    50\t        super().__init__(\n    51\t            athena_backend.account_id,\n    52\t            self.region_name,\n    53\t            f\"workgroup/{name}\",\n    54\t            tags,\n    55\t        )\n    56\t        self.athena_backend = athena_backend\n    57\t        self.name = name\n    58\t        self.description = description\n    59\t        self.configuration = configuration\n    60\t\n    61\t\n    62\tclass DataCatalog(TaggableResourceMixin, BaseModel):\n    63\t    def __init__(\n    64\t        self,\n    65\t        athena_backend: \"AthenaBackend\",\n    66\t        name: str,\n    67\t        catalog_type: str,\n    68\t        description: str,\n    69\t        parameters: str,\n    70\t        tags: List[Dict[str, str]],\n    71\t    ):\n    72\t        self.region_name = athena_backend.region_name\n    73\t        super().__init__(\n    74\t            athena_backend.account_id,\n    75\t            self.region_name,\n    76\t            f\"datacatalog/{name}\",\n    77\t            tags,\n    78\t        )\n    79\t        self.athena_backend = athena_backend\n    80\t        self.name = name\n    81\t        self.type = catalog_type\n    82\t        self.description = description\n    83\t        self.parameters = parameters\n    84\t\n    85\t\n    86\tclass Execution(BaseModel):\n    87\t    def __init__(self, query: str, context: str, config: str, workgroup: WorkGroup):\n    88\t        self.id = str(mock_random.uuid4())\n    89\t        self.query = query\n    90\t        self.context = context\n    91\t        self.config = config\n    92\t        self.workgroup = workgroup\n    93\t        self.start_time = time.time()\n    94\t        self.status = \"SUCCEEDED\"\n    95\t\n    96\t\n    97\tclass QueryResults(BaseModel):\n    98\t    def __init__(self, rows: List[Dict[str, Any]], column_info: List[Dict[str, str]]):\n    99\t        self.rows = rows\n   100\t        self.column_info = column_info\n   101\t\n   102\t    def to_dict(self) -> Dict[str, Any]:\n   103\t        return {\n   104\t            \"ResultSet\": {\n   105\t           ",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 1816,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 12,
+      "role": "assistant",
+      "content_text": "The `AthenaBackend` class in the `models.py` file of the `moto/athena` directory is responsible for managing workgroups, including the \"primary\" workgroup. The `create_work_group` method is used to initialize the \"primary\" workgroup, and the `get_work_group` method is used to retrieve workgroup details.\n\nThe error described in the PR occurs when trying to get the \"primary\" workgroup, which suggests that there might be an issue with how the \"primary\" workgroup is being initialized or retrieved.\n\n### Steps to Reproduce the Error\n\nTo reproduce the error, I will create a script that attempts to retrieve the \"primary\" workgroup using the `get_work_group` method. This script will simulate the failing test case described in the PR.\n\n### Script to Reproduce the Error\n\n```python\nimport boto3\nimport moto\n\ndef test_get_primary_work_group():\n    with moto.mock_athena():\n        athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\n        try:\n            response = athena_client.get_work_group(WorkGroup=\"primary\")\n            print(\"WorkGroup Retrieved:\", response)\n        except Exception as e:\n            print(\"Error:\", e)\n\nif __name__ == \"__main__\":\n    test_get_primary_work_group()\n```\n\nI will execute this script to confirm the error.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "create",
+            "path": "/workspace/getmoto__moto__4.1/reproduce_error.py",
+            "file_text": "import boto3\nimport moto\n\ndef test_get_primary_work_group():\n    with moto.mock_athena():\n        athena_client = boto3.client(\"athena\", region_name=\"us-east-1\")\n        try:\n            response = athena_client.get_work_group(WorkGroup=\"primary\")\n            print(\"WorkGroup Retrieved:\", response)\n        except Exception as e:\n            print(\"Error:\", e)\n\nif __name__ == \"__main__\":\n    test_get_primary_work_group()\n"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 204,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 13,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nFile created successfully at: /workspace/getmoto__moto__4.1/reproduce_error.py",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 7,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 14,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "python /workspace/getmoto__moto__4.1/reproduce_error.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 15,
+      "role": "tool",
+      "content_text": "OBSERVATION:\npython /workspace/getmoto__moto__4.1/reproduce_error.py\r\nError: 'str' object has no attribute 'get'[Python Interpreter: /opt/miniconda3/envs/testbed/bin/python]\nroot@openhands-workspace:/workspace/getmoto__moto__4.1 # \n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 26,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 16,
+      "role": "assistant",
+      "content_text": "The error message `'str' object has no attribute 'get'` confirms the issue described in the PR. This error occurs when the `get_work_group` method attempts to access the `configuration` attribute of the `WorkGroup` object, which is expected to be a dictionary but is currently a string.\n\n### Fixing the Issue\n\nTo resolve this, we need to ensure that the `configuration` attribute of the `WorkGroup` class is initialized as a dictionary rather than a string. This will allow the `get_work_group` method to correctly access the configuration details.\n\n### Steps to Fix\n\n1. **Modify the `WorkGroup` Class**: Update the `configuration` parameter in the `WorkGroup` class to be a dictionary.\n\n2. **Update the `create_work_group` Method**: Ensure that the `create_work_group` method passes a dictionary for the `configuration` parameter when creating a new `WorkGroup`.\n\nLet's implement these changes in the `models.py` file.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 176,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 17,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 18,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              40,
+              60
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 19,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 20,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              170,
+              190
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 21,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 22,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              40,
+              50
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 23,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 24,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              170,
+              180
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 25,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 26,
+      "role": "assistant",
+      "content_text": "It seems that the `configuration: str,` string appears twice in the file, and I need to ensure that the replacement is unique. Let's replace both occurrences with `Dict[str, Any]` to ensure the `configuration` is treated as a dictionary.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              40,
+              60
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 49,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 27,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 28,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              170,
+              190
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 29,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 30,
+      "role": "assistant",
+      "content_text": "I will replace both occurrences of `configuration: str,` with `Dict[str, Any]` by specifying the full function signature to ensure uniqueness. Let's proceed with this approach.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              40,
+              60
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        },
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "configuration: str,",
+            "new_str": "configuration: Dict[str, Any],",
+            "view_range": [
+              170,
+              190
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 32,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 31,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 32,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nERROR:\nNo replacement was performed. Multiple occurrences of old_str `configuration: str,` in lines [45, 178]. Please ensure it is unique",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 27,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 33,
+      "role": "assistant",
+      "content_text": "It seems that the replacement is not being performed due to multiple occurrences of the string. I will specify the full function signature for both the `WorkGroup` constructor and the `create_work_group` method to ensure uniqueness. Let's proceed with this approach.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "def __init__(\n        self,\n        athena_backend: \"AthenaBackend\",\n        name: str,\n        configuration: str,\n        description: str,\n        tags: List[Dict[str, str]],\n    ):",
+            "new_str": "def __init__(\n        self,\n        athena_backend: \"AthenaBackend\",\n        name: str,\n        configuration: Dict[str, Any],\n        description: str,\n        tags: List[Dict[str, str]],\n    ):"
+          },
+          "tool_result": null,
+          "is_error": false
+        },
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "def create_work_group(\n        self,\n        name: str,\n        configuration: str,\n        description: str,\n        tags: List[Dict[str, str]],\n    ) -> Optional[WorkGroup]:",
+            "new_str": "def create_work_group(\n        self,\n        name: str,\n        configuration: Dict[str, Any],\n        description: str,\n        tags: List[Dict[str, str]],\n    ) -> Optional[WorkGroup]:"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 52,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 34,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nThe file /workspace/getmoto__moto__4.1/moto/athena/models.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/getmoto__moto__4.1/moto/athena/models.py:\n    37\t\n    38\t    resource_type = \"workgroup\"\n    39\t    state = \"ENABLED\"\n    40\t\n    41\t    def __init__(\n    42\t        self,\n    43\t        athena_backend: \"AthenaBackend\",\n    44\t        name: str,\n    45\t        configuration: Dict[str, Any],\n    46\t        description: str,\n    47\t        tags: List[Dict[str, str]],\n    48\t    ):\n    49\t        self.region_name = athena_backend.region_name\n    50\t        super().__init__(\n    51\t            athena_backend.account_id,\n    52\t            self.region_name,\nReview the changes and make sure they are as expected. Edit the file again if necessary.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 102,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 35,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nThe file /workspace/getmoto__moto__4.1/moto/athena/models.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/getmoto__moto__4.1/moto/athena/models.py:\n   171\t        return BaseBackend.default_vpc_endpoint_service_factory(\n   172\t            service_region, zones, \"athena\"\n   173\t        )\n   174\t\n   175\t    def create_work_group(\n   176\t        self,\n   177\t        name: str,\n   178\t        configuration: Dict[str, Any],\n   179\t        description: str,\n   180\t        tags: List[Dict[str, str]],\n   181\t    ) -> Optional[WorkGroup]:\n   182\t        if name in self.work_groups:\n   183\t            return None\n   184\t        work_group = WorkGroup(self, name, configuration, description, tags)\n   185\t        self.work_groups[name] = work_group\nReview the changes and make sure they are as expected. Edit the file again if necessary.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 114,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 36,
+      "role": "assistant",
+      "content_text": "The changes have been successfully made to the `WorkGroup` constructor and the `create_work_group` method to treat the `configuration` as a dictionary. Now, let's rerun the script to verify if the issue is resolved.",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "python /workspace/getmoto__moto__4.1/reproduce_error.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 42,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 37,
+      "role": "tool",
+      "content_text": "OBSERVATION:\npython /workspace/getmoto__moto__4.1/reproduce_error.py\r\nError: 'str' object has no attribute 'get'[Python Interpreter: /opt/miniconda3/envs/testbed/bin/python]\nroot@openhands-workspace:/workspace/getmoto__moto__4.1 # \n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 26,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 38,
+      "role": "assistant",
+      "content_text": "The error persists, indicating that the issue might not be solely with the type of the `configuration` attribute. Let's investigate further by checking how the `configuration` is being used in the `get_work_group` method and ensure that it is correctly initialized as a dictionary.\n\n### Next Steps\n\n1. **Initialize `configuration` as a Dictionary**: Ensure that the `configuration` parameter is initialized as a dictionary when creating the \"primary\" workgroup in the `AthenaBackend` constructor.\n\n2. **Check `get_work_group` Method**: Verify that the `get_work_group` method correctly handles the `configuration` as a dictionary.\n\nLet's proceed with these steps.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "view",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "view_range": [
+              198,
+              210
+            ]
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 119,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 39,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nHere's the result of running `cat -n` on /workspace/getmoto__moto__4.1/moto/athena/models.py:\n   198\t\n   199\t    def get_work_group(self, name: str) -> Optional[Dict[str, Any]]:\n   200\t        if name not in self.work_groups:\n   201\t            return None\n   202\t        wg = self.work_groups[name]\n   203\t        return {\n   204\t            \"Name\": wg.name,\n   205\t            \"State\": wg.state,\n   206\t            \"Configuration\": wg.configuration,\n   207\t            \"Description\": wg.description,\n   208\t            \"CreationTime\": time.time(),\n   209\t        }\n   210",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 68,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 40,
+      "role": "assistant",
+      "content_text": "The `get_work_group` method is returning the `configuration` attribute directly. If this attribute is not initialized as a dictionary, it will cause the error observed. Let's ensure that the \"primary\" workgroup is initialized with a dictionary for its configuration.\n\n### Update Initialization of \"Primary\" Workgroup\n\nIn the `AthenaBackend` constructor, where the \"primary\" workgroup is created, we should initialize the `configuration` as a dictionary. Let's make this change.",
+      "tool_uses": [
+        {
+          "tool_name": "str_replace_editor",
+          "tool_input": {
+            "command": "str_replace",
+            "path": "/workspace/getmoto__moto__4.1/moto/athena/models.py",
+            "old_str": "self.create_work_group(\"primary\", \"\", \"\", [])",
+            "new_str": "self.create_work_group(\"primary\", {}, \"\", [])"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 85,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 41,
+      "role": "tool",
+      "content_text": "OBSERVATION:\nThe file /workspace/getmoto__moto__4.1/moto/athena/models.py has been edited. Here's the result of running `cat -n` on a snippet of /workspace/getmoto__moto__4.1/moto/athena/models.py:\n   160\t        self.query_results_queue: List[QueryResults] = []\n   161\t        self.prepared_statements: Dict[str, PreparedStatement] = {}\n   162\t\n   163\t        # Initialise with the primary workgroup\n   164\t        self.create_work_group(\"primary\", {}, \"\", [])\n   165\t\n   166\t    @staticmethod\n   167\t    def default_vpc_endpoint_service(\n   168\t        service_region: str, zones: List[str]\nReview the changes and make sure they are as expected. Edit the file again if necessary.",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 91,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 42,
+      "role": "assistant",
+      "content_text": "",
+      "tool_uses": [
+        {
+          "tool_name": "execute_bash",
+          "tool_input": {
+            "command": "python /workspace/getmoto__moto__4.1/reproduce_error.py"
+          },
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 1,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 43,
+      "role": "tool",
+      "content_text": "OBSERVATION:\npython /workspace/getmoto__moto__4.1/reproduce_error.py\r\nWorkGroup Retrieved: {'WorkGroup': {'Name': 'primary', 'State': 'ENABLED', 'Configuration': {}, 'Description': '', 'CreationTime': datetime.datetime(2024, 10, 30, 18, 25, 15, 373072, tzinfo=tzlocal())}, 'ResponseMetadata': {'HTTPStatusCode': 200, 'HTTPHeaders': {'server': 'amazon.com'}, 'RetryAttempts': 0}}[Python Interpreter: /opt/miniconda3/envs/testbed/bin/python]\nroot@openhands-workspace:/workspace/getmoto__moto__4.1 # \n[Command finished with exit code 0]",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 53,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 44,
+      "role": "assistant",
+      "content_text": "The issue has been resolved successfully. The script now retrieves the \"primary\" workgroup without any errors, confirming that the `configuration` attribute is correctly initialized as a dictionary.\n\n### Summary of Changes\n\n1. **Updated `WorkGroup` and `create_work_group` Methods**: Changed the `configuration` parameter type from `str` to `Dict[str, Any]` to ensure it is treated as a dictionary.\n\n2. **Initialized `configuration` as a Dictionary**: Modified the `AthenaBackend` constructor to initialize the \"primary\" workgroup with an empty dictionary for its configuration.\n\nThe error described in the PR is now fixed, and the \"primary\" workgroup can be retrieved successfully. If you have any further questions or need additional modifications, feel free to ask!",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 0,
+        "output": 140,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 45,
+      "role": "user",
+      "content_text": "Please continue working on the task on whatever approach you think is suitable.\nIf you think you have solved the task, please first send your answer to user through message and then finish the interaction.\nIMPORTANT: YOU SHOULD NEVER ASK FOR HUMAN HELP.\n",
+      "tool_uses": [],
+      "token_counts": {
+        "input": 55,
+        "output": 0,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    },
+    {
+      "turn_index": 46,
+      "role": "assistant",
+      "content_text": "The task has been successfully completed. Here's a summary of the steps taken to resolve the issue:\n\n1. **Explored the Repository**: Identified the relevant files and located the `AthenaBackend` class in the `models.py` file of the `moto/athena` directory.\n\n2. **Reproduced the Error**: Created a script to simulate the failing test case described in the PR, confirming the error `'str' object has no attribute 'get'`.\n\n3. **Fixed the Issue**: \n   - Updated the `WorkGroup` and `create_work_group` methods to treat the `configuration` parameter as a dictionary.\n   - Ensured the \"primary\" workgroup was initialized with a dictionary for its configuration in the `AthenaBackend` constructor.\n\n4. **Verified the Fix**: Reran the script to confirm that the error was resolved, successfully retrieving the \"primary\" workgroup.\n\nThe changes ensure that the \"primary\" workgroup is correctly initialized and can be retrieved without errors, addressing the issue described in the PR.\n\nIf you have any further questions or need additional modifications, feel free to ask! \n\nI will now finish the interaction.",
+      "tool_uses": [
+        {
+          "tool_name": "finish",
+          "tool_input": {},
+          "tool_result": null,
+          "is_error": false
+        }
+      ],
+      "token_counts": {
+        "input": 0,
+        "output": 210,
+        "cache_read": 0,
+        "cache_creation": 0
+      }
+    }
+  ],
+  "session_token_totals": {
+    "input": 3966,
+    "output": 1121,
+    "cache_read": 0,
+    "total": 5087
+  },
+  "turn_count": 47
+}
