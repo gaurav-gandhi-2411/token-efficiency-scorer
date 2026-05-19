@@ -1,0 +1,84 @@
+{
+  "session_id": "99ba15703f231e97",
+  "source_dataset": "synthetic_ood",
+  "scaffold": "claude_code",
+  "model": "claude-sonnet-4-6",
+  "license": "CC0",
+  "instance_id": "synthetic__shell_debug-1",
+  "ood_source": "synthetic",
+  "ood_task_category": "shell_scripting",
+  "outcome": {
+    "result": "pass",
+    "patch_diff": null
+  },
+  "turns": [
+    {
+      "turn_index": 0,
+      "role": "system",
+      "content_text": "You are Claude Code helping debug a shell script.",
+      "tool_uses": []
+    },
+    {
+      "turn_index": 1,
+      "role": "user",
+      "content_text": "My deploy.sh script fails silently. When I run it in CI, it exits 0 but the service doesn't restart. Help me add proper error handling.",
+      "tool_uses": []
+    },
+    {
+      "turn_index": 2,
+      "role": "assistant",
+      "content_text": "Let me read the deploy script.",
+      "tool_uses": [
+        {
+          "tool_name": "Read",
+          "tool_input": {
+            "file_path": "deploy.sh"
+          },
+          "tool_result": "#!/bin/bash\ndocker build -t myapp .\ndocker push myapp:latest\nssh prod 'docker pull myapp:latest && docker-compose restart'"
+        }
+      ]
+    },
+    {
+      "turn_index": 3,
+      "role": "assistant",
+      "content_text": "The script lacks `set -euo pipefail` and has no error checking on the ssh command. Let me also add the SSH exit code capture.",
+      "tool_uses": [
+        {
+          "tool_name": "Bash",
+          "tool_input": {
+            "command": "bash -n deploy.sh && echo 'syntax ok'"
+          },
+          "tool_result": "syntax ok"
+        }
+      ]
+    },
+    {
+      "turn_index": 4,
+      "role": "assistant",
+      "content_text": "Syntax is fine but runtime errors are silently swallowed. Here's the fixed version:",
+      "tool_uses": [
+        {
+          "tool_name": "Write",
+          "tool_input": {
+            "file_path": "deploy.sh",
+            "content": "#!/bin/bash\nset -euo pipefail\ntrap 'echo \"ERROR: deploy failed at line $LINENO\" >&2' ERR\ndocker build -t myapp . || { echo 'docker build failed'; exit 1; }\ndocker push myapp:latest || { echo 'docker push failed'; exit 1; }\nssh prod 'docker pull myapp:latest && docker-compose restart' || { echo 'remote restart failed'; exit 1; }\necho 'Deploy complete'"
+          },
+          "tool_result": null
+        }
+      ]
+    },
+    {
+      "turn_index": 5,
+      "role": "assistant",
+      "content_text": "Added `set -euo pipefail` at the top, a trap for error logging, and explicit error messages on each step. The script now exits non-zero on any failure.",
+      "tool_uses": []
+    }
+  ],
+  "session_token_totals": {
+    "input": 510,
+    "output": 420,
+    "cache_read": 0,
+    "total": 930
+  },
+  "turn_count": 6
+}

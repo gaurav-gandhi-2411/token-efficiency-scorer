@@ -73,6 +73,8 @@ Produce a JSON object with exactly this structure:
   "per_turn_labels": [
     {{
       "turn_index": <int>,
+      "is_retry": <bool>,
+      "is_retry_reason": "<empty string if false, else 1-sentence reason>",
       "is_backtrack": <bool>,
       "is_backtrack_reason": "<empty string if false, else 1-sentence reason>",
       "tool_result_used": <bool>,
@@ -91,9 +93,10 @@ Produce a JSON object with exactly this structure:
 }}
 
 LABEL DEFINITIONS
+is_retry: True if this turn calls the same tool with the same arguments that was called (and failed or produced an error) in a prior turn of this session. A retry is a sign the agent did not learn from the prior error.
 is_backtrack: True if this turn explicitly reverses or abandons a prior approach (e.g., "let me try a different approach", undoing edits, abandoning a file path that was partially explored).
 tool_result_used: True if the result of a tool call in this turn is visibly used in the assistant's reasoning or the next assistant turn. False if the tool was called but the result appears to have been ignored.
-redundant_read: True if this turn reads a file/path that was already read in an earlier turn and has not been modified since.
+redundant_read: True if this turn reads a file/path that was already read in an earlier turn and has not been modified since. Reading the same file again without an intervening edit is wasteful.
 wasted_reasoning: True if this turn contains reasoning that the agent itself contradicts in a later turn (e.g., concludes X is the root cause, then later correctly identifies a different root cause).
 
 Only label assistant turns (role=assistant or role=ai). Return an entry for each assistant turn in the transcript, in order.
@@ -202,7 +205,7 @@ def compute_iaa(haiku_dir: pathlib.Path, sonnet_dir: pathlib.Path) -> dict[str, 
         return {"error": f"Not enough overlap ({len(overlap)} sessions)"}
 
     # Binary labels for kappa computation
-    label_fields = ["is_backtrack", "tool_result_used", "redundant_read", "wasted_reasoning"]
+    label_fields = ["is_retry", "is_backtrack", "tool_result_used", "redundant_read", "wasted_reasoning"]
     results: dict[str, dict] = {}
 
     for field in label_fields:

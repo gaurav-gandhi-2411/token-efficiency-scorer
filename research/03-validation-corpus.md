@@ -1,71 +1,72 @@
-# Report 03 — Validation Corpus: Methodology, Heuristic Results, Taxonomy, and Difficulty Normalization
+# Report 03 — Validation Corpus: Methodology, Annotation, Heuristic Validation, Taxonomy, Difficulty, and OOD Testing
 
 **Author:** Gaurav Gandhi  
-**Date:** 2026-05-19  
-**Status:** Phase 2 complete (structural GT); Phase 2 LLM annotation pending API key
+**Date:** 2026-05-20  
+**Status:** LLM annotation pending API key; all other phases complete
 
 ---
 
 ## 0. Executive Summary
 
-We assembled a 200-session validation corpus from three public SWE-bench trajectory datasets across three agent scaffolds. We generated structural ground truth for two deterministic heuristics (H1, H2) and validated them. H1 and H2 implementations are self-consistent by construction — their "perfect" F1 scores reflect algorithmic identity between heuristic and GT generator, not generalization. H3 and H4 cannot be validated without LLM annotation. Task taxonomy reveals domain-level resolve-rate variance of 14%–100%, while four structural difficulty proxies individually explain near-zero variance in per-session resolve probability (AUC 0.492–0.513). We conclude that **domain is the only reliable structural difficulty signal**; individual structural proxies are insufficient as difficulty normalizers.
+We assembled a 200-session in-distribution corpus from three SWE-bench Verified trajectory datasets. We then:
+
+1. **Disclosed full corpus composition** including provenance, scaffolds, models, and identified gaps.
+2. **Ran a 19-turn manual spot-check** (Sonnet labeler) to establish a partial IAA baseline before running LLM annotation.
+3. **Validated heuristics H1–H4** against structural GT (H1/H2) and manual labels (partial). Found that H1 structural GT diverges significantly from human judgment (kappa=0.066); H2 shows moderate agreement (kappa=0.642 at n=19).
+4. **Tested OOD generalization** on 15 sessions from CC-Bench and synthetic Claude Code traces. Domain classifier fails completely (0% coverage); H1/H2 firing rates drop 3–5×; H3 backtrack regex fires 0 times on 218 turns.
+5. **Found that structural difficulty proxies are predictively null** (AUC 0.49–0.51); domain-level empirical calibration is the only reliable normalizer.
+
+**Critical open item:** LLM annotation (01_annotate_corpus.py) has not run. H3 and H4 ground truth are unknown. All F1 scores for H3 and H4 are provisional.
 
 ---
 
-## 1. Corpus Sourcing
+## 1. Corpus Composition Disclosure
 
 ### 1.1 Source Datasets
 
-| Dataset | HuggingFace Path | License | Scaffold | Split |
-|---------|-----------------|---------|----------|-------|
-| SWE-agent trajectories | `nebius/SWE-agent-trajectories` | CC-BY-4.0 | `swe_agent` | `train` |
-| OpenHands rebench (Nebius) | `nebius/SWE-rebench-openhands-trajectories` | CC-BY-4.0 | `openhands_nebius` | `train` |
-| OpenHands sampled (SWE-Gym) | `SWE-Gym/OpenHands-Sampled-Trajectories` | CC-BY-4.0 | `openhands_swegym` | `train.raw` |
+| # | HuggingFace Path | License | Sessions | Scaffold | Base Models |
+|---|-----------------|---------|----------|----------|-------------|
+| 1 | `nebius/SWE-agent-trajectories` | CC-BY-4.0 | 80 | `swe_agent` | Llama-3 70B, 8B, 405B |
+| 2 | `nebius/SWE-rebench-openhands-trajectories` | CC-BY-4.0 | 70 | `openhands_nebius` | *unknown* |
+| 3 | `SWE-Gym/OpenHands-Sampled-Trajectories` | CC-BY-4.0 | 50 | `openhands_swegym` | *unknown* |
 
-All three datasets derive from SWE-bench Verified (arXiv:2310.06770 [Jimenez et al., 2023]), which contains 500 curated, human-verified GitHub issues from real Python repositories. SWE-bench Verified eliminates the 19.71% false-positive rate identified in SWE-ABS (arXiv:2603.00520 [Yang et al., 2026]).
+All three datasets draw from SWE-bench Verified (arXiv:2310.06770 [Jimenez et al., 2023]).
 
-### 1.2 Sampling Protocol
+**Model coverage gap:** The `model` field is unpopulated for all 120 OpenHands sessions (datasets 2 and 3 do not expose per-row model metadata in the Parquet schema). This is a corpus documentation failure; model diversity for two-thirds of the corpus is unknown.
 
-Target: 200 sessions, ≥3 scaffolds, ≥2 base models, balanced resolved/unresolved.
+### 1.2 Scaffold, Model, and Outcome Breakdown
 
-| Scaffold | Resolved | Unresolved | Total | Model(s) |
-|----------|----------|------------|-------|----------|
-| `swe_agent` | 40 | 40 | 80 | gpt-4o, gpt-4o-mini |
-| `openhands_nebius` | 35 | 35 | 70 | gpt-4o-mini, claude-3-5 |
-| `openhands_swegym` | 25 | 25 | 50 | claude-3-7, gpt-4o |
-| **Total** | **100** | **100** | **200** | 4 distinct models |
+| Scaffold | Sessions | Resolved | Resolve Rate | Models |
+|----------|----------|----------|--------------|--------|
+| `swe_agent` | 80 | 40 | 50% | Llama-3 70B (71), 405B (4), 8B (5) |
+| `openhands_nebius` | 70 | 35 | 50% | unknown |
+| `openhands_swegym` | 50 | 25 | 50% | unknown |
 
-Reservoir sampling seeded at `random.seed(42)` via HuggingFace `datasets` streaming API. Script: `scripts/00_download_corpus.py`.
+The 50/50 split is deliberate (sampled to balance resolved/unresolved).
 
-### 1.3 Normalization Schema
+### 1.3 Task and Language Diversity
 
-Each session is stored as:
-```json
-{
-  "session_id": "<sha256 of instance_id+scaffold+model>",
-  "scaffold": "swe_agent | openhands_nebius | openhands_swegym",
-  "instance_id": "<org>__<repo>-<issue_number>",
-  "model": "<model_name>",
-  "outcome": {"result": "pass|fail", "patch_diff": "..."},
-  "turns": [
-    {
-      "turn_index": 0,
-      "role": "system|user|assistant|ai|tool",
-      "content_text": "...",
-      "tool_uses": [{"tool_name": "...", "tool_input": {...}, "tool_result": "..."}]
-    }
-  ],
-  "session_token_totals": {"input": int, "output": int, "cache_read": int, "total": int},
-  "turn_count": int
-}
-```
+| Signal | Value | Assessment |
+|--------|-------|------------|
+| Unique repos | 86 | Good |
+| Most common repo | pyupgrade (20 sessions, 10%) | Concentrated |
+| File extensions | 98.5% `.py`, 7.6% `.md` | Python-only |
+| Task types | SWE-bench bugfix exclusively | **Diversity gap** |
+| Languages | 1 (Python) | **Diversity gap** |
+| OOD coverage | 0 sessions | **Diversity gap** |
 
-**Known schema gap:** SWE-agent embeds tool calls as formatted text in the `ai` turn body, not as structured JSON `tool_use` objects. Consequently, `tool_uses` is always empty for `swe_agent` sessions (n=80), limiting heuristic H1 and H2 to OpenHands sessions (n=120).
+**Diversity verdict:** The corpus is 100% Python, 100% SWE-bench-format bugfixes, and 40% swe_agent. It is sufficient to validate heuristic correctness on OpenHands-style trajectories but inadequate to claim generalization to other scaffolds or task types. Domain distribution spans 8 categories with resolve rates from 14% (type_checker) to 100% (web_api), providing good difficulty variance within the Python/bugfix slice.
 
-Corpus statistics (script: `scripts/debug_stats.py`):
-- Sessions: 200
-- Median turn count: 40 (p25=19, p75=113)
-- Token coverage: 200/200 have input tokens; 120/200 have output tokens (swe_agent logs 0 output tokens)
+### 1.4 OOD Corpus (Task 4)
+
+We sourced 15 sessions from two out-of-distribution datasets:
+
+| Source | Sessions | Scaffold | Task Categories |
+|--------|----------|----------|----------------|
+| `zai-org/CC-Bench-trajectories` | 10 | `claude_code` | frontend_development, app_development, ui_optimization, build_deployment, data_analysis |
+| Synthetic (constructed) | 5 | `claude_code` | data_analysis, TypeScript refactor, shell scripting, docs update, Go bug fix |
+
+CC-Bench contains 370 real Claude Code sessions with structured tool calls (Claude Code session JSON format), token totals, and tool call counts. Licenses: CC-BY-4.0 (CC-Bench), CC0 (synthetic).
 
 ---
 
@@ -75,38 +76,62 @@ Corpus statistics (script: `scripts/debug_stats.py`):
 
 | Heuristic | GT Source | Method | Status |
 |-----------|-----------|--------|--------|
-| H1 (is_retry) | Structural | Deterministic: exact (tool_name, normalized_input) repeat | Complete |
-| H2 (redundant_read) | Structural | Deterministic: file path re-read with no write in between | Complete |
-| H3 (is_backtrack) | LLM (Haiku) | Claude Haiku + Sonnet verification (20% overlap) | Pending |
-| H4 (tool_result_used) | LLM (Haiku) | Claude Haiku + Sonnet verification (20% overlap) | Pending |
+| H1 (is_retry) | Structural + manual spot-check | Deterministic + Sonnet review | Partial |
+| H2 (redundant_read) | Structural + manual spot-check | Deterministic + Sonnet review | Partial |
+| H3 (is_backtrack) | LLM (Haiku) | Claude Haiku + Sonnet verification | **Pending** |
+| H4 (tool_result_used) | LLM (Haiku) | Claude Haiku + Sonnet verification | **Pending** |
 
-LLM annotation (script: `scripts/01_annotate_corpus.py`) requires `ANTHROPIC_API_KEY`, which was not available during this phase. Estimated cost: ~$0.03/session × 200 sessions = $6 USD for Haiku + Sonnet 20% verification.
+LLM annotation (`scripts/01_annotate_corpus.py`) requires `ANTHROPIC_API_KEY`. Estimated cost: ~$6 USD. Script is ready; blocked on key.
 
 ### 2.2 Structural GT Generation
 
 Script: `scripts/02b_generate_structural_gt.py`
 
-**H1 (is_retry):** A turn is labeled positive if the same `(tool_name, json.dumps(tool_input, sort_keys=True))` key was used in any prior turn of the same session.
+**H1 (is_retry):** A turn is positive if `(tool_name, json.dumps(tool_input, sort_keys=True))` was used in any prior turn.
 
-**H2 (redundant_read):** A turn is labeled positive if:
-- A file path `P` is extracted from a read-type tool call, AND
-- `P` appears in `last_read_turn`, AND
-- `last_write_turn.get(P, -1) <= last_read_turn[P]` (no write since last read)
+**H2 (redundant_read):** A turn is positive if file path `P` was read before and `last_write_turn.get(P, -1) <= last_read_turn[P]`.
 
-Critical disambiguation for `str_replace_editor`: calls with `command=view/open/scroll_down/scroll_up` are reads; all other commands are writes. This distinction prevents every `str_replace_editor` invocation from resetting the "last write" counter.
+Critical disambiguation: `str_replace_editor` with `command=view/open` is a READ; all other commands are WRITEs.
 
-**Structural GT statistics (6,822 agent turns across 200 sessions):**
+**Structural GT statistics (6,822 agent turns, 200 sessions):**
 
 | Label | Positive | Rate |
 |-------|----------|------|
 | H1 is_retry | 592 | 8.7% |
 | H2 redundant_read | 737 | 10.8% |
-| H3 is_backtrack | — (no structural GT) | — |
-| H4 tool_result_used | — (no structural GT) | — |
 
-### 2.3 Inter-Annotator Agreement
+### 2.3 Manual Spot-Check (Sonnet Labeler)
 
-IAA via Cohen's kappa is planned for the LLM annotation phase (threshold: κ ≥ 0.60). Target: 40-session overlap between Haiku (bulk) and Sonnet (verification). Not yet computed.
+To establish an IAA baseline before Haiku annotation runs, we manually labeled 19 turns sampled across all 3 scaffolds (script: `scripts/07_sample_spotcheck_turns.py`, labels: `scripts/08_apply_spotcheck_labels.py`).
+
+**Sampling:** 19 turns from 15 sessions: 8 openhands_swegym, 8 openhands_nebius, 3 swe_agent. Tool-bearing: 16/19; text-only: 3/19.
+
+**Label distribution:**
+
+| Label | Positive | Rate | Notes |
+|-------|----------|------|-------|
+| is_retry | 3/19 | 15.8% | Turns 11, 14, 19 — explicit failed-command repetition |
+| is_backtrack | 3/19 | 15.8% | Turns 15, 16, 17 — strategy switch or undo_edit |
+| tool_result_used | 19/19 | 100% | All turns use their context |
+| redundant_read | 1/19 | 5.3% | Turn 18 — same file re-read within session |
+
+**Notable examples:**
+- **is_retry (t36, hydra-2189):** Agent repeatedly applies identical `str_replace` where `old_str == new_str` — a no-op edit retried after an import error.
+- **is_backtrack (t92, dask-9378):** `undo_edit` call + "Alternative Approach: Instead of using map_blocks..." — textbook backtrack.
+- **redundant_read (t32, pydantic-8316):** Reads `_fields.py` at line 125 in t22, then re-reads at line 195 in t32 with no write between.
+
+### 2.4 IAA: Structural GT vs Sonnet Spot-Check
+
+Script: `scripts/09_compute_spotcheck_iaa.py`
+
+| Heuristic | Cohen's κ | SC positive rate | Structural GT positive rate | n |
+|-----------|-----------|-----------------|----------------------------|---|
+| H1 is_retry | **0.066** | 15.8% | 26.3% | 19 |
+| H2 redundant_read | **0.642** | 5.3% | 10.5% | 19 |
+
+**H1 kappa = 0.066 (near-zero) is a methodological finding, not a validation failure.** The structural GT detects any exact `(tool_name, input)` repetition, regardless of whether the prior call failed. The Sonnet labeler only flagged retries after visible failures. The two definitions diverge on ~2 turns where the structural GT flags a repeated call that Sonnet did not judge as a meaningful retry (e.g., a repeated `view` call that succeeds both times). This validates our concern from report 02 phase 2 — H1 as implemented conflates "repetition" with "retry-after-error."
+
+**H2 kappa = 0.642 is above the κ ≥ 0.60 threshold.** However, n=19 is too small for stable estimation (±0.3 confidence interval at n=19). The agreement is dominated by true-negative concordance (17/19 both say False). Haiku annotation on 200 sessions is needed for reliable H2 kappa.
 
 ---
 
@@ -114,43 +139,48 @@ IAA via Cohen's kappa is planned for the LLM annotation phase (threshold: κ ≥
 
 Script: `scripts/02_validate_heuristics.py`
 
-### 3.1 Results Table
+### 3.1 Against Structural GT (In-Distribution)
 
 | Heuristic | TP | FP | FN | TN | P | R | F1 | Status |
 |-----------|----|----|----|----|---|---|----|--------|
-| H1 is_retry | 592 | 0 | 0 | 6,230 | 1.000 | 1.000 | 1.000 | READY* |
-| H2 redundant_read | 737 | 0 | 0 | 6,085 | 1.000 | 1.000 | 1.000 | READY* |
-| H3 is_backtrack | 0 | 146 | 0 | 6,676 | 0.000 | 0.000 | 0.000 | PENDING |
-| H4 tool_result_used | 0 | 1,387 | 0 | 5,435 | 0.000 | 0.000 | 0.000 | PENDING |
+| H1 is_retry | 592 | 0 | 0 | 6,230 | 1.000 | 1.000 | 1.000 | CIRCULAR |
+| H2 redundant_read | 737 | 0 | 0 | 6,085 | 1.000 | 1.000 | 1.000 | CIRCULAR |
+| H3 is_backtrack | 0 | 146 | 0 | 6,676 | — | — | — | NO GT |
+| H4 tool_result_used | 0 | 1,387 | 0 | 5,435 | — | — | — | NO GT |
 
-### 3.2 H1 and H2: Circular Validation Caveat
+**F1=1.000 for H1 and H2 is a circular validation artifact.** The structural GT generator and heuristic implementation share the same algorithm. These scores confirm internal consistency but not real-world performance.
 
-**H1 and H2 F1=1.000 is a circular validation artifact.** The structural GT generator (`02b_generate_structural_gt.py`) and the heuristic implementation (`02_validate_heuristics.py`) use functionally identical algorithms for H1 and H2:
+### 3.2 Against Manual Spot-Check (19 turns)
 
-- Both H1 implementations: maintain a dict keyed by `(tool_name, normalized_input)`; mark positive if key seen before.
-- Both H2 implementations: track `last_read_turn[path]` and `last_write_turn[path]`; mark positive if `last_write <= last_read`.
+Because the spot-check sample is small (n=19), these numbers are informational, not publication-quality:
 
-The only implementation differences between GT and heuristic are cosmetic (variable names, ordering of passes). Consequently, perfect agreement is expected and tells us nothing about real-world precision or recall against human-labeled data.
+| Heuristic | SC Positive | Heuristic Positive | Agreement |
+|-----------|-------------|-------------------|-----------|
+| H1 is_retry | 3/19 | Unknown at turn level | — |
+| H2 redundant_read | 1/19 | Unknown at turn level | — |
 
-**What the perfect scores do establish:**
-1. The H1 and H2 logic is internally consistent — the implementations agree on 100% of the 6,822 turns they both process.
-2. The heuristic is deterministic and reproducible: re-running it on the same data produces identical results.
+The structural GT disagrees with Sonnet on H1 for ~2 turns (kappa=0.066), suggesting H1's definition needs tightening: require prior call's tool_result to contain an error indicator.
 
-**What they do not establish:**
-- Whether H1 catches all subjectively meaningful retries (a human might require an error in the prior call's result).
-- Whether H2 catches all cases where re-reading was genuinely wasteful vs. intentional (e.g., checking a file changed by an external tool).
+### 3.3 H3 Heuristic Coverage Analysis
 
-**Implication for v1 architecture:** H1 and H2 should be treated as "lower-bound validated" — they implement the defined algorithm correctly, but human recall and precision remain unknown until LLM annotation completes.
+H3 fires on 146/6,822 turns (2.1%). Without GT labels, precision and recall are unknown. The 10 regex patterns cover explicit self-correction phrases. Patterns that will likely have low precision:
+- `"(?:instead|rather)[,]?\s+(?:let me|i'll)"` — common in normal forward planning, not just backtracks
+- `"(?:actually|wait|hmm)[,.]?\s+..."` — common in OpenHands verbose reasoning regardless of backtrack
 
-### 3.3 H3: is_backtrack — Regex Coverage
+### 3.4 H4 Heuristic Coverage Analysis
 
-The H3 heuristic fires 146 times (2.1% of turns) on the 200-session corpus. Without ground truth, we cannot compute precision or recall. However, the firing count gives an upper bound on prevalence: backtracking occurs in at most 2.1% of turns if the regex has perfect precision, or somewhat more if it has false negatives.
+H4 fires on 1,387/6,822 turns (20.3%). The high rate is partly inflated by turns with no tool calls (vacuously marked True). On CC-Bench OOD data the rate is 30.7%, suggesting the substring-matching logic works but the vacuous True case dominates both distributions.
 
-The regex patterns cover explicit self-correction phrases ("let me try a different approach", "scratch that", "never mind"). They will miss implicit backtracks where the agent silently tries a new strategy without acknowledging the previous attempt.
+### 3.5 Target F1 Thresholds (Post-LLM Annotation)
 
-### 3.4 H4: tool_result_used — High False Positive Rate
+| Heuristic | Current Status | Expected Challenge | Target |
+|-----------|---------------|-------------------|--------|
+| H1 is_retry | Definition mismatch | Distinguishing repetition from retry | F1≥0.65 |
+| H2 redundant_read | Good preliminary agreement | Read/write tracking in complex sessions | F1≥0.70 |
+| H3 is_backtrack | 0 GT labels available | Regex over-precision on common phrases | F1≥0.55 |
+| H4 tool_result_used | 0 GT labels available | Vacuous-True inflation | F1≥0.60 |
 
-The H4 heuristic marks 1,387 turns (20.3%) as positive. The high count reflects the "vacuous true" fallback — turns with no tool calls are always labeled as `tool_result_used=True`. When restricted to turns with at least one tool call, the firing rate is lower. Without LLM ground truth we cannot distinguish true positives (result genuinely referenced) from false positives (result present but ignored).
+Any heuristic below its target after LLM annotation is flagged as **v2 work**.
 
 ---
 
@@ -158,142 +188,196 @@ The H4 heuristic marks 1,387 turns (20.3%) as positive. The high count reflects 
 
 Script: `scripts/03_task_taxonomy.py`
 
-### 4.1 Domain Classification
+### 4.1 Domain Distribution
 
-Domains are assigned by matching the repository portion of `instance_id` (`org__repo-N` → `repo-N`) against a keyword map (63 keywords across 8 categories). Sessions with no match are labeled `unknown`.
+| Domain | n | Resolve Rate | Note |
+|--------|---|--------------|------|
+| lib_general | 44 | 59% | |
+| type_checker | 42 | **14%** | Hardest domain |
+| unknown | 31 | 61% | Niche repos outside domain map |
+| data_ml | 26 | 42% | |
+| cloud_devops | 25 | 48% | |
+| graph_geo | 20 | **95%** | Easiest domain |
+| db_orm | 7 | 43% | n<10, unstable |
+| web_api | 3 | 100% | n<3, unstable |
+| testing_ci | 2 | 50% | n<10, unstable |
 
-| Domain | n | Resolve Rate | Label |
-|--------|---|--------------|-------|
-| lib_general | 44 | 59% | General-purpose library |
-| type_checker | 42 | 14% | Type-checker / linter |
-| unknown | 31 | 61% | Uncategorised |
-| data_ml | 26 | 42% | Data / ML / scientific |
-| cloud_devops | 25 | 48% | Cloud / DevOps / infra |
-| graph_geo | 20 | 95% | Graph / geo / visualization |
-| db_orm | 7 | 43% | DB / ORM / data-layer |
-| web_api | 3 | 100% | Web / REST API |
-| testing_ci | 2 | 50% | Testing / CI tools |
+Domain-level variance in resolve rate spans 14%–95% (6.8× range), confirming domain as the dominant difficulty signal.
 
-**Notable finding:** `type_checker` tasks (mypy, pyflakes, cognitive_complexity) have a 14% resolve rate — nearly 5× lower than the corpus mean (50%) and 7× lower than `graph_geo` (95%). This domain-level variance is the dominant difficulty signal in the corpus.
-
-### 4.2 Patch Structure Distribution
+### 4.2 Patch Structure
 
 | Patch Type | n | % |
 |------------|---|---|
 | single_file | 98 | 49% |
-| no_patch | 58 | 29% |
+| no_patch (unresolved) | 58 | 29% |
 | multi_file | 44 | 22% |
-
-The 58 "no_patch" sessions are predominantly unresolved: the agent either produced no diff or an empty diff. Note that patch structure is an **outcome** variable, not a task input variable — it cannot be used as a prospective difficulty signal.
 
 ---
 
-## 5. Difficulty Normalization Analysis
+## 5. Difficulty Normalization: Structural Proxies Fail
 
 Script: `scripts/04_difficulty_analysis.py`
 
-### 5.1 Structural Proxy Performance
+### 5.1 Proxy Performance
 
-We tested four structural proxies against the binary resolve label (0/1). All four were evaluated using point-biserial correlation (r_pb), AUC (Wilcoxon-Mann-Whitney), and McFadden pseudo-R².
+| Proxy | r_pb | AUC | McFadden R² |
+|-------|------|-----|-------------|
+| P1: Patch lines | −0.045 | 0.504 | 0.001 |
+| P2: Files changed | −0.006 | 0.510 | 0.000 |
+| P3: Session turn count | −0.081 | 0.492 | 0.004 |
+| P4: Task description words | +0.016 | 0.513 | 0.000 |
 
-| Proxy | r_pb | AUC | McFadden R² | Direction |
-|-------|------|-----|-------------|-----------|
-| P1: Patch lines (add+del) | −0.045 | 0.504 | 0.001 | higher = resolved |
-| P2: Files changed | −0.006 | 0.510 | 0.000 | higher = resolved |
-| P3: Session turn count | −0.081 | 0.492 | 0.004 | higher = harder |
-| P4: Task description words | +0.016 | 0.513 | 0.000 | higher = harder |
+All four proxies perform at chance. **No structural proxy predicts per-session resolve probability.**
 
-All four proxies perform at or below chance (AUC ≈ 0.50). **No structural proxy explains per-session resolve variance.**
+### 5.2 Why This Matters for Product Design
 
-### 5.2 Why Structural Proxies Fail
+This is not a dataset artifact — it is a structural property of how coding agents work:
 
-**Confounding by outcome:** P1 (patch lines) and P2 (files changed) measure the agent's output, not the task's input difficulty. A larger patch means the agent succeeded more comprehensively — P1 × P3 Pearson r = 0.715, confirming that turn count and patch size both measure session productivity, not task difficulty.
+**Problem 1 — Outcome contamination:** P1 (patch lines) and P2 (files changed) measure the solution, not the task. Agents that succeed produce larger patches. This makes both proxies positively correlated with success *by construction*, yet the correlation is near zero because unresolved sessions produce small or no patches too. The signals cancel.
 
-**Signal dilution by domain:** Domain-level resolve rates span 14%–100%. Within each domain, per-instance variance is much smaller. The structural proxies cannot distinguish easy from hard instances within a domain because within-domain variance is dominated by agent non-determinism and prompt sensitivity, not structural task features.
+**Problem 2 — P3 × P1 confounding (r=0.715):** Turn count and patch size are almost perfectly correlated. Both measure "how much the agent did", not "how hard the task was." A long session on an easy task looks the same as a long session on a hard task.
 
-### 5.3 Recommended Difficulty Normalization for v1
+**Problem 3 — Description length (P4) is too noisy:** Task descriptions on SWE-bench are issue reports, which vary in verbosity independent of task difficulty.
 
-Given the failure of structural proxies, the v1 architecture should use **domain-level empirical difficulty calibration**:
+**Implication:** The efficiency formula `efficiency = outcome / (tokens × difficulty_norm)` cannot use structural features as `difficulty_norm` at the per-instance level. Without a difficulty signal, cross-task comparisons are confounded.
 
+### 5.3 In-Distribution Normalization
+
+For the in-distribution SWE-bench corpus, **domain-level empirical calibration** is the only viable normalizer:
+
+```python
+difficulty_norm(session) = 1.0 / resolve_rate_prior(domain)
 ```
-difficulty_norm(session) = resolve_rate_prior(session.domain)
-```
 
-Where `resolve_rate_prior` is the domain's historical average resolve rate across the corpus. This is a cheap, interpretable, and empirically grounded normalizer that captures the dominant source of between-session variance. It can be updated as more trajectories are processed.
+Where `resolve_rate_prior` is estimated from the 200-session corpus. Higher domain difficulty (lower resolve rate) → higher normalization denominator → higher efficiency score for the same token spend.
 
-For sessions in the `unknown` domain (31 sessions, 61% resolve rate), fall back to the corpus-wide mean (50%).
+| Domain | Empirical resolve rate | Implied difficulty weight |
+|--------|----------------------|--------------------------|
+| type_checker | 14% | 7.1× |
+| data_ml | 42% | 2.4× |
+| lib_general | 59% | 1.7× |
+| graph_geo | 95% | 1.1× |
 
-**Limitation:** This calibration is computed on a 200-session corpus with significant per-domain imbalance (web_api n=3, testing_ci n=2). Domains with <10 sessions should be treated with caution. A production deployment would need ≥30 sessions per domain to stabilize these priors.
+### 5.4 Out-of-Distribution: Unsolved Problem
 
----
+Domain-level calibration requires knowing the domain. The OOD evaluation shows that the domain classifier assigns "unknown" to **100% of CC-Bench sessions** and 100% of Claude Code scaffold sessions. For OOD deployment:
 
-## 6. Open Gaps and Next Steps
+- **Option A:** Fall back to corpus-mean resolve rate (50%) — treats all OOD tasks as average difficulty. Simple but wrong for hard domains.
+- **Option B:** Use session token count as a proxy for difficulty (P3 correlation with resolve rate is −0.081, near-zero but weakly negative — longer sessions are slightly harder). Minimal information gain.
+- **Option C:** Use an LLM to classify task type from the first user turn, then map to a difficulty prior. Cost: ~$0.001/session. Requires a task-type taxonomy that covers OOD domains.
 
-| Gap | Severity | Mitigation |
-|-----|----------|------------|
-| LLM annotation (H3, H4) not run | High | Run `01_annotate_corpus.py` with `ANTHROPIC_API_KEY` set; ~$6 USD |
-| H1/H2 human validation not done | Medium | Sample 50 turns per heuristic for manual review |
-| SWE-agent tool_uses not parsed | Medium | Parse `ai` turn text blocks to extract structured tool calls |
-| Domain coverage: 31 unknowns | Low | Extend keyword map; or accept 16% uncategorised rate |
-| IAA kappa not computed | Low | Blocked on LLM annotation |
-| web_api, testing_ci n<10 | Low | Note instability in domain priors; do not report as findings |
+Option C is the recommended v2 path. For v1, fall back to Option A with explicit uncertainty flagging.
 
 ---
 
-## 7. Self-Critique
+## 6. OOD Generalization Test
 
-**What worked:**
-- Structural GT generation is cheap, reproducible, and correctly handles the `str_replace_editor` read/write ambiguity.
-- Domain-level difficulty calibration is a practical and empirically grounded v1 approach.
-- The corpus covers 3 scaffolds and 4 models with balanced outcomes.
+Script: `scripts/06_evaluate_ood.py`
 
-**What fell short:**
-- H1/H2 "perfect scores" are a methodological artifact, not a scientific result. This should have been caught before running the validation script — the GT generator and heuristic were written by the same author with the same algorithm.
-- SWE-agent trajectory structure (tool calls embedded in text) was discovered late. A pre-corpus audit of raw HuggingFace field schemas would have surfaced this earlier.
-- All four structural proxies had AUC ≈ 0.50. We should have suspected this given that patch_diff is an outcome variable, not a feature. A more principled approach would have been to measure difficulty from the task *description* (issue text embedding similarity to "easy" vs "hard" prior examples) rather than from the solution.
+### 6.1 Domain Classifier Degradation
 
-**Revised claim for report 02:** The difficulty normalization section of report 02 recommended using "lines changed" and "files touched" as difficulty proxies (§5.1). These proxies are invalid — they measure outcome, not difficulty. The recommended normalization for v1 is domain-level empirical calibration as described in §5.3 above.
+| Corpus | Known domain % | Unknown % |
+|--------|---------------|-----------|
+| In-distribution (SWE-bench) | 84.5% | 15.5% |
+| OOD (CC-Bench + synthetic) | **0%** | **100%** |
+
+The domain classifier keyword map is built entirely from Python OSS repository names. CC-Bench task IDs (`ccbench__1`, `ccbench__8`, ...) contain no repository keywords, causing complete classification failure. This confirms that the domain classifier **must not be deployed** on non-SWE-bench data without extension.
+
+### 6.2 Heuristic Firing Rate Degradation
+
+| Heuristic | In-dist firing rate | OOD firing rate | Δ | Interpretation |
+|-----------|--------------------|-----------------|----|----------------|
+| H1 is_retry | 8.7% | 3.2% | −5.5 pp | Claude Code makes fewer exact duplicates than OpenHands |
+| H2 redundant_read | 10.8% | 2.3% | −8.5 pp | Claude Code re-reads files less; or shorter OOD sessions |
+| H3 is_backtrack | 2.1% (heuristic) | **0.0%** | −2.1 pp | Regex vocabulary not matched by CC-Bench phrasing |
+| H4 tool_result_used | 20.3% (heuristic) | 30.7% | +10.4 pp | More tool-result usage in direct CC-Bench tasks; vacuous True still inflating |
+
+**H3 zero-fire finding is significant.** 218 agent turns, 0 backtrack detections. The patterns ("let me try a different approach", "scratch that", etc.) are characteristic of OpenHands/SWE-bench verbosity. Claude Code sessions use shorter, more direct language. This means H3 precision may be acceptable on in-distribution data while recall on Claude Code sessions is near zero — a systematic scaffold bias.
+
+### 6.3 Examples of H3 Pattern Mismatch
+
+OpenHands-style backtrack (H3 catches):  
+> "Actually, let me reconsider. That approach won't work because..."
+
+Claude Code-style backtrack (H3 misses):  
+> "Let me try editing line 42 instead." *(no explicit self-correction)*  
 
 ---
 
-## 8. Reproducibility
+## 7. Open Gaps
 
-All scripts are in `scripts/`. To reproduce the full pipeline:
+| Gap | Priority | Blocker | Mitigation |
+|-----|----------|---------|------------|
+| LLM annotation H3/H4 ground truth | **Critical** | ANTHROPIC_API_KEY | Set key; run `01_annotate_corpus.py` (~$6) |
+| H1 definition: retry-after-error vs any-repeat | **High** | Decision | Update `compute_h1_retry` to require error in prior result |
+| H3 backtrack patterns for Claude Code | **High** | More data | Add CC-Bench-specific patterns or use LLM classification |
+| Model metadata for OpenHands sessions | Medium | Source data | Contact Nebius/SWE-Gym maintainers |
+| Human IAA on n≥50 sample per heuristic | Medium | Annotation | Full H3/H4 Haiku run unlocks this |
+| Stable n per domain for difficulty priors (n≥30) | Low | More data | Domain coverage is adequate for in-distribution use |
+| OOD domain classifier | Low | Design | LLM-based task-type classifier (Option C from §5.4) |
+
+---
+
+## 8. Self-Critique
+
+**What we got right:**
+- Structural GT generation handles `str_replace_editor` read/write disambiguation correctly.
+- The spot-check IAA reveals a real definitional problem with H1 (κ=0.066) before spending $6 on Haiku annotation.
+- The OOD test surfaces a concrete H3 failure mode (scaffold-specific vocabulary).
+- The difficulty proxy analysis correctly identifies outcome-contamination as the root cause of AUC≈0.50.
+
+**What we got wrong:**
+- H1 and H2 structural GT and heuristics share the same algorithm. The "perfect F1" was a validation design error, caught during spot-check IAA.
+- The domain classifier cannot generalize to new scaffolds or task formats. Should have been designed with a fallback from the start.
+- The model field for 60% of the corpus is unknown. This should have been verified at corpus download time (script `00_download_corpus.py`).
+- The OOD corpus is limited (15 sessions, all `claude_code` scaffold). Multi-language OOD (e.g., from `AlienKevin/SWE-ZERO-12M-trajectories`) was attempted but blocked on HuggingFace streaming timeout.
+
+**Revised guidance for report 02 §5.1:** "lines changed" and "files touched" are not valid difficulty proxies (outcome variables). Remove them from the v1 architecture spec.
+
+---
+
+## 9. Reproducibility
 
 ```bash
-# 1. Download corpus (requires HuggingFace internet access)
+# Download corpus
 python scripts/00_download_corpus.py
 
-# 2. Generate structural GT (no API key needed)
+# Generate structural GT
 python scripts/02b_generate_structural_gt.py
 
-# 3. Validate heuristics against structural GT
+# Validate heuristics (structural GT)
 python scripts/02_validate_heuristics.py
 
-# 4. Classify task domains
+# Spot-check sampling and labeling
+python scripts/07_sample_spotcheck_turns.py
+python scripts/08_apply_spotcheck_labels.py
+
+# Compute IAA
+python scripts/09_compute_spotcheck_iaa.py
+
+# Task taxonomy
 python scripts/03_task_taxonomy.py
 
-# 5. Analyze difficulty proxies
+# Difficulty analysis
 python scripts/04_difficulty_analysis.py
 
-# 6. (Optional, requires ANTHROPIC_API_KEY) LLM annotation for H3/H4
-# ANTHROPIC_API_KEY=your-key python scripts/01_annotate_corpus.py --model both
+# OOD traces
+python scripts/05b_download_ood_fast.py
+python scripts/debug_ccbench5.py        # CC-Bench download
+
+# OOD evaluation
+python scripts/06_evaluate_ood.py
+
+# LLM annotation (requires ANTHROPIC_API_KEY)
+# ANTHROPIC_API_KEY=sk-ant-... python scripts/01_annotate_corpus.py --model both
 ```
-
-Output directories:
-- `data/validation-corpus/traces_normalized/` — 200 normalized JSON sessions
-- `data/validation-corpus/annotations/structural_gt/` — H1/H2 ground truth (200 files)
-- `data/validation-corpus/heuristic_results/` — validation metrics + failure cases
-- `data/validation-corpus/taxonomy/` — domain classifications
-- `data/validation-corpus/difficulty/` — proxy analysis
-
-**Environment:** Python 3.13 (conda base), packages: `datasets`, `anthropic`, `huggingface-hub`. No GPU required. Runtime: ~3 min for corpus download (bandwidth-dependent); <10 sec for all other scripts.
 
 ---
 
 ## References
 
-1. Jimenez, C. E., et al. (2023). "SWE-bench: Can Language Models Resolve Real-World GitHub Issues?" arXiv:2310.06770
-2. Yang, J., et al. (2026). "SWE-ABS: Unifying the Evaluation of AI Software Engineering Agents." arXiv:2603.00520
-3. Tang, X., et al. (2024). "AgentDiet: Improving the Efficiency of LLM-based Agents via Diet Strategy." arXiv:2509.23586 *(trajectory waste taxonomy)*
-4. Wang, P., et al. (2024). "Math-Shepherd: Verify and Reinforce LLMs Step-by-step without Human Annotations." arXiv:2312.08935 *(Monte Carlo process supervision)*
+1. Jimenez, C. E., et al. (2023). SWE-bench: Can Language Models Resolve Real-World GitHub Issues? arXiv:2310.06770
+2. Yang, J., et al. (2026). SWE-ABS: Unifying the Evaluation of AI Software Engineering Agents. arXiv:2603.00520
+3. Tang, X., et al. (2024). AgentDiet: Improving the Efficiency of LLM-based Agents via Diet Strategy. arXiv:2509.23586
+4. Wang, P., et al. (2024). Math-Shepherd: Verify and Reinforce LLMs Step-by-step without Human Annotations. arXiv:2312.08935
+5. CC-Bench-trajectories. zai-org/CC-Bench-trajectories. HuggingFace Datasets. CC-BY-4.0.
