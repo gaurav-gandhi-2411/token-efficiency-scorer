@@ -1,0 +1,85 @@
+{
+  "session_id": "f9caedaeeabae47f",
+  "source_dataset": "synthetic_ood",
+  "scaffold": "claude_code",
+  "model": "claude-sonnet-4-6",
+  "license": "CC0",
+  "instance_id": "synthetic__backtrack_ood-1",
+  "ood_source": "synthetic",
+  "ood_task_category": "go_bug_fix",
+  "outcome": {
+    "result": "pass",
+    "patch_diff": "diff --git a/main.go b/main.go\n--- a/main.go\n+++ b/main.go\n@@ -12 +12 @@\n-\tif err == nil {\n+\tif err != nil {\n"
+  },
+  "turns": [
+    {
+      "turn_index": 0,
+      "role": "system",
+      "content_text": "You are Claude Code helping fix a Go bug.",
+      "tool_uses": []
+    },
+    {
+      "turn_index": 1,
+      "role": "user",
+      "content_text": "The function handleRequest in main.go returns 500 even when there's no error. Fix it.",
+      "tool_uses": []
+    },
+    {
+      "turn_index": 2,
+      "role": "assistant",
+      "content_text": "Let me read main.go.",
+      "tool_uses": [
+        {
+          "tool_name": "Read",
+          "tool_input": {
+            "file_path": "main.go"
+          },
+          "tool_result": "func handleRequest(w http.ResponseWriter, r *http.Request) {\n\tdata, err := fetchData(r.URL.Query().Get(\"id\"))\n\tif err == nil {\n\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\n\t\treturn\n\t}\n\tjson.NewEncoder(w).Encode(data)\n}"
+        }
+      ]
+    },
+    {
+      "turn_index": 3,
+      "role": "assistant",
+      "content_text": "The error handling looks correct. Let me check fetchData for the issue.",
+      "tool_uses": [
+        {
+          "tool_name": "Bash",
+          "tool_input": {
+            "command": "grep -n 'fetchData' main.go"
+          },
+          "tool_result": "func fetchData(id string) (Data, error) {\n  if id == \"\" { return Data{}, nil }\n  return Data{Value: id}, nil\n}"
+        }
+      ]
+    },
+    {
+      "turn_index": 4,
+      "role": "assistant",
+      "content_text": "Actually wait — I misread the logic. The condition `if err == nil` should be `if err != nil`. The current code calls http.Error when there is NO error. Let me fix that.",
+      "tool_uses": [
+        {
+          "tool_name": "Edit",
+          "tool_input": {
+            "file_path": "main.go",
+            "old_string": "\tif err == nil {",
+            "new_string": "\tif err != nil {"
+          },
+          "tool_result": null
+        }
+      ]
+    },
+    {
+      "turn_index": 5,
+      "role": "assistant",
+      "content_text": "Fixed the inverted nil check. `if err == nil` → `if err != nil`. The function now returns 500 only when fetchData actually errors.",
+      "tool_uses": []
+    }
+  ],
+  "session_token_totals": {
+    "input": 480,
+    "output": 350,
+    "cache_read": 0,
+    "total": 830
+  },
+  "turn_count": 6
+}
