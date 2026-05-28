@@ -742,7 +742,7 @@ def _submit_anthropic_batch(
             "custom_id": s["session_id"],
             "params": {
                 "model": HAIKU_MODEL,
-                "max_tokens": 4096,
+                "max_tokens": 8192,
                 "system": [
                     {
                         "type": "text",
@@ -836,6 +836,11 @@ def _poll_anthropic_batch(client: Any, batch_id: str) -> int:
             continue
 
         raw_content: str = msg.content[0].text.strip()
+        # Haiku wraps JSON in ```json ... ``` fences; strip them before parsing.
+        if raw_content.startswith("```"):
+            raw_content = raw_content.split("\n", 1)[-1]  # drop the opening ```json line
+            if raw_content.endswith("```"):
+                raw_content = raw_content[: raw_content.rfind("```")].rstrip()
         try:
             annotation = json.loads(raw_content)
         except json.JSONDecodeError as e:
