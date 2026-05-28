@@ -101,6 +101,20 @@ ANTHROPIC_BATCH_COST_PER_M_IN: float = 0.40
 ANTHROPIC_BATCH_COST_PER_M_OUT: float = 2.00
 ANTHROPIC_BATCH_COST_PER_M_IN_CACHED: float = 0.04
 
+# Compact output instruction appended to RUBRIC_SYSTEM for Haiku batch calls only.
+# Drops _reason fields (~50% token savings) to stay under the 8192 output ceiling.
+HAIKU_BATCH_COMPACT_INSTRUCTION: str = (
+    "\n\n================================================================\n"
+    "COMPACT OUTPUT REQUIRED FOR THIS RUN\n"
+    "================================================================\n"
+    "Omit ALL reason fields. Each per_turn_labels entry must contain "
+    "ONLY these five keys:\n"
+    "  turn_index, llm_h1_redundant_read, llm_h2_duplicate_message,\n"
+    "  llm_h3_backtrack, llm_h4_tool_result_used\n"
+    "Do NOT include llm_h1_reason, llm_h2_reason, llm_h3_reason, or "
+    "llm_h4_reason under any circumstances."
+)
+
 # Budget hard limits (USD)
 BUDGET_GPT_OSS: float = 4.00
 BUDGET_SONNET: float = 2.00
@@ -746,7 +760,7 @@ def _submit_anthropic_batch(
                 "system": [
                     {
                         "type": "text",
-                        "text": RUBRIC_SYSTEM,
+                        "text": RUBRIC_SYSTEM + HAIKU_BATCH_COMPACT_INSTRUCTION,
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
@@ -863,6 +877,20 @@ def _poll_anthropic_batch(client: Any, batch_id: str) -> int:
         annotation["_input_tokens"] = in_t
         annotation["_output_tokens"] = out_t
         annotation["_cached_input_tokens"] = cached_t
+
+        turns_labeled = len(annotation.get("per_turn_labels", []))
+        turns_shown = len(shown_indices) if shown_indices else 0
+        if turns_shown > 0 and turns_labeled < turns_shown:
+            _append_skipped_log({
+                "session_id": sid,
+                "reason": "partial_coverage",
+                "turns_shown": turns_shown,
+                "turns_labeled": turns_labeled,
+                "batch_id": batch_id,
+                "timestamp": now.isoformat(),
+            })
+            errored_count += 1
+            continue
 
         out_path.write_text(json.dumps(annotation, indent=2, ensure_ascii=False), encoding="utf-8")
 
