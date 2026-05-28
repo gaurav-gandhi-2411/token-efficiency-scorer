@@ -717,8 +717,6 @@ def _submit_anthropic_batch(
     Uses claude-haiku-4-5 with cache_control: ephemeral on the rubric prefix.
     Returns a job-metadata dict logged to BATCH_JOBS_LOG.
     """
-    import anthropic as _anthropic  # noqa: PLC0415 — lazy import, key already validated
-
     submitted_at = datetime.now(UTC)
 
     requests_list: list[Any] = []
@@ -740,23 +738,21 @@ def _submit_anthropic_batch(
             turn_text=turn_text,
         )
 
-        requests_list.append(
-            _anthropic.types.MessageBatchRequestParam(
-                custom_id=s["session_id"],
-                params=_anthropic.types.messages.MessageCreateParamsNonStreaming(
-                    model=HAIKU_MODEL,
-                    max_tokens=4096,
-                    system=[
-                        _anthropic.types.TextBlockParam(
-                            type="text",
-                            text=RUBRIC_SYSTEM,
-                            cache_control=_anthropic.types.CacheControlEphemeralParam(type="ephemeral"),
-                        )
-                    ],
-                    messages=[{"role": "user", "content": user_prompt}],
-                ),
-            )
-        )
+        requests_list.append({
+            "custom_id": s["session_id"],
+            "params": {
+                "model": HAIKU_MODEL,
+                "max_tokens": 4096,
+                "system": [
+                    {
+                        "type": "text",
+                        "text": RUBRIC_SYSTEM,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                "messages": [{"role": "user", "content": user_prompt}],
+            },
+        })
         included_ids.append(s["session_id"])
 
     if skipped_no_turns:
