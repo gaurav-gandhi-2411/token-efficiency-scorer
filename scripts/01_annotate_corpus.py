@@ -1257,6 +1257,12 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901
     # ── Anthropic Batch submit ────────────────────────────────────────────────
     if args.mode == "anthropic-batch-submit":
         missing = [s for s in sessions if not (GPT_OSS_DIR / f"{s['session_id']}.json").exists()]
+
+        if args.session_ids:
+            target_ids = {sid.strip() for sid in args.session_ids.split(",")}
+            missing = [s for s in missing if s["session_id"] in target_ids]
+            print(f"  --session-ids filter: {len(missing)} sessions matched.")
+
         print(f"  Missing annotations: {len(missing)} sessions.")
 
         if not missing:
@@ -1474,6 +1480,12 @@ if __name__ == "__main__":
         "--force",
         action="store_true",
         help="Allow batch-submit even if an active batch exists in batch_jobs.jsonl",
+    )
+    parser.add_argument(
+        "--session-ids",
+        default=None,
+        metavar="SID1,SID2,...",
+        help="Comma-separated session IDs to restrict anthropic-batch-submit to specific sessions",
     )
     _args = parser.parse_args()
     main(_args)
