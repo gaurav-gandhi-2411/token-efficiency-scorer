@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import re
 from dataclasses import dataclass
 from pathlib import Path  # noqa: F401 — available for callers that import from here
 from typing import Any
@@ -12,6 +13,38 @@ from token_efficiency.layer1_features import LayerOneFeatures
 # ---------------------------------------------------------------------------
 _SNIPPET_MAX_CHARS: int = 300
 _TASK_DESC_MAX_CHARS: int = 800
+
+# Matches the first fenced code block in a string. Group 1 = block body.
+_CODE_BLOCK_RE: re.Pattern[str] = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+
+_SWE_CMD_MAP: dict[str, str] = {
+    "create": "file_create",
+    "edit": "file_edit",
+    "open": "file_open",
+    "goto": "nav_goto",
+    "scroll_down": "nav_scroll",
+    "scroll_up": "nav_scroll",
+    "search_file": "file_search",
+    "search_dir": "file_search",
+    "grep": "file_search",
+    "find": "file_search",
+    "cat": "file_read",
+    "head": "file_read",
+    "tail": "file_read",
+    "python": "run_python",
+    "python3": "run_python",
+    "pip": "run_pip",
+    "pip3": "run_pip",
+    "pytest": "run_pytest",
+    "make": "run_make",
+    "ls": "nav_ls",
+    "dir": "nav_ls",
+    "cd": "nav_cd",
+    "submit": "submit",
+    "bash": "run_bash",
+    "sh": "run_bash",
+    "zsh": "run_bash",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -47,6 +80,32 @@ class SessionDigest:
     p25_token_ratio: float
     task_description: str  # first user turn content, first 800 chars
     turns: list[TurnDigest]  # all turns, ordered by turn_index
+
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
+def _classify_swe_command(first_line: str) -> str:
+    """Map the first token of a swe_agent command line to a readable category."""
+    first_word = first_line.strip().split()[0].lower() if first_line.strip() else ""
+    return _SWE_CMD_MAP.get(first_word, first_word or "unknown")
+
+
+def _extract_tools_from_content(content_text: str) -> list[str]:
+    """Extract tool action from swe_agent content_text by parsing the first code block.
+
+    Returns a list with one element (the classified command) if a code block is found,
+    otherwise an empty list.
+    """
+    match = _CODE_BLOCK_RE.search(content_text)
+    if not match:
+        return []
+    block_body = match.group(1)
+    first_line = block_body.split("\n")[0]
+    cmd = _classify_swe_command(first_line)
+    return [cmd] if cmd else []
 
 
 # ---------------------------------------------------------------------------
@@ -102,11 +161,21 @@ def build_digest(
             content_text: str = (raw_turn.get("content_text") or "").strip()
             snippet: str = content_text[:_SNIPPET_MAX_CHARS]
 
-            tool_names: list[str] = [
-                str(tool.get("name", ""))
-                for tool in raw_turn.get("tool_uses", [])
-                if tool.get("name")
-            ]
+            raw_tool_uses = raw_turn.get("tool_uses", [])
+            if raw_tool_uses:
+                # openhands: structured tool_uses with tool_name field
+                tool_names: list[str] = [
+                    str(tool.get("tool_name") or tool.get("name", ""))
+                    for tool in raw_tool_uses
+                    if (tool.get("tool_name") or tool.get("name"))
+                ]
+            else:
+                # swe_agent or any scaffold without structured tool_uses:
+                # extract command from backtick code block in content_text
+                if role in ("ai", "assistant") and content_text:
+                    tool_names = _extract_tools_from_content(content_text)
+                else:
+                    tool_names = []
 
             tc: dict[str, Any] = raw_turn.get("token_counts", {})
             token_count_input: int = int(tc.get("input", 0))
@@ -180,7 +249,7 @@ def digest_to_text(digest: SessionDigest) -> str:
         role_upper: str = turn.role.upper()
         lines.append(
             f"[T{turn.turn_index}] {role_upper} — tools: {tool_str} — "
-            f"tokens_in: {turn.token_count_input}"
+            f"in: {turn.token_count_input} / out: {turn.token_count_output}"
         )
         lines.append(f"  {turn.content_snippet}")
         if turn.h2_duplicate:
