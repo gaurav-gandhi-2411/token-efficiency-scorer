@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Resolve paths relative to repo root
+# Resolve paths relative to repo root and ensure src/ is importable.
 # ---------------------------------------------------------------------------
 ROOT: Path = Path(__file__).parent.parent
+sys.path.insert(0, str(ROOT / "src"))
 TAXONOMY_PATH: Path = ROOT / "data" / "validation-corpus" / "taxonomy" / "task_taxonomy.json"
 ANNOTATIONS_DIR: Path = ROOT / "data" / "validation-corpus" / "annotations" / "gpt_oss"
 TRACES_DIR: Path = ROOT / "data" / "validation-corpus" / "traces_normalized"
