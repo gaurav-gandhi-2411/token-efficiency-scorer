@@ -90,6 +90,8 @@ def _features(
     cache_hit_rate: float = 0.3,
     p25_token_ratio: float = 1.5,
     labeler_model: str = "_mock",
+    scaffold: str = "swe_agent",
+    output_tokens_available: bool = False,
 ) -> LayerOneFeatures:
     return LayerOneFeatures(
         session_id=session_id,
@@ -101,6 +103,8 @@ def _features(
         cache_hit_rate=cache_hit_rate,
         p25_token_ratio=p25_token_ratio,
         labeler_model=labeler_model,
+        scaffold=scaffold,
+        output_tokens_available=output_tokens_available,
     )
 
 
@@ -413,6 +417,7 @@ def _sample_digest(with_h2_on_turn: int | None = None) -> SessionDigest:
         h2_duplicate_count=1 if with_h2_on_turn is not None else 0,
         cache_hit_rate=0.3,
         p25_token_ratio=1.5,
+        output_tokens_available=False,
         task_description="Fix the bug in my code",
         turns=turns,
     )
