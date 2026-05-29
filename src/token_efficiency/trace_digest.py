@@ -78,6 +78,7 @@ class SessionDigest:
     h2_duplicate_count: int
     cache_hit_rate: float
     p25_token_ratio: float
+    output_tokens_available: bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
     task_description: str  # first user turn content, first 800 chars
     turns: list[TurnDigest]  # all turns, ordered by turn_index
 
@@ -206,6 +207,7 @@ def build_digest(
         h2_duplicate_count=features.h2_duplicate_count,
         cache_hit_rate=features.cache_hit_rate,
         p25_token_ratio=features.p25_token_ratio,
+        output_tokens_available=features.output_tokens_available,
         task_description=task_description,
         turns=turn_digests,
     )
@@ -232,7 +234,8 @@ def digest_to_text(digest: SessionDigest) -> str:
         (
             f"P25 Ratio: {digest.p25_token_ratio:.2f} | "
             f"Cache Hit: {digest.cache_hit_rate:.1%} | "
-            f"H2 Duplicates: {digest.h2_duplicate_count}"
+            f"H2 Duplicates: {digest.h2_duplicate_count} | "
+            f"Output Tokens: {'available' if digest.output_tokens_available else 'unavailable (swe_agent)'}"
         ),
         "",
         f"TASK: {digest.task_description}",
@@ -246,7 +249,9 @@ def digest_to_text(digest: SessionDigest) -> str:
             continue
 
         tool_str: str = ", ".join(turn.tool_names) if turn.tool_names else "none"
-        role_upper: str = turn.role.upper()
+        # ENV_RESULT is the display label for openhands environment-response turns (role="tool").
+        # These are tool results returned by the execution environment, not agent actions.
+        role_upper: str = "ENV_RESULT" if turn.role == "tool" else turn.role.upper()
         lines.append(
             f"[T{turn.turn_index}] {role_upper} — tools: {tool_str} — "
             f"in: {turn.token_count_input} / out: {turn.token_count_output}"

@@ -54,6 +54,8 @@ class LayerOneFeatures:
     cache_hit_rate: float  # sum(cache_read) / max(1, sum(input)); in [0.0, 1.0]
     p25_token_ratio: float  # total_tokens / domain_p25_baseline; clamped to [0.1, 100.0]
     labeler_model: str  # annotation._model; "missing" if annotation absent
+    scaffold: str  # source scaffold: swe_agent | openhands_nebius | openhands_swegym
+    output_tokens_available: bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +152,9 @@ def extract_features(
     raw_ratio: float = total_tokens / p25_baseline
     p25_token_ratio: float = max(_P25_RATIO_MIN, min(_P25_RATIO_MAX, raw_ratio))
 
+    scaffold: str = str(taxonomy_row.get("scaffold", "unknown"))
+    output_tokens_available: bool = int(taxonomy_row.get("tokens_output", 0)) > 0
+
     return LayerOneFeatures(
         session_id=session_id,
         domain_id=domain,
@@ -160,6 +165,8 @@ def extract_features(
         cache_hit_rate=cache_hit_rate,
         p25_token_ratio=p25_token_ratio,
         labeler_model=labeler_model,
+        scaffold=scaffold,
+        output_tokens_available=output_tokens_available,
     )
 
 
