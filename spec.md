@@ -1,168 +1,184 @@
-# Project Spec: token-efficiency-scorer — Phase A.1 finish + A.2 rebuild
+# Project Spec: token-efficiency-scorer — Hybrid Scorer Implementation (Iteration B1)
 
 ## Goal
 
-Complete the in-flight Phase A.1 validation work (IAA, F1 remeasurement, report 04), then execute Phase A.2 (rebuild heuristics that fail their verdicts) in the same iteration. Heuristics that pass are locked. Heuristics that fail are either redesigned (semantic backtrack via BGE embeddings is the likely candidate) or formally deprecated to a v2 backlog. Production scorer code is NOT in scope; this is still validation.
+Build the hybrid LLM-judge scorer designed in accepted report 05, and prove it works by calibrating the judge against a human gold set. This iteration succeeds if we have an end-to-end scoring pipeline (Layer 1 + Layer 2) and a calibration number (Spearman rho of judge vs human ratings) that clears the kill-criterion floor. This is the make-or-break iteration: if the judge can't calibrate, the architecture is wrong and we stop and rethink.
 
 ## Current state
 
-See `CURRENT_STATE.md` in full. Key points reiterated here for the orchestrator:
-
-- A long-running annotation job MAY still be in progress at handoff. Verify state before any action; do not restart unilaterally.
-- Model allocation is LOCKED: GPT-OSS 120B (Groq) bulk, Sonnet 4.6 (Anthropic) IAA only, local BGE-large for embeddings.
-- Research reports 01, 02, 03 are IMMUTABLE. Report 04 is stubbed and this iteration fills it in. Report 05 is new for A.2.
-- Path A is committed. Do not pivot to Path B.
-- Wedge = per-task trajectory counterfactual; do not substitute.
-- Cumulative API cost cap for the whole project is $5. Check `data/cost-log.jsonl` before any API call.
+See CURRENT_STATE.md in full. Key points:
+- Validation is complete; heuristic-primary is retired. H2 survives as a feature; H1/H3/H4 are dead.
+- Architecture is the three-layer hybrid from report 05. Judge = local Qwen3-8B via Ollama (already installed and smoke-tested).
+- The human gold set is the calibration ground truth and the single most important asset. LLM labels are NOT ground truth.
+- Reports 01-05 are immutable. Report 03 holds domain resolve-rates and p25 token baselines.
+- Cumulative cost ~$2.59 of $5. The judge is local ($0), so this iteration's API spend is near zero unless a frontier diagnostic is escalated.
 
 ## Scope
 
 ### In scope (this iteration)
 
-- Verify (and if needed, gracefully complete) the in-flight A.1 annotation job
-- Run IAA mode: Sonnet 4.6 on the 25-session fixed-seed sample
-- Compute Cohen's kappa per label (H1, H2, H3, H4)
-- Run `10_remeasure_heuristics.py` against the GPT-OSS labels
-- Fill stubbed sections of `research/04-phaseA1-remeasure.md`
-- Escalate per-heuristic verdicts to user before treating as final
-- After user confirms verdicts: execute A.2 work
-  - DEAD heuristics: implement redesign OR deprecate to v2 backlog per user direction
-  - SALVAGEABLE heuristics: apply proposed fix from report 04
-  - PRODUCTION_READY heuristics: lock and document
-- Most likely A.2 task: semantic H3 backtrack via local BGE-large embeddings + similarity threshold tuning, validated against the existing corpus
-- Write `research/05-phaseA2-rebuild.md` documenting redesigns and their validation F1
+- Layer 1 deterministic feature extractor: compute the 7 features and a deterministic structured trace digest for each session.
+- Digest fidelity check: validate that the digest preserves efficiency-relevant signal, on a small sample, BEFORE the human rates.
+- Rating interface: a local script that presents one session at a time (session-level stats prominent, turn-by-turn digest skimmable) and records a 1-5 efficiency rating plus an optional note to a gold JSONL.
+- Human gold set: the consultant rates 40 sessions (stratified by domain and resolved/unresolved). This is a human escalation step.
+- Layer 2 judge: Ollama Qwen3-8B client, reference-based pointwise, criterion-order permutation fix, structured output schema.
+- Calibration: Spearman rho between judge scores and human gold ratings; report with confidence interval.
+- Kill-criterion evaluation: rho >= 0.55 floor to proceed; rho >= 0.75 target. Escalate the verdict.
+- If calibration passes: implement the full composite score formula end-to-end and run it on the gold set.
+- Report 06 documenting calibration results and the working pipeline.
+- First real unit tests for the deterministic Layer 1 functions.
 
 ### Out of scope (do not build)
 
-- Corpus expansion (real Claude Code, Aider non-Python, multi-language) — Phase A.3, explicitly deferred
-- Production scorer code
-- Path B pivot (LLM-judge-primary)
-- New SWE-bench downloads or dataset additions
-- Modifying research reports 01, 02, 03
-- New benchmarks or evaluation frameworks
-- Embedding model downloads beyond BGE-large-en-v1.5
-- API providers beyond Anthropic and Groq
-- Tests for production code (none exists yet)
-- Final score composition (separate iteration)
+- Corpus expansion (real Claude Code, Aider non-Python, multi-language) - deferred.
+- Judge distillation / fine-tuning a small production judge - later productization.
+- Weight optimization beyond a single tuning pass against the gold set.
+- Any API / package / product-packaging work (later iteration).
+- Modifying reports 01-05.
+- Re-annotating or regenerating the corpus.
+- Actioning cleanup-backlog items unless a build step strictly depends on one.
+- Switching the judge to Claude or any paid API.
 
 ## Tech stack
 
-- Python (match existing `pyproject.toml`)
-- `python-dotenv` for `.env` loading
-- `groq` Python SDK or OpenAI-compatible client pointed at Groq
-- `anthropic` Python SDK
-- `sentence-transformers` + `BAAI/bge-large-en-v1.5` (NEW — escalate before download, model is ~1.3GB)
-- `numpy`, `pandas`, `scipy` (likely already present)
-- No new packages without escalation
+- Python (match existing pyproject.toml).
+- python-dotenv for any key loading (judge needs no key - it's local).
+- ollama Python client (or HTTP to http://localhost:11434) for Qwen3-8B. Escalate before adding the package if not present; HTTP needs no new dep.
+- scipy for Spearman rho and CI; numpy, pandas (likely present).
+- pytest for the new unit tests (escalate before installing if absent).
+- No other new packages without escalation.
 
 ## Architecture (new or modified files only)
 
 ```
-scripts/
-├── 01_annotate_corpus.py        # EXISTING — run only, do not restructure
-├── 10_remeasure_heuristics.py   # EXISTING — run only, do not restructure
-├── 11_semantic_backtrack.py     # NEW (only if H3 needs rebuild)
-└── 12_validate_phaseA2.py       # NEW — F1 validation for A.2 redesigns
-
-research/
-├── 04-phaseA1-remeasure.md      # MODIFY — fill stubs only, no restructure
-└── 05-phaseA2-rebuild.md        # NEW
+src/  (or scripts/ - match existing repo convention; inspect first)
+├── layer1_features.py      # NEW - 7 deterministic features per session
+├── trace_digest.py         # NEW - deterministic structured digest builder
+├── rating_interface.py     # NEW - human rating CLI, writes gold JSONL
+├── layer2_judge.py         # NEW - Ollama Qwen3-8B reference-based pointwise judge
+├── calibration.py          # NEW - Spearman rho judge vs human gold
+└── score.py                # NEW - composite score formula (Layer 1 + Layer 2)
 
 data/
-├── validation-corpus/           # DO NOT regenerate
-├── cost-log.jsonl               # APPEND ONLY
-└── embeddings-cache/            # NEW (if semantic H3 runs)
+├── gold/
+│   └── human_ratings.jsonl # NEW - the human gold set (sacred)
+├── judge_outputs/          # NEW - judge verdicts per session
+└── cost-log.jsonl          # APPEND ONLY
+
+research/
+└── 06-calibration.md       # NEW
+
+tests/
+└── test_layer1.py          # NEW - unit tests for deterministic features
 ```
+
+## Data model
+
+Human gold rating (one JSON line per rated session):
+```json
+{"session_id": "...", "domain": "...", "resolved": true,
+ "efficiency_rating": 4, "note": "optional free text",
+ "rated_at": "ISO-8601", "rater": "consultant"}
+```
+
+Judge output (one JSON object per session):
+```json
+{"session_id": "...", "verdict": "BETTER",
+ "verdict_score": 0.75, "waste_categories": ["..."],
+ "confidence": 0.0, "position_swap_consistent": true,
+ "reasoning": "...", "judge_model": "qwen3:8b", "prompt_sha256": "..."}
+```
+
+Verdict scale -> score: MUCH_BETTER 1.0 / BETTER 0.75 / SIMILAR 0.50 / WORSE 0.25 / MUCH_WORSE 0.0.
 
 ## Verification commands
 
 ```yaml
+- name: unit-tests
+  cmd: pytest tests/ -v
+  required: true
+- name: layer1-coverage
+  cmd: python -c "import json,glob; n=len(glob.glob('data/validation-corpus/annotations/gpt_oss/*.json')); print(f'{n} sessions available')"
+  required: true
+- name: ollama-up
+  cmd: python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/tags',timeout=5); print('ollama reachable')"
+  required: true
+- name: gold-integrity
+  cmd: python -c "import json; rows=[json.loads(l) for l in open('data/gold/human_ratings.jsonl')]; assert all(1<=r['efficiency_rating']<=5 for r in rows); print(f'{len(rows)} gold ratings valid')"
+  required: false
 - name: cost-check
-  cmd: python -c "import json; tot=sum(json.loads(l).get('cost_estimate_usd',0) for l in open('data/cost-log.jsonl')); print(f'cumulative ${tot:.2f}'); assert tot<5, 'budget exceeded'"
-  required: true
-- name: corpus-integrity
-  cmd: python -c "import json,glob; [json.loads(open(f).read()) for f in glob.glob('data/validation-corpus/**/*.json',recursive=True)]; print('corpus parses OK')"
-  required: true
-- name: report-04-no-tbd
-  cmd: python -c "t=open('research/04-phaseA1-remeasure.md').read(); assert 'TBD' not in t and 'TODO' not in t, 'unfilled stubs'"
+  cmd: python -c "import json; t=sum(json.loads(l).get('cost_estimate_usd',0) for l in open('data/cost-log.jsonl')); print(f'${t:.2f}'); assert t<5"
   required: true
 - name: lint
-  cmd: ruff check scripts/
-  required: false
-- name: types
-  cmd: mypy scripts/
+  cmd: ruff check .
   required: false
 ```
 
-`ruff` and `mypy` are best-effort. If not configured, skip and report — do not silently install.
+ruff/pytest best-effort if unconfigured - escalate rather than install silently.
 
 ## Subagent usage rules
 
-- Use `executor` for any pass that writes or edits files
-- Use `verifier` for running verification commands and the long-running annotation/remeasurement scripts (verifier captures exit + tail and reports)
-- The orchestrator does NOT write code — always delegates
-- DO NOT spawn a fresh annotation job from a subagent — first verify whether one is already running; escalate if uncertain
+- executor for any file write/edit.
+- verifier for tests, lint, ollama checks, and running the calibration/judge scripts.
+- Orchestrator does NOT write code - always delegates.
+- The human rating step is NOT a subagent task - it is a user escalation; the orchestrator hands off and waits.
 
 ## Escalation rules (orchestrator must ask before doing)
 
-- BEFORE restarting the bulk annotation job (it may be running from the previous session)
-- BEFORE assigning final PRODUCTION_READY / SALVAGEABLE / DEAD verdict to any heuristic — surface F1 + IAA numbers and ask
-- If IAA Cohen's kappa < 0.6 on ANY label — labels are suspect; ask before proceeding to verdicts
-- BEFORE downloading the BGE-large embedding model (~1.3GB)
-- BEFORE installing any dependency not listed in "Tech stack"
-- If cumulative API cost in `cost-log.jsonl` exceeds $4 (80% of $5 cap)
-- BEFORE modifying research reports 01, 02, or 03 — never expected; escalate if you think it's needed
-- If verifier reports any existing script newly failing
-- If a single executor pass would touch more than 4 files
-- If verification fails 3 times in a row on the same check
-- BEFORE pivoting to Path B (LLM-judge-primary) — never expected this iteration
-- BEFORE expanding the corpus (A.3 is deferred)
-- BEFORE adding embedding or API providers beyond what's in "Tech stack"
+- BEFORE the human rating step: confirm the rating interface is validated (digest fidelity check passed) and present the 40-session stratified sample for the user to rate. Then HOLD for the user to complete ratings - this is a multi-hour human task, not a quick reply.
+- If the digest fidelity check suggests the human cannot reliably rate from the digest - escalate the digest design before proceeding.
+- BEFORE any frontier-model / paid-API call (e.g., the calibration diagnostic if Qwen3-8B underperforms).
+- If calibration rho < 0.55 after 3 prompt-iteration attempts - kill criterion; escalate, do NOT keep iterating silently.
+- If calibration rho is in [0.55, 0.75) - proceed but escalate the number; the user decides whether to ship or tune further.
+- BEFORE installing any dependency not in Tech stack.
+- If cumulative cost exceeds $4.
+- BEFORE modifying any research report 01-05.
+- If a single executor pass would touch more than 4 files.
+- If verification fails 3 times in a row on the same check.
+- BEFORE expanding the corpus or actioning a cleanup-backlog item.
 
 ## Hard rules
 
-- DO NOT modify `research/01-sota-scan.md`
-- DO NOT modify `research/02-trajectory-waste.md`
-- DO NOT modify `research/03-validation-corpus.md`
-- DO NOT regenerate, overwrite, or delete anything in `data/validation-corpus/`
-- DO NOT rewrite past entries in `data/cost-log.jsonl` (append only)
-- DO NOT export `ANTHROPIC_API_KEY` to the shell environment; use `python-dotenv` inside the script process
-- DO NOT restart the bulk annotation job without escalating
-- DO NOT change the locked model allocation (GPT-OSS / Sonnet / BGE)
-- DO NOT write production scorer code in this iteration
-- DO NOT commit `.env` or any secret
+- DO NOT modify research reports 01-05.
+- DO NOT regenerate or overwrite data/validation-corpus/.
+- DO NOT synthesize, impute, or LLM-fill human gold ratings. Ever.
+- DO NOT use a Claude model or any paid API as the judge (local Qwen3-8B only) without escalation.
+- DO NOT let judge_score encode task SUCCESS - it rates efficiency conditional on the task. Success lives only in outcome_score. (Prevents collinearity.)
+- DO NOT export ANTHROPIC_API_KEY to the shell; load .env in-process.
+- DO NOT rewrite past cost-log entries (append only).
+- DO NOT commit .env or secrets.
 
 ## Budget
 
-- Soft target: 1–2 Claude Code sessions
-- Hard cap: stop and escalate after 20 executor invocations
-- API cost hard cap: $5 cumulative across entire project (check `cost-log.jsonl`); escalate at $4
-- Orchestrator runs `/cost` at midpoint and reports
+- Soft target: 2-3 Claude Code sessions (the human rating step spans real-world time).
+- Hard cap: stop and escalate after 20 executor invocations.
+- API cost: judge is local ($0). Only a diagnostic frontier batch would cost - escalate first. $5 cumulative cap, escalate at $4.
+- Orchestrator runs /cost at midpoint and reports.
 
 ## Success criteria (orchestrator verifies ALL before declaring done)
 
-- `research/04-phaseA1-remeasure.md` has no TBD/TODO markers
-- `research/04-phaseA1-remeasure.md` contains: F1 table per heuristic, IAA Cohen's kappa per label, confusion matrices, 5 failure-mode examples per heuristic, per-heuristic verdict
-- Per-heuristic verdicts were escalated to user and confirmed before being treated as committed
-- A.2 redesigns (if any) have validation F1 reported in `research/05-phaseA2-rebuild.md`
-- `data/cost-log.jsonl` shows cumulative cost < $5
-- Git history is clean: conventional commits, one concept per commit
-- No file in `research/01-*`, `research/02-*`, `research/03-*` was modified
-- `data/validation-corpus/` was not regenerated
-- Annotation job was not duplicated or restarted unnecessarily
+- Layer 1 produces 7 features + a digest for all 191 sessions without crashing.
+- Digest fidelity check ran and passed (or its limitations are documented and accepted).
+- Rating interface works; the user rated 40 sessions; data/gold/human_ratings.jsonl has 40 valid rows.
+- Layer 2 judge runs locally via Ollama and produces a verdict for every gold session, with position-swap consistency recorded.
+- Calibration computed: Spearman rho (with CI) between judge verdict_score and human efficiency_rating, reported in research/06-calibration.md.
+- Kill-criterion evaluated and the verdict escalated to the user.
+- If rho >= 0.55: composite score formula implemented and run end-to-end on the 40 gold sessions, with per-session scores in an output file.
+- Unit tests for Layer 1 pass.
+- Cumulative cost < $5.
+- No research report 01-05 modified; corpus not regenerated; no gold rating synthesized.
+- Git history clean, conventional commits.
 
 ## Build order (recommended; orchestrator may adjust)
 
-1. Read `CURRENT_STATE.md` end to end
-2. Verify the in-flight annotation job state (`ps`, log file tail). Escalate if ambiguous; do not restart unilaterally
-3. If bulk annotation complete: invoke verifier to confirm output integrity (200 sessions labeled, schema valid, cost log updated)
-4. Run IAA mode (`scripts/01_annotate_corpus.py --mode iaa-only`)
-5. Run F1 remeasurement (`scripts/10_remeasure_heuristics.py`)
-6. Fill stubs in `research/04-phaseA1-remeasure.md` (text edits only)
-7. Commit A.1 results. Escalate verdicts to user
-8. After user confirms verdicts: plan A.2 work (likely semantic H3 via BGE if H3 = DEAD)
-9. Implement A.2 redesigns via executor
-10. Validate redesigns against existing corpus
-11. Write `research/05-phaseA2-rebuild.md`
-12. Commit A.2 results
-13. Run full verification suite; declare done
+1. Read CURRENT_STATE.md, then spec.md. Inspect repo to match src/ vs scripts/ convention.
+2. Build Layer 1: layer1_features.py + trace_digest.py. Run on all 191 sessions. Add tests/test_layer1.py. Verifier runs pytest.
+3. Digest fidelity check: build a couple of digests, present to the user to confirm they're rateable. HOLD briefly for user confirmation.
+4. Build rating_interface.py. Verifier smoke-tests it on 1 session.
+5. ESCALATE: present the 40-session stratified sample; user rates them via the interface. HOLD for completion (multi-hour human task).
+6. Build layer2_judge.py (Ollama, reference-based pointwise, permutation fix). Verifier runs it on 2-3 sessions to confirm schema + Ollama connectivity.
+7. Run the judge on all 40 gold sessions. Record verdicts + position-swap consistency.
+8. Build calibration.py. Compute Spearman rho judge vs human gold.
+9. Evaluate kill criterion. Escalate the number and verdict to the user. HOLD.
+10. If cleared: build score.py, run the composite formula on the 40 gold sessions.
+11. Write research/06-calibration.md. Commit. Run full verification. Declare done.
