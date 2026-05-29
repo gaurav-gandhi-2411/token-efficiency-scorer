@@ -213,35 +213,45 @@ def build_digest(
     )
 
 
-def digest_to_text(digest: SessionDigest) -> str:
+def digest_to_text(digest: SessionDigest, *, show_stats: bool = True) -> str:
     """Render a ``SessionDigest`` as human-readable text for the rating interface.
 
     System turns are omitted from the TRAJECTORY section because their
     content_text is always empty in the normalized traces.
 
     Args:
-        digest: The session digest to render.
+        digest:     The session digest to render.
+        show_stats: When True (default), include P25 Ratio, Cache Hit, H2 Duplicates,
+                    and H2 duplicate markers in trajectory turns — full stats view.
+                    When False, omit those formula-derived stats so raters anchor on
+                    agent behavior rather than token math (rater-safe view).
 
     Returns:
         A multi-line string formatted for human raters.
     """
-    lines: list[str] = [
-        f"=== SESSION {digest.session_id} ===",
-        (
+    if show_stats:
+        header_summary = (
             f"Domain: {digest.domain} | Resolved: {digest.resolved} | "
             f"Tokens: {digest.total_tokens} | Turns: {digest.turn_count}"
-        ),
-        (
+        )
+        stats_line: str | None = (
             f"P25 Ratio: {digest.p25_token_ratio:.2f} | "
             f"Cache Hit: {digest.cache_hit_rate:.1%} | "
             f"H2 Duplicates: {digest.h2_duplicate_count} | "
             f"Output Tokens: {'available' if digest.output_tokens_available else 'unavailable (swe_agent)'}"
-        ),
-        "",
-        f"TASK: {digest.task_description}",
-        "",
-        "TRAJECTORY:",
-    ]
+        )
+    else:
+        header_summary = (
+            f"Domain: {digest.domain} | Resolved: {digest.resolved} | "
+            f"Turns: {digest.turn_count} | "
+            f"Output Tokens: {'available' if digest.output_tokens_available else 'unavailable (swe_agent)'}"
+        )
+        stats_line = None
+
+    lines: list[str] = [f"=== SESSION {digest.session_id} ===", header_summary]
+    if stats_line is not None:
+        lines.append(stats_line)
+    lines += ["", f"TASK: {digest.task_description}", "", "TRAJECTORY:"]
 
     for turn in digest.turns:
         # Skip system turns — they are always empty in normalized traces.
@@ -257,7 +267,7 @@ def digest_to_text(digest: SessionDigest) -> str:
             f"in: {turn.token_count_input} / out: {turn.token_count_output}"
         )
         lines.append(f"  {turn.content_snippet}")
-        if turn.h2_duplicate:
+        if show_stats and turn.h2_duplicate:
             lines.append("   *** H2 DUPLICATE ***")
 
     return "\n".join(lines)
