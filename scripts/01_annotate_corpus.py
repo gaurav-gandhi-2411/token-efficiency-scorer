@@ -414,7 +414,7 @@ def _call_sonnet(
         try:
             msg = client.messages.create(
                 model=SONNET_MODEL,
-                max_tokens=4096,
+                max_tokens=8192,
                 system=[
                     {
                         "type": "text",
