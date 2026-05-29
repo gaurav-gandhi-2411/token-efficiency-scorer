@@ -238,6 +238,7 @@ def _load_session_digest(
     session_id: str,
     taxonomy_index: dict[str, Any],
     domain_p25: dict[str, float],
+    show_stats: bool = True,
 ) -> str:
     """Load raw data and return full digest_to_text — no truncation.
 
@@ -245,6 +246,8 @@ def _load_session_digest(
         session_id:     Canonical session identifier.
         taxonomy_index: Mapping of session_id → taxonomy row dict.
         domain_p25:     Pre-computed domain → p25 baseline mapping.
+        show_stats:     Passed through to digest_to_text; False hides formula-derived
+                        stats to prevent rater anchoring on token math.
 
     Returns:
         Full human-readable digest string.
@@ -260,7 +263,7 @@ def _load_session_digest(
     )
     feat = extract_features(session_id, row, ann, trace, domain_p25)
     digest = build_digest(session_id, feat, trace, ann)
-    return digest_to_text(digest)
+    return digest_to_text(digest, show_stats=show_stats)
 
 
 # ---------------------------------------------------------------------------
@@ -324,6 +327,7 @@ def _run_rating_loop(
     sample: list[dict[str, Any]],
     taxonomy_index: dict[str, Any],
     domain_p25: dict[str, float],
+    show_stats: bool = True,
 ) -> None:
     """Iterate through unrated sessions in sample order, prompting for ratings."""
     rated_ids = _load_rated_ids()
@@ -345,11 +349,13 @@ def _run_rating_loop(
             print()
 
             # Full digest — no truncation.
-            digest_text = _load_session_digest(sid, taxonomy_index, domain_p25)
+            digest_text = _load_session_digest(sid, taxonomy_index, domain_p25, show_stats=show_stats)
             print(digest_text)
 
             print()
             print(_RATING_RUBRIC)
+            if not show_stats:
+                print("  [Stats hidden — rate from trajectory behavior, not token counts. Use --show-stats to reveal.]")
 
             # Validated rating input.
             while True:
@@ -401,6 +407,12 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Print full digest for SESSION_ID then exit (smoke test).",
     )
+    parser.add_argument(
+        "--show-stats",
+        action="store_true",
+        default=False,
+        help="Show P25 ratio, total tokens, and H2 markers during rating (default: hidden to avoid anchoring).",
+    )
     return parser.parse_args()
 
 
@@ -423,7 +435,7 @@ def main() -> None:
         if sid not in taxonomy_index:
             print(f"[ERROR] Session '{sid}' not found in taxonomy.", file=sys.stderr)
             sys.exit(1)
-        print(_load_session_digest(sid, taxonomy_index, domain_p25))
+        print(_load_session_digest(sid, taxonomy_index, domain_p25, show_stats=args.show_stats))
         sys.exit(0)
 
     # Load or build stratified sample.
@@ -449,7 +461,7 @@ def main() -> None:
         sys.exit(0)
 
     # Run the rating loop.
-    _run_rating_loop(sample, taxonomy_index, domain_p25)
+    _run_rating_loop(sample, taxonomy_index, domain_p25, show_stats=args.show_stats)
 
 
 if __name__ == "__main__":
