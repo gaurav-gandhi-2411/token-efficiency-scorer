@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Human rating interface for the token-efficiency calibration study.
 
 Usage:
@@ -12,11 +10,13 @@ success. A failed session can be efficient if the agent worked methodically; a
 resolved session can be wasteful if it thrashed.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -298,7 +298,7 @@ def _append_rating(
         "scaffold": scaffold,
         "efficiency_rating": efficiency_rating,
         "note": note,
-        "rated_at": datetime.now(timezone.utc).isoformat(),
+        "rated_at": datetime.now(UTC).isoformat(),
         "rater": "consultant",
     }
     with RATINGS_PATH.open("a", encoding="utf-8") as fh:
@@ -372,7 +372,7 @@ def _run_rating_loop(
 
             # Count completed sessions (those in rated_ids that are in sample).
             n_done = sum(1 for row in sample if row["session_id"] in rated_ids)
-            print(f"──────────────────────────────────────────────────────────────────────")
+            print("──────────────────────────────────────────────────────────────────────")
             print(f"Saved. Progress: {n_done} / {total} complete.")
 
     except KeyboardInterrupt:
@@ -406,6 +406,10 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> None:
     """Entry point for the rating interface."""
+    # Ensure UTF-8 output on Windows terminals that default to cp1252.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     args = _parse_args()
 
     # Load taxonomy once.
