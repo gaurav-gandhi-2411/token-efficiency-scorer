@@ -36,6 +36,35 @@ TAXONOMY_PATH = ROOT / "data" / "validation-corpus" / "taxonomy" / "task_taxonom
 SEED = 42
 
 # ---------------------------------------------------------------------------
+# Structured output schema for Ollama constrained decoding
+# ---------------------------------------------------------------------------
+JUDGE_OUTPUT_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["MUCH_BETTER", "BETTER", "SIMILAR", "WORSE", "MUCH_WORSE"],
+        },
+        "waste_categories": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "enum": [
+                    "redundant_read",
+                    "failed_retry",
+                    "context_bloat",
+                    "trajectory_drift",
+                    "duplicate_output",
+                ],
+            },
+        },
+        "confidence": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+        "reasoning": {"type": "string"},
+    },
+    "required": ["verdict", "waste_categories", "confidence", "reasoning"],
+}
+
+# ---------------------------------------------------------------------------
 # Verdict mapping
 # ---------------------------------------------------------------------------
 VERDICT_TO_FLOAT: dict[str, float] = {
@@ -174,10 +203,10 @@ def _call_ollama(
                     {"role": "user", "content": user_prompt},
                 ],
                 "stream": False,
-                "format": "json",
+                "format": JUDGE_OUTPUT_SCHEMA,
                 "options": {"temperature": 0, "seed": SEED},
             },
-            timeout=120.0,
+            timeout=180.0,
         )
         response.raise_for_status()
         raw = response.json()["message"]["content"]
