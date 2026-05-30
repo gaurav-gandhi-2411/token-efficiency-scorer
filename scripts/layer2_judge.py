@@ -84,7 +84,10 @@ Rate TRAJECTORY BEHAVIOR ONLY.
 Respond with ONLY valid JSON — no text outside the JSON.
 """
 
+# /no_think is placed at the START of the user message (not system prompt) because
+# Qwen3 only honours the thinking-suppression directive when it appears in a user turn.
 _JUDGE_USER_TEMPLATE = """\
+/no_think
 TASK: {task_description}
 
 DOMAIN: {domain}
@@ -189,9 +192,24 @@ def _call_ollama(
     ollama_url: str,
     ollama_model: str,
 ) -> dict[str, Any] | None:
-    """Send a single judge request to Ollama; return parsed JSON or None on error."""
+    """Send a single judge request to Ollama; return parsed JSON or None on error.
+
+    Uses streaming mode so that tokens are received as they are generated.
+    Qwen3 thinking models generate a long <think> chain before the JSON output;
+    streaming lets us collect the response chunks without a read-timeout on the
+    connection.  The 'response' field in each chunk carries the actual output
+    text; 'thinking' carries the hidden reasoning chain (we discard it).
+
+    timeout=600 is a *connect* timeout here; the streaming read loop has no
+    per-chunk deadline, which is fine because httpx enforces the total wall-clock
+    limit via the outer try/except.
+    """
+    import json as _json  # noqa: PLC0415 (re-import to avoid shadowing)
+
     try:
-        response = httpx.post(
+        response_text = ""
+        with httpx.stream(
+            "POST",
             f"{ollama_url}/api/chat",
             json={
                 "model": ollama_model,
@@ -199,15 +217,26 @@ def _call_ollama(
                     {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                "stream": False,
+                "stream": True,
                 "format": JUDGE_OUTPUT_SCHEMA,
-                "options": {"temperature": 0, "seed": SEED},
+                "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768},
             },
-            timeout=180.0,
-        )
-        response.raise_for_status()
-        raw = response.json()["message"]["content"]
-        return json.loads(raw)
+            timeout=600.0,
+        ) as stream_resp:
+            stream_resp.raise_for_status()
+            for line in stream_resp.iter_lines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    chunk = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                # Collect only the 'response' field (the non-thinking output).
+                response_text += chunk.get("message", {}).get("content", "")
+                if chunk.get("done"):
+                    break
+        return _json.loads(response_text)
     except httpx.HTTPError as e:
         print(f"  HTTP error: {e}", file=sys.stderr)
         return None
@@ -316,7 +345,17 @@ def main() -> None:
 
     records = _load_records()
     scaffold_map = _load_scaffold_map()
-    existing = _load_existing_scores() if not args.force else {}
+
+    # When --force + --mode session, load all existing scores so the file write
+    # preserves other sessions — only the target session gets re-scored.
+    # When --force + --mode full, start from scratch (original behaviour).
+    if not args.force:
+        existing = _load_existing_scores()
+    elif args.mode == "session":
+        # Preserve all other scores; the target session will be overwritten below.
+        existing = _load_existing_scores()
+    else:
+        existing = {}
 
     if args.mode == "session":
         if not args.session_id:
