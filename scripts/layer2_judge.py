@@ -1,8 +1,12 @@
 """
-layer2_judge.py — Layer 2: reference-based pointwise efficiency judge via Qwen3-8B/Ollama.
+layer2_judge.py — Layer 2: trajectory-quality judge via Qwen3-8B/Ollama.
 
-Reads layer1_outputs.jsonl and config/p25_refs.yaml, calls Qwen3-8B locally for each
-session, and writes judge_scores.jsonl.
+Reads layer1_outputs.jsonl, calls Qwen3-8B locally for each session,
+and writes judge_scores.jsonl.
+
+Judge scope (v2): trajectory purposefulness ONLY — not token efficiency,
+not task success. Token economy is handled deterministically by
+p25_token_ratio in objective_proxy.py and composed arithmetically in score.py.
 """
 from __future__ import annotations
 
@@ -14,22 +18,16 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-import yaml
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from token_efficiency.layer1_features import (  # noqa: E402
-    CORPUS_MEAN_RESOLVE_RATE,
-    DOMAIN_RESOLVE_RATE,
-)
 from token_efficiency.trace_digest import SessionDigest, TurnDigest, digest_to_text  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 LAYER1_PATH = ROOT / "data" / "layer1_outputs.jsonl"
-REFS_PATH = ROOT / "config" / "p25_refs.yaml"
 OUTPUT_PATH = ROOT / "data" / "judge_scores.jsonl"
 TAXONOMY_PATH = ROOT / "data" / "validation-corpus" / "taxonomy" / "task_taxonomy.json"
 
@@ -76,11 +74,13 @@ VERDICT_TO_FLOAT: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
-# Prompts
+# Prompts (v2 — trajectory quality only, no token-economy fields)
 # ---------------------------------------------------------------------------
 JUDGE_SYSTEM_PROMPT = """\
-You are a reference-based pointwise efficiency judge for AI coding agent sessions.
-Rate each session's efficiency RELATIVE TO THE REFERENCE STANDARD provided.
+You are a trajectory quality judge for AI coding agent sessions.
+Your sole job: assess how purposefully and directly the agent navigated the task.
+Do NOT assess token efficiency, task success, or code quality.
+Rate TRAJECTORY BEHAVIOR ONLY.
 Respond with ONLY valid JSON — no text outside the JSON.
 """
 
@@ -88,36 +88,38 @@ _JUDGE_USER_TEMPLATE = """\
 TASK: {task_description}
 
 DOMAIN: {domain}
-REFERENCE STANDARD: A p25-efficient {domain} session uses approximately {p25_ref_tokens} total \
-tokens and {median_turns} median turns. Domain baseline resolve rate: {resolve_rate:.0%}.
-Reference-level sessions are characterized by: direct file edits without repeated re-reads,
-no failed retries of identical commands, no repeated assistant outputs, and tool results
-that influence the next action.
 
-SESSION UNDER EVALUATION:
-  Total tokens: {total_tokens} ({p25_token_ratio:.2f}x the p25 reference)
+SESSION BEHAVIORAL SIGNALS:
   Turn count: {turn_count}
-  Cache hit rate: {cache_hit_rate:.0%}
   Duplicate turns (H2): {h2_duplicate_count}
+  Cache hit rate: {cache_hit_rate:.0%}
 
-TRAJECTORY (same view as reference raters):
+TRAJECTORY:
 {digest_text}
 
-EVALUATION CRITERIA (apply all five in this fixed order):
-C1. Token economy: how close to the p25 efficient baseline is total token spend?
-C2. Turn economy: are turns advancing task state vs exploratory or redundant?
-C3. Trajectory coherence: does the agent avoid unanchored backtracking and exact retries?
-C4. Tool utilization: are tool results integrated into the next action or reasoning?
-C5. Context discipline: does the agent avoid unnecessary re-reads and verbose tool outputs?
+EVALUATION CRITERIA (apply all four in this fixed order):
+C1. Turn purposefulness: does each turn advance task state, or is it exploratory/redundant?
+C2. Trajectory coherence: does the agent avoid unanchored backtracking and exact retries of \
+failed commands?
+C3. Tool utilization: are tool results integrated into the next action, or ignored/repeated?
+C4. Context discipline: does the agent avoid unnecessary re-reads and duplicate outputs?
 
-Rate the session's efficiency RELATIVE TO THE REFERENCE STANDARD above.
+Rate the PURPOSEFULNESS of the agent's trajectory — how directly and coherently it worked \
+toward the goal, regardless of how many tokens were used or whether the task succeeded.
+
+  MUCH_BETTER — very purposeful: direct path, no dead ends, tool results drive next steps
+  BETTER       — mostly purposeful, minor redundancy or exploration
+  SIMILAR      — some backtracking or redundancy but overall coherent
+  WORSE        — unfocused: repeated failures, poor tool integration, backtracking
+  MUCH_WORSE   — very unfocused: flailing, redundant loops, dead-end exploration
+
 Respond with ONLY valid JSON:
 {{
   "verdict": "<MUCH_BETTER|BETTER|SIMILAR|WORSE|MUCH_WORSE>",
-  "waste_categories": ["<subset of: redundant_read, failed_retry, context_bloat,
-    trajectory_drift, duplicate_output>"],
+  "waste_categories": ["<subset of: redundant_read, failed_retry, context_bloat, \
+trajectory_drift, duplicate_output>"],
   "confidence": <0.0 to 1.0; use < 0.5 for ambiguous sessions>,
-  "reasoning": "<1-2 sentences citing specific turn numbers>"
+  "reasoning": "<1-2 sentences citing specific turn numbers or behavioral patterns observed>"
 }}
 """
 
@@ -159,11 +161,6 @@ def _load_scaffold_map() -> dict[str, str]:
     """Build session_id -> scaffold mapping from task_taxonomy.json."""
     taxonomy: list[dict[str, Any]] = json.loads(TAXONOMY_PATH.read_text(encoding="utf-8"))
     return {row["session_id"]: str(row.get("scaffold", "unknown")) for row in taxonomy}
-
-
-def _load_refs() -> dict[str, Any]:
-    """Load p25_refs.yaml; raise FileNotFoundError if missing (run objective_proxy.py first)."""
-    return yaml.safe_load(REFS_PATH.read_text(encoding="utf-8"))
 
 
 def _load_existing_scores() -> dict[str, dict[str, Any]]:
@@ -227,27 +224,15 @@ def _call_ollama(
 # ---------------------------------------------------------------------------
 
 
-def _build_user_prompt(rec: dict[str, Any], refs: dict[str, Any]) -> str:
+def _build_user_prompt(rec: dict[str, Any]) -> str:
     """Build the judge user prompt for a single session."""
     digest = _reconstruct_digest(rec["digest"])
     digest_text = digest_to_text(digest, show_stats=False)
-
-    domain_id = rec["domain_id"]
-    domain_refs = refs.get("domains", {}).get(domain_id, {})
-    p25_ref_tokens = int(domain_refs.get("p25_tokens", refs.get("corpus_wide_p25_tokens", 0)))
-    median_turns = int(domain_refs.get("median_turns", refs.get("corpus_wide_median_turns", 0)))
-    resolve_rate = DOMAIN_RESOLVE_RATE.get(domain_id, CORPUS_MEAN_RESOLVE_RATE)
-
     task_description = digest.task_description[:400]
 
     return _JUDGE_USER_TEMPLATE.format(
         task_description=task_description,
-        domain=domain_id,
-        p25_ref_tokens=p25_ref_tokens,
-        median_turns=median_turns,
-        resolve_rate=resolve_rate,
-        total_tokens=rec["total_tokens"],
-        p25_token_ratio=rec["p25_token_ratio"],
+        domain=rec["domain_id"],
         turn_count=rec["turn_count"],
         cache_hit_rate=rec["cache_hit_rate"],
         h2_duplicate_count=rec["h2_duplicate_count"],
@@ -281,13 +266,12 @@ def _parse_args() -> argparse.Namespace:
 
 def _score_session(
     rec: dict[str, Any],
-    refs: dict[str, Any],
     scaffold_map: dict[str, str],
     ollama_url: str,
     ollama_model: str,
 ) -> dict[str, Any] | None:
     """Score a single session; return output record or None on failure."""
-    user_prompt = _build_user_prompt(rec, refs)
+    user_prompt = _build_user_prompt(rec)
     result = _call_ollama(user_prompt, ollama_url, ollama_model)
     if result is None:
         return None
@@ -330,7 +314,6 @@ def main() -> None:
     """Entry point."""
     args = _parse_args()
 
-    refs = _load_refs()
     records = _load_records()
     scaffold_map = _load_scaffold_map()
     existing = _load_existing_scores() if not args.force else {}
@@ -365,7 +348,7 @@ def main() -> None:
         t0 = time.monotonic()
         print(f"  [{i}/{total}] {sid}...", end="", flush=True)
 
-        scored = _score_session(rec, refs, scaffold_map, args.ollama_url, args.model)
+        scored = _score_session(rec, scaffold_map, args.ollama_url, args.model)
         elapsed = time.monotonic() - t0
 
         if scored is None:
