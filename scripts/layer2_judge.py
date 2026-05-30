@@ -269,12 +269,27 @@ def _score_session(
         return None
 
     judge_score = VERDICT_TO_FLOAT[verdict]
+
+    # Defensive confidence parsing: model may return a string like "very_low" instead of a float.
+    _CONF_STRING_MAP: dict[str, float] = {
+        "very_low": 0.1,
+        "low": 0.3,
+        "medium": 0.5,
+        "high": 0.75,
+        "very_high": 0.95,
+    }
+    raw_conf = result.get("confidence", 0.5)
+    try:
+        confidence = float(raw_conf)
+    except (TypeError, ValueError):
+        confidence = _CONF_STRING_MAP.get(str(raw_conf).lower().strip(), 0.5)
+
     return {
         "session_id": rec["session_id"],
         "judge_score": judge_score,
         "verdict": verdict,
         "waste_categories": result.get("waste_categories", []),
-        "confidence": float(result.get("confidence", 0.5)),
+        "confidence": confidence,
         "reasoning": str(result.get("reasoning", "")),
         "scaffold": scaffold_map.get(rec["session_id"], "unknown"),
         "domain_id": rec["domain_id"],
