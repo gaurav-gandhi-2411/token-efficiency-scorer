@@ -99,9 +99,15 @@ Respond with ONLY valid JSON:
 
 
 def _reconstruct_digest(d: dict[str, Any]) -> SessionDigest:
-    """Reconstruct a SessionDigest from the plain dict stored in layer1_outputs.jsonl."""
+    """Reconstruct a SessionDigest from the plain dict stored in layer1_outputs.jsonl.
+
+    Handles records generated before output_tokens_available was added to SessionDigest
+    by defaulting the field to False when absent (safe: swe_agent sessions lack it).
+    """
     turns = [TurnDigest(**t) for t in d["turns"]]
-    return SessionDigest(**{k: v for k, v in d.items() if k != "turns"}, turns=turns)
+    fields = {k: v for k, v in d.items() if k != "turns"}
+    fields.setdefault("output_tokens_available", False)
+    return SessionDigest(**fields, turns=turns)
 
 
 # ---------------------------------------------------------------------------
