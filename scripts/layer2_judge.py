@@ -290,6 +290,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--force", action="store_true", help="Re-score already-scored sessions.")
     parser.add_argument("--limit", type=int, default=None, metavar="N")
+    parser.add_argument("--max-turns", type=int, default=None, metavar="N",
+                        help="Skip sessions with turn_count > N.")
     return parser.parse_args()
 
 
@@ -344,6 +346,8 @@ def main() -> None:
     args = _parse_args()
 
     records = _load_records()
+    if args.max_turns is not None:
+        records = [r for r in records if r.get("turn_count", 0) <= args.max_turns]
     scaffold_map = _load_scaffold_map()
 
     # When --force + --mode session, load all existing scores so the file write
