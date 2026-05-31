@@ -92,11 +92,6 @@ TASK: {task_description}
 
 DOMAIN: {domain}
 
-SESSION BEHAVIORAL SIGNALS:
-  Turn count: {turn_count}
-  Duplicate turns (H2): {h2_duplicate_count}
-  Cache hit rate: {cache_hit_rate:.0%}
-
 TRAJECTORY:
 {digest_text}
 
@@ -262,9 +257,6 @@ def _build_user_prompt(rec: dict[str, Any]) -> str:
     return _JUDGE_USER_TEMPLATE.format(
         task_description=task_description,
         domain=rec["domain_id"],
-        turn_count=rec["turn_count"],
-        cache_hit_rate=rec["cache_hit_rate"],
-        h2_duplicate_count=rec["h2_duplicate_count"],
         digest_text=digest_text,
     )
 
