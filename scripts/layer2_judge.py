@@ -219,7 +219,7 @@ def _call_ollama(
                 ],
                 "stream": True,
                 "format": JUDGE_OUTPUT_SCHEMA,
-                "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768},
+                "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768, "num_predict": 4096},
             },
             timeout=600.0,
         ) as stream_resp:
