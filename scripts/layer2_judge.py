@@ -221,7 +221,7 @@ def _call_ollama(
                 "format": JUDGE_OUTPUT_SCHEMA,
                 "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768, "num_predict": 4096},
             },
-            timeout=600.0,
+            timeout=httpx.Timeout(connect=30.0, read=1800.0, write=30.0, pool=30.0),
         ) as stream_resp:
             stream_resp.raise_for_status()
             for line in stream_resp.iter_lines():
