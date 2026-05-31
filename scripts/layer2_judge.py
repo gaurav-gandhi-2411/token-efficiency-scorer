@@ -74,7 +74,7 @@ VERDICT_TO_FLOAT: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
-# Prompts (v2 — trajectory quality only, no token-economy fields)
+# Prompts (v3 — trajectory quality only; Layer-1 scalars stripped from prompt)
 # ---------------------------------------------------------------------------
 JUDGE_SYSTEM_PROMPT = """\
 You are a trajectory quality judge for AI coding agent sessions.
@@ -284,6 +284,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=None, metavar="N")
     parser.add_argument("--max-turns", type=int, default=None, metavar="N",
                         help="Skip sessions with turn_count > N.")
+    parser.add_argument(
+        "--session-ids-file",
+        default=None,
+        metavar="PATH",
+        help="JSON file (array of objects with session_id) to filter scoring to a specific subset.",
+    )
     return parser.parse_args()
 
 
@@ -340,6 +346,12 @@ def main() -> None:
     records = _load_records()
     if args.max_turns is not None:
         records = [r for r in records if r.get("turn_count", 0) <= args.max_turns]
+    if args.session_ids_file is not None:
+        sid_filter = {
+            row["session_id"]
+            for row in json.loads(Path(args.session_ids_file).read_text(encoding="utf-8"))
+        }
+        records = [r for r in records if r["session_id"] in sid_filter]
     scaffold_map = _load_scaffold_map()
 
     # When --force + --mode session, load all existing scores so the file write
