@@ -33,10 +33,27 @@ mkdir -p /opt/scoring
 git clone https://github.com/gaurav-gandhi-2411/token-efficiency-scorer.git /opt/scoring/repo
 echo "[$(date)] Repo cloned"
 
-# Install Python deps via uv (repo uses uv lockfile)
+# Install the only external Python deps needed by the scoring chain:
+#   layer2_judge.py → httpx
+#   layer2_judge.py → trace_digest → layer1_features → numpy
+# numpy is pre-installed on DLVM (PyTorch dep), but we verify and install if absent.
+# No uv lockfile exists in this repo — do NOT use uv sync.
 cd /opt/scoring/repo
-pip3 install uv --quiet
-uv sync --frozen 2>&1 || pip3 install httpx pydantic pydantic-settings structlog pyyaml
+pip3 install httpx --quiet \
+  || /opt/conda/bin/pip install httpx --quiet \
+  || python3 -m pip install httpx --quiet
+# numpy: install only if missing (DLVM already has it)
+python3 -c "import numpy" 2>/dev/null \
+  || pip3 install numpy --quiet \
+  || /opt/conda/bin/pip install numpy --quiet
+# Smoke-test the full import chain before declaring deps OK
+python3 -c "
+import sys
+sys.path.insert(0, 'src')
+import httpx, numpy
+from token_efficiency.trace_digest import digest_to_text
+print('deps OK: httpx numpy trace_digest all importable')
+"
 echo "[$(date)] Python deps installed"
 
 # GPU verification
