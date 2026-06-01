@@ -108,6 +108,11 @@ if parse_errors:
     print(f"[distribution] WARNING: {parse_errors} lines failed JSON parse")
 EOF
 
+# Preemption safety note: judge_scores.jsonl lives on the boot persistent disk
+# (/opt/scoring/repo/data/). With --instance-termination-action=STOP, spot preemption
+# preserves this disk. On VM restart, skip-if-scored resumes from the last written row.
+# The push below is the final retrieval step, not the only safety net.
+
 # ---------------------------------------------------------------------------
 # Push to GitHub (or print manual scp fallback)
 # ---------------------------------------------------------------------------
@@ -115,7 +120,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN is not set. Skipping git push."
     echo "[$(date)] To retrieve results manually, run from your local machine:"
-    echo "    gcloud compute scp qwen3-judge-gpu:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=aetherart-497918"
+    echo "    gcloud compute scp tes-judge-scoring-tmp:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=aetherart-497918"
 else
     echo "[$(date)] GITHUB_TOKEN set. Pushing judge_scores.jsonl to GitHub..."
     git config user.email "gaurav.gandhi2411@gmail.com"
