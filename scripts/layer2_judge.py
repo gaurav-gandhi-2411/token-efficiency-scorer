@@ -144,10 +144,10 @@ def _reconstruct_digest(d: dict[str, Any]) -> SessionDigest:
 # ---------------------------------------------------------------------------
 
 
-def _load_records() -> list[dict[str, Any]]:
-    """Load all annotated records from layer1_outputs.jsonl."""
+def _load_records(path: Path) -> list[dict[str, Any]]:
+    """Load all annotated records from the given layer1 JSONL file."""
     rows: list[dict[str, Any]] = []
-    with LAYER1_PATH.open(encoding="utf-8") as fh:
+    with path.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -161,12 +161,12 @@ def _load_scaffold_map() -> dict[str, str]:
     return {row["session_id"]: str(row.get("scaffold", "unknown")) for row in taxonomy}
 
 
-def _load_existing_scores() -> dict[str, dict[str, Any]]:
-    """Load existing judge_scores.jsonl into a session_id -> record dict."""
-    if not OUTPUT_PATH.exists():
+def _load_existing_scores(path: Path) -> dict[str, dict[str, Any]]:
+    """Load existing judge scores JSONL into a session_id -> record dict."""
+    if not path.exists():
         return {}
     scores: dict[str, dict[str, Any]] = {}
-    for line in OUTPUT_PATH.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line:
             try:
@@ -290,6 +290,20 @@ def _parse_args() -> argparse.Namespace:
         metavar="PATH",
         help="JSON file (array of objects with session_id) to filter scoring to a specific subset.",
     )
+    parser.add_argument(
+        "--input-path",
+        type=Path,
+        default=LAYER1_PATH,
+        metavar="PATH",
+        help="Input JSONL file produced by Layer 1 (default: data/layer1_outputs.jsonl).",
+    )
+    parser.add_argument(
+        "--output-path",
+        type=Path,
+        default=OUTPUT_PATH,
+        metavar="PATH",
+        help="Output JSONL file for judge scores (default: data/judge_scores.jsonl).",
+    )
     return parser.parse_args()
 
 
@@ -343,7 +357,7 @@ def main() -> None:
     """Entry point."""
     args = _parse_args()
 
-    records = _load_records()
+    records = _load_records(args.input_path)
     if args.max_turns is not None:
         records = [r for r in records if r.get("turn_count", 0) <= args.max_turns]
     if args.session_ids_file is not None:
@@ -358,10 +372,10 @@ def main() -> None:
     # preserves other sessions — only the target session gets re-scored.
     # When --force + --mode full, start from scratch (original behaviour).
     if not args.force:
-        existing = _load_existing_scores()
+        existing = _load_existing_scores(args.output_path)
     elif args.mode == "session":
         # Preserve all other scores; the target session will be overwritten below.
-        existing = _load_existing_scores()
+        existing = _load_existing_scores(args.output_path)
     else:
         existing = {}
 
@@ -383,7 +397,7 @@ def main() -> None:
     total = len(to_score)
     print(f"Sessions to score: {total} (skipping {len(existing)} already scored)")
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    args.output_path.parent.mkdir(parents=True, exist_ok=True)
     completed = 0
     start_all = time.monotonic()
 
@@ -409,14 +423,14 @@ def main() -> None:
         completed += 1
 
         # Write incrementally so partial results survive interruption
-        with OUTPUT_PATH.open("w", encoding="utf-8") as fh:
+        with args.output_path.open("w", encoding="utf-8") as fh:
             for row in all_scores.values():
                 fh.write(json.dumps(row) + "\n")
 
     total_elapsed = time.monotonic() - start_all
     print(
         f"\nDone: {completed}/{total} scored in {total_elapsed:.1f}s. "
-        f"Output: {OUTPUT_PATH}"
+        f"Output: {args.output_path}"
     )
 
 
