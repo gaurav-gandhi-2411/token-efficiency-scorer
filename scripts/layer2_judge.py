@@ -187,17 +187,18 @@ def _call_ollama(
     ollama_url: str,
     ollama_model: str,
 ) -> dict[str, Any] | None:
-    """Send a single judge request to Ollama; return parsed JSON or None on error.
+    """Send a single judge request to Ollama via api/chat; return parsed JSON or None on error.
 
-    Uses streaming mode so that tokens are received as they are generated.
-    Qwen3 thinking models generate a long <think> chain before the JSON output;
-    streaming lets us collect the response chunks without a read-timeout on the
-    connection.  The 'response' field in each chunk carries the actual output
-    text; 'thinking' carries the hidden reasoning chain (we discard it).
+    Uses api/chat (not api/generate) so that /no_think in the user turn is processed
+    as a message-level control token — this reliably suppresses Qwen3's think chain.
+    api/generate does not honour /no_think consistently and can exhaust num_predict
+    with a 4096-token think chain before emitting any JSON.
 
-    timeout=600 is a *connect* timeout here; the streaming read loop has no
-    per-chunk deadline, which is fine because httpx enforces the total wall-clock
-    limit via the outer try/except.
+    Streaming mode lets us collect chunks without a read-timeout on the connection.
+    Each chunk's generated text is in chunk["message"]["content"] (api/chat format).
+
+    num_predict=6144 gives ~150-token JSON response headroom after think suppression.
+    timeout connect/write are short; read is long (1800s) for large-session prefill.
     """
     import json as _json  # noqa: PLC0415 (re-import to avoid shadowing)
 
@@ -214,7 +215,7 @@ def _call_ollama(
                 ],
                 "stream": True,
                 "format": JUDGE_OUTPUT_SCHEMA,
-                "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768, "num_predict": 4096},
+                "options": {"temperature": 0, "seed": SEED, "num_ctx": 32768, "num_predict": 6144},
             },
             timeout=httpx.Timeout(connect=30.0, read=1800.0, write=30.0, pool=30.0),
         ) as stream_resp:
@@ -227,7 +228,7 @@ def _call_ollama(
                     chunk = _json.loads(line)
                 except _json.JSONDecodeError:
                     continue
-                # Collect only the 'response' field (the non-thinking output).
+                # api/chat: generated text is in chunk["message"]["content"] (not "response").
                 response_text += chunk.get("message", {}).get("content", "")
                 if chunk.get("done"):
                     break
