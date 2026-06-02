@@ -1,99 +1,181 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 30 May 2026. Read this BEFORE planning. The repo shows what exists; this doc explains why, what's load-bearing, and what not to touch. This supersedes the prior CURRENT_STATE.md (which predated the architecture pivot).
+Snapshot as of 2026-06-02. Read this BEFORE planning. This supersedes all prior
+CURRENT_STATE.md snapshots (the last one dated 2026-05-30).
 
-## Project goal
+---
 
-Production token-efficiency scoring system for coding agents (Claude Code, Cursor, Copilot, Aider, custom). It answers: given what an agent was trying to do, how efficiently did it use tokens — independent of whether it ultimately succeeded. The defensible wedge is a per-task trajectory counterfactual (compare actual run against a domain reference for what an efficient run costs).
+## Iteration status: B1 CLOSED
 
-Status: VALIDATION COMPLETE, entering IMPLEMENTATION. The original heuristic-primary architecture was tested and retired (see below). We are building a hybrid LLM-judge scorer per accepted report 05.
+The B1 prototype is complete. The three-layer hybrid scorer is built and the judge has been
+validated as a coherent instrument. Human gold calibration is the remaining gate before any
+accuracy claims can be made; it is explicitly deferred to the next product phase.
 
-## The pivot — why the architecture changed (critical context)
+Do NOT extend this iteration. If you are planning new work, read NEXT_PHASE.md first.
 
-We spent four validation phases testing whether simple per-turn heuristics (H1 redundant_read, H2 duplicate_message, H3 backtrack, H4 tool_result_used) could carry the score. Phase A.1 inter-annotator agreement (IAA) against an independent judge model settled it:
+---
 
-- H1 kappa = 0.15 — FAILED
-- H2 kappa = 0.825 — PASSED (survives as a deterministic feature)
-- H3 kappa = 0.43 — FAILED
-- H4 kappa = 0.19 — FAILED (systematic rubric drift; judge over-fires on no-tool-call turns)
+## What was built and proved
 
-Root cause is structural, not fixable by rewording: H1/H3/H4 measure intent and cross-turn credit assignment, which no per-turn rubric specifies tightly enough to remove annotator judgment. Two strong models read the same trace and disagree. We also confirmed model-family bias (same-family labelers agree more than cross-family).
+**Layer 1 — Deterministic features (complete, production-ready):**
+7 scalar features (test_outcome, total_tokens, turn_count, h2_duplicate_count, cache_hit_rate,
+p25_token_ratio, domain_id) plus a deterministic structured trace digest. Computes for all
+191 corpus sessions. Scripts: `scripts/layer1_features.py`, `src/token_efficiency/trace_digest.py`.
 
-The lesson that drives everything now: **LLM labels are not ground truth.** The new architecture is calibrated against HUMAN ratings, and that human gold set is the single most important asset in the project.
+**Layer 2 — LLM judge (prototype-ready, not production-hardened):**
+Reference-based pointwise judge using qwen3:30b-a3b via Ollama. Prompt v3: trajectory
+purposefulness only (C1-C4 criteria, fixed order, `/no_think` prefix, no token-efficiency
+framing in the rubric). 67 of 69 calibration sessions scored on GCP L4 GPU.
 
-## New architecture (from accepted report 05)
+**Layer 3 — Calibration (instrument validation complete, accuracy validation deferred):**
+Spearman rho computed across four cuts with bootstrapped 95% CIs. Honest result: the judge
+agrees with a Sonnet reference rater at rho = 0.79 (cluster-excluded). That is an
+instrument-coherence result, not an accuracy result. No human ground truth was collected this
+iteration. See research/06-calibration.md for the full calibration report and explicit claim
+boundaries.
 
-Three layers:
-
-- **Layer 1 — Deterministic (free, reliable):** 7 scalar features (test_outcome, total_tokens, turn_count, h2_duplicate_count, cache_hit_rate, p25_token_ratio, domain_id) plus a deterministic structured trace digest. No LLM. This refines report 05's "summary": we use a reproducible structured digest rather than an LLM-generated prose summary, so Layer 1 stays deterministic and the human + judge consume identical facts.
-- **Layer 2 — Reference-based pointwise judge:** local Qwen3-8B via Ollama reads ONE trace digest plus the domain reference standard and rates trajectory efficiency. Reference-based pointwise was chosen over pairwise on the evidence (pointwise flips 9% vs pairwise 35% under perturbation; we have a fixed reference so we don't need pairwise's advantage). Criterion-order permutation fix mitigates position bias.
-- **Layer 3 — Calibration harness:** the trust asset. 40-session human gold set (rated by the consultant), Spearman rho between judge and human, target rho >= 0.75, kill criterion rho < 0.55 after 3 prompt iterations.
-
-Score formula (weights PROVISIONAL, to be tuned against the gold set):
+**Score formula (weights PROVISIONAL, not tuned):**
 ```
 efficiency        = composite_quality / (p25_token_ratio × difficulty_norm)
 composite_quality = 0.50 × outcome_score + 0.35 × judge_score + 0.15 × h2_score
-difficulty_norm   = 1 / domain_resolve_rate   (empirical priors, report 03)
+difficulty_norm   = 1 / domain_resolve_rate
 ```
-No-test fallback: outcome_score = 0.5, remaining weight renormalized onto judge + h2. NOTE: testless sessions (common in real Claude Code use) lean almost entirely on the judge — judge reliability matters most exactly where there is no test anchor.
 
-CRITICAL decoupling: the judge and the human gold rating assess efficiency CONDITIONAL on the task, NOT final success. Outcome is captured separately in outcome_score. If the judge rates success, judge_score and outcome_score become collinear and the composite double-counts. Efficiency = progress per token, independent of whether the task was solved.
+---
 
-## Repo structure (key paths only)
+## Validated findings (load-bearing for next phase decisions)
+
+**H2 survives as a deterministic feature.** Phase A.1 kappa = 0.825. Judge_score vs H2
+rho = -0.40: the judge independently penalizes high-duplicate sessions, consistent with H2
+direction. Non-circular: the judge was not given H2 values.
+
+**Scaffold split is real, not style bias.** openhands_nebius (mean 116 turns, 59% resolve)
+scores MUCH_BETTER at 0.926 mean. openhands_swegym (mean 23 turns, 20% resolve) scores near
+floor at 0.150. The behavioral stats confirm structural difference, not judge bias. Reasonings
+cite specific turn numbers and failure modes in both directions.
+
+**p25 inversion is a corpus artifact, not judge miscalibration.** Lean (<1.0 p25_ratio)
+sessions score worse than wasteful ones on average because the lean group is dominated by
+swegym quick-fail sessions (empty loops, gave up fast). Within lean, the judge correctly
+distinguishes lean-efficient from lean-failed. No miscalibration.
+
+**Resolved collinearity is moderate, not blocking.** Point-biserial r = 0.50. Off-diagonal
+cells confirm independence (7 unresolved MUCH_BETTER; 5 resolved WORSE/MUCH_WORSE). Acceptable
+for this iteration; documented for weight-tuning context.
+
+---
+
+## Known limitations (all carried forward, do not paper over)
+
+**No human ground truth.** The rho = 0.75 target from report 05 was defined against a 40-session
+human gold set that was never collected. Every calibration result in report 06 is LLM-vs-LLM or
+judge-vs-deterministic-proxy. The judge may not match what a human expert would assign. No
+"calibrated to human experts" or "human-validated" claims are permitted until the gold set exists.
+
+**Swegym empty-loop cluster dominates the negative tail.** 14 of 67 scored sessions (20.9%)
+are near-identical 7-11 turn openhands_swegym sessions that fail via empty/single-token loops.
+These represent 54% of all MUCH_WORSE verdicts. The cluster makes floor-detection easy;
+calibration numbers that include it overstate judge discrimination difficulty. Any future
+calibration should report cluster-excluded rho as the headline.
+
+**Corpus is 100% Python, SWE-bench-shaped, offline scaffolds.** No real Claude Code traces,
+no Aider, no multi-language, no interactive sessions. Generalization is unknown. Do not expand
+the corpus in this phase without explicit authorization.
+
+**2-session scoring gap.** e1b043ff429ed5a2 and 9dd32933ac04fd31 are in layer1_outputs.jsonl
+but were not scored (Ollama returned None, likely structured-output timeout). 67/69 is
+sufficient for B1; noted here for completeness. Both are short sessions (25 and 35 turns).
+
+**Score weights are provisional.** The composite formula weights (0.50/0.35/0.15) are
+untuned placeholders from report 05. Weight tuning requires the human gold set first.
+
+**Real agent-log ingestion not built.** The current pipeline reads from pre-built digests in
+layer1_outputs.jsonl. No adapters exist for live Claude Code, Aider, or Cursor log formats.
+Scoring a real agent run requires manual digest construction today.
+
+**Local judge only.** qwen3:30b-a3b via Ollama at $0/session. A production path (FLAMe-style
+distillation to a smaller, faster judge) was outlined in report 05 but not started.
+
+---
+
+## Repo structure (key paths)
 
 ```
 token-efficiency-scorer/
 ├── research/
-│   ├── 01-sota-scan.md            # IMMUTABLE
-│   ├── 02-trajectory-waste.md     # IMMUTABLE
-│   ├── 03-validation-corpus.md    # IMMUTABLE (domain priors, p25 baselines live here)
-│   ├── 04-phaseA1-remeasure.md    # IMMUTABLE (IAA results, heuristic verdicts)
-│   ├── 05-architecture-pivot.md   # IMMUTABLE (the accepted new design)
-│   └── cleanup-backlog.md         # post-iteration tech-debt list
+│   ├── 01-sota-scan.md             IMMUTABLE
+│   ├── 02-trajectory-waste.md      IMMUTABLE
+│   ├── 03-validation-corpus.md     IMMUTABLE (domain priors, p25 baselines)
+│   ├── 04-phaseA1-remeasure.md     IMMUTABLE (IAA results)
+│   ├── 05-architecture-pivot.md    IMMUTABLE (accepted design)
+│   ├── 06-calibration.md           IMMUTABLE (B1 calibration results)
+│   └── cleanup-backlog.md          tech-debt list
 ├── scripts/
-│   ├── 01_annotate_corpus.py      # historical — annotation pipeline
-│   ├── 10_remeasure_heuristics.py # historical — F1/IAA
-│   └── (older corpus build scripts)
+│   ├── layer1_features.py          Layer 1 feature extractor
+│   ├── layer2_judge.py             Layer 2 Ollama judge (v3 prompt)
+│   ├── calibration.py              Spearman rho + CI (human-gold-ready)
+│   ├── calibration_multicutnow.py  Four-cut calibration (produced report 06 numbers)
+│   ├── diagnose_distribution.py    Verdict distribution diagnosis
+│   ├── investigate_findings.py     Post-scoring investigation script
+│   ├── objective_proxy.py          Deterministic efficiency proxy
+│   ├── score.py                    Composite score formula
+│   ├── gpu_score_runner.sh         Preemption-safe GPU scoring runner
+│   ├── provision_gpu_vm.sh         GCP VM provisioner
+│   └── vm_startup.sh               GCP startup script (HOME fix + chown)
+├── src/token_efficiency/
+│   ├── trace_digest.py             Deterministic structured digest
+│   └── layer1_features.py          Layer 1 feature computation
 ├── data/
-│   ├── validation-corpus/
-│   │   ├── annotations/gpt_oss/   # 191 LLM-labeled sessions (mixed labeler — see below)
-│   │   └── skipped.jsonl          # 9 partial-coverage skips
-│   └── cost-log.jsonl             # APPEND ONLY
-├── .env                           # API keys — gitignored
-├── pyproject.toml
-└── README.md
+│   ├── layer1_outputs.jsonl        191 sessions with Layer 1 features + digests
+│   ├── judge_scores.jsonl          67-session GPU calibration scores (qwen3:30b-a3b v3)
+│   ├── objective_proxy.jsonl       Deterministic proxy scores (191 sessions)
+│   ├── llm_provisional_ratings.jsonl  Sonnet provisional ratings (188 sessions)
+│   ├── calibration_sample.json     69-session calibration subset metadata
+│   ├── cost-log.jsonl              API spend log (append-only, ~$2.59 cumulative)
+│   └── validation-corpus/          191 annotated sessions (DO NOT REGENERATE)
+├── CURRENT_STATE.md                This file
+├── NEXT_PHASE.md                   Candidate next builds (not a committed plan)
+├── spec.md                         B1 iteration spec (complete)
+└── PLAN.md                         Execution tracker (B1 closed)
 ```
 
-## Load-bearing files and why
+---
 
-- `research/01–05-*.md` — Accepted, immutable. Report 03 holds the domain resolve-rates and p25 token baselines that feed difficulty_norm and the judge reference. Report 05 is the design contract for the build. New findings get a NEW report, never an edit.
-- `data/validation-corpus/annotations/gpt_oss/` — 191 sessions: 35 labeled by GPT-OSS 120B (with _reason fields), 156 by Claude Haiku 4.5 (compact, no _reason). The directory name is misleading (a cleanup-backlog item); the `labeler_model` field inside each JSON is the source of truth. These are a SECONDARY signal and eval set now — NOT the calibration ground truth.
-- `data/cost-log.jsonl` — Append-only. Cumulative project spend is ~$2.59 of a $5 cap.
+## What NOT to touch
 
-## Conventions (non-obvious — orchestrator might violate)
+- **research/01-06-*.md** — All immutable. New findings get report 07+.
+- **data/validation-corpus/** — Do not regenerate or modify.
+- **data/cost-log.jsonl** — Append-only. $5 cumulative API cap; currently ~$2.59.
+- **data/gold/human_ratings.jsonl** — Does not exist yet. Do not synthesize or impute.
 
-1. **Judge model is local Qwen3-8B via Ollama (`qwen3:8b`, Q4_K_M).** $0 inference, Apache 2.0 (commercially usable — matters for selling), different family from the Claude agents we measure (avoids self-enhancement bias), self-hostable (enterprise privacy story). Do NOT substitute a Claude model or a paid API as the judge without escalation.
-2. **Human gold ratings are sacred.** Never synthesize them, never let an LLM fill them in, never impute missing ones. If the human hasn't rated a session, it is not in the gold set. Full stop.
-3. **API keys in `.env`, loaded via python-dotenv.** Never export ANTHROPIC_API_KEY to the shell (conflicts with Claude Code Max-plan auth). Never commit `.env`.
-4. **Cost log append-only.** $5 cumulative cap, escalate at $4.
-5. **Research reports versioned by phase, never edited after acceptance.**
-6. **Judge and human rate efficiency CONDITIONAL on task, not success.** See the decoupling note above. Easy to get wrong; silently corrupts calibration.
+---
 
-## Known issues / accepted limitations
+## GCP infrastructure status
 
-- **Corpus is 100% Python, 100% SWE-bench-shaped, 100% offline scaffolds.** Real Claude Code, Aider non-Python, multi-language — deferred. Do not expand corpus in this iteration.
-- **Mixed-labeler corpus** (35 GPT-OSS + 156 Haiku) with family bias documented in report 04. Fine as a secondary/eval signal; not ground truth.
-- **Groq Developer-tier entitlement is bugged** (support ticket filed externally). Not blocking — the judge is local. If Groq resolves, a Groq-hosted larger judge becomes a cheap option worth revisiting.
-- **Score weights are provisional.** Tuned against the human gold set in this iteration.
-- **cleanup-backlog.md** holds deferred tech debt (rename gpt_oss/ → annotations/, backport labeler_model to the 35 GPT-OSS files, etc.). Do not action during the build unless a step depends on it.
+All B1 scoring resources deleted as of 2026-06-02:
+- VM tes-judge-scoring-tmp: DELETED
+- Boot disk (100 GB pd-balanced, asia-east1-a): DELETED
+- No snapshots, static IPs, or storage buckets were created
 
-## Tests / lint / types — current state
+Estimated actual GCP spend for the full scoring job:
+- g2-standard-8 SPOT (asia-east1-a): ~$0.56/hr (on-demand ~$1.40/hr, SPOT ~60% off)
+- VM active time: ~75 min (setup + timing test + scoring run + retrieval restart)
+- VM compute: ~$0.70
+- 100 GB pd-balanced disk: ~$0.02 (1.25 hr at $0.102/GB-month amortized)
+- **Total estimated: ~$0.72 USD**
+- Note: precise figure requires GCP Billing Explorer (no CLI path to line-item data).
+  The gpu-judge-safety-net budget (INR 850 / ~$10 USD cap) was not triggered.
+- Cumulative Anthropic API spend: ~$2.59 of $5 cap (judge is local, $0/session)
 
-- No production test suite yet. Scripts have been research-grade. The implementation iteration is the first that should add real unit tests for the scoring pipeline.
-- `pyproject.toml` exists; ruff/mypy config status UNVERIFIED — check before assuming, escalate rather than install silently.
+---
 
-## Open questions to flag (don't guess)
+## Conventions (non-obvious)
 
-- Will Qwen3-8B clear the calibration bar (rho >= 0.55 floor)? Report 05 rated this LOW confidence. If it fails, the diagnostic is: run a small frontier-judge batch to disambiguate "weak local model" from "broken architecture" — but only on escalation (costs money).
-- Does the deterministic digest preserve enough efficiency signal for the human to rate reliably? Validate digest fidelity on a few examples BEFORE the human rates 40.
-- Final weight values — provisional until tuned on the gold set.
+1. **Judge model is local Qwen3 via Ollama.** $0 inference. Do not substitute Claude or any
+   paid API as judge without escalation and explicit rationale.
+2. **Human gold ratings are sacred.** Never synthesize, impute, or LLM-fill. If not rated by a
+   human, not in the gold set. Full stop.
+3. **API keys in .env, loaded via python-dotenv.** Never export ANTHROPIC_API_KEY to shell.
+4. **Reports are versioned by phase, never edited after acceptance.**
+5. **Judge rates efficiency CONDITIONAL on the task, not task success.** Success lives only in
+   outcome_score. Conflating the two corrupts the composite score.
