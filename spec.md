@@ -1,184 +1,136 @@
-# Project Spec: token-efficiency-scorer — Hybrid Scorer Implementation (Iteration B1)
+# Project Spec: token-efficiency-scorer — Real Efficiency Number via Quality-Gated Baselines (Iteration B2)
 
 ## Goal
 
-Build the hybrid LLM-judge scorer designed in accepted report 05, and prove it works by calibrating the judge against a human gold set. This iteration succeeds if we have an end-to-end scoring pipeline (Layer 1 + Layer 2) and a calibration number (Spearman rho of judge vs human ratings) that clears the kill-criterion floor. This is the make-or-break iteration: if the judge can't calibrate, the architecture is wrong and we stop and rethink.
+Make the efficiency score REAL on customer (Claude Code) data by building a token-economy baseline that has a quality floor. The launch-1 target is a defensible efficiency number, not just a trajectory-quality verdict.
+
+The core idea (decided with the consultant): a baseline only means "what an efficient run should cost" if the sessions in it are known-good. We have no human labels, but we DO have a validated judge. So: pool real CC sessions, score them with the judge, KEEP ONLY judge-certified-good ones, classify by task-type, and compute per-type token baselines from the good sessions. A customer session's efficiency = its tokens vs the certified-good baseline for its task-type.
+
+Why this works where SWE-bench baselines didn't: the baseline and the customer session both use the SAME CC-native token construct (actual API billing units), so the ratio is internally consistent. SWE-bench p25 baselines (word_count × 1.3) are a different construct and remain unusable for CC data — do not reintroduce them.
 
 ## Current state
 
-See CURRENT_STATE.md in full. Key points:
-- Validation is complete; heuristic-primary is retired. H2 survives as a feature; H1/H3/H4 are dead.
-- Architecture is the three-layer hybrid from report 05. Judge = local Qwen3-8B via Ollama (already installed and smoke-tested).
-- The human gold set is the calibration ground truth and the single most important asset. LLM labels are NOT ground truth.
-- Reports 01-05 are immutable. Report 03 holds domain resolve-rates and p25 token baselines.
-- Cumulative cost ~$2.59 of $5. The judge is local ($0), so this iteration's API spend is near zero unless a frontier diagnostic is escalated.
+See CURRENT_STATE.md. Key points:
+- Judge (Qwen3-30B-A3B, v3 prompt) is validated as a coherent trajectory-quality instrument (rho=0.79 vs reference LLM, NOT human-validated). Model + digest schema are LOCKED.
+- Claude Code adapter built and validated end-to-end on real sessions (report 07). Tool calls are structured in CC logs (clean extraction).
+- CC sessions have NO resolved flag (no test harness) and NO H2 annotation — confirmed gaps. The composite's outcome and H2 terms are unavailable on CC data; the score leans on judge + token-economy.
+- SWE-bench token construct ≠ CC token construct (report 07) — baselines must be CC-native.
+- Judge requires GPU; the GCP L4 SPOT path is established (~$0.15 per short run; a few $ for a large pool).
+- No human gold set (deferred to launch-2). No accuracy / "human-calibrated" claims permitted.
+- Cumulative Anthropic API spend ~$2.59 of $5 cap. GCP credits are a separate pool.
 
 ## Scope
 
 ### In scope (this iteration)
-
-- Layer 1 deterministic feature extractor: compute the 7 features and a deterministic structured trace digest for each session.
-- Digest fidelity check: validate that the digest preserves efficiency-relevant signal, on a small sample, BEFORE the human rates.
-- Rating interface: a local script that presents one session at a time (session-level stats prominent, turn-by-turn digest skimmable) and records a 1-5 efficiency rating plus an optional note to a gold JSONL.
-- Human gold set: the consultant rates 40 sessions (stratified by domain and resolved/unresolved). This is a human escalation step.
-- Layer 2 judge: Ollama Qwen3-8B client, reference-based pointwise, criterion-order permutation fix, structured output schema.
-- Calibration: Spearman rho between judge scores and human gold ratings; report with confidence interval.
-- Kill-criterion evaluation: rho >= 0.55 floor to proceed; rho >= 0.75 target. Escalate the verdict.
-- If calibration passes: implement the full composite score formula end-to-end and run it on the gold set.
-- Report 06 documenting calibration results and the working pipeline.
-- First real unit tests for the deterministic Layer 1 functions.
+- Pull public CC trace corpora (e.g. armand0e/kimi-k2.6-claude-code-traces, cfahlgren1/agent-sessions-list) + the user's 140 local sessions into one pool. Confirm the existing adapter reads the public format.
+- Judge-score the pooled sessions on GPU (this ALSO serves generalization/hardening — sane verdicts beyond our 140).
+- Filter to judge-certified-good sessions (define the quality gate; recommend MUCH_BETTER + BETTER).
+- Build a task-type classifier (local Qwen, $0) with a taxonomy DERIVED from the pool, not imposed from SWE-bench. Validate classifier consistency.
+- Compute per-task-type CC-native token baselines from the certified-good sessions only.
+- Wire the efficiency number: customer_session_tokens vs certified-good baseline for its task-type, into the composite formula.
+- Validate the efficiency number on a HELD-OUT set of sessions (not used in baseline computation).
+- research/08-baselines.md documenting the whole pipeline, decisions, and limitations.
 
 ### Out of scope (do not build)
-
-- Corpus expansion (real Claude Code, Aider non-Python, multi-language) - deferred.
-- Judge distillation / fine-tuning a small production judge - later productization.
-- Weight optimization beyond a single tuning pass against the gold set.
-- Any API / package / product-packaging work (later iteration).
-- Modifying reports 01-05.
-- Re-annotating or regenerating the corpus.
-- Actioning cleanup-backlog items unless a build step strictly depends on one.
-- Switching the judge to Claude or any paid API.
+- Human gold set (launch-2).
+- Reintroducing SWE-bench p25 baselines for CC data.
+- Per-customer adaptive baselines (launch-2 — this iteration builds the reference-corpus baseline, option 2; per-customer is option 1, later).
+- Additional ingestion adapters beyond Claude Code (Aider etc. deferred).
+- Dashboard / packaging / distribution build.
+- Changing the judge model or digest schema.
 
 ## Tech stack
-
-- Python (match existing pyproject.toml).
-- python-dotenv for any key loading (judge needs no key - it's local).
-- ollama Python client (or HTTP to http://localhost:11434) for Qwen3-8B. Escalate before adding the package if not present; HTTP needs no new dep.
-- scipy for Spearman rho and CI; numpy, pandas (likely present).
-- pytest for the new unit tests (escalate before installing if absent).
-- No other new packages without escalation.
+- Python (match repo conventions).
+- huggingface_hub / datasets for pulling public corpora (escalate before adding if absent).
+- Ollama Qwen3-30B-A3B (judge, GPU) + a local Qwen (3-8B or 30B) for the task classifier.
+- scipy/numpy/pandas for baseline statistics + validation.
+- GCP L4 SPOT for GPU judge runs (established path).
+- No paid API calls without escalation (judge + classifier are local/open).
 
 ## Architecture (new or modified files only)
-
 ```
-src/  (or scripts/ - match existing repo convention; inspect first)
-├── layer1_features.py      # NEW - 7 deterministic features per session
-├── trace_digest.py         # NEW - deterministic structured digest builder
-├── rating_interface.py     # NEW - human rating CLI, writes gold JSONL
-├── layer2_judge.py         # NEW - Ollama Qwen3-8B reference-based pointwise judge
-├── calibration.py          # NEW - Spearman rho judge vs human gold
-└── score.py                # NEW - composite score formula (Layer 1 + Layer 2)
+scripts/
+├── pull_corpora.py            # NEW - fetch public CC datasets + merge with local 140
+├── task_classifier.py         # NEW - task-type classification (local Qwen)
+├── build_baselines.py         # NEW - per-type CC-native baselines from judge-good sessions
+└── efficiency_score.py        # NEW or MODIFIED - wires baseline into composite
 
 data/
-├── gold/
-│   └── human_ratings.jsonl # NEW - the human gold set (sacred)
-├── judge_outputs/          # NEW - judge verdicts per session
-└── cost-log.jsonl          # APPEND ONLY
+├── corpus_pool/               # NEW - pooled adapted sessions (public + local)
+├── pool_judge_scores.jsonl    # NEW - judge verdicts over the pool
+├── task_taxonomy_cc.json      # NEW - derived task-type taxonomy
+├── cc_baselines.json          # NEW - per-type token baselines (the reference)
+└── cost-log.jsonl             # APPEND ONLY
 
 research/
-└── 06-calibration.md       # NEW
-
-tests/
-└── test_layer1.py          # NEW - unit tests for deterministic features
+└── 08-baselines.md            # NEW
 ```
 
-## Data model
-
-Human gold rating (one JSON line per rated session):
-```json
-{"session_id": "...", "domain": "...", "resolved": true,
- "efficiency_rating": 4, "note": "optional free text",
- "rated_at": "ISO-8601", "rater": "consultant"}
-```
-
-Judge output (one JSON object per session):
-```json
-{"session_id": "...", "verdict": "BETTER",
- "verdict_score": 0.75, "waste_categories": ["..."],
- "confidence": 0.0, "position_swap_consistent": true,
- "reasoning": "...", "judge_model": "qwen3:8b", "prompt_sha256": "..."}
-```
-
-Verdict scale -> score: MUCH_BETTER 1.0 / BETTER 0.75 / SIMILAR 0.50 / WORSE 0.25 / MUCH_WORSE 0.0.
+## Key design decisions (resolve early, escalate)
+1. QUALITY GATE: which verdicts count as "certified-good" for the baseline? Recommend {MUCH_BETTER, BETTER}. Report the count that survives the gate per task-type.
+2. BASELINE STATISTIC: what number IS the baseline per type? Options: median tokens of good sessions ("typical good run"), or a percentile. Recommend MEDIAN of judge-good sessions (p25 of already-good sessions may be too strict). Escalate the choice with the resulting distributions.
+3. TASK TAXONOMY: derive from the pool (embedding-cluster task_descriptions, or a small fixed set validated against the pool) — do NOT impose SWE-bench's 8 domains. Target a small, interpretable set.
+4. SPARSE TYPES: minimum N of good sessions required for a stable baseline (recommend >=10). For types below threshold or unseen customer types: efficiency marked UNAVAILABLE for that session (honest), NOT computed against a fabricated fallback.
+5. CIRCULARITY CHECK: the baseline is token-count of judge-good sessions; the judge assesses trajectory quality. These are different axes (a good session can be high-token for a big task). Verify empirically that baseline tokens are not just a proxy for judge_score — report the correlation. If high, flag it.
 
 ## Verification commands
-
 ```yaml
-- name: unit-tests
-  cmd: pytest tests/ -v
+- name: adapter-reads-public
+  cmd: python scripts/pull_corpora.py --dry-run --limit 5
   required: true
-- name: layer1-coverage
-  cmd: python -c "import json,glob; n=len(glob.glob('data/validation-corpus/annotations/gpt_oss/*.json')); print(f'{n} sessions available')"
-  required: true
-- name: ollama-up
-  cmd: python -c "import urllib.request; urllib.request.urlopen('http://localhost:11434/api/tags',timeout=5); print('ollama reachable')"
-  required: true
-- name: gold-integrity
-  cmd: python -c "import json; rows=[json.loads(l) for l in open('data/gold/human_ratings.jsonl')]; assert all(1<=r['efficiency_rating']<=5 for r in rows); print(f'{len(rows)} gold ratings valid')"
+- name: classifier-consistency
+  cmd: python scripts/task_classifier.py --selftest
+  required: false
+- name: baseline-integrity
+  cmd: python -c "import json; b=json.load(open('data/cc_baselines.json')); assert all(v['n']>=10 for v in b['types'].values()); print('baselines valid')"
   required: false
 - name: cost-check
   cmd: python -c "import json; t=sum(json.loads(l).get('cost_estimate_usd',0) for l in open('data/cost-log.jsonl')); print(f'${t:.2f}'); assert t<5"
   required: true
-- name: lint
-  cmd: ruff check .
-  required: false
 ```
 
-ruff/pytest best-effort if unconfigured - escalate rather than install silently.
-
-## Subagent usage rules
-
-- executor for any file write/edit.
-- verifier for tests, lint, ollama checks, and running the calibration/judge scripts.
-- Orchestrator does NOT write code - always delegates.
-- The human rating step is NOT a subagent task - it is a user escalation; the orchestrator hands off and waits.
-
 ## Escalation rules (orchestrator must ask before doing)
-
-- BEFORE the human rating step: confirm the rating interface is validated (digest fidelity check passed) and present the 40-session stratified sample for the user to rate. Then HOLD for the user to complete ratings - this is a multi-hour human task, not a quick reply.
-- If the digest fidelity check suggests the human cannot reliably rate from the digest - escalate the digest design before proceeding.
-- BEFORE any frontier-model / paid-API call (e.g., the calibration diagnostic if Qwen3-8B underperforms).
-- If calibration rho < 0.55 after 3 prompt-iteration attempts - kill criterion; escalate, do NOT keep iterating silently.
-- If calibration rho is in [0.55, 0.75) - proceed but escalate the number; the user decides whether to ship or tune further.
-- BEFORE installing any dependency not in Tech stack.
-- If cumulative cost exceeds $4.
-- BEFORE modifying any research report 01-05.
-- If a single executor pass would touch more than 4 files.
-- If verification fails 3 times in a row on the same check.
-- BEFORE expanding the corpus or actioning a cleanup-backlog item.
+- BEFORE the large GPU judge run over the pool: report pool size, estimated wall-clock + GCP cost. If estimate exceeds a few hours / a few dollars, confirm before provisioning.
+- BEFORE finalizing the quality gate, baseline statistic, and task taxonomy (decisions 1-3) — surface options with real distributions, HOLD.
+- If the circularity check (decision 5) shows baseline tokens correlate strongly with judge_score — flag before building the efficiency number on it.
+- If a large share of the pool fails to adapt (public format drift) — report, don't silently drop.
+- BEFORE any paid API call. BEFORE installing deps not in stack. BEFORE modifying reports 01-07.
+- If validation shows the efficiency number behaves nonsensically on held-out sessions — STOP and escalate; do not ship a number that doesn't validate.
 
 ## Hard rules
-
-- DO NOT modify research reports 01-05.
-- DO NOT regenerate or overwrite data/validation-corpus/.
-- DO NOT synthesize, impute, or LLM-fill human gold ratings. Ever.
-- DO NOT use a Claude model or any paid API as the judge (local Qwen3-8B only) without escalation.
-- DO NOT let judge_score encode task SUCCESS - it rates efficiency conditional on the task. Success lives only in outcome_score. (Prevents collinearity.)
-- DO NOT export ANTHROPIC_API_KEY to the shell; load .env in-process.
-- DO NOT rewrite past cost-log entries (append only).
-- DO NOT commit .env or secrets.
+- Judge model + digest schema LOCKED.
+- Baselines are CC-native only; never mix in SWE-bench token numbers.
+- Quality gate is judge-certified; never include quality-unknown sessions in a baseline.
+- Efficiency UNAVAILABLE is an acceptable output; a fabricated baseline is not.
+- No human-accuracy / "calibrated to experts" claims anywhere.
+- GPU VMs: SPOT, trapped auto-shutdown, hard max-runtime stop, persistent-disk JSONL, distinctive temp name, budget alert, torn down after each run with actual spend reported. Never touch aetherart-eval-001 / review-iq-prod live work.
+- Reports 01-07 immutable. .env in-process only. Cost log append-only. No secrets committed.
 
 ## Budget
+- Soft: 2-4 CC sessions (large GPU run + classifier build + validation span real time).
+- Anthropic API: $5 cumulative cap, escalate at $4 (judge/classifier are local, so near-zero added).
+- GCP: separate credits; report actual spend per run; budget alert at $10.
+- Orchestrator runs /cost at midpoint.
 
-- Soft target: 2-3 Claude Code sessions (the human rating step spans real-world time).
-- Hard cap: stop and escalate after 20 executor invocations.
-- API cost: judge is local ($0). Only a diagnostic frontier batch would cost - escalate first. $5 cumulative cap, escalate at $4.
-- Orchestrator runs /cost at midpoint and reports.
+## Success criteria (verify ALL before done)
+- Public CC corpora pulled and adapted; report how many sessions adapted vs failed.
+- Pool judge-scored on GPU; verdict distribution reported (also serves generalization evidence).
+- Quality gate applied; certified-good count per task-type reported.
+- Task taxonomy derived + validated; classifier consistency reported.
+- Per-type CC-native baselines computed from good sessions only; minimum-N guard enforced; sparse/unseen types -> UNAVAILABLE.
+- Circularity check reported (baseline-tokens vs judge_score correlation).
+- Efficiency number wired into the composite and validated on a HELD-OUT set; behaves sensibly (lean-good sessions score efficient, wasteful sessions score inefficient).
+- research/08-baselines.md documents pipeline, all 5 design decisions, validation, and limitations (no human gold; reference-corpus not per-customer; only CC adapter).
+- GCP torn down, zero lingering resources, actual spend reported.
+- Git clean, conventional commits. No reports 01-07 modified.
 
-## Success criteria (orchestrator verifies ALL before declaring done)
-
-- Layer 1 produces 7 features + a digest for all 191 sessions without crashing.
-- Digest fidelity check ran and passed (or its limitations are documented and accepted).
-- Rating interface works; the user rated 40 sessions; data/gold/human_ratings.jsonl has 40 valid rows.
-- Layer 2 judge runs locally via Ollama and produces a verdict for every gold session, with position-swap consistency recorded.
-- Calibration computed: Spearman rho (with CI) between judge verdict_score and human efficiency_rating, reported in research/06-calibration.md.
-- Kill-criterion evaluated and the verdict escalated to the user.
-- If rho >= 0.55: composite score formula implemented and run end-to-end on the 40 gold sessions, with per-session scores in an output file.
-- Unit tests for Layer 1 pass.
-- Cumulative cost < $5.
-- No research report 01-05 modified; corpus not regenerated; no gold rating synthesized.
-- Git history clean, conventional commits.
-
-## Build order (recommended; orchestrator may adjust)
-
-1. Read CURRENT_STATE.md, then spec.md. Inspect repo to match src/ vs scripts/ convention.
-2. Build Layer 1: layer1_features.py + trace_digest.py. Run on all 191 sessions. Add tests/test_layer1.py. Verifier runs pytest.
-3. Digest fidelity check: build a couple of digests, present to the user to confirm they're rateable. HOLD briefly for user confirmation.
-4. Build rating_interface.py. Verifier smoke-tests it on 1 session.
-5. ESCALATE: present the 40-session stratified sample; user rates them via the interface. HOLD for completion (multi-hour human task).
-6. Build layer2_judge.py (Ollama, reference-based pointwise, permutation fix). Verifier runs it on 2-3 sessions to confirm schema + Ollama connectivity.
-7. Run the judge on all 40 gold sessions. Record verdicts + position-swap consistency.
-8. Build calibration.py. Compute Spearman rho judge vs human gold.
-9. Evaluate kill criterion. Escalate the number and verdict to the user. HOLD.
-10. If cleared: build score.py, run the composite formula on the 40 gold sessions.
-11. Write research/06-calibration.md. Commit. Run full verification. Declare done.
+## Build order (orchestrator may adjust)
+1. Read CURRENT_STATE.md, reports 05/06/07. Inspect repo conventions.
+2. pull_corpora.py: fetch public CC datasets, merge with local 140, run through the CC adapter. Report adapted-vs-failed counts + pool size. HOLD if a large share fails to adapt.
+3. Scope the GPU judge run: pool size -> wall-clock + GCP cost estimate. Escalate the estimate before provisioning.
+4. Provision L4 SPOT, judge-score the whole pool, retrieve, tear down. Report verdict distribution + actual spend.
+5. Apply quality gate; report certified-good counts. Escalate the gate choice (decision 1).
+6. Build task taxonomy from the pool + classifier; validate consistency. Escalate taxonomy (decision 3).
+7. Compute per-type baselines from good sessions (decision 2 statistic); enforce min-N; mark sparse/unseen UNAVAILABLE (decision 4). Run circularity check (decision 5). Escalate decisions 2+5.
+8. Wire efficiency_score.py; validate on held-out sessions. HOLD for consultant read.
+9. Write research/08-baselines.md. Commit. Final verification. Confirm teardown.
