@@ -47,6 +47,10 @@ echo "[$(date)] Repo cloned"
 # numpy is pre-installed on DLVM (PyTorch dep), but we verify and install if absent.
 # No uv lockfile exists in this repo — do NOT use uv sync.
 cd /opt/scoring/repo
+# Ensure pip is available — cu129 images ship without it.
+python3 -m ensurepip --upgrade 2>/dev/null \
+  || apt-get install -y -q python3-pip 2>/dev/null \
+  || true
 pip3 install httpx --quiet \
   || /opt/conda/bin/pip install httpx --quiet \
   || python3 -m pip install httpx --quiet
