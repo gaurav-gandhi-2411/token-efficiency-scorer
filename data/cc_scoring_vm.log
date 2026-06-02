@@ -1,0 +1,72 @@
+[Tue Jun  2 10:51:44 UTC 2026] === CC validation scoring runner starting ===
+[Tue Jun  2 10:51:44 UTC 2026] GPU info:
+name, memory.total [MiB], memory.used [MiB]
+NVIDIA L4, 23034 MiB, 0 MiB
+[Tue Jun  2 10:51:44 UTC 2026] Ollama GPU residency check:
+[Tue Jun  2 10:51:44 UTC 2026] Input sessions:
+  d57f0f0e  turns=  18  tokens=   413,340
+  a3496457  turns= 103  tokens= 4,291,518
+  609d73cf  turns= 413  tokens=29,837,504
+[Tue Jun  2 10:51:44 UTC 2026] RESUME MODE: sentinel found — skipping truncate.
+[Tue Jun  2 10:51:44 UTC 2026] Timing probe: scoring first session to confirm GPU speed...
+Traceback (most recent call last):
+  File "/opt/scoring/repo/scripts/layer2_judge.py", line 25, in <module>
+    from token_efficiency.trace_digest import SessionDigest, TurnDigest, digest_to_text  # noqa: E402
+  File "/opt/scoring/repo/src/token_efficiency/trace_digest.py", line 9, in <module>
+    from token_efficiency.layer1_features import LayerOneFeatures
+  File "/opt/scoring/repo/src/token_efficiency/layer1_features.py", line 9, in <module>
+    import numpy as np
+ModuleNotFoundError: No module named 'numpy'
+[Tue Jun  2 10:51:44 UTC 2026] EXIT trap fired with code 1. Shutting down VM.
+[Tue Jun  2 11:48:40 UTC 2026] === CC validation scoring runner starting ===
+[Tue Jun  2 11:48:40 UTC 2026] GPU info:
+name, memory.total [MiB], memory.used [MiB]
+NVIDIA L4, 23034 MiB, 0 MiB
+[Tue Jun  2 11:48:40 UTC 2026] Ollama GPU residency check:
+[Tue Jun  2 11:48:40 UTC 2026] Input sessions:
+  d57f0f0e  turns=  18  tokens=   413,340
+  a3496457  turns= 103  tokens= 4,291,518
+  609d73cf  turns= 413  tokens=29,837,504
+[Tue Jun  2 11:48:40 UTC 2026] RESUME MODE: sentinel found — skipping truncate.
+[Tue Jun  2 11:48:40 UTC 2026] Timing probe: scoring first session to confirm GPU speed...
+Sessions to score: 1 (skipping 0 already scored)
+  [1/1] d57f0f0e-56aa-4d3a-9637-98719c8dfe47...  JSON parse error: Expecting value: line 1 column 1 (char 0)
+ FAILED (258.3s)
+
+Done: 0/1 scored in 258.3s. Output: data/cc_judge_scores.jsonl
+[Tue Jun  2 11:52:59 UTC 2026] Probe done in 259s.
+[Tue Jun  2 11:52:59 UTC 2026] Starting full CC validation run (3 sessions)...
+Sessions to score: 3 (skipping 0 already scored)
+  [1/3] a3496457-cae9-4208-a35d-55791afec7e2... WORSE (confidence 0.90)  67.1s
+  [2/3] d57f0f0e-56aa-4d3a-9637-98719c8dfe47... MUCH_BETTER (confidence 0.90)  31.7s
+  [3/3] 609d73cf-2db0-46ba-b6c7-43ed8bb2a3f2... MUCH_BETTER (confidence 0.95)  45.0s
+
+Done: 3/3 scored in 143.8s. Output: data/cc_judge_scores.jsonl
+[Tue Jun  2 11:55:23 UTC 2026] Scoring complete.
+
+======================================================================
+CC VALIDATION RESULTS — 3 sessions scored
+======================================================================
+
+  session: a3496457
+  verdict: WORSE  (confidence 0.90)
+  waste:   ['trajectory_drift']
+  reason:  After reading required documents, agent deviated to read codebase/corpus before writing report, causing trajectory drift.
+
+  session: d57f0f0e
+  verdict: MUCH_BETTER  (confidence 0.90)
+  waste:   []
+  reason:  Agent read all required files in sequence (CURRENT_STATE.md, eval artifact, smoke artifact) after globbing, integrated results directly into output, and correctly handled /cost limitation without deviation.
+
+  session: 609d73cf
+  verdict: MUCH_BETTER  (confidence 0.95)
+  waste:   []
+  reason:  Systematic verification of all requirements before proceeding, diagnosis and fixing of issues (missing $HOME, spot capacity) rather than repeating failed attempts, and verification of all three checks before starting the full run.
+
+======================================================================
+[Tue Jun  2 11:55:23 UTC 2026] Checking GITHUB_TOKEN...
+[Tue Jun  2 11:55:23 UTC 2026] WARNING: GITHUB_TOKEN not set.
+  Retrieve manually:
+  gcloud compute scp tes-cc-validation-tmp:/opt/scoring/repo/data/cc_judge_scores.jsonl data/cc_judge_scores.jsonl --zone=asia-east1-a --project=aetherart-497918
+[Tue Jun  2 11:55:23 UTC 2026] Done.
+[Tue Jun  2 11:55:28 UTC 2026] EXIT trap fired with code 0. Shutting down VM.
