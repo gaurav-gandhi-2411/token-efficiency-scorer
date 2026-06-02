@@ -1,181 +1,161 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-02. Read this BEFORE planning. This supersedes all prior
-CURRENT_STATE.md snapshots (the last one dated 2026-05-30).
+Snapshot as of 2026-06-03. Read this BEFORE planning. This supersedes the prior snapshot
+dated 2026-06-02.
 
 ---
 
-## Iteration status: B1 CLOSED
+## Iteration status: B2 CLOSED
 
-The B1 prototype is complete. The three-layer hybrid scorer is built and the judge has been
-validated as a coherent instrument. Human gold calibration is the remaining gate before any
-accuracy claims can be made; it is explicitly deferred to the next product phase.
+The B2 iteration is complete. Quality-gated CC-native token baselines are built, validated,
+and committed. The two-axis efficiency product (token economy + trajectory quality) is now
+scoped with explicit domain boundaries.
 
-Do NOT extend this iteration. If you are planning new work, read NEXT_PHASE.md first.
-
----
-
-## What was built and proved
-
-**Layer 1 — Deterministic features (complete, production-ready):**
-7 scalar features (test_outcome, total_tokens, turn_count, h2_duplicate_count, cache_hit_rate,
-p25_token_ratio, domain_id) plus a deterministic structured trace digest. Computes for all
-191 corpus sessions. Scripts: `scripts/layer1_features.py`, `src/token_efficiency/trace_digest.py`.
-
-**Layer 2 — LLM judge (prototype-ready, not production-hardened):**
-Reference-based pointwise judge using qwen3:30b-a3b via Ollama. Prompt v3: trajectory
-purposefulness only (C1-C4 criteria, fixed order, `/no_think` prefix, no token-efficiency
-framing in the rubric). 67 of 69 calibration sessions scored on GCP L4 GPU.
-
-**Layer 3 — Calibration (instrument validation complete, accuracy validation deferred):**
-Spearman rho computed across four cuts with bootstrapped 95% CIs. Honest result: the judge
-agrees with a Sonnet reference rater at rho = 0.79 (cluster-excluded). That is an
-instrument-coherence result, not an accuracy result. No human ground truth was collected this
-iteration. See research/06-calibration.md for the full calibration report and explicit claim
-boundaries.
-
-**Score formula (weights PROVISIONAL, not tuned):**
-```
-efficiency        = composite_quality / (p25_token_ratio × difficulty_norm)
-composite_quality = 0.50 × outcome_score + 0.35 × judge_score + 0.15 × h2_score
-difficulty_norm   = 1 / domain_resolve_rate
-```
+Do NOT extend this iteration. Read NEXT_PHASE.md for candidate next directions.
 
 ---
 
-## Validated findings (load-bearing for next phase decisions)
+## What B2 delivered
 
-**H2 survives as a deterministic feature.** Phase A.1 kappa = 0.825. Judge_score vs H2
-rho = -0.40: the judge independently penalizes high-duplicate sessions, consistent with H2
-direction. Non-circular: the judge was not given H2 values.
+**Token measure (locked):**
+`real_tokens = sum_ai_turns(token_count_input - cache_read + token_count_output)`
+Excludes cache_read re-accumulation (which inflated total_tokens by 87–94% on CC sessions).
+CC-caching-native only — non-caching agents (Kimi etc.) cannot use this baseline.
 
-**Scaffold split is real, not style bias.** openhands_nebius (mean 116 turns, 59% resolve)
-scores MUCH_BETTER at 0.926 mean. openhands_swegym (mean 23 turns, 20% resolve) scores near
-floor at 0.150. The behavioral stats confirm structural difference, not judge bias. Reasonings
-cite specific turn numbers and failure modes in both directions.
+**Quality gate:** MUCH_BETTER only (strict). 75 local Claude CC sessions as the reference
+corpus. Armand0e/Kimi excluded — no-caching token accounting is incommensurable.
 
-**p25 inversion is a corpus artifact, not judge miscalibration.** Lean (<1.0 p25_ratio)
-sessions score worse than wasteful ones on average because the lean group is dominated by
-swegym quick-fail sessions (empty loops, gave up fast). Within lean, the judge correctly
-distinguishes lean-efficient from lean-failed. No miscalibration.
+**Task taxonomy (5 types, keyword classifier):**
+ml-eval, debug-fix, infra-deploy, research-recon, feature-build (fallback).
+Handles 10 `<local-command-caveat>` sessions. One documented session override.
+Classifier: deterministic keyword matching, no LLM, consistency PASS.
 
-**Resolved collinearity is moderate, not blocking.** Point-biserial r = 0.50. Off-diagonal
-cells confirm independence (7 unresolved MUCH_BETTER; 5 resolved WORSE/MUCH_WORSE). Acceptable
-for this iteration; documented for weight-tuning context.
+**Per-type baselines (cc_baselines.json):**
 
----
+| Type | n | p25 | median | p75 |
+|---|---|---|---|---|
+| infra-deploy | 20 | 386K | 698K | 1,003K |
+| debug-fix | 19 | 353K | 524K | 654K |
+| ml-eval | 12 | 458K | 646K | 1,034K |
+| research-recon | 12 | 362K | 718K | 1,339K |
+| feature-build | 12 | 424K | 711K | 803K |
 
-## Known limitations (all carried forward, do not paper over)
+**Scope gate (p10 turns per type):** ml-eval=127, debug-fix=59, infra-deploy=63,
+research-recon=44, feature-build=166. Sessions below the floor → UNAVAILABLE (token axis);
+trajectory verdict only. Rationale: p10 anchors to reference mass, not a single outlier.
 
-**No human ground truth.** The rho = 0.75 target from report 05 was defined against a 40-session
-human gold set that was never collected. Every calibration result in report 06 is LLM-vs-LLM or
-judge-vs-deterministic-proxy. The judge may not match what a human expert would assign. No
-"calibrated to human experts" or "human-validated" claims are permitted until the gold set exists.
+**Circularity:** Spearman r=−0.0801, p=0.3418 (n=143). Token baseline and judge score
+are independent axes.
 
-**Swegym empty-loop cluster dominates the negative tail.** 14 of 67 scored sessions (20.9%)
-are near-identical 7-11 turn openhands_swegym sessions that fail via empty/single-token loops.
-These represent 54% of all MUCH_WORSE verdicts. The cluster makes floor-detection easy;
-calibration numbers that include it overstate judge discrimination difficulty. Any future
-calibration should report cluster-excluded rho as the headline.
-
-**Corpus is 100% Python, SWE-bench-shaped, offline scaffolds.** No real Claude Code traces,
-no Aider, no multi-language, no interactive sessions. Generalization is unknown. Do not expand
-the corpus in this phase without explicit authorization.
-
-**2-session scoring gap.** e1b043ff429ed5a2 and 9dd32933ac04fd31 are in layer1_outputs.jsonl
-but were not scored (Ollama returned None, likely structured-output timeout). 67/69 is
-sufficient for B1; noted here for completeness. Both are short sessions (25 and 35 turns).
-
-**Score weights are provisional.** The composite formula weights (0.50/0.35/0.15) are
-untuned placeholders from report 05. Weight tuning requires the human gold set first.
-
-**Real agent-log ingestion not built.** The current pipeline reads from pre-built digests in
-layer1_outputs.jsonl. No adapters exist for live Claude Code, Aider, or Cursor log formats.
-Scoring a real agent run requires manual digest construction today.
-
-**Local judge only.** qwen3:30b-a3b via Ollama at $0/session. A production path (FLAMe-style
-distillation to a smaller, faster judge) was outlined in report 05 but not started.
+**Two-axis output (efficiency_score.py):**
+- Token economy: scope status + band verdict (above_p75 / within_band / below_p25 / unavailable)
+- Trajectory quality: judge verdict + score + reasoning (populated when judge entry provided)
+- No composite score — each axis labeled with its own domain of validity.
 
 ---
 
-## Repo structure (key paths)
+## Validated findings
+
+**Two-axis orthogonality confirmed.**
+- `6852df92` (MUCH_WORSE, within_band): trajectory scope violation, normal token cost. Judge
+  catches what the token axis misses.
+- `78bd2719` (WORSE, above_p75): 470 turns of repeated WSL2 failures. Both axes agree.
+- `b9c6cbd4` (BETTER, above_p75): larger task done well. Token excess = task scope, not waste.
+  Judge verdict needed to distinguish.
+
+**Cache inflation was real.** Removing cache_read re-accumulation reduced per-session counts
+by 87–94%. The ml-eval bimodality (CV=0.88 inflated → CV=0.51 corrected) dissolved completely.
+
+**Circularity is not a concern.** Baseline tokens and judge scores are orthogonal (r=−0.08, n.s.).
+
+**Armand0e gate rate (6% vs 69%) is earned, not bias.** Investigation confirmed identical
+behavioral grounding (same waste categories, turn-specific citations, same bar applied to both
+populations). The gap reflects population-level quality difference from expert prompting.
+
+---
+
+## Known limitations (all carry forward — do not paper over)
+
+**Single-developer, expert-prompted corpus.** 97% of the baseline is one developer's
+sessions, predominantly structured orchestrator workflows with explicit ROLE/STEP/CONSTRAINT
+prompting. The baseline encodes "efficient under expert prompting." Cross-customer and
+cross-prompting-style generalization is unvalidated.
+
+**Token axis scope boundary.** The token verdict fires for 50% of the held-out sessions;
+17/34 are UNAVAILABLE (below p10 scope gate). Coverage improves with more reference data
+across scope ranges, not with wider quality bands. MUCH_BETTER+BETTER widening was
+evaluated and rejected — it raises coverage from 26.5% to 44.1% but dilutes the quality
+floor. See report 08.
+
+**feature-build: zero held-out validation.** All 3 held-out feature-build sessions were
+below the scope gate (12–35 turns vs gate of 166). The baseline exists but is unvalidated
+on held-out data.
+
+**No human gold.** Judge validated at rho=0.79 vs Sonnet reference LLM (instrument
+coherence only, not accuracy). No "calibrated to human experts" claims permitted.
+
+**CC-caching-native tokens.** Non-caching agents need their own baseline (launch-2 /
+per-customer accrual).
+
+**Score weights still provisional.** The B1 composite formula weights (0.50/0.35/0.15) are
+untuned. The composite score is NOT run on CC sessions in B2 — token economy + trajectory
+verdict are the two-axis product for launch-1.
+
+---
+
+## Repo structure (key paths, B2 additions)
 
 ```
 token-efficiency-scorer/
 ├── research/
-│   ├── 01-sota-scan.md             IMMUTABLE
-│   ├── 02-trajectory-waste.md      IMMUTABLE
-│   ├── 03-validation-corpus.md     IMMUTABLE (domain priors, p25 baselines)
-│   ├── 04-phaseA1-remeasure.md     IMMUTABLE (IAA results)
-│   ├── 05-architecture-pivot.md    IMMUTABLE (accepted design)
-│   ├── 06-calibration.md           IMMUTABLE (B1 calibration results)
-│   └── cleanup-backlog.md          tech-debt list
+│   ├── 01-07-*.md              IMMUTABLE (B1 reports)
+│   └── 08-baselines.md         B2 final report — IMMUTABLE
 ├── scripts/
-│   ├── layer1_features.py          Layer 1 feature extractor
-│   ├── layer2_judge.py             Layer 2 Ollama judge (v3 prompt)
-│   ├── calibration.py              Spearman rho + CI (human-gold-ready)
-│   ├── calibration_multicutnow.py  Four-cut calibration (produced report 06 numbers)
-│   ├── diagnose_distribution.py    Verdict distribution diagnosis
-│   ├── investigate_findings.py     Post-scoring investigation script
-│   ├── objective_proxy.py          Deterministic efficiency proxy
-│   ├── score.py                    Composite score formula
-│   ├── gpu_score_runner.sh         Preemption-safe GPU scoring runner
-│   ├── provision_gpu_vm.sh         GCP VM provisioner
-│   └── vm_startup.sh               GCP startup script (HOME fix + chown)
-├── src/token_efficiency/
-│   ├── trace_digest.py             Deterministic structured digest
-│   └── layer1_features.py          Layer 1 feature computation
+│   ├── task_classifier.py      5-type keyword classifier + selftest
+│   ├── build_baselines.py      Baseline computation + circularity check
+│   ├── efficiency_score.py     Two-axis session scorer
+│   ├── adapters/
+│   │   └── claudecode_adapter.py  CC JSONL → digest schema
+│   ├── pull_corpora.py         Pool ingestion (local + HF public)
+│   └── layer2_judge.py         Qwen3 judge (locked, GPU-required)
 ├── data/
-│   ├── layer1_outputs.jsonl        191 sessions with Layer 1 features + digests
-│   ├── judge_scores.jsonl          67-session GPU calibration scores (qwen3:30b-a3b v3)
-│   ├── objective_proxy.jsonl       Deterministic proxy scores (191 sessions)
-│   ├── llm_provisional_ratings.jsonl  Sonnet provisional ratings (188 sessions)
-│   ├── calibration_sample.json     69-session calibration subset metadata
-│   ├── cost-log.jsonl              API spend log (append-only, ~$2.59 cumulative)
-│   └── validation-corpus/          191 annotated sessions (DO NOT REGENERATE)
-├── CURRENT_STATE.md                This file
-├── NEXT_PHASE.md                   Candidate next builds (not a committed plan)
-├── spec.md                         B1 iteration spec (complete)
-└── PLAN.md                         Execution tracker (B1 closed)
+│   ├── cc_baselines.json       Per-type baselines + scope gates (locked)
+│   ├── pool_judge_scores.jsonl 143 sessions scored (qwen3:30b-a3b)
+│   ├── corpus_pool/
+│   │   └── pool_adapted.jsonl  181 adapted CC sessions
+│   └── cost-log.jsonl          Append-only, ~$2.59 Anthropic cumulative
+├── CURRENT_STATE.md            This file
+└── NEXT_PHASE.md               Candidate next directions (not committed)
 ```
 
 ---
 
 ## What NOT to touch
 
-- **research/01-06-*.md** — All immutable. New findings get report 07+.
-- **data/validation-corpus/** — Do not regenerate or modify.
-- **data/cost-log.jsonl** — Append-only. $5 cumulative API cap; currently ~$2.59.
-- **data/gold/human_ratings.jsonl** — Does not exist yet. Do not synthesize or impute.
+- **research/01-08-*.md** — All immutable. New findings get report 09+.
+- **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
+- **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
+- **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.
 
 ---
 
 ## GCP infrastructure status
 
-All B1 scoring resources deleted as of 2026-06-02:
-- VM tes-judge-scoring-tmp: DELETED
-- Boot disk (100 GB pd-balanced, asia-east1-a): DELETED
-- No snapshots, static IPs, or storage buckets were created
+All B2 GPU VMs deleted after scoring:
+- B2 pool scoring VM (asia-east1-a, g2-standard-8 SPOT): DELETED
+- B2 step3 rescore VM: DELETED
+- CC validation VM (report 07): DELETED (previously recorded)
+- No persistent disks, snapshots, static IPs, or storage buckets remain
 
-Estimated actual GCP spend for the full scoring job:
-- g2-standard-8 SPOT (asia-east1-a): ~$0.56/hr (on-demand ~$1.40/hr, SPOT ~60% off)
-- VM active time: ~75 min (setup + timing test + scoring run + retrieval restart)
-- VM compute: ~$0.70
-- 100 GB pd-balanced disk: ~$0.02 (1.25 hr at $0.102/GB-month amortized)
-- **Total estimated: ~$0.72 USD**
-- Note: precise figure requires GCP Billing Explorer (no CLI path to line-item data).
-  The gpu-judge-safety-net budget (INR 850 / ~$10 USD cap) was not triggered.
-- Cumulative Anthropic API spend: ~$2.59 of $5 cap (judge is local, $0/session)
+Estimated B2 GCP spend: ~$3.53 USD (pool scoring ~$2.80, rescore ~$0.36,
+CC validation ~$0.37). GCP credits pool, not Anthropic cap.
 
 ---
 
-## Conventions (non-obvious)
+## Judge configuration (locked — do not change)
 
-1. **Judge model is local Qwen3 via Ollama.** $0 inference. Do not substitute Claude or any
-   paid API as judge without escalation and explicit rationale.
-2. **Human gold ratings are sacred.** Never synthesize, impute, or LLM-fill. If not rated by a
-   human, not in the gold set. Full stop.
-3. **API keys in .env, loaded via python-dotenv.** Never export ANTHROPIC_API_KEY to shell.
-4. **Reports are versioned by phase, never edited after acceptance.**
-5. **Judge rates efficiency CONDITIONAL on the task, not task success.** Success lives only in
-   outcome_score. Conflating the two corrupts the composite score.
+- Model: qwen3:30b-a3b via Ollama ($0/session, GPU required)
+- Prompt: v3 — trajectory purposefulness only, /no_think prefix
+- Parameters: temp=0, seed=42, num_predict=6144, JSON schema
+- GPU path: GCP g2-standard-8 SPOT, asia-east1-a
+- DO NOT substitute Claude or any paid API as judge without escalation.
