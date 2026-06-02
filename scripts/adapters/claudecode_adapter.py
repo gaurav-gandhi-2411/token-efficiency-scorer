@@ -9,6 +9,7 @@ and emits records in the same schema that layer2_judge.py consumes from layer1_o
 import argparse
 import dataclasses
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,79 @@ from token_efficiency.trace_digest import SessionDigest, TurnDigest  # noqa: E40
 _SNIPPET_MAX_CHARS: int = 300
 _TASK_DESC_MAX_CHARS: int = 800
 _DEFAULT_OUTPUT: Path = ROOT / "data" / "cc_session_digests.jsonl"
+
+# ---------------------------------------------------------------------------
+# Secret redaction
+# ---------------------------------------------------------------------------
+
+_SECRET_PATTERNS: list[tuple[str, str]] = [
+    # Provider API keys
+    (r"gsk_[A-Za-z0-9]{20,}", "groq_key"),
+    (r"sk-ant-[A-Za-z0-9\-_]{20,}", "anthropic_key"),
+    (r"sk-or-[A-Za-z0-9\-_]{20,}", "openrouter_key"),
+    (r"sk-[A-Za-z0-9]{40,}", "openai_style_key"),
+    (r"ghp_[A-Za-z0-9]{20,}", "github_pat"),
+    (r"github_pat_[A-Za-z0-9_]{20,}", "github_fine_grained_pat"),
+    (r"ghs_[A-Za-z0-9]{20,}", "github_actions_token"),
+    (r"hf_[A-Za-z0-9]{20,}", "huggingface_token"),
+    (r"AIzaSy[A-Za-z0-9\-_]{30,}", "google_api_key"),
+    (r"AKIA[A-Z0-9]{16}", "aws_access_key_id"),
+    (r"wandb_v1_[A-Za-z0-9_]{20,}", "wandb_api_key"),
+    (r"xoxb-[A-Za-z0-9\-]{20,}", "slack_bot_token"),
+    (r"xoxp-[A-Za-z0-9\-]{20,}", "slack_user_token"),
+    (r"hooks\.slack\.com/services/[A-Za-z0-9/]{20,}", "slack_webhook"),
+    # Generic assignments: KEY=<long-random-value>
+    # Excludes: placeholders, code attribute-access values (settings.key, self.key),
+    # and visual separators (strings of = chars).
+    (
+        r"(?i)(?:API_KEY|SECRET_KEY|PRIVATE_KEY|ACCESS_TOKEN|AUTH_TOKEN|DB_PASSWORD|ANON_KEY|SERVICE_ROLE_KEY)"
+        r"\s*=\s*(?!NOT_SET|your_|<|REDACTED|\*{3}|\.{3}|none|null|placeholder|change.me|example"
+        r"|=+|[A-Za-z_][A-Za-z0-9_]*\.)"
+        r"[A-Za-z0-9\-_+=/.@#$%]{16,}",
+        "generic_key_assignment",
+    ),
+    # Database URLs with embedded credentials
+    (r"(?:postgresql|mysql|mongodb)://[^:]+:[^@\s'\"\\]{6,}@[^\s'\"\\]+", "database_url"),
+    # JWT session tokens (only in value position after "token":)
+    (r'"token"\s*:\s*"eyJ[A-Za-z0-9+/=._\-]{20,}"', "jwt_session_token"),
+    # Private key blocks
+    (r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----", "private_key_header"),
+]
+
+# Compile once at module load time for efficiency.
+_COMPILED_PATTERNS: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(pattern), label) for pattern, label in _SECRET_PATTERNS
+]
+
+# Module-level counter so callers can observe how many redactions occurred.
+redaction_count: int = 0
+
+
+def _redact_secrets(text: str) -> str:
+    """Replace any secret-looking values in *text* with ``<SECRET_REDACTED>``.
+
+    Uses the module-level ``_COMPILED_PATTERNS`` list. Increments the module-level
+    ``redaction_count`` for each substitution made. Logs a warning to stderr when
+    at least one redaction occurs so operators can see that live secrets were present.
+
+    Args:
+        text: Raw text that may contain credentials, API keys, or other secrets.
+
+    Returns:
+        The sanitised text with all matched patterns replaced by ``<SECRET_REDACTED>``.
+    """
+    global redaction_count
+    result = text
+    for compiled, label in _COMPILED_PATTERNS:
+        new_result, n = compiled.subn("<SECRET_REDACTED>", result)
+        if n > 0:
+            redaction_count += n
+            print(
+                f"[adapter] WARNING: redacted {n} occurrence(s) of pattern '{label}'",
+                file=sys.stderr,
+            )
+            result = new_result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +216,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
             sum_output += out
 
             tool_names: list[str] = _extract_tool_names_from_content(content)
-            snippet: str = _extract_text_snippet(content)
+            snippet: str = _redact_secrets(_extract_text_snippet(content))
 
             # input_tokens in TurnDigest = all tokens billed for this call
             turn_input: int = inp + cache_cr + cache_rd
@@ -178,11 +252,11 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                 if not task_description_set and stripped.startswith("<system-reminder>"):
                     continue
 
-                snippet = stripped[:_SNIPPET_MAX_CHARS]
+                snippet = _redact_secrets(stripped[:_SNIPPET_MAX_CHARS])
 
                 # Capture the first real human-text turn as the task description
                 if not task_description_set:
-                    task_description = stripped[:_TASK_DESC_MAX_CHARS]
+                    task_description = _redact_secrets(stripped[:_TASK_DESC_MAX_CHARS])
                     task_description_set = True
 
                 turns.append(
@@ -209,7 +283,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                     # No meaningful content — skip
                     continue
 
-                snippet = _extract_tool_result_snippet(content)
+                snippet = _redact_secrets(_extract_tool_result_snippet(content))
                 # Skip if the resulting snippet is blank
                 if not snippet.strip():
                     continue
