@@ -4,6 +4,9 @@
 exec > >(tee /var/log/startup.log) 2>&1
 set -euo pipefail
 
+# GCP metadata-script-runner does not set $HOME; Ollama panics without it.
+export HOME=/root
+
 echo "[$(date)] === VM startup script starting ==="
 
 # Global hard watchdog: VM shuts down 4h after boot regardless of script state.
@@ -31,6 +34,11 @@ apt-get install -y -q git 2>/dev/null || true
 # Clone the scoring repo
 mkdir -p /opt/scoring
 git clone https://github.com/gaurav-gandhi-2411/token-efficiency-scorer.git /opt/scoring/repo
+# Make the repo writable by the default GCP SSH user (not just root).
+GCLOUD_USER=$(getent passwd 1000 | cut -d: -f1 2>/dev/null || echo "")
+if [ -n "$GCLOUD_USER" ]; then
+    chown -R "$GCLOUD_USER":"$GCLOUD_USER" /opt/scoring/repo
+fi
 echo "[$(date)] Repo cloned"
 
 # Install the only external Python deps needed by the scoring chain:

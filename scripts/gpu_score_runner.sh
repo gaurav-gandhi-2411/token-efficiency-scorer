@@ -42,10 +42,24 @@ echo "[$(date)] Ollama models available:"
 ollama list
 
 # ---------------------------------------------------------------------------
-# Clear JSONL — truncate data/judge_scores.jsonl, rescore all 69 fresh
+# One-time truncate guard (preemption-safe)
+#
+# PROBLEM this solves: if the SPOT VM is preempted mid-run and restarts,
+# the runner must NOT truncate the partially-written JSONL — skip-if-scored
+# in layer2_judge.py needs those rows to resume without re-scoring.
+#
+# HOW: a sentinel file on the same persistent boot disk as judge_scores.jsonl.
+#   - No sentinel → first run → truncate cleanly, create sentinel.
+#   - Sentinel exists → restart after preemption → skip truncate, resume.
+#
+# The sentinel lives at data/.judge_scores_cleared so it survives a STOP
+# preemption (pd-balanced boot disk is preserved with STOP action).
 # ---------------------------------------------------------------------------
-echo "[$(date)] Clearing data/judge_scores.jsonl..."
-python3 - <<'EOF'
+CLEARED_MARKER="$REPO_DIR/data/.judge_scores_cleared"
+
+if [ ! -f "$CLEARED_MARKER" ]; then
+    echo "[$(date)] First run: clearing data/judge_scores.jsonl..."
+    python3 - <<'EOF'
 lines_before = 0
 path = "data/judge_scores.jsonl"
 try:
@@ -57,8 +71,13 @@ except FileNotFoundError:
 with open(path, "w") as f:
     pass  # truncate
 
-print(f"[clear] Cleared {lines_before} lines from {path}")
+print(f"[clear] Cleared {lines_before} prior rows from {path}")
 EOF
+    touch "$CLEARED_MARKER"
+    echo "[$(date)] Truncate done. Sentinel written: $CLEARED_MARKER"
+else
+    echo "[$(date)] RESUME MODE: sentinel found at $CLEARED_MARKER — skipping truncate, resuming via skip-if-scored."
+fi
 
 # ---------------------------------------------------------------------------
 # Score 69 sessions via layer2_judge.py
