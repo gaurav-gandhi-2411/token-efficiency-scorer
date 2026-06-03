@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from waste_detectors import WasteEvent, detect_repeated_failed_retry
+from waste_detectors import WasteEvent, detect_redundant_read, detect_repeated_failed_retry
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -442,3 +442,295 @@ def test_proof_turns_are_interleaved_call_result() -> None:
     ]
     events = detect_repeated_failed_retry("s1", turns)
     assert events[0].turns == [5, 6, 7, 8, 9, 10]
+
+
+# ===========================================================================
+# REDUNDANT-READ detector tests
+# ===========================================================================
+
+# Realistic file-content snippets (line-numbered, ≥80 chars)
+FILE_A = "1\timport type { NextRequest } from 'next/server';\n2\texport const runtime = 'nodejs';\n3\texport const dynamic = 'force-dynamic';\n4\tfunction sseHeaders(): HeadersInit {"
+FILE_B = "1\t\"\"\"\n2\tGallery candidate generator — 6 capability categories.\n3\tSaves every candidate + picks nothing automatically.\n4\t\"\"\"\n5\timport pathlib\n6\timport json"
+FILE_UNCHANGED_HINT = "File unchanged since last read. The content from the earlier Read tool_result in this conversation is still current — refer to that instead of re-reading."
+FILE_UNCHANGED_WITH_PATH = "File unchanged since last read. The file C:\\repo\\src\\auth.py has not changed."
+SHORT_CONTENT = "1\tshort"                       # < 80 chars → not qualifying
+SYSTEM_REMINDER = "<system-reminder>Warning: the file exists but is shorter than the provided offset."
+NOT_LINE_NUMBERED = "Loaded 200 sessions.\n\nBULK: openai/gpt-oss-120b..."  # no \d+\t prefix
+
+
+# ---------------------------------------------------------------------------
+# PATH A: CC "File unchanged" hint
+# ---------------------------------------------------------------------------
+
+
+def test_rr_path_a_fires_on_unchanged_hint() -> None:
+    """PATH A: Read followed by 'File unchanged since last read' → fires."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_UNCHANGED_HINT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    assert len(events) == 1
+    e = events[0]
+    assert e.detector == "REDUNDANT-READ"
+    assert e.evidence["path"] == "A"
+    assert e.evidence["call_turn"] == 0
+    assert e.evidence["result_turn"] == 1
+    assert e.evidence["gap"] == 0
+    assert 0 in e.turns and 1 in e.turns
+
+
+def test_rr_path_a_extracts_file_path_when_present() -> None:
+    """PATH A: if the hint contains a file path, it appears in evidence."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_UNCHANGED_WITH_PATH),
+    ]
+    events = detect_redundant_read("s1", turns)
+    assert len(events) == 1
+    assert events[0].evidence["file_path"] is not None
+    assert "auth.py" in events[0].evidence["file_path"]
+
+
+def test_rr_path_a_no_path_when_absent() -> None:
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_UNCHANGED_HINT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    assert events[0].evidence["file_path"] is None
+
+
+def test_rr_path_a_does_not_fire_on_non_read_tool() -> None:
+    """PATH A only fires when the call was a Read, not Bash or Write."""
+    turns = [
+        _ai(0, ["Bash"]),
+        _tool(1, FILE_UNCHANGED_HINT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    assert events == []
+
+
+def test_rr_path_a_multiple_unchanged_in_session() -> None:
+    """Multiple PATH A events in one session all fire independently."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_UNCHANGED_HINT),
+        _ai(2, ["Read"]),
+        _tool(3, FILE_UNCHANGED_HINT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_a = [e for e in events if e.evidence["path"] == "A"]
+    assert len(path_a) == 2
+
+
+# ---------------------------------------------------------------------------
+# PATH B: content-match fires
+# ---------------------------------------------------------------------------
+
+
+def test_rr_path_b_fires_on_identical_content_gap1() -> None:
+    """PATH B: two Read results with identical content and gap=1 → fires."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, ["Read"]),
+        _tool(3, FILE_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    e = path_b[0]
+    assert e.evidence["gap"] == 1  # call_2(2) - result_1(1) = 1
+    assert e.turns == [0, 1, 2, 3]
+
+
+def test_rr_path_b_fires_with_non_read_ai_turns_between() -> None:
+    """PATH B: reasoning/text ai turns between reads don't break the window."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, [], snippet="Let me check another file first."),
+        _ai(3, ["Read"]),          # read a different file
+        _tool(4, FILE_B),
+        _ai(5, ["Read"]),          # now re-read FILE_A
+        _tool(6, FILE_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    assert path_b[0].evidence["gap"] == 4  # call_2(5) - result_1(1) = 4
+
+
+def test_rr_path_b_fires_at_max_gap() -> None:
+    """PATH B fires at gap exactly equal to _REDUNDANT_READ_GAP_MAX (10)."""
+    # result_1 at turn_index 1, call_2 at turn_index 11 → gap = 10
+    turns = [_ai(0, ["Read"]), _tool(1, FILE_A)]
+    for i in range(2, 11):
+        turns.append(_ai(i, [], snippet="work"))
+    turns.append(_ai(11, ["Read"]))
+    turns.append(_tool(12, FILE_A))
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    assert path_b[0].evidence["gap"] == 10
+
+
+# ---------------------------------------------------------------------------
+# PATH B: does NOT fire
+# ---------------------------------------------------------------------------
+
+
+def test_rr_path_b_no_fire_with_edit_between() -> None:
+    """Edit between reads: state changed → no PATH B fire (near-miss 1)."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, ["Edit"]),          # barrier
+        _ai(3, ["Read"]),
+        _tool(4, FILE_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_with_write_between() -> None:
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, ["Write"]),
+        _ai(3, ["Read"]),
+        _tool(4, FILE_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    assert all(e.evidence.get("path") != "B" for e in events)
+
+
+def test_rr_path_b_no_fire_with_user_turn_between() -> None:
+    """User turn (context reset) between reads → no fire (near-miss 2)."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _user(2, "This session is being continued from a previous conversation."),
+        _ai(3, ["Read"]),
+        _tool(4, FILE_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_at_gap_above_max() -> None:
+    """Gap > 10 → outside conservative window, no PATH B fire (near-miss 3)."""
+    # result_1 at turn_index 1, call_2 at turn_index 13 → gap = 12
+    turns = [_ai(0, ["Read"]), _tool(1, FILE_A)]
+    for i in range(2, 13):
+        turns.append(_ai(i, [], snippet="work"))
+    turns.append(_ai(13, ["Read"]))
+    turns.append(_tool(14, FILE_A))
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_on_short_content() -> None:
+    """Content shorter than 80 chars → not qualifying file content."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, SHORT_CONTENT),
+        _ai(2, ["Read"]),
+        _tool(3, SHORT_CONTENT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_on_non_line_numbered_content() -> None:
+    """Content not starting with \\d+\\t → not genuine file content, no fire."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, NOT_LINE_NUMBERED),
+        _ai(2, ["Read"]),
+        _tool(3, NOT_LINE_NUMBERED),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_on_system_reminder_content() -> None:
+    """<system-reminder> content (starts with '<') → excluded from PATH B."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, SYSTEM_REMINDER),
+        _ai(2, ["Read"]),
+        _tool(3, SYSTEM_REMINDER),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_on_different_content() -> None:
+    """Different file content → no match, no fire."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, ["Read"]),
+        _tool(3, FILE_B),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_no_fire_on_empty_turns() -> None:
+    assert detect_redundant_read("s1", []) == []
+
+
+# ---------------------------------------------------------------------------
+# PATH A + PATH B co-occurrence and evidence integrity
+# ---------------------------------------------------------------------------
+
+
+def test_rr_both_paths_can_fire_in_same_session() -> None:
+    """A session can have PATH A and PATH B events simultaneously."""
+    turns = [
+        # PATH B: FILE_A read twice with gap=1
+        _ai(0, ["Read"]),
+        _tool(1, FILE_A),
+        _ai(2, ["Read"]),
+        _tool(3, FILE_A),
+        # PATH A: a later read returns "File unchanged"
+        _ai(4, ["Read"]),
+        _tool(5, FILE_UNCHANGED_HINT),
+    ]
+    events = detect_redundant_read("s1", turns)
+    paths = {e.evidence["path"] for e in events}
+    assert "A" in paths
+    assert "B" in paths
+
+
+def test_rr_path_b_evidence_fields_complete() -> None:
+    """PATH B events carry all required evidence fields with correct values."""
+    turns = [
+        _ai(10, ["Read"]),
+        _tool(11, FILE_A),
+        _ai(12, ["Read"]),
+        _tool(13, FILE_A),
+    ]
+    events = detect_redundant_read("sess-rr", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    e = path_b[0]
+    assert e.session_id == "sess-rr"
+    assert e.evidence["call_1_turn"] == 10
+    assert e.evidence["result_1_turn"] == 11
+    assert e.evidence["call_2_turn"] == 12
+    assert e.evidence["result_2_turn"] == 13
+    assert e.evidence["gap"] == 1
+    assert "content_snippet" in e.evidence
+    turn_idxs = {t["turn_index"] for t in turns}
+    assert all(t in turn_idxs for t in e.turns)
