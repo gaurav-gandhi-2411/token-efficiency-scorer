@@ -82,8 +82,9 @@ research/
 ## Verification commands
 ```yaml
 - name: detector-unit-tests
-  cmd: python -m pytest tests/test_waste_detectors.py -v
+  cmd: python -m pytest tests/test_waste_detectors.py -v --no-cov
   required: true
+  note: --no-cov because waste_detectors.py lives in scripts/ (no coverage threshold per CLAUDE.md)
 - name: waste-evidence-integrity
   cmd: python -c "import json; [exit('no evidence') for l in open('data/pool_waste_signals.jsonl') if (r:=json.loads(l)).get('waste_events') and not all('turns' in e for e in r['waste_events'])]; print('all evidenced')"
   required: true
