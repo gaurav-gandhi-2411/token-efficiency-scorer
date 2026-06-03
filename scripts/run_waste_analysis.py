@@ -3,8 +3,9 @@ from __future__ import annotations
 """run_waste_analysis.py — Run approved detectors over the 143-session pool.
 
 Outputs data/pool_waste_signals.jsonl: one record per session, with all
-fired waste events (detector, turns, evidence).  Currently runs only
-REPEATED-FAILED-RETRY (the first approved detector in the B4 build order).
+fired waste events (detector, turns, evidence).  Detectors approved so far:
+  - REPEATED-FAILED-RETRY (B4 step 2-3)
+  - REDUNDANT-READ        (B4 step 3)
 """
 
 import dataclasses
@@ -15,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from waste_detectors import WasteEvent, detect_repeated_failed_retry
+from waste_detectors import WasteEvent, detect_redundant_read, detect_repeated_failed_retry
 
 POOL_PATH = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
 JUDGE_PATH = ROOT / "data" / "pool_judge_scores.jsonl"
@@ -42,6 +43,7 @@ def run_detectors(session_id: str, turns: list[dict]) -> list[WasteEvent]:
     """Run all approved detectors; extend here as detectors are approved."""
     events: list[WasteEvent] = []
     events.extend(detect_repeated_failed_retry(session_id, turns))
+    events.extend(detect_redundant_read(session_id, turns))
     return events
 
 
@@ -84,38 +86,99 @@ def main() -> None:
         encoding="utf-8",
     )
 
-    print(f"\n=== REPEATED-FAILED-RETRY pool-wide results ===")
-    print(f"Pool size:             {total_sessions} sessions")
-    print(f"Sessions with events:  {sessions_with_events}  ({sessions_with_events/total_sessions*100:.1f}%)")
-    print(f"Total events fired:    {total_events}")
-    for det, count in fire_rate_by_detector.items():
-        print(f"  {det}: {count} sessions")
+    _report(records, total_sessions)
 
-    # Cross-check: among sessions that fired, what were Qwen's verdicts?
-    fired_ids = {r["session_id"] for r in records if r["waste_events"]}
-    verdict_counts: dict[str, int] = {}
+
+def _report(records: list[dict], total_sessions: int) -> None:
+    """Print pool-wide summary with per-detector and per-path breakdowns."""
+    from collections import Counter
+
+    worse_verdicts = {"WORSE", "MUCH_WORSE"}
+    good_verdicts  = {"MUCH_BETTER", "BETTER", "SIMILAR"}
+
+    # ------------------------------------------------------------------ #
+    # REPEATED-FAILED-RETRY summary
+    # ------------------------------------------------------------------ #
+    rfr_fired = [r for r in records if any(
+        e["detector"] == "REPEATED-FAILED-RETRY" for e in r["waste_events"]
+    )]
+    print(f"\n=== REPEATED-FAILED-RETRY ===")
+    print(f"Sessions fired: {len(rfr_fired)}/{total_sessions} ({len(rfr_fired)/total_sessions*100:.1f}%)")
+    rfr_verdicts = Counter((r["qwen_verdict"] or "unscored") for r in rfr_fired)
+    for v, c in rfr_verdicts.most_common():
+        print(f"  qwen={v}: {c}")
+    worse_fired_rfr  = sum(1 for r in rfr_fired if r["qwen_verdict"] in worse_verdicts)
+    worse_total      = sum(1 for r in records if r["qwen_verdict"] in worse_verdicts)
+    good_fired_rfr   = sum(1 for r in rfr_fired if r["qwen_verdict"] in good_verdicts)
+    good_total       = sum(1 for r in records if r["qwen_verdict"] in good_verdicts)
+    print(f"  4-way: fired+WORSE={worse_fired_rfr}/{worse_total}, fired+good={good_fired_rfr}/{good_total}, "
+          f"no-fire+WORSE={worse_total-worse_fired_rfr}/{worse_total}, no-fire+good={good_total-good_fired_rfr}/{good_total}")
+
+    # ------------------------------------------------------------------ #
+    # REDUNDANT-READ summary — per-path breakdown + gap distribution
+    # ------------------------------------------------------------------ #
+    rr_fired = [r for r in records if any(
+        e["detector"] == "REDUNDANT-READ" for e in r["waste_events"]
+    )]
+    rr_events_a = [e for r in records for e in r["waste_events"]
+                   if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"]
+    rr_events_b = [e for r in records for e in r["waste_events"]
+                   if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"]
+
+    # Sessions with at least one PATH A event
+    rr_a_sids = {r["session_id"] for r in records if any(
+        e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"
+        for e in r["waste_events"]
+    )}
+    rr_b_sids = {r["session_id"] for r in records if any(
+        e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"
+        for e in r["waste_events"]
+    )}
+
+    print(f"\n=== REDUNDANT-READ ===")
+    print(f"Sessions fired (any path): {len(rr_fired)}/{total_sessions} ({len(rr_fired)/total_sessions*100:.1f}%)")
+    print(f"  PATH A (CC hint): {len(rr_a_sids)} sessions, {len(rr_events_a)} events")
+    print(f"  PATH B (content): {len(rr_b_sids)} sessions, {len(rr_events_b)} events")
+    print(f"  PATH A+B overlap: {len(rr_a_sids & rr_b_sids)} sessions")
+
+    # PATH B gap distribution
+    if rr_events_b:
+        gap_counts = Counter(e["evidence"]["gap"] for e in rr_events_b)
+        print(f"  PATH B gap distribution (call_2.turn_idx - result_1.turn_idx):")
+        for g in sorted(gap_counts):
+            print(f"    gap={g}: {gap_counts[g]} events")
+
+    # Qwen verdict breakdown
+    rr_verdicts = Counter((r["qwen_verdict"] or "unscored") for r in rr_fired)
+    print(f"  Qwen verdict breakdown:")
+    for v, c in rr_verdicts.most_common():
+        print(f"    qwen={v}: {c}")
+
+    # 4-way Qwen cross-check (session-level, any REDUNDANT-READ event)
+    rr_fired_sids = {r["session_id"] for r in rr_fired}
+    worse_fired_rr  = sum(1 for r in records if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in worse_verdicts)
+    good_fired_rr   = sum(1 for r in records if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in good_verdicts)
+    print(f"  4-way: fired+WORSE={worse_fired_rr}/{worse_total}, fired+good={good_fired_rr}/{good_total}, "
+          f"no-fire+WORSE={worse_total-worse_fired_rr}/{worse_total}, no-fire+good={good_total-good_fired_rr}/{good_total}")
+
+    # Sample PATH A and PATH B events
+    print("\n--- REDUNDANT-READ sample events ---")
+    shown_a = shown_b = 0
     for r in records:
-        if r["session_id"] in fired_ids:
-            v = r["qwen_verdict"] or "unscored"
-            verdict_counts[v] = verdict_counts.get(v, 0) + 1
-
-    print(f"\nQwen verdict breakdown among {sessions_with_events} sessions that fired:")
-    for v, c in sorted(verdict_counts.items(), key=lambda x: -x[1]):
-        print(f"  {v}: {c}")
-
-    # Sample evidence from first 3 fired sessions
-    print("\n--- Sample events (first 3 sessions with fires) ---")
-    shown = 0
-    for r in records:
-        if r["waste_events"] and shown < 3:
-            sid_short = r["session_id"][:8]
-            print(f"\n  Session {sid_short} (turns={r['turn_count']}, qwen={r['qwen_verdict']}):")
-            for ev in r["waste_events"][:2]:
-                print(f"    detector={ev['detector']}, repeat_count={ev['repeat_count']}")
-                print(f"    proof turns: {ev['turns']}")
-                snip = ev["evidence"].get("error_snippet", "")[:100]
-                print(f"    error: {repr(snip)}")
-            shown += 1
+        for ev in r["waste_events"]:
+            if ev["detector"] != "REDUNDANT-READ": continue
+            path = ev["evidence"].get("path")
+            snip = ev["evidence"].get("content_snippet", "")[:80]
+            sid  = r["session_id"][:8]
+            if path == "A" and shown_a < 2:
+                print(f"  [A] {sid} (qwen={r['qwen_verdict']}) turns={ev['turns']}: {repr(snip)}")
+                shown_a += 1
+            elif path == "B" and shown_b < 2:
+                gap = ev["evidence"].get("gap")
+                print(f"  [B] {sid} (qwen={r['qwen_verdict']}) gap={gap} turns={ev['turns']}: {repr(snip)}")
+                shown_b += 1
+        if shown_a >= 2 and shown_b >= 2:
+            break
 
     print(f"\nOutput written to {OUTPUT_PATH}")
 

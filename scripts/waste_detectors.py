@@ -247,3 +247,162 @@ def detect_repeated_failed_retry(
             i = result_pos + 1
 
     return events
+
+
+# ---------------------------------------------------------------------------
+# REDUNDANT-READ detector
+# ---------------------------------------------------------------------------
+# Fires when the agent re-reads an unchanged file: same content fetched again
+# with no Write/Edit/NotebookEdit or context-reset (user turn) between reads.
+#
+# Two detection paths, separately labeled and reported:
+#
+#   PATH A — CC Read tool returns "File unchanged since last read"
+#     The CC tool itself detected the redundancy and said so. This is the
+#     tool's verdict, not an inference — maximally uncontestable. The hint
+#     appears when the file is already in the conversation context unchanged.
+#
+#   PATH B — Identical content_snippet from two Read results (conservative)
+#     Same line-numbered file content (≥80 chars, starts with \d+\t) appears
+#     in two Read results within a ≤10-turn window with no state change between.
+#     10 turns is a conservative cap: re-orientation reads after long work are
+#     excluded. Report the gap distribution before locking this threshold.
+#
+# Design principle: content-matching is MORE robust here than command-matching
+# (which we can't do — the digest doesn't capture file paths). If the same
+# file content appears in two Read results, the same portion of the same file
+# was fetched twice. File changes between reads produce different content and
+# naturally don't fire.
+#
+# Documented limitation: 300-char truncation. Two reads of the same file where
+# an edit changed only content beyond char 300 would match. Conservative posture
+# means we accept this rare over-fire rather than miss clear redundant reads.
+# ---------------------------------------------------------------------------
+
+_FILE_UNCHANGED_PREFIX = "File unchanged since last read"
+_LINE_NUMBERED_RE = re.compile(r"^\d+\t")
+_REDUNDANT_READ_GAP_MAX = 10  # PATH B maximum gap; report distribution before tightening
+
+
+def _is_read_call(turn: dict[str, Any]) -> bool:
+    return turn.get("role") == "ai" and "Read" in turn.get("tool_names", [])
+
+
+def _is_line_numbered_content(snippet: str) -> bool:
+    """Return True if snippet looks like genuine file content from the Read tool."""
+    if len(snippet.strip()) < 80:
+        return False
+    if snippet.startswith(_FILE_UNCHANGED_PREFIX):
+        return False  # PATH A territory
+    if snippet.startswith("<"):
+        return False  # system-reminder injections, error XML
+    return bool(_LINE_NUMBERED_RE.match(snippet))
+
+
+def _extract_path_from_hint(snippet: str) -> str | None:
+    """Try to find a file path in a 'File unchanged' hint snippet."""
+    m = re.search(r"(?:[A-Za-z]:\\|/)[^\s'\"<>]+\.\w+", snippet)
+    return m.group() if m else None
+
+
+def detect_redundant_read(
+    session_id: str,
+    turns: list[dict[str, Any]],
+) -> list[WasteEvent]:
+    """Detect redundant file reads: same file content fetched again with no change between.
+
+    PATH A events: the CC Read tool itself reported "File unchanged since last read."
+    PATH B events: two Read results carry identical line-numbered content within ≤10 turns
+                   with no Write/Edit/NotebookEdit or user (context-reset) turn between.
+
+    Every event carries path="A" or path="B" in evidence so callers can report
+    fire rates per path separately (PATH A is tool-authoritative; PATH B is inferred).
+    """
+    if not turns:
+        return []
+
+    events: list[WasteEvent] = []
+    n = len(turns)
+    idx_to_pos: dict[int, int] = {t["turn_index"]: pos for pos, t in enumerate(turns)}
+
+    # ---- PATH A scan -------------------------------------------------------
+    for i, t in enumerate(turns):
+        if not _is_read_call(t):
+            continue
+        result_pos = _next_tool_pos(turns, i)
+        if result_pos is None:
+            continue
+        snip = turns[result_pos].get("content_snippet", "")
+        if snip.startswith(_FILE_UNCHANGED_PREFIX):
+            events.append(
+                WasteEvent(
+                    detector="REDUNDANT-READ",
+                    session_id=session_id,
+                    turns=[t["turn_index"], turns[result_pos]["turn_index"]],
+                    evidence={
+                        "path": "A",
+                        "call_turn": t["turn_index"],
+                        "result_turn": turns[result_pos]["turn_index"],
+                        "content_snippet": snip[:120],
+                        "file_path": _extract_path_from_hint(snip),
+                        "gap": 0,
+                    },
+                )
+            )
+
+    # ---- PATH B scan -------------------------------------------------------
+    # Collect all qualifying Read results: (call_idx, result_idx, list_pos, snippet)
+    reads: list[tuple[int, int, int, str]] = []
+    for i, t in enumerate(turns):
+        if not _is_read_call(t):
+            continue
+        rp = _next_tool_pos(turns, i)
+        if rp is None:
+            continue
+        snip = turns[rp].get("content_snippet", "")
+        if _is_line_numbered_content(snip):
+            reads.append((t["turn_index"], turns[rp]["turn_index"], rp, snip))
+
+    # Track which call_1 indices have already fired to avoid duplicate events
+    # from the same first read pairing with multiple later reads.
+    fired_first: set[int] = set()
+
+    for ia, (call_a, res_a, pos_a, snip_a) in enumerate(reads):
+        if call_a in fired_first:
+            continue
+        for call_b, res_b, pos_b, snip_b in reads[ia + 1 :]:
+            if snip_a != snip_b:
+                continue
+            gap = call_b - res_a
+            if gap <= 0 or gap > _REDUNDANT_READ_GAP_MAX:
+                continue
+
+            # Check barriers in the range (pos_a+1 .. pos of call_b, exclusive)
+            call_b_pos = idx_to_pos.get(call_b, pos_a + 1)
+            has_barrier = any(
+                (_is_write_call(turns[k]) or turns[k].get("role") == "user")
+                for k in range(pos_a + 1, call_b_pos)
+            )
+            if has_barrier:
+                continue
+
+            events.append(
+                WasteEvent(
+                    detector="REDUNDANT-READ",
+                    session_id=session_id,
+                    turns=[call_a, res_a, call_b, res_b],
+                    evidence={
+                        "path": "B",
+                        "call_1_turn": call_a,
+                        "result_1_turn": res_a,
+                        "call_2_turn": call_b,
+                        "result_2_turn": res_b,
+                        "content_snippet": snip_a[:120],
+                        "gap": gap,
+                    },
+                )
+            )
+            fired_first.add(call_a)
+            break  # one event per first-read; move to next ia
+
+    return events
