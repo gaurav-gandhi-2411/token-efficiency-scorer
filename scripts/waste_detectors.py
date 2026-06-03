@@ -49,8 +49,8 @@ class WasteEvent:
 _SHELL_TOOLS: frozenset[str] = frozenset({"Bash", "PowerShell"})
 _WRITE_TOOLS: frozenset[str] = frozenset({"Write", "Edit", "NotebookEdit"})
 
-# Transient availability errors: retry-with-different-resource is correct behaviour,
-# not waste. Excluded unconditionally so the rule never fires on them.
+# Transient availability errors and CI-polling status codes: retry or re-poll is
+# correct behaviour, not waste. Excluded unconditionally so the rule never fires.
 _TRANSIENT_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
     for p in [
@@ -62,6 +62,12 @@ _TRANSIENT_PATTERNS: list[re.Pattern[str]] = [
         r"quota.?exceeded",
         r"429 Too Many Requests",
         r"503 Service Unavailable",
+        # gh CLI CI-polling status codes — not fixable failures; polling is transient.
+        # `gh pr checks` returns exit code 8 + tabular "pending" when checks are running.
+        # `gh pr checks` returns exit code 1 + "no checks reported" when CI hasn't started.
+        # Both are CI-polling, not agent-fixable failures.
+        r"\tpending\t",
+        r"no checks reported on the ",
     ]
 ]
 
