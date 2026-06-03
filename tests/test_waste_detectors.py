@@ -563,17 +563,20 @@ def test_rr_path_b_fires_with_non_read_ai_turns_between() -> None:
 
 
 def test_rr_path_b_fires_at_max_gap() -> None:
-    """PATH B fires at gap exactly equal to _REDUNDANT_READ_GAP_MAX (10)."""
-    # result_1 at turn_index 1, call_2 at turn_index 11 → gap = 10
+    """PATH B fires at gap exactly equal to _REDUNDANT_READ_GAP_MAX (5).
+    Gap 5 is the conservative edge: re-reading after a small number of
+    intermediate operations with no state change is uncontestable.
+    """
+    # result_1 at turn_index 1, call_2 at turn_index 6 → gap = 5
     turns = [_ai(0, ["Read"]), _tool(1, FILE_A)]
-    for i in range(2, 11):
+    for i in range(2, 6):
         turns.append(_ai(i, [], snippet="work"))
-    turns.append(_ai(11, ["Read"]))
-    turns.append(_tool(12, FILE_A))
+    turns.append(_ai(6, ["Read"]))
+    turns.append(_tool(7, FILE_A))
     events = detect_redundant_read("s1", turns)
     path_b = [e for e in events if e.evidence.get("path") == "B"]
     assert len(path_b) == 1
-    assert path_b[0].evidence["gap"] == 10
+    assert path_b[0].evidence["gap"] == 5
 
 
 # ---------------------------------------------------------------------------
@@ -622,13 +625,16 @@ def test_rr_path_b_no_fire_with_user_turn_between() -> None:
 
 
 def test_rr_path_b_no_fire_at_gap_above_max() -> None:
-    """Gap > 10 → outside conservative window, no PATH B fire (near-miss 3)."""
-    # result_1 at turn_index 1, call_2 at turn_index 13 → gap = 12
+    """Gap > 5 → outside conservative window (re-orientation becomes contestable).
+    Gaps 7-9 are where 'several intervening operations' makes re-reading plausibly
+    legitimate, so the conservative line excludes them.
+    """
+    # result_1 at turn_index 1, call_2 at turn_index 8 → gap = 7
     turns = [_ai(0, ["Read"]), _tool(1, FILE_A)]
-    for i in range(2, 13):
+    for i in range(2, 8):
         turns.append(_ai(i, [], snippet="work"))
-    turns.append(_ai(13, ["Read"]))
-    turns.append(_tool(14, FILE_A))
+    turns.append(_ai(8, ["Read"]))
+    turns.append(_tool(9, FILE_A))
     events = detect_redundant_read("s1", turns)
     path_b = [e for e in events if e.evidence.get("path") == "B"]
     assert path_b == []
