@@ -281,7 +281,8 @@ def detect_repeated_failed_retry(
 
 _FILE_UNCHANGED_PREFIX = "File unchanged since last read"
 _LINE_NUMBERED_RE = re.compile(r"^\d+\t")
-_REDUNDANT_READ_GAP_MAX = 10  # PATH B maximum gap; report distribution before tightening
+_REDUNDANT_READ_GAP_MAX = 5  # PATH B: gaps 7-9 are contestable (re-orientation after
+# several intervening operations is plausibly legitimate); ≤5 stays uncontestable.
 
 
 def _is_read_call(turn: dict[str, Any]) -> bool:
