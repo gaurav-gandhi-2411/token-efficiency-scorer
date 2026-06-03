@@ -1,7 +1,61 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-03. Read this BEFORE planning. This supersedes the prior snapshot
-dated 2026-06-02.
+Snapshot as of 2026-06-03 (B4). Read this BEFORE planning. This supersedes the prior snapshot
+dated 2026-06-03 (B2).
+
+---
+
+## Iteration status: B4 COMPLETE — HOLD FOR CONSULTANT READ
+
+B3 and B4 are complete. B3 (cross-model corroboration) closed with report 09: positive verdicts
+corroborated at 84%, waste verdicts model-dependent (Gemma reversed 94.4% of Qwen's WORSE
+verdicts). B4 (deterministic waste detection) closed with report 10: two detectors shipped
+(REPEATED-FAILED-RETRY, REDUNDANT-READ), two documented as exploratory (DEAD-END, EMPTY-TURN),
+three-axis score structure confirmed. HOLD for consultant read before calling B4 done.
+
+Do NOT extend B4 until the HOLD clears. Read report 10 (research/10-deterministic-waste.md)
+for the complete B4 findings and the central deliverable (the observable-invariant vs
+judgment-of-progress waste boundary).
+
+---
+
+## B3 summary (closed)
+
+**Finding:** LLM waste judgments are model-dependent. Gemma 3 27B reversed 94.4% (17/18) of
+Qwen's WORSE/MUCH_WORSE verdicts on the same digests. Positive verdicts (MUCH_BETTER) are
+corroborated at 84% strict / 96% top-2. The B2 baselines rest on a corroborated foundation.
+Report 09 is final and immutable.
+
+**GCP:** VM deleted. No persistent infrastructure from B3.
+
+---
+
+## B4 summary (complete, HOLD)
+
+**What shipped:**
+- `REPEATED-FAILED-RETRY` detector — 12/181 sessions (6.6%), 0/18 overlap with Qwen WORSE.
+  Fires on exact-match shell retry loops with no state change. 25 unit tests.
+- `REDUNDANT-READ` detector (PATH A + PATH B) — 20/181 sessions (11.0%), 3/18 overlap with
+  Qwen WORSE. PATH A: CC tool's own "File unchanged" verdict. PATH B: content-match, gap≤5.
+  19 unit tests. (Combined test suite: 46/46 pass.)
+- `data/pool_waste_signals.jsonl` — per-session detector output for all 181 sessions.
+- `scripts/efficiency_score.py` — three-axis scorer: token-economy + trajectory-quality +
+  deterministic waste. No composite score; each axis carries its stated domain of validity.
+- `research/10-deterministic-waste.md` — FINAL report: detectors, fire rates, Qwen
+  cross-check, exploratory findings (DEAD-END, EMPTY-TURN), and the central boundary finding.
+
+**What is exploratory (NOT shipped):**
+- `DEAD-END/LOOP` — fails at implementation (3 domain-specific header exclusions; concept
+  requires evaluating whether loop was productive, not just whether headers repeated).
+- `EMPTY-TURN` — fails at definition (empty ai turns in CC JSONL are ambiguous between
+  genuine no-ops and extended-thinking turns; prototype cases ARE the B3 dispute).
+
+**Central B4 finding (the boundary):**
+Observable-invariant waste (same command + no state change; same content + no edit) is
+deterministically detectable. Judgment-of-progress waste (was this cycle productive, was
+this turn purposeful) is not — it requires evaluator judgment that reintroduces the
+model-dependency problem B4 was built to solve. Future human labeling targets the second
+category.
 
 ---
 
@@ -103,24 +157,31 @@ verdict are the two-axis product for launch-1.
 
 ---
 
-## Repo structure (key paths, B2 additions)
+## Repo structure (key paths, B4 state)
 
 ```
 token-efficiency-scorer/
 ├── research/
 │   ├── 01-07-*.md              IMMUTABLE (B1 reports)
-│   └── 08-baselines.md         B2 final report — IMMUTABLE
+│   ├── 08-baselines.md         B2 final report — IMMUTABLE
+│   ├── 09-cross-model.md       B3 final report — IMMUTABLE
+│   └── 10-deterministic-waste.md  B4 final report — FINAL (HOLD)
 ├── scripts/
+│   ├── waste_detectors.py      Deterministic waste detectors (RFR + RR shipped)
+│   ├── run_waste_analysis.py   Pool-wide detector run → pool_waste_signals.jsonl
+│   ├── efficiency_score.py     Three-axis session scorer (token + judge + waste)
 │   ├── task_classifier.py      5-type keyword classifier + selftest
 │   ├── build_baselines.py      Baseline computation + circularity check
-│   ├── efficiency_score.py     Two-axis session scorer
 │   ├── adapters/
 │   │   └── claudecode_adapter.py  CC JSONL → digest schema
 │   ├── pull_corpora.py         Pool ingestion (local + HF public)
 │   └── layer2_judge.py         Qwen3 judge (locked, GPU-required)
+├── tests/
+│   └── test_waste_detectors.py 46 unit tests (25 RFR + 19 RR + 2 shared), all pass
 ├── data/
 │   ├── cc_baselines.json       Per-type baselines + scope gates (locked)
 │   ├── pool_judge_scores.jsonl 143 sessions scored (qwen3:30b-a3b)
+│   ├── pool_waste_signals.jsonl  181 sessions × detector output (B4)
 │   ├── corpus_pool/
 │   │   └── pool_adapted.jsonl  181 adapted CC sessions
 │   └── cost-log.jsonl          Append-only, ~$2.59 Anthropic cumulative
@@ -132,7 +193,7 @@ token-efficiency-scorer/
 
 ## What NOT to touch
 
-- **research/01-08-*.md** — All immutable. New findings get report 09+.
+- **research/01-09-*.md** — All immutable. Report 10 is FINAL (not immutable until HOLD clears).
 - **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
 - **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
 - **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.

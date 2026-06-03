@@ -17,7 +17,7 @@ CLI (spot-check):
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -60,6 +60,9 @@ class EfficiencyResult:
     judge_verdict: str | None
     judge_score: float | None
     judge_reasoning: str | None
+    # Deterministic waste axis (populated when caller provides waste_entry)
+    waste_event_count: int = 0
+    waste_events: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +108,7 @@ def score_session(
     record: dict,
     baselines: dict,
     judge_entry: dict | None = None,
+    waste_entry: dict | None = None,
 ) -> EfficiencyResult:
     """Score a single pool_adapted record against the baseline band.
 
@@ -134,6 +138,10 @@ def score_session(
     je_verdict: str | None = judge_entry.get("verdict") if judge_entry else None
     je_score: float | None = judge_entry.get("judge_score") if judge_entry else None
     je_reasoning: str | None = judge_entry.get("reasoning") if judge_entry else None
+
+    # Extract deterministic waste fields
+    waste_events: list[dict] = waste_entry.get("waste_events", []) if waste_entry else []
+    waste_event_count: int = len(waste_events)
 
     type_info: dict = baselines.get("types", {}).get(task_type, {})
     baseline_available: bool = type_info.get("available", False)
@@ -176,6 +184,8 @@ def score_session(
             judge_verdict=je_verdict,
             judge_score=je_score,
             judge_reasoning=je_reasoning,
+            waste_event_count=waste_event_count,
+            waste_events=waste_events,
         )
 
     p25: int = type_info["p25"]
@@ -216,6 +226,8 @@ def score_session(
         judge_verdict=je_verdict,
         judge_score=je_score,
         judge_reasoning=je_reasoning,
+        waste_event_count=waste_event_count,
+        waste_events=waste_events,
     )
 
 
@@ -258,6 +270,27 @@ def _print_result(result: EfficiencyResult) -> None:
         print(f"judge_score:         {result.judge_score}")
     if result.judge_reasoning is not None:
         print(f"judge_reasoning:     {result.judge_reasoning}")
+    print()
+    print("--- DETERMINISTIC WASTE ---")
+    if result.waste_event_count == 0:
+        print("waste_events:        none detected")
+    else:
+        print(f"waste_events:        {result.waste_event_count} event(s)")
+        for ev in result.waste_events:
+            det = ev.get("detector", "?")
+            turns = ev.get("turns", [])
+            evi = ev.get("evidence", {})
+            if det == "REPEATED-FAILED-RETRY":
+                rc = ev.get("repeat_count", "?")
+                snip = evi.get("error_snippet", "")[:80]
+                print(f"  {det}: repeat_count={rc} turns={turns}")
+                print(f"    error: {snip!r}")
+            elif det == "REDUNDANT-READ":
+                path = evi.get("path", "?")
+                gap = evi.get("gap", "?")
+                snip = evi.get("content_snippet", "")[:60]
+                print(f"  {det} (PATH {path}): gap={gap} turns={turns}")
+                print(f"    content: {snip!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -299,9 +332,21 @@ def main() -> None:
                     entry = json.loads(line)
                     judge_index[entry["session_id"]] = entry
 
+    # Load deterministic waste signals if available
+    waste_signals_path = REPO_ROOT / "data" / "pool_waste_signals.jsonl"
+    waste_index: dict[str, dict] = {}
+    if waste_signals_path.exists():
+        with waste_signals_path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    waste_index[entry["session_id"]] = entry
+
     record = pool_index[target_id]
     judge_entry = judge_index.get(target_id)
-    result = score_session(record, baselines, judge_entry=judge_entry)
+    waste_entry = waste_index.get(target_id)
+    result = score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
     _print_result(result)
 
 
