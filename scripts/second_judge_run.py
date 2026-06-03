@@ -249,11 +249,15 @@ def _call_ollama(
     ollama_url: str,
     ollama_model: str,
     num_predict: int = GEMMA_NUM_PREDICT,
-) -> tuple[dict[str, Any] | None, bool]:
+) -> tuple[dict[str, Any] | None, bool, str]:
     """Send a single judge request to Ollama via api/chat.
 
-    Returns (parsed_result, json_valid) where json_valid records whether the
-    raw response parsed as valid JSON on the first try (no post-processing).
+    Returns (parsed_result, json_valid, done_reason) where:
+    - json_valid records whether the raw response parsed as valid JSON on the
+      first try (no post-processing).
+    - done_reason is the Ollama finish reason from the final streaming chunk.
+      Typical values: "stop" (normal completion), "length" (hit num_predict
+      limit — JSON may be truncated), "" (unknown).
 
     Uses api/chat (not api/generate) for /no_think parity with Qwen config.
     Streaming mode avoids read-timeout on long-context sessions.
@@ -266,6 +270,7 @@ def _call_ollama(
 
     try:
         response_text = ""
+        done_reason = ""
         with httpx.stream(
             "POST",
             f"{ollama_url}/api/chat",
@@ -297,18 +302,19 @@ def _call_ollama(
                     continue
                 response_text += chunk.get("message", {}).get("content", "")
                 if chunk.get("done"):
+                    done_reason = chunk.get("done_reason", "")
                     break
         parsed = _json.loads(response_text)
-        return parsed, True
+        return parsed, True, done_reason
     except httpx.HTTPError as e:
         print(f"  HTTP error: {e}", file=sys.stderr)
-        return None, False
+        return None, False, ""
     except _json.JSONDecodeError as e:
         print(f"  JSON parse error: {e}", file=sys.stderr)
-        return None, False
+        return None, False, ""
     except Exception as e:
         print(f"  Unexpected error: {e}", file=sys.stderr)
-        return None, False
+        return None, False, ""
 
 
 # ---------------------------------------------------------------------------
@@ -350,7 +356,7 @@ def _score_session(
 ) -> dict[str, Any] | None:
     """Score a single session; return output record (including json_valid) or None on failure."""
     user_prompt = _build_user_prompt(rec)
-    result, json_valid = _call_ollama(user_prompt, ollama_url, ollama_model, num_predict)
+    result, json_valid, done_reason = _call_ollama(user_prompt, ollama_url, ollama_model, num_predict)
     if result is None:
         return None
 
@@ -379,6 +385,7 @@ def _score_session(
         "model": ollama_model,
         "num_predict": num_predict,
         "json_valid": json_valid,
+        "done_reason": done_reason,
     }
 
 
@@ -463,8 +470,9 @@ def mode_validate(args: argparse.Namespace) -> None:
         if scored is None:
             print(
                 f"  [{n}/5] {sid} | turns={actual_turns} | Qwen={qwen_verdict} | "
-                f"Gemma=FAILED | {elapsed:.0f}s | json_valid=False"
+                f"Gemma=FAILED | {elapsed:.0f}s | json_valid=False | done_reason="
             )
+            print("        Reasoning: (failed — no response)")
             results.append({
                 "session_id": sid,
                 "turns": actual_turns,
@@ -472,6 +480,8 @@ def mode_validate(args: argparse.Namespace) -> None:
                 "gemma": "FAILED",
                 "conf": None,
                 "json_valid": False,
+                "done_reason": "",
+                "reasoning": "",
             })
             continue
 
@@ -482,12 +492,15 @@ def mode_validate(args: argparse.Namespace) -> None:
                     fh.write(json.dumps(row) + "\n")
 
         suffix = " [cached]" if cached else f" {elapsed:.0f}s"
+        done_reason = scored.get("done_reason", "")
+        reasoning = scored.get("reasoning", "")
         print(
             f"  [{n}/5] {sid} | turns={actual_turns} | "
             f"Qwen={qwen_verdict} | Gemma={scored['verdict']} | "
             f"conf={scored['confidence']:.2f} |{suffix} | "
-            f"json_valid={scored['json_valid']}"
+            f"json_valid={scored['json_valid']} | done_reason={done_reason}"
         )
+        print(f"        Reasoning: {reasoning}")
         results.append({
             "session_id": sid,
             "turns": actual_turns,
@@ -495,6 +508,8 @@ def mode_validate(args: argparse.Namespace) -> None:
             "gemma": scored["verdict"],
             "conf": scored["confidence"],
             "json_valid": scored["json_valid"],
+            "done_reason": done_reason,
+            "reasoning": reasoning,
         })
 
     wall_elapsed = time.monotonic() - wall_start
@@ -504,16 +519,26 @@ def mode_validate(args: argparse.Namespace) -> None:
 
     # Summary table
     col_w = 38
-    print(f"{'session_id':<{col_w}} {'turns':>5}  {'Qwen':<12} {'Gemma':<12} {'conf':>5}  json_valid")
-    print("-" * (col_w + 50))
+    print(
+        f"{'session_id':<{col_w}} {'turns':>5}  {'Qwen':<12} {'Gemma':<12} "
+        f"{'conf':>5}  {'done_reason':<12} json_valid"
+    )
+    print("-" * (col_w + 65))
     for r in results:
         conf_str = f"{r['conf']:.2f}" if r["conf"] is not None else " n/a"
+        done_reason = r.get("done_reason", "")
+        reasoning = r.get("reasoning", "")
         print(
             f"{r['session_id']:<{col_w}} {r['turns']:>5}  "
-            f"{r['qwen']:<12} {r['gemma']:<12} {conf_str:>5}  {r['json_valid']}"
+            f"{r['qwen']:<12} {r['gemma']:<12} {conf_str:>5}  "
+            f"{done_reason:<12} {r['json_valid']}"
         )
+        if reasoning:
+            print(f"  Reasoning: {reasoning}")
+        else:
+            print("  Reasoning: (failed — no response)")
+        print()
 
-    print()
     print("VALIDATION DONE. Review verdicts above before triggering --mode run.")
 
 
