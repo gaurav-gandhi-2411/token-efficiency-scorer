@@ -307,6 +307,34 @@ def test_no_fire_on_rate_limit_error() -> None:
     assert events == []
 
 
+def test_no_fire_on_gh_pr_checks_pending() -> None:
+    """gh pr checks returns exit code 8 when checks are pending (CI-polling, not a fixable failure)."""
+    gh_pending = "Exit code 8\nAPI (Python 3.12)\tpending\t0\thttps://github.com/org/repo/actions/runs/123"
+    turns = [
+        _ai(0, ["Bash"]),
+        _tool(1, gh_pending),
+        _ai(2, ["Bash"]),
+        _tool(3, gh_pending),
+        _ai(4, ["Bash"]),
+        _tool(5, gh_pending),
+    ]
+    events = detect_repeated_failed_retry("s1", turns)
+    assert events == []
+
+
+def test_no_fire_on_gh_pr_checks_no_checks_reported() -> None:
+    """gh pr checks returns exit code 1 + 'no checks reported' when CI hasn't started yet (CI-polling)."""
+    gh_no_checks = "Exit code 1\nno checks reported on the 'feat/my-feature' branch"
+    turns = [
+        _ai(0, ["Bash"]),
+        _tool(1, gh_no_checks),
+        _ai(2, ["Bash"]),
+        _tool(3, gh_no_checks),
+    ]
+    events = detect_repeated_failed_retry("s1", turns)
+    assert events == []
+
+
 def test_no_fire_on_quota_exceeded() -> None:
     turns = [
         _ai(0, ["PowerShell"]),
