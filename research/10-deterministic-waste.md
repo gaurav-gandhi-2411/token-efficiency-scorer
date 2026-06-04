@@ -59,7 +59,7 @@ These claims cannot be resolved from the trace alone. An evaluator must apply ju
 
 **Rule (conservative):** The same shell tool (Bash or PowerShell) produces an identical error snippet ≥2 times consecutively, with no intervening state-changing operation (Write/Edit/NotebookEdit call, Bash-driven state mutation, or user turn). One principled exclusion: transient errors (zone exhaustion, rate limits, quotas, CI-polling status codes) — these are not agent-fixable failures; retrying them is correct behavior.
 
-**Fire rate:** 12/181 sessions (6.6%)
+**Fire rate:** 12/181 sessions (6.6%); of the 143 Qwen-scored sessions, 5 fired (all good-verdict, 0 in WORSE); the remaining 7 fired in the 38 unscored sessions.
 
 **4-way Qwen cross-check:**
 
@@ -85,7 +85,7 @@ The 0/18 overlap with Qwen's WORSE sessions is expected: REPEATED-FAILED-RETRY f
 - **PATH A (tool-authoritative):** The CC Read tool itself returns "File unchanged since last read" — the tool's own verdict. Maximally uncontestable.
 - **PATH B (content-match):** Two Read results carry identical line-numbered file content (≥80 chars, `\d+\t` prefix) within a ≤5-turn gap, with no Write/Edit/NotebookEdit or user turn between. Gap ≤5 is the conservative cap: re-reads after more than 5 intervening turns are plausibly re-orientation reads, which are contestable.
 
-**Fire rate:** 20/181 sessions (11.0%); PATH A: 4 sessions, PATH B: 18 sessions.
+**Fire rate:** 20/181 sessions (11.0%); PATH A: 4 sessions, PATH B: 18 sessions. Of the 143 Qwen-scored sessions, 8 fired (3 WORSE/MUCH_WORSE + 5 good-verdict); the remaining 12 fired in the 38 unscored sessions.
 
 **4-way Qwen cross-check:**
 
@@ -201,7 +201,7 @@ Cross-model note: the single session that both Qwen AND Gemma rate WORSE (the on
 ## 9. Cumulative Limitations
 
 **Carried from B1-B3:**
-- No human gold set. rho=0.79 on 5 sessions establishes instrument coherence, not accuracy.
+- No human gold set. rho≈0.79 vs the provisional LLM reference on the B1 calibration set (report 06) — establishes instrument coherence, not human accuracy.
 - Token axis covers 50% of held-out sessions; the other 50% are UNAVAILABLE (scope gate).
 - Waste detection was model-dependent (report 09). B4 addresses this for observable-invariant waste only.
 
