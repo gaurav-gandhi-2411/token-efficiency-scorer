@@ -5,17 +5,16 @@ dated 2026-06-03 (B2).
 
 ---
 
-## Iteration status: B4 COMPLETE — HOLD FOR CONSULTANT READ
+## Iteration status: B4 DONE
 
 B3 and B4 are complete. B3 (cross-model corroboration) closed with report 09: positive verdicts
 corroborated at 84%, waste verdicts model-dependent (Gemma reversed 94.4% of Qwen's WORSE
 verdicts). B4 (deterministic waste detection) closed with report 10: two detectors shipped
 (REPEATED-FAILED-RETRY, REDUNDANT-READ), two documented as exploratory (DEAD-END, EMPTY-TURN),
-three-axis score structure confirmed. HOLD for consultant read before calling B4 done.
+three-axis score structure confirmed. Consultant read complete; B4 done.
 
-Do NOT extend B4 until the HOLD clears. Read report 10 (research/10-deterministic-waste.md)
-for the complete B4 findings and the central deliverable (the observable-invariant vs
-judgment-of-progress waste boundary).
+Read report 10 (research/10-deterministic-waste.md) for the complete B4 findings and the
+central deliverable (the observable-invariant vs judgment-of-progress waste boundary).
 
 ---
 
@@ -30,7 +29,7 @@ Report 09 is final and immutable.
 
 ---
 
-## B4 summary (complete, HOLD)
+## B4 summary (done)
 
 **What shipped:**
 - `REPEATED-FAILED-RETRY` detector — 12/181 sessions (6.6%), 0/18 overlap with Qwen WORSE.
@@ -165,7 +164,7 @@ token-efficiency-scorer/
 │   ├── 01-07-*.md              IMMUTABLE (B1 reports)
 │   ├── 08-baselines.md         B2 final report — IMMUTABLE
 │   ├── 09-cross-model.md       B3 final report — IMMUTABLE
-│   └── 10-deterministic-waste.md  B4 final report — FINAL (HOLD)
+│   └── 10-deterministic-waste.md  B4 final report — IMMUTABLE
 ├── scripts/
 │   ├── waste_detectors.py      Deterministic waste detectors (RFR + RR shipped)
 │   ├── run_waste_analysis.py   Pool-wide detector run → pool_waste_signals.jsonl
@@ -193,7 +192,7 @@ token-efficiency-scorer/
 
 ## What NOT to touch
 
-- **research/01-09-*.md** — All immutable. Report 10 is FINAL (not immutable until HOLD clears).
+- **research/01-10-*.md** — All immutable.
 - **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
 - **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
 - **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.
