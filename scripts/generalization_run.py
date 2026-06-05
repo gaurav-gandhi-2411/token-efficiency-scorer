@@ -551,8 +551,10 @@ def phase_7_report(
     print("\n--- SAMPLE WASTE EVENTS (CC subset, up to 5) ---")
     shown = 0
     for sig in cc_signals:
-        if not sig["waste_events"] or shown >= 5:
+        if shown >= 5:
             break
+        if not sig["waste_events"]:
+            continue
         for ev in sig["waste_events"]:
             if shown >= 5:
                 break
