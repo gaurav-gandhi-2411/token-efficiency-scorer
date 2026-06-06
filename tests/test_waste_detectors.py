@@ -740,3 +740,102 @@ def test_rr_path_b_evidence_fields_complete() -> None:
     assert "content_snippet" in e.evidence
     turn_idxs = {t["turn_index"] for t in turns}
     assert all(t in turn_idxs for t in e.turns)
+
+
+# ---------------------------------------------------------------------------
+# PATH B: CC v2.1.38+ arrow format (^\s+\d+→)
+# ---------------------------------------------------------------------------
+
+# Arrow-format file content fixtures (CC v2.1.38+, ≥80 chars)
+ARROW_CONTENT_A = (
+    "   1→def foo():\n   2→    return 42\n   3→\n   4→class Bar:" + "x" * 60
+)
+ARROW_CONTENT_B = (
+    "   1→def foo():\n   2→    return 99\n   3→\n   4→class Bar:" + "x" * 60
+)
+
+
+def test_rr_path_b_fires_on_arrow_format() -> None:
+    """PATH B: two Read results with identical arrow-format content, gap=1 → fires one event."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, ARROW_CONTENT_A),
+        _ai(2, ["Read"]),
+        _tool(3, ARROW_CONTENT_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    assert path_b[0].evidence["gap"] == 1
+    assert path_b[0].turns == [0, 1, 2, 3]
+
+
+def test_rr_path_b_no_fire_on_different_arrow_content() -> None:
+    """PATH B: arrow-format reads with different content → no fire (content differs)."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, ARROW_CONTENT_A),
+        _ai(2, ["Read"]),
+        _tool(3, ARROW_CONTENT_B),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_arrow_no_fire_with_edit_between() -> None:
+    """PATH B: Edit between arrow-format reads is a barrier → no fire.
+
+    Critical near-miss: arrow path must be no more permissive than tab path.
+    """
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, ARROW_CONTENT_A),
+        _ai(2, ["Edit"]),          # barrier
+        _ai(3, ["Read"]),
+        _tool(4, ARROW_CONTENT_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_arrow_no_fire_with_user_turn_between() -> None:
+    """PATH B: user turn between arrow-format reads is a barrier → no fire."""
+    turns = [
+        _ai(0, ["Read"]),
+        _tool(1, ARROW_CONTENT_A),
+        _user(2, "This session is being continued from a previous conversation."),
+        _ai(3, ["Read"]),
+        _tool(4, ARROW_CONTENT_A),
+    ]
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_arrow_no_fire_at_gap_above_max() -> None:
+    """PATH B: gap > 5 on arrow-format reads → outside conservative window, no fire."""
+    # result_1 at turn_index 1, call_2 at turn_index 8 → gap = 7
+    turns = [_ai(0, ["Read"]), _tool(1, ARROW_CONTENT_A)]
+    for i in range(2, 8):
+        turns.append(_ai(i, [], snippet="work"))
+    turns.append(_ai(8, ["Read"]))
+    turns.append(_tool(9, ARROW_CONTENT_A))
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert path_b == []
+
+
+def test_rr_path_b_arrow_fires_at_max_gap() -> None:
+    """PATH B: gap exactly = _REDUNDANT_READ_GAP_MAX (5) with arrow format → fires."""
+    # result_1 at turn_index 1, call_2 at turn_index 6 → gap = 5
+    turns = [_ai(0, ["Read"]), _tool(1, ARROW_CONTENT_A)]
+    for i in range(2, 6):
+        turns.append(_ai(i, [], snippet="work"))
+    turns.append(_ai(6, ["Read"]))
+    turns.append(_tool(7, ARROW_CONTENT_A))
+    events = detect_redundant_read("s1", turns)
+    path_b = [e for e in events if e.evidence.get("path") == "B"]
+    assert len(path_b) == 1
+    assert path_b[0].evidence["gap"] == 5
