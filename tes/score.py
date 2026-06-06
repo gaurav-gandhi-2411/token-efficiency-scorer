@@ -16,7 +16,7 @@ consumers receive the honesty — not bolted on in CLI formatting only (spec dec
 """
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 _SCRIPTS_DIR = str(Path(__file__).resolve().parent.parent / "scripts")
@@ -39,6 +39,9 @@ TOKEN_DOMAIN_OF_VALIDITY: str = (
     "Calibrated to a high-waste infra/ML-ops corpus (1 developer, 75 quality-gated "
     "sessions; B2 report). Scope-gated by per-task-type p10 turn floor. Verdict is "
     "relative to quality-certified sessions of the same task type. "
+    "Baseline reflects high-intensity infra work (corpus characterization: report 11); "
+    "ordinary coding sessions may read below-band without being inefficient — "
+    "interpret with the trajectory verdict. "
     "UNAVAILABLE when below the scope gate or task type has no baseline."
 )
 
@@ -54,6 +57,8 @@ WASTE_DOMAIN_OF_VALIDITY: str = (
     "change (REPEATED-FAILED-RETRY); same file content + no edit between reads "
     "(REDUNDANT-READ PATH-A and PATH-B; PATH-B dual-format as of P1). "
     "Proof turns attached to every event. "
+    "Redundant-read (PATH-B) depends on CC's Read output format (tab + arrow currently "
+    "supported); may under-report on future CC versions if the format changes again. "
     "Judgment-of-progress waste not covered — requires human labeling."
 )
 
