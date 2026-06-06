@@ -26,9 +26,10 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from layer2_judge import (  # noqa: E402
+    JUDGE_OUTPUT_SCHEMA,
+    JUDGE_SYSTEM_PROMPT,
     VERDICT_TO_FLOAT,
     _build_user_prompt,
-    _call_ollama,
 )
 
 
@@ -47,6 +48,7 @@ class JudgeConfig:
     model: str = "qwen3:30b-a3b"
     endpoint: str = "http://localhost:11434"
     probe_timeout_s: float = 3.0   # fast probe — fail quickly when Ollama is absent
+    inference_timeout_s: float = 300.0  # covers cold load (~30-60s) + large-session prefill
 
 
 # User-facing hint when judge is unavailable.
@@ -96,17 +98,60 @@ def is_judge_available(config: JudgeConfig | None = None) -> bool:
 
 
 def _call_judge_api(record: dict[str, Any], config: JudgeConfig) -> dict[str, Any] | None:
-    """Call the Ollama judge API and return a judge_entry dict, or None on failure.
+    """Call the Ollama judge API; return judge_entry dict or None on any failure.
 
-    Separate function so tests can mock at the API boundary without patching httpx.
-    Wraps layer2_judge._build_user_prompt + _call_ollama with the validated v3 prompt.
+    Uses config.inference_timeout_s for the read timeout so a cold-loading
+    model degrades to UNAVAILABLE (None) rather than hanging the CLI.
     """
-    # layer2_judge._build_user_prompt requires rec["domain_id"]; default for CC-adapted records.
-    scoring_rec = {**record, "domain_id": record.get("domain_id", "CC")}
+    import json as _json
 
+    scoring_rec = {**record, "domain_id": record.get("domain_id", "CC")}
     user_prompt = _build_user_prompt(scoring_rec)
-    raw = _call_ollama(user_prompt, config.endpoint, config.model)
-    if raw is None:
+
+    try:
+        response_text = ""
+        with httpx.stream(
+            "POST",
+            f"{config.endpoint}/api/chat",
+            json={
+                "model": config.model,
+                "messages": [
+                    {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "stream": True,
+                "format": JUDGE_OUTPUT_SCHEMA,
+                "options": {"temperature": 0, "seed": 42, "num_ctx": 32768, "num_predict": 6144},
+            },
+            timeout=httpx.Timeout(
+                connect=30.0, read=config.inference_timeout_s, write=30.0, pool=30.0
+            ),
+        ) as resp:
+            resp.raise_for_status()
+            for line in resp.iter_lines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    chunk = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                response_text += chunk.get("message", {}).get("content", "")
+                if chunk.get("done"):
+                    break
+        raw = _json.loads(response_text)
+    except httpx.ReadTimeout:
+        print(
+            f"  Judge timed out after {config.inference_timeout_s:.0f}s "
+            f"— trajectory UNAVAILABLE",
+            file=sys.stderr,
+        )
+        return None
+    except httpx.HTTPError as exc:
+        print(f"  Judge HTTP error: {exc}", file=sys.stderr)
+        return None
+    except Exception as exc:
+        print(f"  Judge error: {exc}", file=sys.stderr)
         return None
 
     verdict = str(raw.get("verdict", "")).upper().strip()
