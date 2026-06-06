@@ -6,5 +6,20 @@ The SDK exposes the validated three-axis scorer as an importable package.
 Entry point: from tes import score_session, ThreeAxisResult
 """
 
-# Public API will be wired up in Move 5 (tes/score.py).
-# This file is a placeholder created in Move 0 scaffold.
+from tes.score import (  # noqa: F401
+    ThreeAxisResult,
+    load_baselines,
+    score_session,
+    TOKEN_DOMAIN_OF_VALIDITY,
+    TRAJECTORY_DOMAIN_OF_VALIDITY,
+    WASTE_DOMAIN_OF_VALIDITY,
+)
+
+__all__ = [
+    "ThreeAxisResult",
+    "load_baselines",
+    "score_session",
+    "TOKEN_DOMAIN_OF_VALIDITY",
+    "TRAJECTORY_DOMAIN_OF_VALIDITY",
+    "WASTE_DOMAIN_OF_VALIDITY",
+]
