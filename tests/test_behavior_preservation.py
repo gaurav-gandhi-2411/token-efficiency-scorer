@@ -7,8 +7,8 @@ representative sample of pool sessions. During the P1 refactor into tes/, this t
 import line changes from scripts/ to tes/; the golden file stays unchanged. Any score
 change during refactor is a regression, not a packaging step.
 
-CURRENT IMPORT: scripts/efficiency_score.py (pre-refactor)
-REFACTOR TARGET: tes/score.py (post-refactor — change the import line only)
+CURRENT IMPORT: tes/score.py (P1 refactor complete)
+ORIGINAL: scripts/efficiency_score.py (pre-refactor — preserved for reference)
 """
 
 import json
@@ -22,9 +22,7 @@ import pytest
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-# CURRENT IMPORT: pre-refactor scripts location
-# During P1 refactor this line becomes:  from tes.score import score_session, load_baselines
-from efficiency_score import load_baselines, score_session  # noqa: E402
+from tes.score import load_baselines, score_session  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures — loaded once, shared across all parametrized tests
