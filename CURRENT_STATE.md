@@ -1,7 +1,36 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-06 (B5). Read this BEFORE planning. This supersedes the prior snapshot
-dated 2026-06-03 (B4).
+Snapshot as of 2026-06-07 (P1). Read this BEFORE planning. This supersedes the prior snapshot
+dated 2026-06-06 (B5).
+
+---
+
+## Iteration status: P1 DONE — installable CLI + SDK
+
+P1 packages the validated B1–B5 scoring components into an installable self-hosted tool.
+`pip install -e . && tes score <path>` runs end-to-end on real CC logs. The self-hosted moat
+(no data leaves the machine, secrets redacted at ingestion) is intact by construction.
+
+**What P1 delivered:**
+- `tes/` SDK package: adapt → waste-detect → score (token + waste, always) → optional judge → ThreeAxisResult
+- `tes score <path>` CLI: three-axis human report with domain-of-validity per axis + `--json` mode
+- Tiered judge (option D): deterministic axes always run; trajectory axis runs if local Ollama +
+  Qwen3-30B available, else prints UNAVAILABLE as a complete state (not an error)
+- Output honesty: all three domain-of-validity caveats print inline; UNAVAILABLE never coerced;
+  no composite score; waste events carry proof turns
+- Secret redaction ON by default at ingestion (17 patterns; off only with explicit flag)
+- 140 tests green: behavior-preservation (20 golden sessions × 15 fields), judge-tiering (8),
+  caveats-present (8), redaction-default-on (5), waste-detectors (99 total including arrow-format)
+- No-network verified: tes/score.py, tes/waste.py, tes/baselines.py make zero network calls
+- Installable: `pip install -e .` → `tes score --help` works; entry point wired in pyproject.toml
+
+**PATH-B fix (waste_detectors.py un-frozen):**
+`_LINE_NUMBERED_RE = re.compile(r"^\d+\t|^\s+\d+→")` — dual-format for pre-v2.1.38 (tab)
+and v2.1.38+ (arrow). Pool re-run: 18/18 tab-format counts byte-identical to B4. SWE-chat CC:
+51/1,053 sessions fire (4.84%). Updated in CURRENT_STATE during P1; waste_detectors.py is no
+longer frozen.
+
+**Reports 01–11: confirmed immutable.** No research files modified in P1.
 
 ---
 
@@ -190,10 +219,22 @@ verdict are the two-axis product for launch-1.
 
 ---
 
-## Repo structure (key paths, B5 state)
+## Repo structure (key paths, P1 state)
 
 ```
 token-efficiency-scorer/
+├── tes/                        SDK package (P1)
+│   ├── __init__.py             Exports: ThreeAxisResult, score_session, load_baselines, JudgeConfig, domain-of-validity constants
+│   ├── adapt.py                Thin wrapper → claudecode_adapter.adapt_session (frozen)
+│   ├── classify.py             Thin wrapper → task_classifier.classify_session
+│   ├── baselines.py            Thin wrapper → compute_real_tokens, load_baselines; BUNDLED_BASELINES_PATH
+│   ├── waste.py                Thin wrapper → WasteEvent, detect_rfr, detect_rr
+│   ├── judge.py                JudgeConfig + is_judge_available() + score_trajectory() (tiered; None=UNAVAILABLE)
+│   ├── score.py                ThreeAxisResult dataclass + score_session() wrapper
+│   ├── report.py               format_human() + format_json() (caveats inline, three labeled sections)
+│   ├── cli.py                  argparse CLI: tes score PATH [--json] [--no-judge] [--judge-model] [--judge-endpoint]
+│   ├── __main__.py             python -m tes entry point
+│   └── data/cc_baselines.json  Bundled baseline artifact (locked)
 ├── research/
 │   ├── 01-07-*.md              IMMUTABLE (B1 reports)
 │   ├── 08-baselines.md         B2 final report — IMMUTABLE
@@ -201,30 +242,30 @@ token-efficiency-scorer/
 │   ├── 10-deterministic-waste.md  B4 final report — IMMUTABLE
 │   └── 11-generalization.md       B5 final report — IMMUTABLE
 ├── scripts/
-│   ├── waste_detectors.py      Deterministic waste detectors (RFR + RR shipped)
-│   ├── run_waste_analysis.py   Pool-wide detector run → pool_waste_signals.jsonl
+│   ├── waste_detectors.py      Un-frozen P1: dual-format PATH-B (RFR + RR shipped)
 │   ├── efficiency_score.py     Three-axis session scorer (token + judge + waste)
 │   ├── task_classifier.py      5-type keyword classifier + selftest
-│   ├── build_baselines.py      Baseline computation + circularity check
 │   ├── adapters/
-│   │   └── claudecode_adapter.py  CC JSONL → digest schema
-│   ├── pull_corpora.py         Pool ingestion (local + HF public)
+│   │   └── claudecode_adapter.py  CC JSONL → digest schema (frozen)
 │   ├── layer2_judge.py         Qwen3 judge (locked, GPU-required)
-│   ├── generalization_run.py   B5 pipeline: download, adapt, detect, compare
-│   └── public_trace_adapter.py  SWE-chat non-CC adapter (non-frozen)
+│   └── ...                     (other research scripts unchanged)
 ├── tests/
-│   └── test_waste_detectors.py 46 unit tests (25 RFR + 19 RR + 2 shared), all pass
+│   ├── test_behavior_preservation.py  20 golden-session regression tests (FROZEN fixture)
+│   ├── test_judge_tiering.py          8 mock-based tiered-judge tests
+│   ├── test_caveats_present.py        8 domain-of-validity output tests
+│   ├── test_redaction_default_on.py   5 secret-redaction tests
+│   ├── test_waste_detectors.py        99 detector unit tests (tab + arrow formats)
+│   └── fixtures/golden_scores.json    20-session golden fixture (FROZEN — do not modify)
 ├── data/
 │   ├── cc_baselines.json       Per-type baselines + scope gates (locked)
 │   ├── pool_judge_scores.jsonl 143 sessions scored (qwen3:30b-a3b)
 │   ├── pool_waste_signals.jsonl  181 sessions × detector output (B4)
-│   ├── public_waste_signals.jsonl  1,946 records B5 detector output (CC + non-CC)
-│   ├── generalization_compare.json  Pool vs SWE-chat CC vs non-CC comparison (B5)
 │   ├── corpus_pool/
 │   │   └── pool_adapted.jsonl  181 adapted CC sessions
 │   └── cost-log.jsonl          Append-only, ~$2.59 Anthropic cumulative
-├── CURRENT_STATE.md            This file
-└── NEXT_PHASE.md               Candidate next directions (not committed)
+├── pyproject.toml              [project.scripts] tes = "tes.cli:main"; httpx dep; tes/ packages.find
+├── README.md                   Domains of validity + corpus limitation + roadmap
+└── CURRENT_STATE.md            This file
 ```
 
 ---
