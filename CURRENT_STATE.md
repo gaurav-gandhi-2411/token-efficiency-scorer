@@ -72,11 +72,12 @@ category.
   are calibrated to this context, not a representative developer. This qualifies (does not
   invalidate) prior baselines — domain limitation, not a measurement error.
 
-**PATH-B maintenance issue (logged — detectors stay frozen):**
-- PATH-B silently broken on CC v2.1.38+: Read output changed from `\d+\t` to `   \d+→` (arrow
-  format). Regex `^\d+\t` fails to match. Zero fires on all SWE-chat CC sessions.
-- Fix documented in report 11 §4: `_LINE_NUMBERED_RE = re.compile(r"^\d+\t|^\s+\d+→")`
-- Detectors frozen; fix deferred to next active development phase.
+**PATH-B maintenance issue (fix applied in P1):**
+- PATH-B was silently broken on CC v2.1.38+: Read output changed from `\d+\t` to `   \d+→` (arrow
+  format). Regex `^\d+\t` failed to match.
+- Fix applied in P1: `_LINE_NUMBERED_RE = re.compile(r"^\d+\t|^\s+\d+→")`. Pool re-run confirmed
+  tab-format counts unchanged (18 sessions). SWE-chat CC re-run: 51 PATH-B fires on 1,053 sessions
+  (4.84%).
 
 **Non-CC generalization:**
 - INCONCLUSIVE. conversations.parquet lacks tool_result rows for OpenCode (623 sessions) and
@@ -84,8 +85,10 @@ category.
   too small to claim. Cross-agent validation remains open.
 
 **Frozen file verification:**
-- `waste_detectors.py`: byte-identical to B4 (git diff: clean)
-- `claudecode_adapter.py`: byte-identical to B4 (git diff: clean)
+- `waste_detectors.py`: UN-FROZEN as of P1. PATH-B `_LINE_NUMBERED_RE` updated to dual-format:
+  `r"^\d+\t|^\s+\d+→"`. Pool re-run confirmed: 18 PATH-B sessions unchanged (tab format,
+  byte-identical to B4). SWE-chat CC re-run: 51 PATH-B sessions fire on 1,053 sessions (4.84%).
+- `claudecode_adapter.py`: byte-identical to B4 (unchanged)
 
 ---
 
