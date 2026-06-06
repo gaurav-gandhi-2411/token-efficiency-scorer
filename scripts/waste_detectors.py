@@ -263,7 +263,7 @@ def detect_repeated_failed_retry(
 #     appears when the file is already in the conversation context unchanged.
 #
 #   PATH B — Identical content_snippet from two Read results (conservative)
-#     Same line-numbered file content (≥80 chars, starts with \d+\t) appears
+#     Same line-numbered file content (≥80 chars, starts with \d+\t (pre-v2.1.38) or \s+\d+→ (v2.1.38+)) appears
 #     in two Read results within a ≤10-turn window with no state change between.
 #     10 turns is a conservative cap: re-orientation reads after long work are
 #     excluded. Report the gap distribution before locking this threshold.
@@ -280,7 +280,7 @@ def detect_repeated_failed_retry(
 # ---------------------------------------------------------------------------
 
 _FILE_UNCHANGED_PREFIX = "File unchanged since last read"
-_LINE_NUMBERED_RE = re.compile(r"^\d+\t")
+_LINE_NUMBERED_RE = re.compile(r"^\d+\t|^\s+\d+→")
 _REDUNDANT_READ_GAP_MAX = 5  # PATH B: gaps 7-9 are contestable (re-orientation after
 # several intervening operations is plausibly legitimate); ≤5 stays uncontestable.
 
