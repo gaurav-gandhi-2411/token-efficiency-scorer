@@ -1,20 +1,22 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-03 (B4). Read this BEFORE planning. This supersedes the prior snapshot
-dated 2026-06-03 (B2).
+Snapshot as of 2026-06-06 (B5). Read this BEFORE planning. This supersedes the prior snapshot
+dated 2026-06-03 (B4).
 
 ---
 
-## Iteration status: B4 DONE
+## Iteration status: B5 DONE — credibility arc B1–B5 complete
 
-B3 and B4 are complete. B3 (cross-model corroboration) closed with report 09: positive verdicts
-corroborated at 84%, waste verdicts model-dependent (Gemma reversed 94.4% of Qwen's WORSE
-verdicts). B4 (deterministic waste detection) closed with report 10: two detectors shipped
-(REPEATED-FAILED-RETRY, REDUNDANT-READ), two documented as exploratory (DEAD-END, EMPTY-TURN),
-three-axis score structure confirmed. Consultant read complete; B4 done.
+B3–B5 are complete. B4 (deterministic waste detection) closed with report 10: two detectors
+shipped (REPEATED-FAILED-RETRY, REDUNDANT-READ), two documented as exploratory (DEAD-END,
+EMPTY-TURN). B5 (generalization validation) closed with report 11: detectors tested read-only
+against SWE-chat (1,053 CC sessions, 172 developers). RFR + PATH-A generalize; single-developer
+limitation PARTIALLY RETIRED. Pool characterized as high-waste infra/ML-ops outlier (qualifies
+B2/B4 absolute rates). PATH-B silently broken on CC v2.1.38 (maintenance issue logged, fix
+documented not applied). Credibility arc B1–B5 complete.
 
-Read report 10 (research/10-deterministic-waste.md) for the complete B4 findings and the
-central deliverable (the observable-invariant vs judgment-of-progress waste boundary).
+Read report 11 (research/11-generalization.md) for the complete B5 findings and the
+superseding scope statement on detector generalization and corpus characterization.
 
 ---
 
@@ -55,6 +57,35 @@ deterministically detectable. Judgment-of-progress waste (was this cycle product
 this turn purposeful) is not — it requires evaluator judgment that reintroduces the
 model-dependency problem B4 was built to solve. Future human labeling targets the second
 category.
+
+---
+
+## B5 summary (done)
+
+**What B5 validated:**
+- RFR fires across 172 independent developers (SWE-chat CC, 1,053 sessions). Single-developer
+  asterisk PARTIALLY RETIRED for RFR and PATH-A.
+- Rate gap (6.6% pool vs 1.4% SWE-chat CC): pool is a high-waste infra/ML-ops outlier. All 12
+  pool RFR events are GCP/SSH/pytest-env sessions. 1.4% is the generalizable real-world rate for
+  ordinary software development.
+- Corpus characterized as high-intensity ML-ops outlier: B2 token baselines and B4 waste rates
+  are calibrated to this context, not a representative developer. This qualifies (does not
+  invalidate) prior baselines — domain limitation, not a measurement error.
+
+**PATH-B maintenance issue (logged — detectors stay frozen):**
+- PATH-B silently broken on CC v2.1.38+: Read output changed from `\d+\t` to `   \d+→` (arrow
+  format). Regex `^\d+\t` fails to match. Zero fires on all SWE-chat CC sessions.
+- Fix documented in report 11 §4: `_LINE_NUMBERED_RE = re.compile(r"^\d+\t|^\s+\d+→")`
+- Detectors frozen; fix deferred to next active development phase.
+
+**Non-CC generalization:**
+- INCONCLUSIVE. conversations.parquet lacks tool_result rows for OpenCode (623 sessions) and
+  Codex (213 sessions). Cannot test RFR without tool_result. Gemini CLI (11 sessions, 0/11) is
+  too small to claim. Cross-agent validation remains open.
+
+**Frozen file verification:**
+- `waste_detectors.py`: byte-identical to B4 (git diff: clean)
+- `claudecode_adapter.py`: byte-identical to B4 (git diff: clean)
 
 ---
 
@@ -156,7 +187,7 @@ verdict are the two-axis product for launch-1.
 
 ---
 
-## Repo structure (key paths, B4 state)
+## Repo structure (key paths, B5 state)
 
 ```
 token-efficiency-scorer/
@@ -164,7 +195,8 @@ token-efficiency-scorer/
 │   ├── 01-07-*.md              IMMUTABLE (B1 reports)
 │   ├── 08-baselines.md         B2 final report — IMMUTABLE
 │   ├── 09-cross-model.md       B3 final report — IMMUTABLE
-│   └── 10-deterministic-waste.md  B4 final report — IMMUTABLE
+│   ├── 10-deterministic-waste.md  B4 final report — IMMUTABLE
+│   └── 11-generalization.md       B5 final report — IMMUTABLE
 ├── scripts/
 │   ├── waste_detectors.py      Deterministic waste detectors (RFR + RR shipped)
 │   ├── run_waste_analysis.py   Pool-wide detector run → pool_waste_signals.jsonl
@@ -174,13 +206,17 @@ token-efficiency-scorer/
 │   ├── adapters/
 │   │   └── claudecode_adapter.py  CC JSONL → digest schema
 │   ├── pull_corpora.py         Pool ingestion (local + HF public)
-│   └── layer2_judge.py         Qwen3 judge (locked, GPU-required)
+│   ├── layer2_judge.py         Qwen3 judge (locked, GPU-required)
+│   ├── generalization_run.py   B5 pipeline: download, adapt, detect, compare
+│   └── public_trace_adapter.py  SWE-chat non-CC adapter (non-frozen)
 ├── tests/
 │   └── test_waste_detectors.py 46 unit tests (25 RFR + 19 RR + 2 shared), all pass
 ├── data/
 │   ├── cc_baselines.json       Per-type baselines + scope gates (locked)
 │   ├── pool_judge_scores.jsonl 143 sessions scored (qwen3:30b-a3b)
 │   ├── pool_waste_signals.jsonl  181 sessions × detector output (B4)
+│   ├── public_waste_signals.jsonl  1,946 records B5 detector output (CC + non-CC)
+│   ├── generalization_compare.json  Pool vs SWE-chat CC vs non-CC comparison (B5)
 │   ├── corpus_pool/
 │   │   └── pool_adapted.jsonl  181 adapted CC sessions
 │   └── cost-log.jsonl          Append-only, ~$2.59 Anthropic cumulative
@@ -192,7 +228,8 @@ token-efficiency-scorer/
 
 ## What NOT to touch
 
-- **research/01-10-*.md** — All immutable.
+- **research/01-11-*.md** — All immutable. Reports 01-10 inherited from B1–B4; report 11 is the
+  B5 generalization validation final report. Do not edit any of these.
 - **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
 - **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
 - **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.
