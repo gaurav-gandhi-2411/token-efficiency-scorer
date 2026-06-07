@@ -1,7 +1,49 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-07 (P1). Read this BEFORE planning. This supersedes the prior snapshot
-dated 2026-06-06 (B5).
+Snapshot as of 2026-06-07 (P2). Read this BEFORE planning. This supersedes the prior snapshot
+dated 2026-06-07 (P1).
+
+---
+
+## Iteration status: P2 DONE — tes serve (watcher + localhost dashboard)
+
+P2 turns the P1 manual CLI into an always-available local service. `tes serve` launches a
+background watcher that auto-scores finished CC sessions (token + waste) and a Flask
+MLflow-style dashboard on `http://127.0.0.1:PORT/` where scores accumulate.
+
+**What P2 delivered:**
+- `tes/store.py`: SQLite persistence (`~/.tes/tes.db`). Single `sessions` table = scored
+  result + incremental ledger + judge-staleness signal (`judge_source_hash`). Schema version
+  via `PRAGMA user_version=1`. WAL mode (`PRAGMA journal_mode=WAL`) for concurrent watcher
+  write + dashboard read. Judge-preservation merge: a background re-score never overwrites
+  a manual judge result; stale judge flagged when session grew after judging.
+- `tes/watcher.py`: Scheduled-scan + file-stability trigger (sole P2 mechanism). Incremental
+  via hash-ledger (unchanged sessions skipped). Judge OFF by default (`background_judge=False`
+  in `WatcherConfig`). Per-session failure isolation: one bad file never aborts the scan.
+  GIL yield between scorings (`time.sleep(0)`) for dashboard responsiveness during initial scans.
+- `tes/web/`: Flask + Jinja2 localhost dashboard. Binds `127.0.0.1` only. Three views:
+  session list, per-session detail (all three domain-of-validity caveats verbatim, TrajectoryRenderState
+  dispatch: UNAVAILABLE / CURRENT / STALE-with-note), trends (no composite score). Threaded Flask
+  server for concurrent request handling.
+- `tes/cli.py`: `tes serve` subcommand (watcher + web together, all flags). `tes score` now
+  also writes to the store (manual + auto scores share one dashboard).
+- SessionEnd hook: deferred. The hook exists in CC (`settings.json`) but modifying the user's
+  config silently is against the moat posture. Future `tes install-hook` command = explicit
+  opt-in only.
+- **Behavior preservation held**: P1 pipeline unchanged; same session → same ThreeAxisResult
+  whether scored manually or by the watcher.
+- **Moat intact**: localhost-only bind (verified by test), no data off-machine, no telemetry,
+  redaction on by default.
+- **End-to-end smoke**: 39+ CC sessions auto-scored in one `tes serve` run, 30/30 dashboard
+  pages loaded concurrently, zero `database is locked` errors (WAL confirmed live).
+- 158 tests green (P1's 140 + 18 P2: store ×6, watcher ×11, dashboard ×5). Installable.
+  Reports 01–11 untouched.
+
+**What P2 explicitly does NOT do (deferred):**
+- SessionEnd hook auto-install (opt-in only via future `tes install-hook`)
+- Corpus-upload pipeline (design-only; store schema is export-compatible)
+- Hosted judge / data-leaves-machine
+- Cross-agent (non-CC) support
 
 ---
 
@@ -219,7 +261,7 @@ verdict are the two-axis product for launch-1.
 
 ---
 
-## Repo structure (key paths, P1 state)
+## Repo structure (key paths, P2 state)
 
 ```
 token-efficiency-scorer/
@@ -232,7 +274,12 @@ token-efficiency-scorer/
 │   ├── judge.py                JudgeConfig + is_judge_available() + score_trajectory() (tiered; None=UNAVAILABLE)
 │   ├── score.py                ThreeAxisResult dataclass + score_session() wrapper
 │   ├── report.py               format_human() + format_json() (caveats inline, three labeled sections)
-│   ├── cli.py                  argparse CLI: tes score PATH [--json] [--no-judge] [--judge-model] [--judge-endpoint]
+│   ├── store.py                SQLite persistence: sessions table + incremental ledger + WAL
+│   ├── watcher.py              Scan loop: file-stability + incremental + judge-off guard
+│   ├── web/
+│   │   ├── server.py           Flask localhost-only dashboard (127.0.0.1 ONLY)
+│   │   └── templates/          session_list, session_detail (caveats+TrajectoryRenderState), trends
+│   ├── cli.py                  argparse CLI: tes score PATH + tes serve [opts]; tes score writes to store
 │   ├── __main__.py             python -m tes entry point
 │   └── data/cc_baselines.json  Bundled baseline artifact (locked)
 ├── research/
@@ -255,6 +302,12 @@ token-efficiency-scorer/
 │   ├── test_caveats_present.py        8 domain-of-validity output tests
 │   ├── test_redaction_default_on.py   5 secret-redaction tests
 │   ├── test_waste_detectors.py        99 detector unit tests (tab + arrow formats)
+│   ├── test_store.py                  SQLite round-trip, ledger, merge semantics, WAL concurrent access
+│   ├── test_watcher_behavior_preservation.py  Watcher-scored == manually-scored (same session)
+│   ├── test_watcher_incremental.py    Unchanged not re-scored; failure isolation
+│   ├── test_judge_off_in_background.py  Judge never called unless --background-judge
+│   ├── test_localhost_bind.py         Dashboard binds 127.0.0.1, not 0.0.0.0
+│   ├── test_dashboard_caveats.py      Domain-of-validity present in all dashboard views
 │   └── fixtures/golden_scores.json    20-session golden fixture (FROZEN — do not modify)
 ├── data/
 │   ├── cc_baselines.json       Per-type baselines + scope gates (locked)

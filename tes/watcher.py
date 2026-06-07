@@ -129,6 +129,7 @@ def _scan_once(
 
             upsert_session(conn, result, str(jsonl_path), mtime, current_hash)
             scored += 1
+            time.sleep(0)  # yield GIL so web threads can respond between scorings
             logger.info(
                 "Scored %s  band=%s  waste=%d",
                 session_id,
