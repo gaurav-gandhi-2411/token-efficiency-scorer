@@ -22,6 +22,7 @@ from tes.judge import JudgeConfig, score_trajectory
 from tes.report import format_human, format_json
 from tes.score import score_session
 from tes.waste import build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
+from tes import __version__
 
 
 def _discover_sessions(path: Path) -> list[Path]:
@@ -87,6 +88,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="tes",
         description="Token-Efficiency Scorer — three-axis efficiency report for CC sessions.",
+    )
+    parser.add_argument(
+        "--version", "-V",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     sub = parser.add_subparsers(dest="command")
 

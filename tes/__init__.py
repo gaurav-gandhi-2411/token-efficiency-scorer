@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:
+    __version__: str = _pkg_version("tracegauge")
+except PackageNotFoundError:
+    __version__ = "0.0.0.dev0"
+
 """tes — Token-Efficiency Scorer SDK."""
 
 from tes.judge import JUDGE_SETUP_HINT, JudgeConfig  # noqa: F401
@@ -13,6 +20,7 @@ from tes.score import (  # noqa: F401
 )
 
 __all__ = [
+    "__version__",
     "ThreeAxisResult",
     "JudgeConfig",
     "JUDGE_SETUP_HINT",
