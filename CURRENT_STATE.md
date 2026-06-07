@@ -1,16 +1,17 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-08 (P3 in progress — TestPyPI). Read this BEFORE planning. This supersedes
-the prior snapshot dated 2026-06-07 (P2).
+Snapshot as of 2026-06-08 (P3 DONE). Read this BEFORE planning. This supersedes
+the prior snapshot dated 2026-06-08 (P3 in-progress — TestPyPI).
 
 ---
 
-## Iteration status: P3 IN PROGRESS — public PyPI packaging as tracegauge
+## Iteration status: P3 DONE — tracegauge 0.1.0 published to PyPI
 
-P3 packages the validated P1+P2 product for public release on PyPI as `tracegauge` (AGPL-3.0,
-version 0.1.0). The wheel is built and clean-room verified. TestPyPI upload is the current step.
+**PyPI:** https://pypi.org/project/tracegauge/0.1.0/
+**Git tag:** `v0.1.0` → commit `c5858820` ("docs: CURRENT_STATE P3 in-progress — detector byte-verbatim, adapter verified, wheel clean-room passed")
+**Install:** `pip install tracegauge`
 
-**What P3 has delivered so far:**
+**What P3 delivered:**
 - `pyproject.toml` rewritten: name=tracegauge, version=0.1.0, AGPL-3.0-only (PEP 639 SPDX),
   `requires-python = ">=3.10"`, both `tes` and `tracegauge` console-script entry points,
   `package-data` for `cc_baselines.json`, pinned runtime deps (flask>=3.0,<4, httpx>=0.27,<1).
@@ -20,39 +21,31 @@ version 0.1.0). The wheel is built and clean-room verified. TestPyPI upload is t
 - `README.md` rewritten as honesty-forward PyPI landing page: quickstart first, Scope & Limitations
   second (corpus caveat 1.4% vs 6.6%, no-human-accuracy, tiered judge, moat), three-axis docs,
   "What this does NOT do" section, AGPL link, B5 validation arc.
-- `tests/test_packaging.py`: 5 packaging integrity tests (version present, baselines load from
-  installed pkg, entry points resolve, both console-scripts wired, metadata name=tracegauge).
+  All research links are absolute GitHub URLs (clickable on PyPI).
+- `tests/test_packaging.py`: 5 packaging integrity tests.
+- Total tests: 163 passing (158 P1+P2 + 5 packaging). Reports 01-11 immutable.
 
-**Packaging architecture (key decisions):**
+**Packaging architecture (frozen-detector guarantee):**
 - `tes/_waste_detectors.py`: **BYTE-VERBATIM COPY** of frozen `scripts/waste_detectors.py`
   (diff-proven: one docstring module-path line differs, zero functional differences).
-  `tes/waste.py` is a thin re-export wrapper + `build_waste_entry` shim. The shipped
-  detector is the frozen B4/P3 file by diff inspection.
-- `tes/adapt.py` + `tes/_digest.py`: **option-B-unavoidable re-home**. The original
-  `scripts/adapters/claudecode_adapter.py` used `ROOT = Path(...).parents[2]` + `sys.path.insert`
-  into `src/token_efficiency/trace_digest` — repo-relative imports that cannot survive a wheel.
-  The core `adapt_session` logic was re-homed with no functional changes. Verified on:
-  - Pool: RFR 12/181, RR 20/181 (byte-identical to B4 counts)
-  - B5 SWE-chat CC (independent data, 1,053 sessions): RFR 15, PATH-A 4, PATH-B 51
-    (51 = correct post-P1-fix count; B5's 0 was pre-fix; dual-format fix confirmed intact)
-- `tes/classify.py`, `tes/baselines.py`, `tes/score.py`, `tes/judge.py`: also re-homed
-  from scripts/ for the same reason (sys.path.insert into scripts/ fails in clean-room).
-  All 163 tests pass (158 P1+P2 + 5 new packaging tests).
+- `tes/adapt.py` + `tes/_digest.py`: option-B-unavoidable re-home (original used repo-relative
+  `sys.path.insert`). Output-verified on pool (RFR 12/181, RR 20/181) + B5 SWE-chat CC
+  (1,053 sessions from 172 developers: RFR 15, PATH-A 4, PATH-B 51).
 
-**Wheel status:**
-- Built: `dist/tracegauge-0.1.0-py3-none-any.whl` + `dist/tracegauge-0.1.0.tar.gz`
-- `twine check dist/*` → PASSED, zero warnings (PEP 639 SPDX license field, no metadata warnings)
-- Clean-room install verified: fresh venv, wheel-only (no repo access), all gates pass:
-  `tes 0.1.0`, `tracegauge 0.1.0`, serve --help, baselines load (5 task types),
-  `tes._waste_detectors` module present.
-- TestPyPI upload: PENDING (user action — see below)
+**Post-publish fresh-venv verification (real PyPI, 2026-06-08):**
+- `pip install tracegauge` from production PyPI → 0.1.0, all deps resolved (flask, httpx + transitive)
+- `tes.__file__` → site-packages (not repo) ✓
+- `BUNDLED_BASELINES_PATH` → site-packages/tes/data/cc_baselines.json, exists=True ✓
+- `tes --version` → `tes 0.1.0` ✓
+- `tracegauge --version` → `tes 0.1.0` ✓
+- `tes serve --help` → full help text ✓
+- `tes score <gold-rate-tracker session, 7.4M tokens>` → TOKEN above_p75 (ml-eval), TRAJECTORY
+  UNAVAILABLE (no judge configured, correct), WASTE 0 events, all three domain-of-validity
+  caveats present; secret redaction fired (groq_key + wandb_api_key redacted in-flight) ✓
 
-**What P3 still needs:**
-1. TestPyPI upload + fresh-venv install from TestPyPI (current step). HOLD for consultant read.
-2. Real PyPI upload (explicit consultant + user go only — irreversible).
-3. CURRENT_STATE → P3 DONE. Git tag `v0.1.0`.
-
-**Reports 01-11: confirmed immutable.** No research files modified in P3.
+**Known minor items for a future 0.1.1 (not blockers):**
+- Research links are absolute GitHub URLs — will be live on PyPI ✓ (already done in P3)
+- `tracegauge --version` shows `tes 0.1.0` (prog name from argv[0]); cosmetic, not a bug.
 
 ---
 
