@@ -63,7 +63,7 @@ Compares the session's real token count (AI turns only; cache-read inflation rem
 
 ### Trajectory quality
 
-A local Qwen3-30B judge scores the session's trajectory on purposefulness: `MUCH_BETTER` / `BETTER` / `ABOUT_SAME` / `WORSE` / `MUCH_WORSE`.
+A local Qwen3-30B judge scores the session's trajectory on purposefulness: `MUCH_BETTER` / `BETTER` / `SIMILAR` / `WORSE` / `MUCH_WORSE`.
 
 Requires a local GPU (~18 GB VRAM). Without the judge, this axis is `UNAVAILABLE` — token and waste axes still run fully.
 
@@ -80,7 +80,7 @@ tes score <path>             # judge auto-detected
 
 Two observable-invariant detectors with proof turns attached to every event:
 
-- **REPEATED-FAILED-RETRY** — same shell command + same error output + no state change between retries. Validated across 172 developers (SWE-chat CC). ~1.4% of ordinary CC sessions; ~6.6% of high-intensity infra sessions.
+- **REPEATED-FAILED-RETRY** — same shell command + same error output + no state change between retries. Validated across 172 developers (SWE-chat CC). ~1.4% of ordinary CC sessions; ~6.6% in our calibration pool (a high-intensity infra outlier).
 - **REDUNDANT-READ** — same file content read twice with no edit between reads (PATH-A: CC's own "File unchanged" verdict; PATH-B: content-match, gap ≤ 5 turns). Dual-format regex handles both pre- and post-v2.1.38 CC output.
 
 **Domain of validity:** observable-invariant only. Fires conservatively — misses judgment-of-progress waste by design.
@@ -151,10 +151,10 @@ print(result.token_domain_of_validity)   # caveat string, always populated
 
 The scoring components were validated through a five-phase credibility arc (B1–B5) before packaging. Key results:
 
-- **Token baselines (B2):** 75 quality-gated CC sessions, 5 task types, scope gates at per-type p10 turn floor. See `research/08-baselines.md`.
-- **Trajectory judge (B3):** Cross-model corroboration. Positive verdicts: 84% strict / 96% top-2. Negative verdicts model-dependent. No human gold. See `research/09-cross-model.md`.
-- **Deterministic waste (B4):** RFR fired 12/181 pool sessions (6.6%). RR fired 20/181 (11.0%). Observable-invariant boundary documented. See `research/10-deterministic-waste.md`.
-- **Generalization (B5):** RFR and PATH-A validated across 172 developers (1,053 SWE-chat CC sessions). Rate gap (6.6% pool vs 1.4% SWE-chat) explained by corpus characterization — pool is a high-waste infra outlier. Cross-agent generalization inconclusive (parquet lacks tool_result rows for OpenCode/Codex). See `research/11-generalization.md`.
+- **Token baselines (B2):** 75 quality-gated CC sessions, 5 task types, scope gates at per-type p10 turn floor. See [research/08-baselines.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/08-baselines.md).
+- **Trajectory judge (B3):** Cross-model corroboration. Positive verdicts: 84% strict / 96% top-2. Negative verdicts model-dependent. No human gold. See [research/09-cross-model.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/09-cross-model.md).
+- **Deterministic waste (B4):** RFR fired 12/181 pool sessions (6.6%). RR fired 20/181 (11.0%). Observable-invariant boundary documented. See [research/10-deterministic-waste.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/10-deterministic-waste.md).
+- **Generalization (B5):** RFR and PATH-A validated across 172 developers (1,053 SWE-chat CC sessions). Rate gap (6.6% pool vs 1.4% SWE-chat) explained by corpus characterization — pool is a high-waste infra outlier. Cross-agent generalization inconclusive (parquet lacks tool_result rows for OpenCode/Codex). See [research/11-generalization.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md).
 
 ---
 
