@@ -171,11 +171,20 @@ def compute_self_baselines(
     for task_type in b2_baselines.get("scope_gates", {}):
         b2_floor: int = scope_gates.get(task_type, {}).get("p10_turns", MIN_MEANINGFUL_TURNS)
 
-        # --- Step 1: fetch waste-free sessions ---
+        # --- Step 0: compute scope_floor first — needed for the lean-subset query ---
+        scope_floor = _compute_scope_floor(conn, task_type, b2_floor, min_meaningful_turns)
+
+        # --- Step 1: fetch waste-free sessions, excluding OOS sessions ---
+        # For sessions with turn_count populated: require turn_count >= scope_floor.
+        # For legacy rows where turn_count IS NULL: fall back to scope_status='in_scope'.
         rows = conn.execute(
             "SELECT real_tokens FROM sessions "
-            "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0",
-            (task_type,),
+            "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0 "
+            "  AND ("
+            "    (turn_count IS NOT NULL AND turn_count >= ?)"
+            "    OR (turn_count IS NULL AND scope_status = 'in_scope')"
+            "  )",
+            (task_type, scope_floor),
         ).fetchall()
         tokens: list[int] = sorted(int(r[0]) for r in rows)
         waste_free_n = len(tokens)
@@ -195,9 +204,6 @@ def compute_self_baselines(
             lean_subset = []
 
         lean_n = len(lean_subset)
-
-        # --- Step 4/5: determine source and compute stats ---
-        scope_floor = _compute_scope_floor(conn, task_type, b2_floor, min_meaningful_turns)
 
         if lean_n < min_lean_n:
             sessions_needed = min_lean_n - lean_n
@@ -233,6 +239,38 @@ def compute_self_baselines(
             source = "self"
             sessions_needed = 0
             p25, median_val, p75 = _quartiles(lean_subset)
+
+            # --- Stability guard ---
+            # Reject bands where the lower tail is implausibly far from the median —
+            # p25 < median/3 means the lean subset contains outlier-low sessions that
+            # make "within_band" nearly vacuous.
+            if median_val > 0 and p25 < median_val // 3:
+                source = "building"
+                sessions_needed = min_lean_n
+                dov = _build_domain_of_validity(
+                    source, task_type, lean_n, sessions_needed, min_lean_n, scope_floor
+                )
+                # Override DOV to mention instability specifically
+                dov = (
+                    f"Band too wide to be trustworthy for {task_type} "
+                    f"(p25={p25:,} < median/3={median_val // 3:,}): "
+                    f"need more sessions to tighten the reference band. "
+                    f"Scope floor: {scope_floor} turns."
+                )
+                state.by_type[task_type] = TypeBaseline(
+                    task_type=task_type,
+                    source=source,
+                    p25=None,
+                    median=None,
+                    p75=None,
+                    lean_n=lean_n,
+                    waste_free_n=waste_free_n,
+                    sessions_needed=sessions_needed,
+                    scope_floor=scope_floor,
+                    domain_of_validity=dov,
+                )
+                continue  # skip the normal 'self' path below
+
             dov = _build_domain_of_validity(
                 source, task_type, lean_n, sessions_needed, min_lean_n, scope_floor
             )
