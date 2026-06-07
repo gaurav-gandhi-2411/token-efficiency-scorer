@@ -2,11 +2,13 @@ from __future__ import annotations
 
 """tes/cli.py — Command-line interface for the Token-Efficiency Scorer.
 
-Entry point: tes score <path> [options]
+Entry points:
+    tes score <path> [options]   — score one or more CC session JSONL files
+    tes serve [options]          — background watcher + localhost dashboard
 
-The PATH may be a single CC session JSONL file or a directory containing
-*.jsonl files. Sessions are adapted through the frozen CC adapter (secret
-redaction ON by default) and scored on three axes.
+The PATH for `score` may be a single CC session JSONL file or a directory
+containing *.jsonl files. Sessions are adapted through the frozen CC adapter
+(secret redaction ON by default) and scored on three axes.
 """
 
 import argparse
@@ -35,8 +37,14 @@ def score_path(
     judge_config: JudgeConfig,
     use_judge: bool,
     json_mode: bool,
+    store_conn: object = None,
 ) -> None:
-    """Adapt, detect waste, optionally judge, score, and print one session."""
+    """Adapt, detect waste, optionally judge, score, and print one session.
+
+    store_conn is an optional open sqlite3.Connection. When provided the
+    ThreeAxisResult is written to the TES store after printing. Any store
+    write failure is swallowed — it must never break CLI output.
+    """
     try:
         record = adapt_session(path)
     except Exception as exc:
@@ -59,6 +67,15 @@ def score_path(
         print(format_json(result))
     else:
         print(format_human(result))
+
+    if store_conn is not None:
+        try:
+            from tes.store import file_hash, upsert_session
+            source_hash = file_hash(path)
+            source_mtime = path.stat().st_mtime
+            upsert_session(store_conn, result, str(path), source_mtime, source_hash)
+        except Exception:
+            pass  # store write failure must never break the CLI output
 
 
 def main() -> None:
@@ -111,11 +128,100 @@ def main() -> None:
         help="Ollama endpoint URL (default: http://localhost:11434).",
     )
 
+    serve_p = sub.add_parser(
+        "serve",
+        help="Launch background watcher + localhost dashboard (token+waste auto-scoring).",
+        description=(
+            "Start the TES service: a background scan loop that auto-scores finished CC sessions "
+            "(token economy + deterministic waste) and a web dashboard on localhost. "
+            "Judge is OFF by default — token+waste run continuously, trajectory requires --background-judge."
+        ),
+    )
+    serve_p.add_argument(
+        "--port", type=int, default=4747,
+        metavar="PORT",
+        help="Dashboard port (default: 4747).",
+    )
+    serve_p.add_argument(
+        "--scan-interval", type=int, default=120, dest="scan_interval",
+        metavar="SECONDS",
+        help="Seconds between scan cycles (default: 120).",
+    )
+    serve_p.add_argument(
+        "--stability-window", type=int, default=300, dest="stability_window",
+        metavar="SECONDS",
+        help="Seconds a session file must be unmodified before scoring (default: 300).",
+    )
+    serve_p.add_argument(
+        "--cc-path", default=None, dest="cc_path",
+        metavar="PATH",
+        help="Path to Claude Code projects directory (default: ~/.claude/projects).",
+    )
+    serve_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    serve_p.add_argument(
+        "--background-judge", action="store_true", dest="background_judge",
+        help=(
+            "Enable trajectory judge in the background watcher. "
+            "WARNING: runs a 30B model on your GPU for every new session continuously."
+        ),
+    )
+
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
         sys.exit(0)
 
+    if args.command == "serve":
+        from pathlib import Path as _Path
+        from tes.watcher import WatcherConfig, start_watcher, DEFAULT_CC_PATH
+        from tes.web.server import ServerConfig, start_server
+
+        db_path = _Path(args.db_path).expanduser() if args.db_path else None
+        cc_path = _Path(args.cc_path).expanduser() if args.cc_path else DEFAULT_CC_PATH
+
+        if args.background_judge:
+            print(
+                "\nWARNING: --background-judge enabled.\n"
+                "This runs qwen3:30b-a3b (~18 GB VRAM) on your GPU for every new CC session.\n"
+                "Ensure Ollama is running before proceeding.\n",
+                file=sys.stderr,
+            )
+
+        watcher_config = WatcherConfig(
+            cc_path=cc_path,
+            scan_interval=args.scan_interval,
+            stability_window=args.stability_window,
+            db_path=db_path,
+            background_judge=args.background_judge,
+        )
+        server_config = ServerConfig(
+            host="127.0.0.1",
+            port=args.port,
+            db_path=db_path,
+        )
+
+        print(f"TES service starting...")
+        print(f"  Dashboard:        http://127.0.0.1:{args.port}/")
+        print(f"  Watching:         {cc_path}")
+        print(f"  Scan interval:    {args.scan_interval}s")
+        print(f"  Stability window: {args.stability_window}s")
+        print(f"  Judge:            {'ON (--background-judge)' if args.background_judge else 'OFF (token+waste only)'}")
+        print(f"  Database:         {db_path or '~/.tes/tes.db'}")
+        print(f"  Press Ctrl+C to stop.", flush=True)
+
+        watcher_thread, stop_event = start_watcher(watcher_config)
+        try:
+            start_server(server_config)  # blocks until Ctrl+C / process exit
+        finally:
+            stop_event.set()
+            watcher_thread.join(timeout=5)
+        sys.exit(0)
+
+    # --- score command ---
     # Load bundled baselines
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
 
@@ -135,7 +241,18 @@ def main() -> None:
         print(f"[ERROR] No .jsonl files found in {target}", file=sys.stderr)
         sys.exit(1)
 
-    for sp in session_paths:
-        score_path(sp, baselines, judge_config, use_judge, args.json_mode)
-        if not args.json_mode and len(session_paths) > 1:
-            print()  # blank line separator between sessions in human mode
+    from tes.store import open_db
+    store_conn = None
+    try:
+        store_conn = open_db()
+    except Exception:
+        pass  # store unavailable is non-fatal for `tes score`
+
+    try:
+        for sp in session_paths:
+            score_path(sp, baselines, judge_config, use_judge, args.json_mode, store_conn=store_conn)
+            if not args.json_mode and len(session_paths) > 1:
+                print()  # blank line separator between sessions in human mode
+    finally:
+        if store_conn is not None:
+            store_conn.close()
