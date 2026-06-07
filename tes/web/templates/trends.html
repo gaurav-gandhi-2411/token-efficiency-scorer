@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>TES Trends</h1>
+
+{# ---- TASK TYPE DISTRIBUTION ---- #}
+<h2>Task Type Distribution</h2>
+<div class="caveat">
+  Token baselines calibrated per task type — see domain of validity.
+</div>
+{% if task_type_rows %}
+<table>
+  <thead>
+    <tr><th>Task Type</th><th>Count</th></tr>
+  </thead>
+  <tbody>
+    {% for row in task_type_rows %}
+    <tr>
+      <td>{{ row.task_type }}</td>
+      <td>{{ row.cnt }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No sessions scored yet.</p>
+{% endif %}
+
+{# ---- TOKEN BAND DISTRIBUTION ---- #}
+<h2>Token Band Distribution</h2>
+<div class="caveat">
+  above_p75 = above the 75th percentile of quality-gated sessions in the reference corpus.
+  See domain of validity.
+</div>
+{% if band_verdict_rows %}
+<table>
+  <thead>
+    <tr><th>Band Verdict</th><th>Count</th></tr>
+  </thead>
+  <tbody>
+    {% for row in band_verdict_rows %}
+    <tr>
+      <td>
+        {% if row.band_verdict == "above_p75" %}
+          <span class="tag-above">{{ row.band_verdict }}</span>
+        {% elif row.band_verdict == "below_p25" %}
+          <span class="tag-below">{{ row.band_verdict }}</span>
+        {% elif row.band_verdict == "within_band" %}
+          <span class="tag-within">{{ row.band_verdict }}</span>
+        {% else %}
+          {{ row.band_verdict }}
+        {% endif %}
+      </td>
+      <td>{{ row.cnt }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No sessions scored yet.</p>
+{% endif %}
+
+{# ---- WASTE EVENTS OVER TIME ---- #}
+<h2>Waste Events Over Time (last 50 sessions)</h2>
+{% if waste_over_time_rows %}
+<table>
+  <thead>
+    <tr><th>Scored At</th><th>Session ID</th><th>Waste Events</th></tr>
+  </thead>
+  <tbody>
+    {% for row in waste_over_time_rows %}
+    <tr>
+      <td>{{ row.scored_at[:19] | replace("T", " ") }}</td>
+      <td><a href="/session/{{ row.session_id }}">{{ row.session_id[:16] }}…</a></td>
+      <td>{{ row.waste_event_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No sessions scored yet.</p>
+{% endif %}
+
+{% endblock %}
