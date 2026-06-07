@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """tests/test_store.py — Unit tests for tes/store.py SQLite persistence layer."""
 
+import threading
 from pathlib import Path
 
 import pytest
@@ -219,3 +220,40 @@ def test_schema_version(tmp_path: Path) -> None:
     conn = open_db(tmp_path / "tes.db")
     version: int = conn.execute("PRAGMA user_version").fetchone()[0]
     assert version == SCHEMA_VERSION
+
+
+def test_wal_concurrent_access(tmp_path: Path) -> None:
+    """WAL mode: concurrent write+read from separate threads does not raise OperationalError."""
+    errors: list[Exception] = []
+
+    # Pre-create the DB so both threads can open it cleanly.
+    init_conn = open_db(tmp_path / "tes.db")
+    init_conn.close()
+
+    def writer() -> None:
+        try:
+            conn = open_db(tmp_path / "tes.db")
+            for i in range(50):
+                r = _make_result(session_id=f"w-sess-{i:03d}")
+                upsert_session(conn, r, source_path=f"/tmp/{i}.jsonl",
+                               source_mtime=float(i), source_hash=f"hash{i}")
+            conn.close()
+        except Exception as exc:
+            errors.append(exc)
+
+    def reader() -> None:
+        try:
+            conn = open_db(tmp_path / "tes.db")
+            for _ in range(50):
+                list_sessions(conn)
+            conn.close()
+        except Exception as exc:
+            errors.append(exc)
+
+    t_w = threading.Thread(target=writer)
+    t_r = threading.Thread(target=reader)
+    t_r.start()
+    t_w.start()
+    t_r.join(timeout=30)
+    t_w.join(timeout=30)
+    assert not errors, f"Concurrent access errors: {errors}"
