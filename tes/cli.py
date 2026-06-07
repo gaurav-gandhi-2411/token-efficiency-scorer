@@ -13,14 +13,13 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.judge import JudgeConfig, score_trajectory
 from tes.report import format_human, format_json
 from tes.score import score_session
-from tes.waste import detect_redundant_read, detect_repeated_failed_retry
+from tes.waste import build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
 
 
 def _discover_sessions(path: Path) -> list[Path]:
@@ -28,25 +27,6 @@ def _discover_sessions(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
     return sorted(path.glob("*.jsonl"))
-
-
-def _build_waste_entry(session_id: str, turns: list[dict]) -> dict[str, Any]:
-    """Run both waste detectors and build a waste_entry dict."""
-    rfr = detect_repeated_failed_retry(session_id, turns)
-    rr = detect_redundant_read(session_id, turns)
-    return {
-        "session_id": session_id,
-        "waste_events": [
-            {
-                "detector": e.detector,
-                "session_id": e.session_id,
-                "turns": e.turns,
-                "repeat_count": e.repeat_count,
-                "evidence": e.evidence,
-            }
-            for e in rfr + rr
-        ],
-    }
 
 
 def score_path(
@@ -65,7 +45,7 @@ def score_path(
 
     session_id: str = record.get("session_id", path.stem)
     turns: list[dict] = record.get("digest", {}).get("turns", [])
-    waste_entry = _build_waste_entry(session_id, turns)
+    waste_entry = build_waste_entry(session_id, turns)
 
     judge_entry: dict | None = None
     if use_judge:
