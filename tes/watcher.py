@@ -51,30 +51,34 @@ def score_session_file(
     *,
     use_judge: bool = False,
 ) -> ThreeAxisResult | None:
-    """Score a single CC session JSONL file. Returns None on adapt error.
+    """Score a single CC session JSONL file. Returns None on any scoring error.
 
     Calling convention is identical to the P1 CLI (behavior-preservation guarantee):
       adapt → build_waste_entry → score_session(judge_entry=None unless use_judge).
     Same session → same ThreeAxisResult whether called from the watcher or `tes score`.
+
+    Any exception raised by adapt, build_waste_entry, score_session, or the judge
+    step is caught here, logged, and converted to a None return so the caller can
+    continue processing remaining sessions.
     """
     try:
         record = adapt_session(path)
+
+        session_id: str = record.get("session_id", path.stem)
+        turns: list[dict] = record.get("digest", {}).get("turns", [])
+        waste_entry = build_waste_entry(session_id, turns)
+
+        judge_entry: dict | None = None
+        if use_judge:
+            # background_judge opt-in path. Lazy import so the judge module
+            # is never loaded (or its GPU checks triggered) unless opted in.
+            from tes.judge import JudgeConfig, score_trajectory  # noqa: PLC0415
+            judge_entry = score_trajectory(record, JudgeConfig())
+
+        return score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
     except Exception:
-        logger.exception("Failed to adapt %s — skipping", path.name)
+        logger.exception("Failed to score %s — skipping", path.name)
         return None
-
-    session_id: str = record.get("session_id", path.stem)
-    turns: list[dict] = record.get("digest", {}).get("turns", [])
-    waste_entry = build_waste_entry(session_id, turns)
-
-    judge_entry: dict | None = None
-    if use_judge:
-        # background_judge opt-in path. Lazy import so the judge module
-        # is never loaded (or its GPU checks triggered) unless opted in.
-        from tes.judge import JudgeConfig, score_trajectory  # noqa: PLC0415
-        judge_entry = score_trajectory(record, JudgeConfig())
-
-    return score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
 
 
 def _scan_once(
@@ -114,22 +118,26 @@ def _scan_once(
         if not needs_scoring(conn, session_id, current_hash):
             continue
 
-        result = score_session_file(
-            jsonl_path,
-            baselines,
-            use_judge=config.background_judge,
-        )
-        if result is None:
-            continue
+        try:
+            result = score_session_file(
+                jsonl_path,
+                baselines,
+                use_judge=config.background_judge,
+            )
+            if result is None:
+                continue
 
-        upsert_session(conn, result, str(jsonl_path), mtime, current_hash)
-        scored += 1
-        logger.info(
-            "Scored %s  band=%s  waste=%d",
-            session_id,
-            result.band_verdict,
-            result.waste_event_count,
-        )
+            upsert_session(conn, result, str(jsonl_path), mtime, current_hash)
+            scored += 1
+            logger.info(
+                "Scored %s  band=%s  waste=%d",
+                session_id,
+                result.band_verdict,
+                result.waste_event_count,
+            )
+        except Exception:
+            logger.exception("Failed to score/store %s — skipping", jsonl_path.name)
+            continue
 
     return scored
 

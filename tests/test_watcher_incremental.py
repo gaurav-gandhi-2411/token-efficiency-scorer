@@ -85,6 +85,41 @@ def test_incremental_rescores_on_change(tmp_path: Path) -> None:
     assert count_2 == 1, f"Expected 1 re-scored after file change, got {count_2}"
 
 
+def test_failure_isolation_continues_scan(tmp_path: Path) -> None:
+    """A corrupt session raises inside adapt_session but does not abort the scan cycle.
+
+    sess-A and sess-C are scored successfully; sess-B raises → skipped.
+    _scan_once must return 2 and must not propagate the exception.
+    """
+    conn = open_db(tmp_path / "tes.db")
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+
+    cc_dir = tmp_path / "projects" / "proj-iso"
+    cc_dir.mkdir(parents=True)
+
+    # Create three JSONL files; content is arbitrary — adapt_session is mocked.
+    for stem in ("sess-A", "sess-B", "sess-C"):
+        (cc_dir / f"{stem}.jsonl").write_bytes(b'{"type":"test"}')
+
+    record_a = _make_minimal_record("sess-A")
+    record_c = _make_minimal_record("sess-C")
+
+    config = WatcherConfig(
+        cc_path=tmp_path / "projects",
+        stability_window=0,
+        db_path=tmp_path / "tes.db",
+    )
+
+    # Second call (sess-B) raises; first and third succeed.
+    side_effects = [record_a, Exception("corrupt"), record_c]
+
+    with patch("tes.watcher.adapt_session", side_effect=side_effects):
+        # Must not raise
+        scored = _scan_once(config, conn, baselines, _now=time.time() + 999)
+
+    assert scored == 2, f"Expected 2 scored (A and C), got {scored}"
+
+
 def test_stability_window_skips_recent_files(tmp_path: Path) -> None:
     """Files modified within the stability window are not scored."""
     conn = open_db(tmp_path / "tes.db")
