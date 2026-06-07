@@ -20,4 +20,26 @@ from waste_detectors import (  # noqa: E402
     detect_repeated_failed_retry,
 )
 
-__all__ = ["WasteEvent", "detect_redundant_read", "detect_repeated_failed_retry"]
+from typing import Any
+
+
+def build_waste_entry(session_id: str, turns: list[dict]) -> dict[str, Any]:
+    """Run both waste detectors and return a waste_entry dict for score_session."""
+    rfr = detect_repeated_failed_retry(session_id, turns)
+    rr = detect_redundant_read(session_id, turns)
+    return {
+        "session_id": session_id,
+        "waste_events": [
+            {
+                "detector": e.detector,
+                "session_id": e.session_id,
+                "turns": e.turns,
+                "repeat_count": e.repeat_count,
+                "evidence": e.evidence,
+            }
+            for e in rfr + rr
+        ],
+    }
+
+
+__all__ = ["WasteEvent", "detect_redundant_read", "detect_repeated_failed_retry", "build_waste_entry"]
