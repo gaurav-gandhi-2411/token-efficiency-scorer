@@ -81,7 +81,8 @@ def _make_test_db(
     """Create a minimal sessions table and populate it.
 
     sessions_by_type: { task_type: [{"real_tokens": int, "waste_event_count": int,
-                                     "turn_count": int}, ...] }
+                                     "turn_count": int, "scope_status": str}, ...] }
+    scope_status defaults to 'in_scope' when not provided.
     """
     db_path = tmp_path / db_name
     conn = sqlite3.connect(db_path)
@@ -92,7 +93,8 @@ def _make_test_db(
             task_type         TEXT NOT NULL,
             real_tokens       INTEGER NOT NULL,
             waste_event_count INTEGER NOT NULL DEFAULT 0,
-            turn_count        INTEGER
+            turn_count        INTEGER,
+            scope_status      TEXT NOT NULL DEFAULT 'in_scope'
         )
         """
     )
@@ -100,14 +102,16 @@ def _make_test_db(
     for task_type, rows in sessions_by_type.items():
         for row in rows:
             conn.execute(
-                "INSERT INTO sessions (session_id, task_type, real_tokens, waste_event_count, turn_count) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO sessions "
+                "(session_id, task_type, real_tokens, waste_event_count, turn_count, scope_status) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     f"sess-{task_type}-{row_id:04d}",
                     task_type,
                     row["real_tokens"],
                     row.get("waste_event_count", 0),
                     row.get("turn_count", None),
+                    row.get("scope_status", "in_scope"),
                 ),
             )
             row_id += 1
@@ -457,3 +461,77 @@ def test_domain_of_validity_states_source(tmp_path: Path) -> None:
     # TOKEN_DOMAIN_OF_VALIDITY contains "infra" (from "infra/ML-ops corpus").
     dov_corpus = bl_corpus.domain_of_validity.lower()
     assert "infra" in dov_corpus
+
+
+# ---------------------------------------------------------------------------
+# Test 11: OOS sessions excluded from lean subset
+# ---------------------------------------------------------------------------
+
+
+def test_oos_sessions_excluded_from_lean_subset(tmp_path: Path) -> None:
+    """OOS sessions (scope_status='out_of_scope') must NOT pollute the lean subset.
+
+    Scenario: 20 in-scope waste-free sessions [100K-2M] + 2 OOS low-token stubs
+    (42K at 12 turns, 57K at 14 turns). Without the fix the stubs drag p25 to ~57K.
+    With the fix they are excluded and p25 is well above median/3.
+    """
+    # 20 in-scope sessions
+    in_scope = [
+        {"real_tokens": t, "waste_event_count": 0, "turn_count": 200, "scope_status": "in_scope"}
+        for t in range(100_000, 2_100_000, 100_000)  # [100K..2M]
+    ]
+    # 2 OOS stubs with low tokens
+    oos_stubs = [
+        {"real_tokens": 42_092, "waste_event_count": 0, "turn_count": 12, "scope_status": "out_of_scope"},
+        {"real_tokens": 57_910, "waste_event_count": 0, "turn_count": 14, "scope_status": "out_of_scope"},
+    ]
+    db_path = _make_test_db(tmp_path, {"debug-fix": in_scope + oos_stubs})
+    state = compute_self_baselines(db_path, _B2)
+    bl = state.by_type["debug-fix"]
+
+    assert bl.source == "self", f"Expected 'self', got '{bl.source}'"
+    assert bl.p25 is not None
+    # OOS stubs are excluded: p25 must be well above their 57K token counts
+    assert bl.p25 > 100_000, (
+        f"p25={bl.p25:,} is suspiciously low — OOS stubs may not have been excluded"
+    )
+    # Stability guard: p25 >= median/3
+    assert bl.p25 >= bl.median // 3, (
+        f"p25={bl.p25:,} < median/3={bl.median // 3:,} — stability guard should have fired"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 12: Band stability guard
+# ---------------------------------------------------------------------------
+
+
+def test_band_stability_guard(tmp_path: Path) -> None:
+    """lean_n >= min_lean_n but p25 < median/3 → source='building', not 'self'.
+
+    Dataset: 4 near-zero outliers (5K) mixed with moderate-to-high sessions spanning
+    200K–1.5M (20 sessions total).  After p90-cap the lean subset is:
+        [5K, 5K, 5K, 5K, 200K, 300K, 400K, 500K, 600K]  (n=9)
+    p25 = 5K, median = 200K, median/3 = 66K → p25 < median/3 → guard fires.
+    """
+    tokens = [5_000] * 4 + [
+        200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000,
+        1_000_000, 1_100_000, 1_200_000, 1_300_000, 1_400_000, 1_500_000,
+        1_600_000, 1_700_000,
+    ]  # 4 + 16 = 20 sessions
+    sessions = [
+        {"real_tokens": t, "waste_event_count": 0, "turn_count": 200, "scope_status": "in_scope"}
+        for t in tokens
+    ]
+    db_path = _make_test_db(tmp_path, {"debug-fix": sessions})
+    state = compute_self_baselines(db_path, _B2)
+    bl = state.by_type["debug-fix"]
+
+    # lean subset: [5K,5K,5K,5K,200K,300K,400K,500K,600K] → p25=5K, median=200K
+    # p25=5K < median/3=66K → stability guard fires → source = 'building'
+    assert bl.source == "building", (
+        f"Expected 'building' (unstable band), got '{bl.source}' "
+        f"(p25={bl.p25}, lean_n={bl.lean_n})"
+    )
+    assert bl.p25 is None
+    assert "too wide" in bl.domain_of_validity or "tighten" in bl.domain_of_validity
