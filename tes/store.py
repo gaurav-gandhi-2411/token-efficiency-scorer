@@ -330,6 +330,85 @@ def upsert_session(
     conn.commit()
 
 
+def _count_turns_from_jsonl(source_path: str) -> int | None:
+    """Return turn count for a session JSONL file, or None if unreadable.
+
+    Counts assistant messages and substantive user messages (either plain-text
+    or tool-result content), ignoring sidechain messages.  Mirrors the logic
+    used in adapt_session() but is inlined here to avoid coupling to adapt.py.
+    """
+    import json as _json
+
+    p = Path(source_path)
+    if not p.exists():
+        return None
+    try:
+        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        turn_count = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = _json.loads(line)
+            except Exception:
+                continue
+            if msg.get("isSidechain"):
+                continue
+            msg_type = msg.get("type", "")
+            if msg_type == "assistant":
+                turn_count += 1
+            elif msg_type == "user":
+                content = msg.get("message", {}).get("content", "")
+                if isinstance(content, str) and content.strip():
+                    turn_count += 1
+                elif isinstance(content, list):
+                    has_tr = any(
+                        isinstance(x, dict) and x.get("type") == "tool_result"
+                        for x in content
+                    )
+                    if has_tr:
+                        turn_count += 1
+        return turn_count
+    except Exception:
+        return None
+
+
+def backfill_turn_counts(db_path: Path | str | None = None) -> dict[str, int]:
+    """Populate turn_count for all sessions where it is currently NULL.
+
+    Reads each session's source JSONL file and counts turns using the same
+    logic as adapt_session().  Returns a summary dict:
+        {"updated": N, "missing_source": M, "errors": E}
+    """
+    conn = open_db(db_path)
+    rows = conn.execute(
+        "SELECT session_id, source_path FROM sessions WHERE turn_count IS NULL AND source_path IS NOT NULL"
+    ).fetchall()
+
+    updated = 0
+    missing = 0
+    errors = 0
+
+    for session_id, source_path in rows:
+        tc = _count_turns_from_jsonl(source_path)
+        if tc is None:
+            missing += 1
+        else:
+            try:
+                conn.execute(
+                    "UPDATE sessions SET turn_count = ? WHERE session_id = ?",
+                    (tc, session_id),
+                )
+                updated += 1
+            except Exception:
+                errors += 1
+
+    conn.commit()
+    conn.close()
+    return {"updated": updated, "missing_source": missing, "errors": errors}
+
+
 def _deserialize_row(row: sqlite3.Row) -> dict:
     """Convert a sqlite3.Row to a plain dict with JSON fields decoded."""
     d = dict(row)
@@ -375,6 +454,7 @@ __all__ = [
     "file_hash",
     "needs_scoring",
     "upsert_session",
+    "backfill_turn_counts",
     "get_session",
     "list_sessions",
 ]
