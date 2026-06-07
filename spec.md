@@ -1,169 +1,147 @@
-# Project Spec: token-efficiency-scorer — `tes serve`: Local Scoring Service + Dashboard (Iteration P2)
+# Project Spec: tracegauge — Public PyPI Packaging & Release (Iteration P3)
 
 ## Goal
 
-Turn the manual P1 CLI into a polished, always-available local service: `tes serve` launches a background watcher that automatically scores finished Claude Code sessions, plus an MLflow-style web dashboard on localhost where scores accumulate over time. Zero-config experience: `pip install`, `tes serve`, open the browser, watch your CC sessions get scored automatically.
+Publish the product to the public Python Package Index (PyPI) under the name **tracegauge** (AGPL-3.0) so that anyone, anywhere, on a fresh machine can run:
 
-The deployment stays self-hosted and moat-preserving (localhost only, no data off-machine, redaction on). The background loop auto-scores the two FAST LOCAL AXES (token economy + deterministic waste) on every finished session; the trajectory-quality judge is OFF by default in the background (it needs an 18GB GPU and a background loop running a 30B model on every session is a footgun) and runs only on manual `tes score` or explicit opt-in.
+```
+pip install tracegauge
+tes serve
+```
 
-This is also the natural home for the corpus-contribution path (design-only this phase): a local service accumulating scored sessions is the foundation for eventual opt-in redacted-signal contribution that de-biases the B5 high-waste-infra-outlier calibration.
+— with no repo clone, no `-e .`, no setup. The bundled baselines, the CLI (`tes`), the watcher, and the dashboard all work out of the box. This is the full, polished public release — NOT a half-baked "it technically uploads" version.
 
-## The disciplines carried from P1 (non-negotiable)
+## The one irreversible-action discipline (read first)
 
-1. **Output honesty.** Every axis carries its domain-of-validity (the ThreeAxisResult constants from P1) — in the dashboard UI AND the API/JSON, not just the CLI. UNAVAILABLE stays UNAVAILABLE, never coerced. No composite score. Waste events keep proof-turns. The dashboard must not strip caveats for visual cleanliness — a chart of "efficiency over time" that hides the scope-gate or the corpus caveat is worse than no chart.
-2. **The moat by construction.** The watcher and dashboard bind to localhost only. No data leaves the machine. No telemetry, no phone-home. Redaction on by default at ingestion. A verification check confirms the server binds 127.0.0.1, not 0.0.0.0.
-3. **Behavior preservation.** P2 changes WHEN/HOW scoring is triggered and WHERE results are stored — it does NOT change the scores. The P1 `tes/score.py` pipeline is called unchanged; the same session produces the same ThreeAxisResult whether scored manually (P1) or by the watcher (P2). A test confirms watcher-scored == manually-scored.
-4. **The judge footgun guard.** Background auto-scoring runs token + waste ONLY. The judge is OFF in the background unless the user explicitly opts in (`--background-judge` or a config flag), and opt-in surfaces a clear "this runs a 30B model on your GPU for every session" warning. Manual `tes score` is unchanged (judge runs if available).
+Publishing to public PyPI is a ONE-WAY DOOR in two ways:
+1. **The name `tracegauge` is claimed permanently** once the first version uploads.
+2. **A version number is burned forever** — PyPI does not allow re-uploading the same version, even after a `yank`. A broken `1.0.0` cannot be replaced by a fixed `1.0.0`; you'd have to ship `1.0.1` with `1.0.0` permanently visible as broken.
+
+Therefore: **everything is validated in a FRESH, CLEAN environment BEFORE the irreversible upload.** Build the wheel, install it in a brand-new virtualenv (as a stranger would, with NO access to the repo), and confirm `pip install <wheel>` → `tes serve` works end-to-end — BEFORE `twine upload`. We test against TestPyPI first (the sandbox index) and only then push to real PyPI. The first public version must work on a stranger's fresh machine.
 
 ## Current state
 
-See CURRENT_STATE.md. P1 complete:
-- `tes/` SDK package: adapt, classify, baselines, waste, judge, score (ThreeAxisResult), report. 93 tests green.
-- `tes score <path>` CLI: manual three-axis scoring, tiered judge, caveats inline, `--json`, redaction on.
-- Moat verified (no-network on local axes), behavior-preservation golden in place.
-- Judge: Qwen3-30B-A3B via local Ollama, tiered (UNAVAILABLE when absent).
+See CURRENT_STATE.md. P1 + P2 complete:
+- `tes/` SDK package (adapt, classify, baselines, waste, judge, score, report, store, watcher, web).
+- `tes score` CLI + `tes serve` (watcher + localhost dashboard).
+- 158 tests green. Behavior-preservation, moat (localhost-only), judge-off-in-background, output-honesty all verified.
+- Currently installable only via repo clone + `pip install -e .`.
+- Bundled artifact: `tes/data/cc_baselines.json`.
 - Reports 01-11 immutable.
 
-## The "detect finished sessions" problem (resolve EARLY — feasibility)
-
-A CC session is a JSONL file that grows during work. "Finished" has no guaranteed clean marker. The robust design is **scheduled-scan + file-stability**, with a session-end hook as an OPTIONAL enhancement IF CC supports it (VERIFY — do not assume):
-- **EARLY TASK:** investigate whether current Claude Code exposes a session-end hook / lifecycle event (settings hooks, a SessionEnd event, etc.). Report what exists. If a clean hook exists, support it as an optional fast-path trigger. If not, scheduled-scan + file-stability is the sole mechanism — and that's fine.
-- **File-stability heuristic (the reliable core):** a session JSONL not modified for N minutes (configurable, default e.g. 5 min) is "stable enough" to score. This is the no-assumptions baseline that works regardless of CC's hook support.
-- **Scheduled scan:** every N minutes, scan the CC projects dir, find sessions that are new-or-changed-since-last-scan AND now file-stable, score them.
-
-## Incremental scoring (required — no full re-scans)
-
-The watcher MUST track what it has already scored and only score new-or-changed sessions:
-- A "scored ledger" in the store: session_id + source-file mtime/hash + scored-at timestamp.
-- On each scan: a session is scored only if (not in ledger) OR (file changed since last scored). Otherwise skipped.
-- This keeps the scan O(new sessions), not O(all history), and prevents hammering the judge (if opted-in) on already-scored sessions.
+## Naming / identity (locked)
+- PyPI package name: **tracegauge** (verified FREE on PyPI as of this spec).
+- CLI command: **tes** (kept — already built, muscle-memory; the package name is the brand, the command is the tool). Optionally also register `tracegauge` as a console-script alias to `tes` for discoverability — decide in decision 3.
+- License: **AGPL-3.0** (free use + self-host; protects against closed-source commercial competitors; conventional for open-core commercial intent).
 
 ## Scope
 
-### In scope
-1. PERSISTENCE: local SQLite (`~/.tes/tes.db` or configurable). Tables: scored sessions (full ThreeAxisResult serialized + domain-of-validity + waste proof-turns + source path + scored-at + source mtime/hash for the incremental ledger). Zero external DB.
-2. WATCHER: `tes serve` starts a background scan loop (scheduled-scan + file-stability; + session-end hook if CC supports it per the early investigation). Incremental via the ledger. Scores token + waste axes (NOT judge, by default) via the unchanged P1 pipeline. Writes results to SQLite.
-3. WEB DASHBOARD: MLflow-style local web UI on localhost:PORT (default e.g. 4747, configurable), launched by the same `tes serve`. Shows:
-   - A list/table of scored sessions over time (session id, task type, scored-at, the three axis verdicts at a glance, waste event count).
-   - A per-session detail view: full three-axis report with ALL caveats (the domain-of-validity strings), waste events with proof-turns, token band, trajectory verdict-or-UNAVAILABLE.
-   - Trend/aggregate views (e.g. waste events over time, task-type distribution) — WITH caveats visible, never a decontextualized "efficiency trending up" headline.
-   - Clear UNAVAILABLE rendering (trajectory UNAVAILABLE-in-background by default; token UNAVAILABLE when scope-gated) — shown as complete/expected, not as errors.
-4. ONE COMMAND: `tes serve` starts watcher + web UI together (MLflow-style). Flags: `--port`, `--scan-interval`, `--stability-window`, `--cc-path` (default auto-detect ~/.claude/projects), `--background-judge` (opt-in, with warning), `--no-judge` irrelevant in background (off by default anyway).
-5. MANUAL PATH PRESERVED: `tes score <path>` (P1) still works unchanged, judge-if-available, and its results ALSO write to the same SQLite store so manual + auto scores share one dashboard.
-6. JUDGE OPT-IN (background): `--background-judge` enables judge in the watcher, gated behind a clear one-time warning about continuous GPU use. Without it, dashboard trajectory = UNAVAILABLE (background), with the same honest message as P1.
-7. REDACTION: on by default at ingestion, before anything is stored or shown.
-8. CORPUS-CONTRIBUTION (design-only): document in README/roadmap how opt-in redacted-signal export would work from the SQLite store (the de-biasing path). Do NOT build the upload pipeline. Just ensure the store schema doesn't preclude it.
+### In scope (full release, all of it)
+1. **pyproject.toml as the single source of truth**: name=tracegauge, version (semver, start 0.1.0 — see decision 1), description, long_description (the README), author, license=AGPL-3.0, classifiers (Development Status, License :: OSI Approved :: GNU Affero..., Python versions, Topic), `requires-python`, dependencies pinned to safe ranges, `console_scripts` entry point(s) so `tes` (and optionally `tracegauge`) work after a clean install.
+2. **Package data**: ensure `tes/data/cc_baselines.json` is included in the wheel (package-data / include declaration) so baselines ship and load after install — NOT left behind as a repo-only file. A test confirms the installed package can load baselines.
+3. **LICENSE file**: full AGPL-3.0 text at repo root; SPDX identifier in pyproject; license referenced in README.
+4. **README as the PyPI landing page**: the public face. Must carry the domain-of-validity honesty LOUDER than the private docs (strangers rely on it without this project's context): what the three axes mean, the high-waste-infra-outlier corpus caveat (report 11), the tiered judge (token+waste local/free; trajectory needs a local judge), the moat (data never leaves your machine), AGPL terms, and an honest "what this does NOT claim" section (no human-accuracy validation, waste = observable-invariant only). Quickstart: `pip install tracegauge` → `tes serve`.
+4. **Versioning**: `__version__` in the package, single-sourced with pyproject (e.g. importlib.metadata or a `_version.py`). Semver. A `tes --version` flag.
+5. **Build + clean-room validation**: `python -m build` produces wheel + sdist; install the WHEEL in a fresh venv with no repo access; confirm `tes --version`, `tes score <sample>`, `tes serve --help`, and baseline-loading all work. This is the pre-publish gate.
+6. **TestPyPI dry run**: upload to TestPyPI (sandbox), `pip install -i test.pypi.org ... tracegauge` in a fresh venv, confirm it works — BEFORE real PyPI.
+7. **Real PyPI publish**: `twine upload` to production PyPI (requires the user's PyPI account + API token — a USER action, like the HF login). Tag the release in git (`v0.1.0`).
+8. **Post-publish smoke**: `pip install tracegauge` from REAL PyPI in a fresh venv, `tes serve`, confirm end-to-end.
 
 ### Out of scope
-- Any non-localhost binding, remote access, multi-user, auth (it's a local single-user dev tool).
-- Hosted judge / data-leaves-machine (deferred, moat).
-- Smaller-judge swap (re-validation phase).
-- Building the corpus-upload pipeline (design-only).
-- Cross-agent (non-CC).
-- Changing any score / baseline / judge config / detector (P2 changes orchestration + storage + UI, NOT the scoring).
+- Changing any scoring logic / baselines / detectors / judge config (P3 is packaging + publishing only — behavior unchanged; a test confirms scores identical to P2).
+- The corpus-contribution upload pipeline (still design-only).
+- Hosted judge / any data-off-machine path (moat).
+- A `conda` / `brew` / `docker` distribution (PyPI only this phase; note others as future).
+- Domain registration / website / marketing site (note `tracegauge.dev` as a recommended user-action, don't build).
+- Relicensing analysis beyond choosing AGPL-3.0 (lawyer review is a user-action before the raise; AGPL is the publish-now default).
 - Modifying reports 01-11.
-- Auth/accounts/cloud — none.
 
 ## Tech stack
-- Python. Web UI: a lightweight local server — Flask or FastAPI + a simple templated frontend (server-rendered or a minimal JS); MLflow-style means functional/clean, not a heavy SPA. Pick the lightest thing that gives a usable localhost dashboard; escalate if reaching for a heavy framework.
-- SQLite via stdlib `sqlite3` (no ORM needed, or a thin one).
-- Watcher: a scan loop (threading/scheduler) — simple and robust over a complex daemon. `watchdog` (filesystem events) is OPTIONAL; scheduled-scan + stability is the reliable baseline.
-- Reuse `tes/` scoring unchanged.
-- pytest: watcher-scored == manually-scored (behavior preservation); incremental-ledger correctness; localhost-bind verification; caveats-present in dashboard payload.
+- Standard Python packaging: `pyproject.toml` (PEP 621), `build`, `twine`.
+- `importlib.metadata` for `__version__` single-sourcing (no duplicate version strings).
+- A fresh-venv clean-room test (the executor creates a throwaway venv, installs the built wheel, runs the CLI — proving no hidden repo dependency).
+- No new runtime deps unless required for packaging; keep the install lean.
 
-## Architecture (target — orchestrator may refine)
+## Architecture (changes/additions)
 ```
-tes/
-├── (P1 modules unchanged: adapt, classify, baselines, waste, judge, score, report)
-├── store.py            # SQLite: schema, write ThreeAxisResult, scored-ledger, query for dashboard
-├── watcher.py          # scan loop: discover CC sessions, file-stability, incremental via ledger, score token+waste, write store
-├── hooks.py            # OPTIONAL: CC session-end hook integration IF it exists (per early investigation)
-└── web/
-    ├── server.py       # localhost web app (Flask/FastAPI), binds 127.0.0.1 ONLY
-    ├── templates/      # session list, session detail (with caveats), trends
-    └── static/
-
-cli.py                  # add `tes serve` (watcher + web together); `tes score` unchanged + now also writes to store
-pyproject.toml          # add web/sqlite deps; `tes serve` entry
+pyproject.toml          # rewritten: full metadata, AGPL, entry points, package-data, deps
+LICENSE                 # NEW: full AGPL-3.0 text
+README.md               # rewritten as PyPI long-description + honesty front-and-center
+tes/_version.py or
+  importlib.metadata     # single-sourced __version__; `tes --version`
+MANIFEST.in (if needed) # ensure cc_baselines.json + LICENSE + README in sdist/wheel
 tests/
-├── test_store.py                 # write/read ThreeAxisResult round-trip, ledger correctness
-├── test_watcher_incremental.py   # only new/changed sessions scored; no re-score of unchanged
-├── test_watcher_behavior_preservation.py  # watcher-scored == tes score manual, same session
-├── test_localhost_bind.py        # server binds 127.0.0.1, not 0.0.0.0
-├── test_dashboard_caveats.py     # dashboard payload carries domain-of-validity per axis
-└── test_judge_off_in_background.py # background loop does NOT call judge unless opted in
+├── test_packaging.py          # NEW: installed package loads baselines; __version__ present; entry point resolves
+└── (all P1+P2 tests still green)
+scripts/release/        # NEW (optional): build + testpypi + pypi helper scripts (documented, run by user for the token steps)
 ```
 
 ## Key design decisions (resolve early, escalate)
-1. CC SESSION-END HOOK: investigate + report whether current CC has a usable session-end hook. Design the hook fast-path ONLY if it genuinely exists; otherwise scan+stability is the sole mechanism. Do not assume.
-2. WEB FRAMEWORK: lightest option that delivers a clean localhost dashboard (Flask + server-rendered templates is likely simplest; FastAPI if an API is wanted for the SDK too). State the choice + why. Avoid heavy SPA frameworks unless justified.
-3. STABILITY WINDOW + SCAN INTERVAL defaults: pick sane defaults (e.g. 5-min stability, 2-min scan) and make them configurable. State the reasoning.
-4. STORE SCHEMA: must serialize the full ThreeAxisResult including domain-of-validity strings + waste proof-turns, plus the incremental ledger fields (mtime/hash). Design so opt-in corpus export is possible later (don't preclude it).
-5. DASHBOARD HONESTY: how trends/aggregates show caveats. A "waste over time" chart is fine; a "your efficiency score" gauge that blends axes is NOT (no composite, P1 discipline). Decide the views; keep each axis labeled + caveated.
-6. JUDGE-IN-BACKGROUND OPT-IN UX: the warning copy + how the dashboard shows trajectory-UNAVAILABLE-because-background vs trajectory-UNAVAILABLE-because-no-judge (subtly different; both honest).
+1. **Starting version**: 0.1.0 (signals "real but early; API may evolve") vs 1.0.0 (signals "stable, committed"). Recommendation: **0.1.0** — it's an honest first public release, sets expectations that it's early, and lets you iterate (0.x) without implying API stability you haven't promised. A pre-raise product publishing 1.0.0 over-claims maturity. Decide.
+2. **CLI command**: keep `tes` only, or also register `tracegauge` as an alias? Recommendation: register BOTH (`tes` for brevity, `tracegauge` for discoverability/brand) pointing at the same entry point — cheap, helps a new user who installed `tracegauge` intuitively try `tracegauge ...`. Decide.
+3. **Dependency pinning**: pin deps to compatible ranges (e.g. `flask>=3,<4`) — loose enough to coexist in a user's env, tight enough to avoid breakage. Audit the actual runtime deps (flask, httpx, etc.) and declare them precisely. No dev/test deps in the runtime requires.
+4. **Baseline data shipping**: confirm the mechanism (package-data in pyproject `[tool.setuptools.package-data]` or equivalent for the build backend) actually lands `cc_baselines.json` in the wheel. The clean-room test must load it from the INSTALLED location, not a repo path.
+5. **README honesty scope**: the public README must include a "Scope & Limitations" section that states the corpus caveat (high-waste infra outlier; ~1.4% generalizable), the no-human-accuracy-validation limit, the tiered judge, and the moat — prominently, not buried. A stranger installing this must understand what it does and doesn't claim WITHOUT reading reports 01-11.
 
 ## Verification commands
 ```yaml
-- name: watcher-behavior-preservation
-  cmd: python -m pytest tests/test_watcher_behavior_preservation.py -v   # watcher score == manual tes score, same session
+- name: behavior-unchanged
+  cmd: python -m pytest -q   # all 158 P1+P2 tests still green; scores unchanged
   required: true
-- name: incremental-ledger
-  cmd: python -m pytest tests/test_watcher_incremental.py -v             # unchanged sessions not re-scored
+- name: builds-clean
+  cmd: python -m build && ls dist/*.whl dist/*.tar.gz
   required: true
-- name: localhost-only
-  cmd: python -m pytest tests/test_localhost_bind.py -v                  # binds 127.0.0.1, not 0.0.0.0
+- name: clean-room-install
+  cmd: |
+    python -m venv /tmp/tg_clean && /tmp/tg_clean/bin/pip install dist/*.whl && \
+    /tmp/tg_clean/bin/tes --version && /tmp/tg_clean/bin/tes serve --help && \
+    /tmp/tg_clean/bin/python -c "import tes; from tes.baselines import load_baselines; load_baselines(); print('baselines load from installed pkg OK')"
   required: true
-- name: dashboard-caveats
-  cmd: python -m pytest tests/test_dashboard_caveats.py -v               # domain-of-validity in dashboard payload
+- name: packaging-tests
+  cmd: python -m pytest tests/test_packaging.py -v
   required: true
-- name: judge-off-in-background
-  cmd: python -m pytest tests/test_judge_off_in_background.py -v
-  required: true
-- name: full-suite-still-green
-  cmd: python -m pytest -q                                              # P1's 93 + P2 tests all pass
-  required: true
-- name: installable-serve
-  cmd: pip install -e . && tes serve --help
+- name: metadata-sane
+  cmd: python -m twine check dist/*   # PyPI metadata/long-description renders
   required: true
 ```
 
 ## Escalation rules
-- After the CC-hook investigation: report whether a session-end hook exists; HOLD on the trigger design if it changes the watcher architecture.
-- BEFORE choosing a web framework heavier than Flask/FastAPI+templates: escalate.
-- If watcher-scored != manually-scored for any session: STOP — P2 must not change scores.
-- BEFORE binding anything other than localhost, adding telemetry, or any network egress: not in scope — escalate.
-- BEFORE building the corpus-upload pipeline: design-only this phase; escalate if tempted to build.
+- BEFORE any `twine upload` to REAL PyPI: the clean-room install + TestPyPI dry-run must both pass, AND the consultant must confirm. Real-PyPI upload is the irreversible step — it happens only after explicit go.
+- The PyPI/TestPyPI account + API token are USER actions — surface the exact steps for the user; the orchestrator does not invent credentials.
+- If the clean-room install fails (missing package-data, unresolved entry point, hidden repo dependency): STOP — fix and rebuild before any upload. A broken wheel must never reach even TestPyPI's namespace under a real version.
+- BEFORE changing any scoring behavior: out of scope — packaging only.
+- Version numbers: never re-use; if a build is bad, bump the version, never re-upload the same one.
 
 ## Hard rules
-- MOAT: localhost bind only (127.0.0.1), no data off-machine, no telemetry/phone-home, redaction on by default. Verification enforces the bind.
-- JUDGE OFF IN BACKGROUND by default; opt-in only, with a clear continuous-GPU warning.
-- BEHAVIOR PRESERVATION: P2 calls the P1 pipeline unchanged; same session -> same scores. No score/baseline/detector/judge-config changes.
-- OUTPUT HONESTY in the UI: every axis caveated; UNAVAILABLE preserved + shown as complete-not-error; no composite/blended score; waste proof-turns shown.
-- INCREMENTAL: never full-re-score; ledger-gated.
-- Reports 01-11 immutable. No human labels. .env in-process only.
+- BEHAVIOR UNCHANGED: P3 is packaging + publishing. Scores/baselines/detectors/judge identical to P2. The 158 tests stay green.
+- CLEAN-ROOM BEFORE PUBLISH: validated in a fresh venv with no repo access before any upload; TestPyPI before real PyPI; real PyPI only on explicit consultant + user go.
+- HONESTY ON THE PUBLIC FACE: README carries the corpus caveat, the no-accuracy-claim, the tiered judge, the moat — loudly. Publishing amplifies the honesty obligation; strangers rely on it without context.
+- MOAT UNCHANGED: still localhost-only, no telemetry, no phone-home; publishing the package does not add any data egress.
+- LICENSE: AGPL-3.0, full text in LICENSE, SPDX in pyproject, referenced in README.
+- Reports 01-11 immutable. No human labels. Version numbers immutable once used.
 
 ## Budget
-- Soft: 3-5 CC sessions (web UI + watcher + store + tests is the largest build yet).
-- Anthropic API unchanged. GCP: none expected (background runs local axes; judge opt-in uses the user's own local Ollama, not our GPU). Escalate if any GPU need arises.
+- Soft: 2-3 CC sessions. All local/$0 (build + clean-room venv are local; PyPI/TestPyPI are free).
+- No GCP, no API spend.
 
-## Success criteria (verify ALL before done)
-- `pip install -e .` then `tes serve` launches watcher + localhost web dashboard in one command.
-- Watcher auto-detects finished CC sessions (scan+stability; + hook if CC supports it) and scores token+waste incrementally into SQLite; unchanged sessions not re-scored (ledger test passes).
-- Watcher-scored results == manual `tes score` results for the same session (behavior-preservation test passes).
-- Web dashboard on localhost shows: session list over time, per-session three-axis detail with ALL caveats, trend views with caveats visible; UNAVAILABLE rendered as complete/expected.
-- Judge OFF in background by default (test passes); `--background-judge` opt-in works with the GPU warning; manual `tes score` judge behavior unchanged.
-- Server binds 127.0.0.1 only (test passes); no telemetry/egress; redaction on by default.
-- Dashboard payload carries domain-of-validity per axis (test passes); no composite score anywhere in the UI.
-- Manual `tes score` results also land in the store (shared dashboard).
-- Full test suite green (P1's 93 + P2 additions). Installable. Reports 01-11 untouched. Git clean.
-- README updated: `tes serve` usage, the judge-off-in-background default + opt-in, domains of validity, corpus-contribution roadmap (design-only).
+## Success criteria (verify ALL before the irreversible publish)
+- pyproject.toml complete: tracegauge, 0.1.0 (or chosen), AGPL-3.0, classifiers, requires-python, pinned deps, console_scripts (`tes` [+ `tracegauge`]), package-data including cc_baselines.json.
+- LICENSE (full AGPL-3.0) + README (honesty-forward, PyPI long-description) present.
+- `__version__` single-sourced; `tes --version` works.
+- `python -m build` produces wheel + sdist; `twine check` passes.
+- CLEAN-ROOM: fresh venv installs the wheel, `tes serve`/`tes score`/baseline-load all work with NO repo access. (The gate.)
+- All 158 P1+P2 tests + new packaging tests green; behavior unchanged.
+- TestPyPI dry-run install works in a fresh venv.
+- THEN (explicit go only): real PyPI publish; `pip install tracegauge` from production works in a fresh venv; git tagged `v0.1.0`.
+- README notes recommended user follow-ups: register `tracegauge.dev`, lawyer review of AGPL before raise (as notes, not built).
 
 ## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + reports 10/11 + spec.md + P1's tes/score.py + report.py. Internalize: moat, honesty, behavior-preservation, judge-footgun-guard.
-2. INVESTIGATE the CC session-end hook question; report what exists; HOLD if it reshapes the trigger design.
-3. store.py: SQLite schema (full ThreeAxisResult + caveats + proof-turns + incremental ledger). Round-trip test. HOLD for schema read.
-4. watcher.py: scan+stability + incremental ledger; scores token+waste via unchanged pipeline; writes store. Behavior-preservation + incremental + judge-off tests.
-5. web/server.py + templates: localhost dashboard (list, detail-with-caveats, trends-with-caveats). localhost-bind + dashboard-caveats tests.
-6. cli.py: `tes serve` (watcher+web together); `tes score` now also writes to store. `--background-judge` opt-in + warning.
-7. pyproject deps + installability + README. Full suite green.
-8. HOLD for consultant read — include a SAMPLE of the dashboard (screenshot-equivalent: the rendered session-detail HTML/text) on a real judge-absent session, to confirm honesty renders in the UI.
+1. Read CURRENT_STATE.md + report 11 + spec.md + current pyproject/README. Internalize: irreversible-publish discipline, clean-room-before-upload, honesty-on-the-public-face.
+2. Resolve decisions 1-2 (version 0.1.0, CLI alias) with consultant. HOLD.
+3. Rewrite pyproject.toml (full metadata, AGPL, entry points, package-data, pinned deps). Add LICENSE (AGPL-3.0 full text). Single-source `__version__` + `tes --version`.
+4. Rewrite README as the honesty-forward PyPI landing page (Scope & Limitations prominent).
+5. Packaging tests: installed-pkg baseline load, version present, entry point resolves.
+6. `python -m build`; `twine check`; CLEAN-ROOM install in a fresh venv (the gate) — confirm everything works with no repo access. HOLD for consultant read of the clean-room result.
+7. TestPyPI upload + fresh-venv install from TestPyPI. Report. HOLD.
+8. ON EXPLICIT GO ONLY: real PyPI `twine upload` (user provides token), tag `v0.1.0`, post-publish fresh-venv smoke from production PyPI. Report.
+9. CURRENT_STATE.md → P3 done / published. Reports 01-11 untouched.
