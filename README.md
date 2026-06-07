@@ -3,7 +3,7 @@
 A self-hosted three-axis efficiency report for [Claude Code](https://claude.ai/code) sessions.
 Run it on your own CC logs. Nothing leaves your machine.
 
-**Status:** P1 — installable CLI + SDK (2026-06-07)
+**Status:** P2 — tes serve (watcher + localhost dashboard) (2026-06-07)
 
 ---
 
@@ -26,6 +26,38 @@ tes score <path> --json
 
 Secrets are redacted at ingestion (17 patterns). No data leaves your machine — the local
 data moat is the product, not an option.
+
+---
+
+### `tes serve` — background watcher + localhost dashboard
+
+```bash
+tes serve [--port PORT] [--scan-interval SECONDS] [--stability-window SECONDS] \
+          [--cc-path PATH] [--db-path PATH] [--background-judge]
+```
+
+Starts two things together:
+- **Watcher**: scans `~/.claude/projects` every 2 minutes (default), scores any session file stable for 5+ minutes (token economy + deterministic waste; judge OFF by default).
+- **Dashboard**: MLflow-style web UI at `http://127.0.0.1:4747/` showing scored sessions over time, per-session three-axis detail with domain-of-validity, and trend views.
+
+**Moat properties (by construction):**
+- Binds `127.0.0.1` only — never exposed to external interfaces.
+- No data leaves the machine. Redaction on by default at ingestion.
+- No telemetry, no phone-home, no external network calls.
+- SQLite at `~/.tes/tes.db` (configurable via `--db-path` or `TES_DB_PATH`).
+
+**Judge in background:**
+The trajectory judge (Qwen3-30B-A3B, ~18GB VRAM) is **OFF by default**. Token economy and deterministic waste run continuously. To enable:
+```bash
+tes serve --background-judge
+# WARNING: runs a 30B model on your GPU for every new session continuously.
+```
+
+**Manual scores share the dashboard:**
+`tes score <path>` results also write to the same SQLite store, so manual and auto-scored sessions appear in the same dashboard.
+
+**Optional fast-path (future — not automatic):**
+Claude Code has a `SessionEnd` hook that fires when a session ends. A future `tes install-hook` command (opt-in, explicit) could use this as a zero-latency trigger instead of the stability window. It is deliberately NOT automatic — it would modify `~/.claude/settings.json`, which this tool never does without explicit user consent.
 
 ---
 
@@ -133,7 +165,7 @@ see Roadmap below.
 ## Architecture
 
 ```
-tes/                      SDK package
+tes/                      SDK package (P1 modules) + P2 service layer
 ├── adapt.py              CC JSONL → digest (frozen claudecode_adapter)
 ├── classify.py           5-type task classifier (keyword, deterministic)
 ├── baselines.py          Token baselines + scope gate
@@ -141,6 +173,11 @@ tes/                      SDK package
 ├── judge.py              Tiered judge: detect-availability → run or UNAVAILABLE
 ├── score.py              Three-axis scorer → ThreeAxisResult
 ├── report.py             Human-readable + JSON formatter (caveats inline)
+├── store.py              SQLite persistence: sessions table + incremental ledger + WAL
+├── watcher.py            Scan loop: file-stability + incremental + judge-off guard
+├── web/
+│   ├── server.py         Flask localhost-only dashboard (127.0.0.1 ONLY)
+│   └── templates/        session_list, session_detail (caveats + TrajectoryRenderState), trends
 └── data/cc_baselines.json  Bundled per-type token baselines
 
 scripts/                  Validated research scripts (source of truth for scoring logic)
@@ -158,7 +195,9 @@ tests/
 ```
 
 The `tes/` SDK calls `scripts/` unchanged — behavior-preservation test proves packaging
-changes no scores (golden fixture, 20 sessions × 15 fields).
+changes no scores (golden fixture, 20 sessions × 15 fields). P2 adds `store.py`,
+`watcher.py`, and `tes/web/` for the always-available local service layer; the P1 scoring
+pipeline is called identically whether triggered manually or by the watcher.
 
 ---
 
@@ -225,20 +264,38 @@ maintenance surface — they need versioned format tests.
 ## Verification
 
 ```bash
-# All 140 tests
+# All tests (P1: 140 + P2: 18 = 158 total)
 python -m pytest tests/ -v
 
-# Behavior preservation (packaged == validated scripts on pool)
+# P1: behavior preservation (packaged == validated scripts on pool)
 python -m pytest tests/test_behavior_preservation.py -v
 
-# Judge tiering (absent → UNAVAILABLE, not error)
+# P1: judge tiering (absent → UNAVAILABLE, not error)
 python -m pytest tests/test_judge_tiering.py -v
 
-# Caveats present in output
+# P1: caveats present in output
 python -m pytest tests/test_caveats_present.py -v
 
-# Redaction default on
+# P1: redaction default on
 python -m pytest tests/test_redaction_default_on.py -v
+
+# P2: SQLite store round-trip, ledger, merge semantics, WAL concurrent access
+python -m pytest tests/test_store.py -v
+
+# P2: watcher-scored == manually-scored (same session)
+python -m pytest tests/test_watcher_behavior_preservation.py -v
+
+# P2: unchanged sessions not re-scored; failure isolation
+python -m pytest tests/test_watcher_incremental.py -v
+
+# P2: judge never called unless --background-judge
+python -m pytest tests/test_judge_off_in_background.py -v
+
+# P2: dashboard binds 127.0.0.1, not 0.0.0.0
+python -m pytest tests/test_localhost_bind.py -v
+
+# P2: domain-of-validity present in all dashboard views
+python -m pytest tests/test_dashboard_caveats.py -v
 
 # No network in local axes (moat verification)
 python -c "

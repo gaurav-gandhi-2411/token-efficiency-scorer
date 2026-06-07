@@ -128,4 +128,4 @@ def start_server(config: ServerConfig) -> None:
     Binds exclusively to 127.0.0.1 — never exposed to external interfaces.
     """
     app = create_app(config)
-    app.run(host=config.host, port=config.port, debug=False, use_reloader=False)
+    app.run(host=config.host, port=config.port, debug=False, use_reloader=False, threaded=True)
