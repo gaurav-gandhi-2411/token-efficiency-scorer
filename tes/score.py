@@ -2,6 +2,9 @@ from __future__ import annotations
 
 """tes/score.py — Three-axis efficiency scorer, SDK entry point.
 
+Self-contained implementation (no scripts/ import) so the installed wheel
+works without repo access.
+
 Public API:
     score_session(record, baselines, judge_entry=None, waste_entry=None) -> ThreeAxisResult
     load_baselines(path) -> dict
@@ -15,19 +18,11 @@ Each axis carries its domain_of_validity in the result object so both SDK and CL
 consumers receive the honesty — not bolted on in CLI formatting only (spec decision 1).
 """
 
-import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-_SCRIPTS_DIR = str(Path(__file__).resolve().parent.parent / "scripts")
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
-
-from efficiency_score import (  # noqa: E402
-    EfficiencyResult,
-    load_baselines,
-    score_session as _score_session_impl,
-)
+from tes.baselines import BUNDLED_BASELINES_PATH, compute_real_tokens, load_baselines
+from tes.classify import classify_session
 
 # ---------------------------------------------------------------------------
 # Domain-of-validity constants (one per axis, inline in result object)
@@ -61,6 +56,38 @@ WASTE_DOMAIN_OF_VALIDITY: str = (
     "supported); may under-report on future CC versions if the format changes again. "
     "Judgment-of-progress waste not covered — requires human labeling."
 )
+
+
+# ---------------------------------------------------------------------------
+# Internal result dataclass (behaviour-preservation compatible with scripts/efficiency_score.py)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EfficiencyResult:
+    """Per-session efficiency assessment against type-specific baselines.
+
+    Field layout is identical to scripts/efficiency_score.EfficiencyResult so that
+    the behaviour-preservation golden tests can compare outputs without modification.
+    """
+
+    session_id: str
+    task_type: str
+    real_tokens: int
+    scope_status: str           # "in_scope" | "out_of_scope" | "no_baseline"
+    baseline_available: bool
+    p25: int | None
+    p75: int | None
+    median: int | None
+    band_verdict: str           # "within_band" | "above_p75" | "below_p25" | "unavailable"
+    interpretation: str
+    # Judge axis (populated when caller provides judge_entry)
+    judge_verdict: str | None
+    judge_score: float | None
+    judge_reasoning: str | None
+    # Deterministic waste axis (populated when caller provides waste_entry)
+    waste_event_count: int = 0
+    waste_events: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +136,136 @@ class ThreeAxisResult:
 
 
 # ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _lean_judgment(judge_verdict: str | None) -> str:
+    """Return a one-sentence trajectory note to append to below_p25 interpretations."""
+    if judge_verdict in ("MUCH_BETTER", "BETTER"):
+        return f"Trajectory verdict {judge_verdict}: efficient execution at lean cost."
+    elif judge_verdict in ("WORSE", "MUCH_WORSE"):
+        return (
+            f"Trajectory verdict {judge_verdict}: not efficient — "
+            f"lean cost does not indicate quality."
+        )
+    else:
+        return "Pair with the trajectory verdict to assess efficiency."
+
+
+def _score_session_impl(
+    record: dict,
+    baselines: dict,
+    judge_entry: dict | None = None,
+    waste_entry: dict | None = None,
+) -> EfficiencyResult:
+    """Core scoring implementation — identical logic to scripts/efficiency_score.score_session.
+
+    Kept separate from score_session() so behaviour-preservation tests can call it
+    directly if needed and to keep the public API thin.
+    """
+    session_id: str = record.get("session_id", "")
+    task_type: str = classify_session(record)
+    real_tokens: int = compute_real_tokens(record)
+
+    # Extract judge fields (may all be None when judge_entry is absent)
+    je_verdict: str | None = judge_entry.get("verdict") if judge_entry else None
+    je_score: float | None = judge_entry.get("judge_score") if judge_entry else None
+    je_reasoning: str | None = judge_entry.get("reasoning") if judge_entry else None
+
+    # Extract deterministic waste fields
+    waste_events: list[dict] = waste_entry.get("waste_events", []) if waste_entry else []
+    waste_event_count: int = len(waste_events)
+
+    type_info: dict = baselines.get("types", {}).get(task_type, {})
+    baseline_available: bool = type_info.get("available", False)
+
+    # Scope gate: check turn count against p10 floor
+    scope_gates = baselines.get("scope_gates", {})
+    gate_info = scope_gates.get(task_type, {})
+    p10_turns: int | None = gate_info.get("p10_turns")
+    turn_count: int = record.get("turn_count", 0)
+
+    if p10_turns is not None and turn_count < p10_turns:
+        scope_status = "out_of_scope"
+    else:
+        scope_status = "in_scope"
+
+    # Early return when baseline is unavailable OR session is out of scope
+    if scope_status == "out_of_scope" or not baseline_available:
+        if scope_status == "out_of_scope":
+            interpretation = (
+                f"Session scope too small for a token-economy reference "
+                f"({turn_count} turns; {task_type} floor is {p10_turns} turns). "
+                f"Trajectory verdict only."
+            )
+        else:
+            interpretation = (
+                f"Task type '{task_type}' has no baseline "
+                f"(sparse type or not seen in reference corpus)"
+            )
+        return EfficiencyResult(
+            session_id=session_id,
+            task_type=task_type,
+            real_tokens=real_tokens,
+            scope_status=scope_status if baseline_available else "no_baseline",
+            baseline_available=baseline_available,
+            p25=None,
+            p75=None,
+            median=None,
+            band_verdict="unavailable",
+            interpretation=interpretation,
+            judge_verdict=je_verdict,
+            judge_score=je_score,
+            judge_reasoning=je_reasoning,
+            waste_event_count=waste_event_count,
+            waste_events=waste_events,
+        )
+
+    p25: int = type_info["p25"]
+    p75: int = type_info["p75"]
+    median: int = type_info["median"]
+
+    if real_tokens > p75:
+        band_verdict = "above_p75"
+        interpretation = (
+            f"Session used {real_tokens:,} tokens, above the p75 reference ({p75:,}) "
+            f"for {task_type} sessions — more tokens than typical good runs"
+        )
+    elif real_tokens < p25:
+        band_verdict = "below_p25"
+        interpretation = (
+            f"Token cost is lean for {task_type} ({real_tokens:,} tokens, "
+            f"below the {p25:,} reference floor for exemplary {task_type} sessions). "
+            + _lean_judgment(je_verdict)
+        )
+    else:
+        band_verdict = "within_band"
+        interpretation = (
+            f"Session used {real_tokens:,} tokens, within the "
+            f"[{p25:,}–{p75:,}] reference band for {task_type} sessions"
+        )
+
+    return EfficiencyResult(
+        session_id=session_id,
+        task_type=task_type,
+        real_tokens=real_tokens,
+        scope_status=scope_status,
+        baseline_available=True,
+        p25=p25,
+        p75=p75,
+        median=median,
+        band_verdict=band_verdict,
+        interpretation=interpretation,
+        judge_verdict=je_verdict,
+        judge_score=je_score,
+        judge_reasoning=je_reasoning,
+        waste_event_count=waste_event_count,
+        waste_events=waste_events,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -121,8 +278,8 @@ def score_session(
 ) -> ThreeAxisResult:
     """Score a single adapted session record against the three-axis scorer.
 
-    Calls the validated scripts/efficiency_score.py implementation internally
-    (behavior-preservation guarantee: packaging calls the same logic, adds caveats).
+    Calls the validated internal implementation (behaviour-preservation guarantee:
+    packaging calls the same logic, adds caveats).
 
     Parameters
     ----------
@@ -174,6 +331,7 @@ def score_session(
 
 __all__ = [
     "ThreeAxisResult",
+    "EfficiencyResult",
     "score_session",
     "load_baselines",
     "TOKEN_DOMAIN_OF_VALIDITY",
