@@ -1,7 +1,58 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-07 (P2). Read this BEFORE planning. This supersedes the prior snapshot
-dated 2026-06-07 (P1).
+Snapshot as of 2026-06-08 (P3 in progress — TestPyPI). Read this BEFORE planning. This supersedes
+the prior snapshot dated 2026-06-07 (P2).
+
+---
+
+## Iteration status: P3 IN PROGRESS — public PyPI packaging as tracegauge
+
+P3 packages the validated P1+P2 product for public release on PyPI as `tracegauge` (AGPL-3.0,
+version 0.1.0). The wheel is built and clean-room verified. TestPyPI upload is the current step.
+
+**What P3 has delivered so far:**
+- `pyproject.toml` rewritten: name=tracegauge, version=0.1.0, AGPL-3.0-only (PEP 639 SPDX),
+  `requires-python = ">=3.10"`, both `tes` and `tracegauge` console-script entry points,
+  `package-data` for `cc_baselines.json`, pinned runtime deps (flask>=3.0,<4, httpx>=0.27,<1).
+- `LICENSE` file: full AGPL-3.0 text (34,523 bytes), verbatim from gnu.org.
+- `__version__` single-sourced via `importlib.metadata.version("tracegauge")` in `tes/__init__.py`.
+  `tes --version` / `tracegauge --version` both emit `tes 0.1.0`.
+- `README.md` rewritten as honesty-forward PyPI landing page: quickstart first, Scope & Limitations
+  second (corpus caveat 1.4% vs 6.6%, no-human-accuracy, tiered judge, moat), three-axis docs,
+  "What this does NOT do" section, AGPL link, B5 validation arc.
+- `tests/test_packaging.py`: 5 packaging integrity tests (version present, baselines load from
+  installed pkg, entry points resolve, both console-scripts wired, metadata name=tracegauge).
+
+**Packaging architecture (key decisions):**
+- `tes/_waste_detectors.py`: **BYTE-VERBATIM COPY** of frozen `scripts/waste_detectors.py`
+  (diff-proven: one docstring module-path line differs, zero functional differences).
+  `tes/waste.py` is a thin re-export wrapper + `build_waste_entry` shim. The shipped
+  detector is the frozen B4/P3 file by diff inspection.
+- `tes/adapt.py` + `tes/_digest.py`: **option-B-unavoidable re-home**. The original
+  `scripts/adapters/claudecode_adapter.py` used `ROOT = Path(...).parents[2]` + `sys.path.insert`
+  into `src/token_efficiency/trace_digest` — repo-relative imports that cannot survive a wheel.
+  The core `adapt_session` logic was re-homed with no functional changes. Verified on:
+  - Pool: RFR 12/181, RR 20/181 (byte-identical to B4 counts)
+  - B5 SWE-chat CC (independent data, 1,053 sessions): RFR 15, PATH-A 4, PATH-B 51
+    (51 = correct post-P1-fix count; B5's 0 was pre-fix; dual-format fix confirmed intact)
+- `tes/classify.py`, `tes/baselines.py`, `tes/score.py`, `tes/judge.py`: also re-homed
+  from scripts/ for the same reason (sys.path.insert into scripts/ fails in clean-room).
+  All 163 tests pass (158 P1+P2 + 5 new packaging tests).
+
+**Wheel status:**
+- Built: `dist/tracegauge-0.1.0-py3-none-any.whl` + `dist/tracegauge-0.1.0.tar.gz`
+- `twine check dist/*` → PASSED, zero warnings (PEP 639 SPDX license field, no metadata warnings)
+- Clean-room install verified: fresh venv, wheel-only (no repo access), all gates pass:
+  `tes 0.1.0`, `tracegauge 0.1.0`, serve --help, baselines load (5 task types),
+  `tes._waste_detectors` module present.
+- TestPyPI upload: PENDING (user action — see below)
+
+**What P3 still needs:**
+1. TestPyPI upload + fresh-venv install from TestPyPI (current step). HOLD for consultant read.
+2. Real PyPI upload (explicit consultant + user go only — irreversible).
+3. CURRENT_STATE → P3 DONE. Git tag `v0.1.0`.
+
+**Reports 01-11: confirmed immutable.** No research files modified in P3.
 
 ---
 
