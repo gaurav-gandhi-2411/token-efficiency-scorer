@@ -3,22 +3,46 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "token-efficiency-scorer"
+name = "tracegauge"
 version = "0.1.0"
-description = "Token-efficiency scoring for coding agents: outcome quality / (tokens_used × difficulty_norm) vs counterfactual baseline"
+description = "Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Self-hosted; nothing leaves your machine."
 authors = [{ name = "Gaurav Gandhi", email = "gaurav.gandhi2411@gmail.com" }]
 requires-python = ">=3.11"
 readme = "README.md"
-license = { text = "MIT" }
-dependencies = ["httpx>=0.27.0", "flask>=3.0"]
+license = { text = "AGPL-3.0-only" }
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+    "Intended Audience :: Developers",
+    "Environment :: Console",
+    "Operating System :: OS Independent",
+]
+keywords = ["claude-code", "llm", "token-efficiency", "coding-agent", "ai-tools"]
+dependencies = [
+    "flask>=3.0,<4",
+    "httpx>=0.27,<1",
+]
+
+[project.urls]
+Repository = "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer"
 
 [project.scripts]
 tes = "tes.cli:main"
+tracegauge = "tes.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["tes*"]
 exclude = ["tests*", "scripts*", "src*"]
+
+[tool.setuptools.package-data]
+"tes" = ["data/cc_baselines.json"]
 
 [tool.ruff]
 line-length = 100
