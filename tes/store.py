@@ -13,6 +13,7 @@ Public API:
 Schema version 1. Version encoded in PRAGMA user_version — no meta table.
 """
 
+import enum
 import hashlib
 import json
 import os
@@ -20,6 +21,26 @@ import sqlite3
 from pathlib import Path
 
 from tes.score import ThreeAxisResult
+
+
+class TrajectoryRenderState(enum.Enum):
+    UNAVAILABLE = "unavailable"   # judge_verdict is None (never ran, or errored at scoring time)
+    CURRENT = "current"           # verdict present, hash matches (not stale)
+    STALE = "stale"               # verdict present, but judge ran against an older file version
+
+
+def trajectory_render_state(row: dict) -> TrajectoryRenderState:
+    """Return the canonical render state for the trajectory axis of a session row.
+
+    Call this instead of writing null-checks inline. Covers all reachable states.
+    judge_verdict=None covers both 'never judged' and 'judge errored' — both render as UNAVAILABLE.
+    """
+    if row["judge_verdict"] is None:
+        return TrajectoryRenderState.UNAVAILABLE
+    if row["judge_stale"]:
+        return TrajectoryRenderState.STALE
+    return TrajectoryRenderState.CURRENT
+
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -88,6 +109,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         ) from exc
 
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
 
     existing_version: int = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -324,6 +346,8 @@ def list_sessions(
 
 __all__ = [
     "SCHEMA_VERSION",
+    "TrajectoryRenderState",
+    "trajectory_render_state",
     "open_db",
     "file_hash",
     "needs_scoring",
