@@ -6,11 +6,12 @@ Public API:
     open_db(path)                                          -> sqlite3.Connection
     file_hash(path)                                        -> str
     needs_scoring(conn, session_id, current_hash)          -> bool
-    upsert_session(conn, result, source_path, source_mtime, source_hash)
+    upsert_session(conn, result, source_path, source_mtime, source_hash, turn_count)
     get_session(conn, session_id)                          -> dict | None
     list_sessions(conn, limit, offset)                     -> list[dict]
 
 Schema version 1. Version encoded in PRAGMA user_version — no meta table.
+Migration: turn_count column added via ALTER TABLE if absent (added after initial release).
 """
 
 import enum
@@ -73,7 +74,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     judge_source_hash             TEXT,
     waste_event_count             INTEGER NOT NULL,
     waste_events                  TEXT NOT NULL,
-    waste_domain_of_validity      TEXT NOT NULL
+    waste_domain_of_validity      TEXT NOT NULL,
+    turn_count                    INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_scored_at ON sessions(scored_at);
@@ -124,7 +126,16 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
             f"DB schema version {existing_version} is newer than this tool's "
             f"SCHEMA_VERSION={SCHEMA_VERSION}. Upgrade token-efficiency-scorer."
         )
-    # existing_version == SCHEMA_VERSION → nothing to do.
+    # existing_version == SCHEMA_VERSION → run additive migrations only.
+
+    # Additive migration: turn_count was added after the initial schema shipped.
+    # ALTER TABLE is safe to re-run guard: check column presence first.
+    existing_cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+    }
+    if "turn_count" not in existing_cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
+        conn.commit()
 
     return conn
 
@@ -154,6 +165,7 @@ def upsert_session(
     source_path: str,
     source_mtime: float,
     source_hash: str,
+    turn_count: int = 0,
 ) -> None:
     """Write or update a session row using merge semantics.
 
@@ -164,6 +176,8 @@ def upsert_session(
        judge fields (judge_verdict, judge_score, judge_reasoning,
        trajectory_domain_of_validity, judge_source_hash); update everything else.
     4. New has no judge AND existing has no judge → full UPDATE.
+
+    turn_count: from the adapted record (adapt_session returns it at top level).
     """
     from datetime import datetime, timezone
 
@@ -192,7 +206,8 @@ def upsert_session(
                 token_domain_of_validity,
                 judge_verdict, judge_score, judge_reasoning,
                 trajectory_domain_of_validity, judge_source_hash,
-                waste_event_count, waste_events, waste_domain_of_validity
+                waste_event_count, waste_events, waste_domain_of_validity,
+                turn_count
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -201,7 +216,8 @@ def upsert_session(
                 ?,
                 ?, ?, ?,
                 ?, ?,
-                ?, ?, ?
+                ?, ?, ?,
+                ?
             )
             """,
             (
@@ -215,6 +231,7 @@ def upsert_session(
                 source_hash if has_judge else None,
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
+                turn_count,
             ),
         )
 
@@ -231,7 +248,8 @@ def upsert_session(
                 interpretation = ?, token_domain_of_validity = ?,
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
-                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?
+                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
+                turn_count = ?
             WHERE session_id = ?
             """,
             (
@@ -244,6 +262,7 @@ def upsert_session(
                 result.trajectory_domain_of_validity, source_hash,
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
+                turn_count,
                 result.session_id,
             ),
         )
@@ -259,7 +278,8 @@ def upsert_session(
                 real_tokens = ?, scope_status = ?, baseline_available = ?,
                 p25 = ?, p75 = ?, median = ?, band_verdict = ?,
                 interpretation = ?, token_domain_of_validity = ?,
-                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?
+                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
+                turn_count = ?
             WHERE session_id = ?
             """,
             (
@@ -270,6 +290,7 @@ def upsert_session(
                 result.interpretation, result.token_domain_of_validity,
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
+                turn_count,
                 result.session_id,
             ),
         )
@@ -287,7 +308,8 @@ def upsert_session(
                 interpretation = ?, token_domain_of_validity = ?,
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
-                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?
+                waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
+                turn_count = ?
             WHERE session_id = ?
             """,
             (
@@ -300,6 +322,7 @@ def upsert_session(
                 result.trajectory_domain_of_validity, None,
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
+                turn_count,
                 result.session_id,
             ),
         )
