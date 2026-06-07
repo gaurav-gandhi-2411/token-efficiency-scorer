@@ -1,147 +1,144 @@
-# Project Spec: tracegauge — Public PyPI Packaging & Release (Iteration P3)
+# Project Spec: tracegauge — Self-Baselining (Iteration P4)
 
 ## Goal
 
-Publish the product to the public Python Package Index (PyPI) under the name **tracegauge** (AGPL-3.0) so that anyone, anywhere, on a fresh machine can run:
+Fix the "76%-unavailable" problem by scoring each developer's sessions against **their own** lean, waste-free sessions of the same task type — instead of against the bundled high-waste infra corpus (the B2/B5 single-developer limitation). This makes the token axis informative for most of a user's work, on their own terms, with their data never leaving their machine (moat intact, no judge required).
 
-```
-pip install tracegauge
-tes serve
-```
+The measurement model shift: token-economy verdicts become **relative to the user's own better runs** of each task type. "within_band" now means "comparable to your leaner waste-free sessions of this type"; "above_p75" means "heavier than your typical efficient run." This is honest *relative* efficiency — NOT an absolute "good/bad" verdict, and the product must say exactly that.
 
-— with no repo clone, no `-e .`, no setup. The bundled baselines, the CLI (`tes`), the watcher, and the dashboard all work out of the box. This is the full, polished public release — NOT a half-baked "it technically uploads" version.
+## The core honesty constraint (read first)
 
-## The one irreversible-action discipline (read first)
+Self-baselining measures "efficient relative to YOUR OWN lean waste-free runs of this type." It does NOT measure:
+- Absolute efficiency (no universal "good" exists without a broad multi-developer corpus — that's P-corpus-contribution, later).
+- Efficiency vs your *best possible* (only vs your observed lean runs).
+- Anything for a task type where you don't yet have enough waste-free sessions (cold-start UNAVAILABLE).
 
-Publishing to public PyPI is a ONE-WAY DOOR in two ways:
-1. **The name `tracegauge` is claimed permanently** once the first version uploads.
-2. **A version number is burned forever** — PyPI does not allow re-uploading the same version, even after a `yank`. A broken `1.0.0` cannot be replaced by a fixed `1.0.0`; you'd have to ship `1.0.1` with `1.0.0` permanently visible as broken.
+The domain-of-validity string changes accordingly: "Calibrated to YOUR OWN leaner, waste-free sessions of this task type (N sessions). Relative-to-your-own-baseline, not an absolute efficiency verdict." Claim exactly this — no more.
 
-Therefore: **everything is validated in a FRESH, CLEAN environment BEFORE the irreversible upload.** Build the wheel, install it in a brand-new virtualenv (as a stranger would, with NO access to the repo), and confirm `pip install <wheel>` → `tes serve` works end-to-end — BEFORE `twine upload`. We test against TestPyPI first (the sandbox index) and only then push to real PyPI. The first public version must work on a stranger's fresh machine.
+## The two design traps this phase must solve (the heart of P4)
+
+**Trap 1 — "average = efficient" collapse.** Waste detectors fire on only ~1.4% of sessions, so ~98% are "waste-free." If the baseline = median of all waste-free sessions, it becomes "your median session," and "efficient" collapses to "your typical" — rewarding consistency, not efficiency. SOLVED by (a) the lean-subset rule below, and (b) a deterministic outlier exclusion.
+
+**Trap 2 — cold-start.** A new user has no history. The token axis must show a clear "building your baseline (need N more <type> sessions)" state — NOT a broken blank — and optionally fall back to the bundled corpus baseline WITH the honest infra-corpus caveat until the self-baseline exists.
+
+## The self-baseline definition (locked from consultant: option b + lean-subset ii)
+
+For a given user + task type, the self-baseline is computed from the user's own sessions as follows:
+1. **Waste-free gate:** include only sessions with ZERO deterministic waste events (RFR + RR). This excludes detectably-wasteful sessions. (Deterministic, GPU-free.)
+2. **Outlier exclusion (anti-trap-1 part A):** from the waste-free set, exclude token-count outliers above the user's own distribution (e.g. above their own p90, or > median + k*IQR) — these are likely the wasteful sessions the detectors missed. (Deterministic.)
+3. **Lean-subset (anti-trap-1 part B, the locked decision ii):** baseline from the LEANER portion of what remains — e.g. the lower-token half (or lower tertile) of the waste-free, outlier-excluded sessions of that type. "Efficient" = comparable to your better runs, not your average run.
+4. **Baseline statistic:** median + [p25, p75] band OF THE LEAN SUBSET (same band approach as B2, computed on the lean subset).
+5. **Min-N gate:** require a minimum count of sessions in the lean subset (NOT just total) before the baseline is trustworthy. Below that → token axis UNAVAILABLE ("building your baseline: N more <type> sessions needed"). The min-N must account for the lean-subset being a fraction of total waste-free sessions (so the total-session requirement is higher than B2's raw min-N).
+6. **Real-tokens measure:** unchanged from B2 (cache-corrected: sum AI-turn input − cache_read + output). The measure is locked; only the reference population changes.
 
 ## Current state
 
-See CURRENT_STATE.md. P1 + P2 complete:
-- `tes/` SDK package (adapt, classify, baselines, waste, judge, score, report, store, watcher, web).
-- `tes score` CLI + `tes serve` (watcher + localhost dashboard).
-- 158 tests green. Behavior-preservation, moat (localhost-only), judge-off-in-background, output-honesty all verified.
-- Currently installable only via repo clone + `pip install -e .`.
-- Bundled artifact: `tes/data/cc_baselines.json`.
-- Reports 01-11 immutable.
-
-## Naming / identity (locked)
-- PyPI package name: **tracegauge** (verified FREE on PyPI as of this spec).
-- CLI command: **tes** (kept — already built, muscle-memory; the package name is the brand, the command is the tool). Optionally also register `tracegauge` as a console-script alias to `tes` for discoverability — decide in decision 3.
-- License: **AGPL-3.0** (free use + self-host; protects against closed-source commercial competitors; conventional for open-core commercial intent).
+See CURRENT_STATE.md. tracegauge 0.1.0 is published to PyPI. P1-P3 + B1-B5 complete:
+- `tes/` SDK + `tes score` + `tes serve` (watcher + localhost dashboard + SQLite store).
+- Token axis currently scores against the BUNDLED `cc_baselines.json` (the infra-heavy single-developer corpus) → 76% of real sessions land UNAVAILABLE (scope gate) or are scored against a non-representative reference.
+- Deterministic waste detectors (RFR, RR) — GPU-free, byte-verbatim-frozen.
+- SQLite store accumulates per-session ThreeAxisResult + the incremental ledger.
+- Reports 01-11 immutable. Moat: localhost-only, no data off-machine, redaction on.
 
 ## Scope
 
-### In scope (full release, all of it)
-1. **pyproject.toml as the single source of truth**: name=tracegauge, version (semver, start 0.1.0 — see decision 1), description, long_description (the README), author, license=AGPL-3.0, classifiers (Development Status, License :: OSI Approved :: GNU Affero..., Python versions, Topic), `requires-python`, dependencies pinned to safe ranges, `console_scripts` entry point(s) so `tes` (and optionally `tracegauge`) work after a clean install.
-2. **Package data**: ensure `tes/data/cc_baselines.json` is included in the wheel (package-data / include declaration) so baselines ship and load after install — NOT left behind as a repo-only file. A test confirms the installed package can load baselines.
-3. **LICENSE file**: full AGPL-3.0 text at repo root; SPDX identifier in pyproject; license referenced in README.
-4. **README as the PyPI landing page**: the public face. Must carry the domain-of-validity honesty LOUDER than the private docs (strangers rely on it without this project's context): what the three axes mean, the high-waste-infra-outlier corpus caveat (report 11), the tiered judge (token+waste local/free; trajectory needs a local judge), the moat (data never leaves your machine), AGPL terms, and an honest "what this does NOT claim" section (no human-accuracy validation, waste = observable-invariant only). Quickstart: `pip install tracegauge` → `tes serve`.
-4. **Versioning**: `__version__` in the package, single-sourced with pyproject (e.g. importlib.metadata or a `_version.py`). Semver. A `tes --version` flag.
-5. **Build + clean-room validation**: `python -m build` produces wheel + sdist; install the WHEEL in a fresh venv with no repo access; confirm `tes --version`, `tes score <sample>`, `tes serve --help`, and baseline-loading all work. This is the pre-publish gate.
-6. **TestPyPI dry run**: upload to TestPyPI (sandbox), `pip install -i test.pypi.org ... tracegauge` in a fresh venv, confirm it works — BEFORE real PyPI.
-7. **Real PyPI publish**: `twine upload` to production PyPI (requires the user's PyPI account + API token — a USER action, like the HF login). Tag the release in git (`v0.1.0`).
-8. **Post-publish smoke**: `pip install tracegauge` from REAL PyPI in a fresh venv, `tes serve`, confirm end-to-end.
+### In scope
+1. **Self-baseline computation** (`tes/self_baseline.py`): from the user's SQLite store, per task type, compute the lean-subset self-baseline per the locked definition above. Recompute incrementally as new sessions accumulate.
+2. **Scoring against self-baseline:** the token axis scores a session against the USER'S OWN self-baseline for its task type, when available. Falls back per the cold-start policy when not.
+3. **Cold-start policy:** clear "building your baseline (need N more)" UNAVAILABLE state; optional fallback to the bundled corpus baseline WITH the honest infra-corpus caveat (decide default — see decisions).
+4. **The anti-trap mechanics:** waste-free gate + outlier exclusion + lean-subset + lean-subset-min-N, all deterministic, all GPU-free, all tested.
+5. **Domain-of-validity update:** the token caveat string reflects self-baselining ("relative to YOUR OWN lean waste-free runs, N sessions; not an absolute verdict"). When falling back to corpus, the string reverts to the infra-corpus caveat. The string always states WHICH baseline was used.
+6. **Recompute trigger:** the self-baseline updates as the store grows (e.g. on each watcher scan or on a threshold of new sessions). Incremental, not full-recompute-every-time where avoidable.
+7. **Dashboard surfacing:** the dashboard shows which baseline a session was scored against (self vs corpus vs building), and a "baseline status" view per task type (how many sessions you have, how many in the lean subset, whether the self-baseline is active yet).
 
 ### Out of scope
-- Changing any scoring logic / baselines / detectors / judge config (P3 is packaging + publishing only — behavior unchanged; a test confirms scores identical to P2).
-- The corpus-contribution upload pipeline (still design-only).
-- Hosted judge / any data-off-machine path (moat).
-- A `conda` / `brew` / `docker` distribution (PyPI only this phase; note others as future).
-- Domain registration / website / marketing site (note `tracegauge.dev` as a recommended user-action, don't build).
-- Relicensing analysis beyond choosing AGPL-3.0 (lawyer review is a user-action before the raise; AGPL is the publish-now default).
-- Modifying reports 01-11.
+- Corpus contribution / multi-developer pooled baselines (that's the next phase — P5).
+- Cost translation (#1 → P-cost, next).
+- Changing the real-tokens measure, the waste detectors, or the judge.
+- Any data leaving the machine (self-baseline is computed locally from the user's own store).
+- Modifying reports 01-11 or the bundled corpus baseline (keep it as the cold-start fallback).
+- Human labels / accuracy claims.
 
 ## Tech stack
-- Standard Python packaging: `pyproject.toml` (PEP 621), `build`, `twine`.
-- `importlib.metadata` for `__version__` single-sourcing (no duplicate version strings).
-- A fresh-venv clean-room test (the executor creates a throwaway venv, installs the built wheel, runs the CLI — proving no hidden repo dependency).
-- No new runtime deps unless required for packaging; keep the install lean.
+- Python, reuse `tes/`. Self-baseline computed from the existing SQLite store (the data's already there — per-session real_tokens, task_type, waste_event_count).
+- numpy/stdlib statistics for the percentile/lean-subset math.
+- pytest: the anti-trap mechanics need rigorous tests (synthetic session distributions proving the lean-subset + outlier exclusion behave correctly; cold-start UNAVAILABLE; min-N gating).
 
-## Architecture (changes/additions)
+## Architecture (new/changed)
 ```
-pyproject.toml          # rewritten: full metadata, AGPL, entry points, package-data, deps
-LICENSE                 # NEW: full AGPL-3.0 text
-README.md               # rewritten as PyPI long-description + honesty front-and-center
-tes/_version.py or
-  importlib.metadata     # single-sourced __version__; `tes --version`
-MANIFEST.in (if needed) # ensure cc_baselines.json + LICENSE + README in sdist/wheel
+tes/
+├── self_baseline.py    # NEW: compute per-user per-type lean-subset self-baseline from the store
+├── baselines.py        # CHANGED: load_baselines gains a "source" notion (self vs bundled corpus)
+├── score.py            # CHANGED: token axis picks self-baseline if available, else cold-start policy
+├── store.py            # CHANGED (maybe): query helpers for "all waste-free sessions of type T"
+└── web/                # CHANGED: dashboard shows baseline source + per-type baseline status
+
 tests/
-├── test_packaging.py          # NEW: installed package loads baselines; __version__ present; entry point resolves
-└── (all P1+P2 tests still green)
-scripts/release/        # NEW (optional): build + testpypi + pypi helper scripts (documented, run by user for the token steps)
+├── test_self_baseline.py        # NEW: lean-subset, outlier exclusion, min-N, the anti-trap proofs
+├── test_cold_start.py           # NEW: insufficient history -> UNAVAILABLE-building / corpus-fallback
+└── test_baseline_source_honesty.py # NEW: domain-of-validity string states which baseline was used
 ```
 
 ## Key design decisions (resolve early, escalate)
-1. **Starting version**: 0.1.0 (signals "real but early; API may evolve") vs 1.0.0 (signals "stable, committed"). Recommendation: **0.1.0** — it's an honest first public release, sets expectations that it's early, and lets you iterate (0.x) without implying API stability you haven't promised. A pre-raise product publishing 1.0.0 over-claims maturity. Decide.
-2. **CLI command**: keep `tes` only, or also register `tracegauge` as an alias? Recommendation: register BOTH (`tes` for brevity, `tracegauge` for discoverability/brand) pointing at the same entry point — cheap, helps a new user who installed `tracegauge` intuitively try `tracegauge ...`. Decide.
-3. **Dependency pinning**: pin deps to compatible ranges (e.g. `flask>=3,<4`) — loose enough to coexist in a user's env, tight enough to avoid breakage. Audit the actual runtime deps (flask, httpx, etc.) and declare them precisely. No dev/test deps in the runtime requires.
-4. **Baseline data shipping**: confirm the mechanism (package-data in pyproject `[tool.setuptools.package-data]` or equivalent for the build backend) actually lands `cc_baselines.json` in the wheel. The clean-room test must load it from the INSTALLED location, not a repo path.
-5. **README honesty scope**: the public README must include a "Scope & Limitations" section that states the corpus caveat (high-waste infra outlier; ~1.4% generalizable), the no-human-accuracy-validation limit, the tiered judge, and the moat — prominently, not buried. A stranger installing this must understand what it does and doesn't claim WITHOUT reading reports 01-11.
+1. **Lean-subset cut:** lower-HALF or lower-TERTILE (by real_tokens) of the waste-free, outlier-excluded sessions of a type? Tertile is stricter ("like your best third") but needs more sessions; half is more attainable. Recommend deciding with the consultant after seeing the user's actual per-type session counts in the store (the data tells us what's feasible). Likely: lower-half, with the cut configurable.
+2. **Outlier-exclusion rule:** p90-cap, or median+k·IQR? State the rule + why. Must be deterministic and defensible (excludes the obviously-heavy sessions without hand-tuning).
+3. **Lean-subset min-N:** how many sessions in the LEAN SUBSET before the self-baseline activates? If lean = lower-half and min-N(subset)=8, that needs ~16+ waste-free sessions of a type. State the number + the resulting total-session requirement, and make cold-start messaging reflect it ("need ~N more debug-fix sessions").
+3. **Cold-start fallback default:** when no self-baseline yet, (a) show UNAVAILABLE-building (purest — don't score against a non-representative corpus), or (b) fall back to the bundled corpus baseline WITH the loud infra-caveat (gives *a* number, honestly caveated). Recommend (a) as default with (b) as an opt-in flag — scoring against the infra corpus is what we're trying to move AWAY from, so defaulting to it undercuts the phase. Decide.
+4. **Recompute cadence:** recompute the self-baseline on every watcher scan (simple, possibly wasteful) vs on a new-session threshold (e.g. every 5 new sessions of a type) vs cached-with-invalidation. Pick the simplest correct option.
+5. **Per-session baseline provenance:** store WHICH baseline (self/corpus/building) each session was scored against, so re-scoring after the self-baseline activates is sensible and the dashboard is honest. (Ties into the store schema.)
 
 ## Verification commands
 ```yaml
-- name: behavior-unchanged
-  cmd: python -m pytest -q   # all 158 P1+P2 tests still green; scores unchanged
+- name: lean-subset-correctness
+  cmd: python -m pytest tests/test_self_baseline.py -v   # lean-subset + outlier-exclusion + anti-trap proofs
   required: true
-- name: builds-clean
-  cmd: python -m build && ls dist/*.whl dist/*.tar.gz
+- name: cold-start
+  cmd: python -m pytest tests/test_cold_start.py -v       # insufficient history -> building/fallback, not blank
   required: true
-- name: clean-room-install
-  cmd: |
-    python -m venv /tmp/tg_clean && /tmp/tg_clean/bin/pip install dist/*.whl && \
-    /tmp/tg_clean/bin/tes --version && /tmp/tg_clean/bin/tes serve --help && \
-    /tmp/tg_clean/bin/python -c "import tes; from tes.baselines import load_baselines; load_baselines(); print('baselines load from installed pkg OK')"
+- name: baseline-honesty
+  cmd: python -m pytest tests/test_baseline_source_honesty.py -v  # caveat states which baseline used
   required: true
-- name: packaging-tests
-  cmd: python -m pytest tests/test_packaging.py -v
+- name: anti-average-trap
+  cmd: python -m pytest tests/test_self_baseline.py -k anti_trap -v  # uniformly-sloppy synthetic user does NOT score "within band" on sloppy sessions
   required: true
-- name: metadata-sane
-  cmd: python -m twine check dist/*   # PyPI metadata/long-description renders
+- name: behavior-unchanged-detectors
+  cmd: git diff --exit-code tes/_waste_detectors.py && echo "detectors frozen"
+  required: true
+- name: full-suite
+  cmd: python -m pytest -q
   required: true
 ```
 
 ## Escalation rules
-- BEFORE any `twine upload` to REAL PyPI: the clean-room install + TestPyPI dry-run must both pass, AND the consultant must confirm. Real-PyPI upload is the irreversible step — it happens only after explicit go.
-- The PyPI/TestPyPI account + API token are USER actions — surface the exact steps for the user; the orchestrator does not invent credentials.
-- If the clean-room install fails (missing package-data, unresolved entry point, hidden repo dependency): STOP — fix and rebuild before any upload. A broken wheel must never reach even TestPyPI's namespace under a real version.
-- BEFORE changing any scoring behavior: out of scope — packaging only.
-- Version numbers: never re-use; if a build is bad, bump the version, never re-upload the same one.
+- BEFORE locking the lean-subset cut + min-N: report the ACTUAL per-type session counts from a real store (the user's own ~700-session store is perfect data) — the feasible cut/min-N depends on how many waste-free sessions per type actually exist. HOLD on the numbers.
+- If the anti-average-trap test can't be made to pass (uniformly-sloppy user still scores "within band"): the lean-subset/outlier rules are insufficient — escalate, don't ship a baseline that rewards consistency.
+- BEFORE changing the bundled corpus baseline or the real-tokens measure: out of scope — escalate.
+- Detectors stay frozen (verification enforces).
 
 ## Hard rules
-- BEHAVIOR UNCHANGED: P3 is packaging + publishing. Scores/baselines/detectors/judge identical to P2. The 158 tests stay green.
-- CLEAN-ROOM BEFORE PUBLISH: validated in a fresh venv with no repo access before any upload; TestPyPI before real PyPI; real PyPI only on explicit consultant + user go.
-- HONESTY ON THE PUBLIC FACE: README carries the corpus caveat, the no-accuracy-claim, the tiered judge, the moat — loudly. Publishing amplifies the honesty obligation; strangers rely on it without context.
-- MOAT UNCHANGED: still localhost-only, no telemetry, no phone-home; publishing the package does not add any data egress.
-- LICENSE: AGPL-3.0, full text in LICENSE, SPDX in pyproject, referenced in README.
-- Reports 01-11 immutable. No human labels. Version numbers immutable once used.
+- HONESTY: the token caveat ALWAYS states which baseline was used (self / corpus-fallback / building). Self-baseline claims "relative to your own lean runs," never absolute.
+- MOAT: self-baseline computed locally from the user's own store; nothing leaves the machine.
+- ANTI-TRAP: the lean-subset + outlier exclusion must prevent "average = efficient" — proven by the anti_trap test (a synthetic uniformly-heavy user must NOT score within-band on heavy sessions).
+- COLD-START is a clean "building your baseline" state, never a broken blank.
+- Detectors + real-tokens measure frozen. Bundled corpus baseline retained as fallback. Reports 01-11 immutable. No data egress. No human labels.
 
 ## Budget
-- Soft: 2-3 CC sessions. All local/$0 (build + clean-room venv are local; PyPI/TestPyPI are free).
+- Soft: 2-3 CC sessions. All local/$0 (computation over the existing SQLite store).
 - No GCP, no API spend.
 
-## Success criteria (verify ALL before the irreversible publish)
-- pyproject.toml complete: tracegauge, 0.1.0 (or chosen), AGPL-3.0, classifiers, requires-python, pinned deps, console_scripts (`tes` [+ `tracegauge`]), package-data including cc_baselines.json.
-- LICENSE (full AGPL-3.0) + README (honesty-forward, PyPI long-description) present.
-- `__version__` single-sourced; `tes --version` works.
-- `python -m build` produces wheel + sdist; `twine check` passes.
-- CLEAN-ROOM: fresh venv installs the wheel, `tes serve`/`tes score`/baseline-load all work with NO repo access. (The gate.)
-- All 158 P1+P2 tests + new packaging tests green; behavior unchanged.
-- TestPyPI dry-run install works in a fresh venv.
-- THEN (explicit go only): real PyPI publish; `pip install tracegauge` from production works in a fresh venv; git tagged `v0.1.0`.
-- README notes recommended user follow-ups: register `tracegauge.dev`, lawyer review of AGPL before raise (as notes, not built).
+## Success criteria (verify ALL before done)
+- Self-baseline computes per user + task type from the store: waste-free gate + outlier exclusion + lean-subset + median/[p25,p75], with lean-subset min-N gating.
+- Token axis scores against the self-baseline when available; cold-start policy (building / opt-in corpus fallback) otherwise — never a broken blank.
+- Anti-average-trap test passes: a synthetic uniformly-heavy user does NOT get "within_band" on heavy sessions (the lean-subset + outlier exclusion bites).
+- Cold-start test passes: insufficient history → clear "building (need N more)" state.
+- Domain-of-validity always states which baseline was used; self-baseline string claims relative-to-your-own-lean-runs, not absolute.
+- On the user's real ~700-session store: report how many task types now have an ACTIVE self-baseline and what the new unavailable-rate is (the headline metric — did we move it below 76%?).
+- Detectors frozen, real-tokens unchanged, full suite green, reports 01-11 untouched, git clean.
 
 ## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + report 11 + spec.md + current pyproject/README. Internalize: irreversible-publish discipline, clean-room-before-upload, honesty-on-the-public-face.
-2. Resolve decisions 1-2 (version 0.1.0, CLI alias) with consultant. HOLD.
-3. Rewrite pyproject.toml (full metadata, AGPL, entry points, package-data, pinned deps). Add LICENSE (AGPL-3.0 full text). Single-source `__version__` + `tes --version`.
-4. Rewrite README as the honesty-forward PyPI landing page (Scope & Limitations prominent).
-5. Packaging tests: installed-pkg baseline load, version present, entry point resolves.
-6. `python -m build`; `twine check`; CLEAN-ROOM install in a fresh venv (the gate) — confirm everything works with no repo access. HOLD for consultant read of the clean-room result.
-7. TestPyPI upload + fresh-venv install from TestPyPI. Report. HOLD.
-8. ON EXPLICIT GO ONLY: real PyPI `twine upload` (user provides token), tag `v0.1.0`, post-publish fresh-venv smoke from production PyPI. Report.
-9. CURRENT_STATE.md → P3 done / published. Reports 01-11 untouched.
+1. Read CURRENT_STATE.md + reports 08 (B2 baselines) + 11 (corpus limitation) + spec.md. Internalize: relative-not-absolute, the two traps, moat, frozen detectors.
+2. PROBE the real store: report actual per-type counts — total sessions, waste-free sessions, and (simulated) lean-subset sizes per task type — from the user's ~700-session store. This data decides the feasible lean-subset cut + min-N. HOLD for the cut/min-N decision.
+3. Build self_baseline.py: waste-free gate + outlier exclusion + lean-subset + band + min-N. Unit tests INCLUDING the anti-average-trap synthetic proof. HOLD for consultant read.
+4. Wire score.py: self-baseline-if-available else cold-start policy; baseline provenance stored; domain-of-validity string per source. Cold-start tests.
+5. Dashboard: show baseline source per session + per-type baseline-status view (sessions, lean-subset size, active/building).
+6. Re-score the user's store against self-baselines; report the new unavailable-rate vs 76%. Full suite green. HOLD for consultant read before P4 done.
