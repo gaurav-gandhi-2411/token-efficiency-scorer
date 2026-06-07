@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>TES Scoring Ledger — Sessions</h1>
+
+<p>Total scored: <strong>{{ total_scored }}</strong></p>
+
+<div class="caveat">
+  Token verdicts: relative to a high-waste infra/ML-ops corpus (B2). Trajectory: UNAVAILABLE when
+  judge not configured or --background-judge not set. See session detail for full domain-of-validity.
+</div>
+
+{% if pairs %}
+<table>
+  <thead>
+    <tr>
+      <th>Session ID</th>
+      <th>Task Type</th>
+      <th>Scored At</th>
+      <th>Token Band</th>
+      <th>Trajectory</th>
+      <th>Waste Events</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for session, traj_state in pairs %}
+    <tr>
+      <td><a href="/session/{{ session.session_id }}">{{ session.session_id[:16] }}…</a></td>
+      <td>{{ session.task_type }}</td>
+      <td>{{ session.scored_at[:19] | replace("T", " ") }}</td>
+      <td>
+        {% if session.band_verdict == "above_p75" %}
+          <span class="tag-above">{{ session.band_verdict }}</span>
+        {% elif session.band_verdict == "below_p25" %}
+          <span class="tag-below">{{ session.band_verdict }}</span>
+        {% elif session.band_verdict == "within_band" %}
+          <span class="tag-within">{{ session.band_verdict }}</span>
+        {% else %}
+          {{ session.band_verdict }}
+        {% endif %}
+      </td>
+      <td>
+        {% if traj_state.value == "unavailable" %}
+          <span class="tag-unavailable">UNAVAILABLE</span>
+        {% elif traj_state.value == "stale" %}
+          <span class="tag-stale">{{ session.judge_verdict }} (stale)</span>
+        {% else %}
+          <span class="tag-current">{{ session.judge_verdict }}</span>
+        {% endif %}
+      </td>
+      <td>{{ session.waste_event_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="empty">No sessions scored yet. Run <code>tes score &lt;path&gt;</code> to score a session.</p>
+{% endif %}
+{% endblock %}

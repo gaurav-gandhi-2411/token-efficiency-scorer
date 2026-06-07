@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Session: {{ session.session_id }}</h1>
+
+<table>
+  <tr><th>Task Type</th><td>{{ session.task_type }}</td></tr>
+  <tr><th>Source Path</th><td>{{ session.source_path }}</td></tr>
+  <tr><th>Scored At</th><td>{{ session.scored_at[:19] | replace("T", " ") }} UTC</td></tr>
+  <tr><th>Axes Scored</th><td>{{ session.axes_scored | join(", ") }}</td></tr>
+</table>
+
+{# ---- TOKEN ECONOMY ---- #}
+<h2>Token Economy</h2>
+<table>
+  <tr><th>Real Tokens</th><td>{{ "{:,}".format(session.real_tokens) }}</td></tr>
+  <tr>
+    <th>Band Verdict</th>
+    <td>
+      {% if session.band_verdict == "above_p75" %}
+        <span class="tag-above">{{ session.band_verdict }}</span>
+      {% elif session.band_verdict == "below_p25" %}
+        <span class="tag-below">{{ session.band_verdict }}</span>
+      {% elif session.band_verdict == "within_band" %}
+        <span class="tag-within">{{ session.band_verdict }}</span>
+      {% else %}
+        {{ session.band_verdict }}
+      {% endif %}
+    </td>
+  </tr>
+  {% if session.baseline_available %}
+  <tr><th>p25 Baseline</th><td>{{ "{:,}".format(session.p25) if session.p25 is not none else "—" }}</td></tr>
+  <tr><th>Median Baseline</th><td>{{ "{:,}".format(session.median) if session.median is not none else "—" }}</td></tr>
+  <tr><th>p75 Baseline</th><td>{{ "{:,}".format(session.p75) if session.p75 is not none else "—" }}</td></tr>
+  {% else %}
+  <tr><th>Baseline</th><td class="tag-unavailable">Not available for this task type</td></tr>
+  {% endif %}
+  <tr><th>Scope Status</th><td>{{ session.scope_status }}</td></tr>
+  <tr><th>Interpretation</th><td>{{ session.interpretation }}</td></tr>
+</table>
+<div class="caveat">{{ session.token_domain_of_validity }}</div>
+
+{# ---- TRAJECTORY QUALITY ---- #}
+<h2>Trajectory Quality</h2>
+
+{% if traj_state == TrajectoryRenderState.UNAVAILABLE %}
+  <p><span class="tag-unavailable">UNAVAILABLE — no local judge configured</span></p>
+  <p>To enable trajectory scoring, install <a href="https://ollama.com">Ollama</a> and run
+     <code>tes score &lt;path&gt; --judge</code>. Token and waste axes still ran.</p>
+{% elif traj_state == TrajectoryRenderState.STALE %}
+  <table>
+    <tr><th>Verdict</th><td><span class="tag-stale">{{ session.judge_verdict }}</span></td></tr>
+    {% if session.judge_score is not none %}
+    <tr><th>Score</th><td><span class="tag-stale">{{ "%.2f"|format(session.judge_score) }}</span></td></tr>
+    {% endif %}
+    {% if session.judge_reasoning %}
+    <tr><th>Reasoning</th><td>{{ session.judge_reasoning }}</td></tr>
+    {% endif %}
+  </table>
+  <p class="stale-note">
+    Verdict from an earlier version of this session (session grew after judging).
+    Re-run <code>tes score &lt;path&gt;</code> to update.
+  </p>
+{% else %}
+  {# CURRENT #}
+  <table>
+    <tr><th>Verdict</th><td><span class="tag-current">{{ session.judge_verdict }}</span></td></tr>
+    {% if session.judge_score is not none %}
+    <tr><th>Score</th><td><span class="tag-current">{{ "%.2f"|format(session.judge_score) }}</span></td></tr>
+    {% endif %}
+    {% if session.judge_reasoning %}
+    <tr><th>Reasoning</th><td>{{ session.judge_reasoning }}</td></tr>
+    {% endif %}
+  </table>
+{% endif %}
+<div class="caveat">{{ session.trajectory_domain_of_validity }}</div>
+
+{# ---- DETERMINISTIC WASTE ---- #}
+<h2>Deterministic Waste</h2>
+
+{% if session.waste_event_count == 0 %}
+  <p>0 events detected.</p>
+{% else %}
+  <p>{{ session.waste_event_count }} event(s) detected.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Detector</th>
+        <th>Proof Turns</th>
+        <th>Evidence</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in session.waste_events %}
+      <tr>
+        <td>{{ event.get("detector", "—") }}</td>
+        <td class="proof-turn">
+          {% set turns = event.get("turns", []) %}
+          {% if turns %}
+            {{ turns | join(", ") }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td>
+          {% set evidence = event.get("evidence", {}) %}
+          {% if evidence %}
+            <pre>{{ evidence | tojson(indent=2) }}</pre>
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+<div class="caveat">{{ session.waste_domain_of_validity }}</div>
+
+{% endblock %}
