@@ -24,6 +24,8 @@ class TurnDigest:
     token_count_output: int
     cache_read: int
     h2_duplicate: bool          # True if annotation flagged this turn as llm_h2_duplicate_message
+    cache_creation: int = 0    # cache_creation_input_tokens for this turn (cost use only)
+    model: str = ""            # model string for this turn, e.g. "claude-sonnet-4-6"
 
 
 @dataclass
