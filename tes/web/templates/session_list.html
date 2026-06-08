@@ -4,9 +4,22 @@
 
 <p>Total scored: <strong>{{ total_scored }}</strong></p>
 
+{% if headline %}
+<div class="metric-box">
+  <strong>Token verdict coverage</strong> &mdash;
+  self-baseline active on all 5 task types.<br>
+  <span class="metric-highlight">{{ headline.projected_self }} sessions ({{ headline.projected_self_pct }}%)</span>
+  get a real token verdict vs your own lean runs.
+  <span class="metric-old">
+    Previously: {{ headline.old_unavailable }} unavailable ({{ headline.old_unavailable_pct }}%) under B2 corpus scope gates.
+  </span>
+  &mdash; <a href="/baseline-status">baseline status by type</a>
+</div>
+{% endif %}
+
 <div class="caveat">
-  Token verdicts: relative to a high-waste infra/ML-ops corpus (B2). Trajectory: UNAVAILABLE when
-  judge not configured or --background-judge not set. See session detail for full domain-of-validity.
+  Token verdicts relative to YOUR OWN lean waste-free sessions (self-baseline) where active.
+  Baseline source shown per session. See session detail for full domain-of-validity.
 </div>
 
 {% if pairs %}
@@ -17,6 +30,7 @@
       <th>Task Type</th>
       <th>Scored At</th>
       <th>Token Band</th>
+      <th>Baseline</th>
       <th>Trajectory</th>
       <th>Waste Events</th>
     </tr>
@@ -36,6 +50,18 @@
           <span class="tag-within">{{ session.band_verdict }}</span>
         {% else %}
           {{ session.band_verdict }}
+        {% endif %}
+      </td>
+      <td>
+        {% set bs = session.get("baseline_source", "b2_corpus") %}
+        {% if bs == "self" %}
+          <span class="tag-self">self</span>
+        {% elif bs == "building" %}
+          <span class="tag-building">building</span>
+        {% elif bs == "corpus" %}
+          <span class="tag-corpus">corpus</span>
+        {% else %}
+          <span class="tag-corpus">b2</span>
         {% endif %}
       </td>
       <td>
