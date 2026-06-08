@@ -1,7 +1,34 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-08 (P3 DONE). Read this BEFORE planning. This supersedes
-the prior snapshot dated 2026-06-08 (P3 in-progress — TestPyPI).
+Snapshot as of 2026-06-08 (P4 DONE). Read this BEFORE planning. This supersedes
+the prior snapshot dated 2026-06-08 (P3 DONE).
+
+---
+
+## Iteration status: P4 DONE — Self-Baselining active, v0.2.0 tagged
+
+**Git tag:** `v0.2.0`
+**What changed:** Token verdicts now compare against user's own lean waste-free sessions
+(self-baseline), not the infra-heavy B2 reference corpus.
+
+**P4 results:**
+- Self-baselines ACTIVE on all 5 task types (debug-fix, feature-build, infra-deploy,
+  ml-eval, research-recon). Lean subsets: 9–20 sessions per type.
+- Content-session coverage: 187/210 sessions with actual work scored (89.0%).
+  Pre-self-baseline (B2 corpus): 174/210 (82.9%). +13 sessions from lower scope floors.
+- Empty/stub sessions: 509 of 719 total — legitimately OOS (no work product),
+  excluded from the coverage denominator, not treated as scoring failures.
+- Watcher wired: `run_watcher` calls `load_or_compute()` each scan cycle; new sessions
+  route through self-baseline from this commit forward.
+- Dashboard shows honest split: content-session headline (89%) + stubs as a separate fact.
+  Historical B2 anchor hardcoded for before/after comparison.
+- 184 tests green. Frozen: `tes/_waste_detectors.py` unchanged.
+
+**Scope floor corrections (P4):**
+- feature-build: B2 p10=166 → self floor=20 (zero-token stubs excluded from p10)
+- infra-deploy: B2 p10=63 → self floor=37
+- ml-eval: B2 p10=127 → self floor=96
+- debug-fix, research-recon: unchanged (59, 44)
 
 ---
 
