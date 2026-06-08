@@ -208,6 +208,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             usage: dict[str, Any] = message.get("usage", {})
             inp, cache_cr, cache_rd, out = _parse_usage(usage)
+            model_str: str = message.get("model", "")
 
             # Accumulate session totals from all assistant messages
             sum_input += inp
@@ -232,6 +233,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                     token_count_output=turn_output,
                     cache_read=cache_rd,
                     h2_duplicate=False,
+                    cache_creation=cache_cr,
+                    model=model_str,
                 )
             )
             turn_index += 1
