@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>TES Baseline Status</h1>
+
+<div class="caveat">
+  Self-baseline verdicts are <strong>relative to YOUR OWN lean waste-free sessions of each type</strong> —
+  not an absolute efficiency standard. "within_band" means comparable to your leaner sessions of that type,
+  not that your work is universally efficient.
+</div>
+
+{% if headline %}
+<h2>Coverage Projection</h2>
+<div class="metric-box">
+  <table style="width:auto; margin:0;">
+    <tr>
+      <td style="padding-right:2rem;"><strong>Projected self-baseline verdicts</strong></td>
+      <td><span class="metric-highlight">{{ headline.projected_self }} sessions ({{ headline.projected_self_pct }}%)</span></td>
+    </tr>
+    <tr>
+      <td><strong>Building baseline (need more sessions)</strong></td>
+      <td><span class="tag-building">{{ headline.projected_building }} sessions ({{ headline.projected_building_pct }}%)</span></td>
+    </tr>
+    <tr>
+      <td><strong>Out of scope (below turn floor)</strong></td>
+      <td>{{ headline.projected_oos }} sessions ({{ headline.projected_oos_pct }}%)</td>
+    </tr>
+    <tr>
+      <td><strong>Previously unavailable (B2 scope gates)</strong></td>
+      <td><span class="metric-old">{{ headline.old_unavailable }} sessions ({{ headline.old_unavailable_pct }}%)</span></td>
+    </tr>
+    <tr>
+      <td><strong>Total sessions</strong></td>
+      <td>{{ headline.total }}</td>
+    </tr>
+  </table>
+</div>
+{% endif %}
+
+{% if status_rows %}
+<h2>Per-Type Status</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Task Type</th>
+      <th>Total</th>
+      <th>In-Scope</th>
+      <th>Waste-Free</th>
+      <th>Lean-N</th>
+      <th>Scope Floor</th>
+      <th>Status</th>
+      <th>Baseline Band</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in status_rows %}
+    <tr>
+      <td><strong>{{ row.task_type }}</strong></td>
+      <td>{{ row.total }}</td>
+      <td>{{ row.in_scope }}</td>
+      <td>{{ row.waste_free_n }}</td>
+      <td>{{ row.lean_n }}</td>
+      <td>{{ row.scope_floor }} turns</td>
+      <td>
+        {% if row.source == "self" %}
+          <span class="tag-self">ACTIVE (self)</span>
+        {% elif row.source == "building" %}
+          <span class="tag-building">building — {{ row.sessions_needed }} more lean sessions needed</span>
+        {% else %}
+          <span class="tag-corpus">corpus fallback</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if row.p25 is not none and row.p75 is not none %}
+          {{ "{:,}".format(row.p25) }} – {{ "{:,}".format(row.p75) }}
+          (median {{ "{:,}".format(row.median) }})
+        {% else %}
+          <span class="tag-unavailable">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Domain of Validity per Type</h2>
+{% for row in status_rows %}
+<h3 style="font-size:0.9rem; margin-top:1rem;">{{ row.task_type }}</h3>
+<div class="caveat">{{ row.domain_of_validity }}</div>
+{% endfor %}
+
+{% else %}
+<p class="empty">No baseline data available. Run <code>tes score</code> to accumulate sessions.</p>
+{% endif %}
+
+{% endblock %}

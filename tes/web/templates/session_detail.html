@@ -34,6 +34,21 @@
   {% else %}
   <tr><th>Baseline</th><td class="tag-unavailable">Not available for this task type</td></tr>
   {% endif %}
+  <tr>
+    <th>Baseline Reference</th>
+    <td>
+      {% set bs = session.get("baseline_source", "b2_corpus") %}
+      {% if bs == "self" %}
+        <span class="tag-self">vs your own lean runs ({{ session.p25 | default("?", true) | string }} – {{ session.p75 | default("?", true) | string }} token band)</span>
+      {% elif bs == "building" %}
+        <span class="tag-building">building your baseline — self-baseline not yet active</span>
+      {% elif bs == "corpus" %}
+        <span class="tag-corpus">corpus fallback (infra-heavy — your own baseline pending)</span>
+      {% else %}
+        <span class="tag-corpus">B2 reference corpus (infra-heavy single-developer; self-baseline not yet scored)</span>
+      {% endif %}
+    </td>
+  </tr>
   <tr><th>Scope Status</th><td>{{ session.scope_status }}</td></tr>
   <tr><th>Interpretation</th><td>{{ session.interpretation }}</td></tr>
 </table>

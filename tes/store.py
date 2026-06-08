@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     band_verdict                  TEXT NOT NULL,
     interpretation                TEXT NOT NULL,
     token_domain_of_validity      TEXT NOT NULL,
+    baseline_source               TEXT NOT NULL DEFAULT 'b2_corpus',
+    turn_count                    INTEGER,
     judge_verdict                 TEXT,
     judge_score                   REAL,
     judge_reasoning               TEXT,
@@ -74,8 +76,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     judge_source_hash             TEXT,
     waste_event_count             INTEGER NOT NULL,
     waste_events                  TEXT NOT NULL,
-    waste_domain_of_validity      TEXT NOT NULL,
-    turn_count                    INTEGER
+    waste_domain_of_validity      TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_scored_at ON sessions(scored_at);
@@ -135,6 +136,12 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     if "turn_count" not in existing_cols:
         conn.execute("ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
+        conn.commit()
+
+    if "baseline_source" not in existing_cols:
+        conn.execute(
+            "ALTER TABLE sessions ADD COLUMN baseline_source TEXT NOT NULL DEFAULT 'b2_corpus'"
+        )
         conn.commit()
 
     return conn
@@ -203,7 +210,7 @@ def upsert_session(
                 source_path, source_mtime, source_hash, scored_at, axes_scored,
                 real_tokens, scope_status, baseline_available,
                 p25, p75, median, band_verdict, interpretation,
-                token_domain_of_validity,
+                token_domain_of_validity, baseline_source,
                 judge_verdict, judge_score, judge_reasoning,
                 trajectory_domain_of_validity, judge_source_hash,
                 waste_event_count, waste_events, waste_domain_of_validity,
@@ -213,7 +220,7 @@ def upsert_session(
                 ?, ?, ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                ?,
+                ?, ?,
                 ?, ?, ?,
                 ?, ?,
                 ?, ?, ?,
@@ -226,6 +233,7 @@ def upsert_session(
                 result.real_tokens, result.scope_status, int(result.baseline_available),
                 result.p25, result.p75, result.median, result.band_verdict,
                 result.interpretation, result.token_domain_of_validity,
+                result.baseline_source,
                 result.judge_verdict, result.judge_score, result.judge_reasoning,
                 result.trajectory_domain_of_validity,
                 source_hash if has_judge else None,
@@ -246,6 +254,7 @@ def upsert_session(
                 real_tokens = ?, scope_status = ?, baseline_available = ?,
                 p25 = ?, p75 = ?, median = ?, band_verdict = ?,
                 interpretation = ?, token_domain_of_validity = ?,
+                baseline_source = ?,
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
@@ -258,6 +267,7 @@ def upsert_session(
                 result.real_tokens, result.scope_status, int(result.baseline_available),
                 result.p25, result.p75, result.median, result.band_verdict,
                 result.interpretation, result.token_domain_of_validity,
+                result.baseline_source,
                 result.judge_verdict, result.judge_score, result.judge_reasoning,
                 result.trajectory_domain_of_validity, source_hash,
                 result.waste_event_count, json.dumps(result.waste_events),
@@ -278,6 +288,7 @@ def upsert_session(
                 real_tokens = ?, scope_status = ?, baseline_available = ?,
                 p25 = ?, p75 = ?, median = ?, band_verdict = ?,
                 interpretation = ?, token_domain_of_validity = ?,
+                baseline_source = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?
             WHERE session_id = ?
@@ -288,6 +299,7 @@ def upsert_session(
                 result.real_tokens, result.scope_status, int(result.baseline_available),
                 result.p25, result.p75, result.median, result.band_verdict,
                 result.interpretation, result.token_domain_of_validity,
+                result.baseline_source,
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
@@ -306,6 +318,7 @@ def upsert_session(
                 real_tokens = ?, scope_status = ?, baseline_available = ?,
                 p25 = ?, p75 = ?, median = ?, band_verdict = ?,
                 interpretation = ?, token_domain_of_validity = ?,
+                baseline_source = ?,
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
@@ -318,6 +331,7 @@ def upsert_session(
                 result.real_tokens, result.scope_status, int(result.baseline_available),
                 result.p25, result.p75, result.median, result.band_verdict,
                 result.interpretation, result.token_domain_of_validity,
+                result.baseline_source,
                 None, None, None,
                 result.trajectory_domain_of_validity, None,
                 result.waste_event_count, json.dumps(result.waste_events),
