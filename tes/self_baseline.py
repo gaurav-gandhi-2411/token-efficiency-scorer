@@ -107,7 +107,8 @@ def _compute_scope_floor(
     data to derive a reliable user-specific p10).
     """
     rows = conn.execute(
-        "SELECT turn_count FROM sessions WHERE task_type = ? AND turn_count > 0",
+        "SELECT turn_count FROM sessions "
+        "WHERE task_type = ? AND turn_count > 0 AND real_tokens > 0",
         (task_type,),
     ).fetchall()
     counts = sorted(int(r[0]) for r in rows)

@@ -535,3 +535,53 @@ def test_band_stability_guard(tmp_path: Path) -> None:
     )
     assert bl.p25 is None
     assert "too wide" in bl.domain_of_validity or "tighten" in bl.domain_of_validity
+
+
+# ---------------------------------------------------------------------------
+# Test 13: zero-token stubs excluded from scope-floor p10 computation
+# ---------------------------------------------------------------------------
+
+
+def test_zero_token_stubs_excluded_from_scope_floor_p10(tmp_path: Path) -> None:
+    """Zero-token stubs (turn_count > 0 but real_tokens = 0) must NOT drag down the
+    scope-floor p10.
+
+    Scenario: 10 zero-token stubs with turn_counts 1-10, plus 20 substantive sessions
+    with turn_counts 60-79.  Without the real_tokens > 0 filter the p10 of the combined
+    set (n=30) would be ~3, clamped to MIN_MEANINGFUL_TURNS=20 by the guard — the guard
+    fires for the wrong reason.  With the filter the stubs are excluded: p10 of the 20
+    substantive sessions = 62, effective floor = min(62, b2_floor=59) = 59 (b2 cap).
+    """
+    b2_small = {
+        "scope_gates": {"debug-fix": {"p10_turns": 59}},
+        "types": _B2["types"],
+    }
+
+    # 10 zero-token stubs with turn_counts 1-10
+    zero_stubs = [
+        {"real_tokens": 0, "waste_event_count": 0, "turn_count": tc}
+        for tc in range(1, 11)
+    ]
+
+    # 20 substantive sessions with turn_counts 60-79, tokens 200K-600K
+    substantive = [
+        {"real_tokens": 200_000 + i * 20_000, "waste_event_count": 0, "turn_count": 60 + i}
+        for i in range(20)
+    ]
+
+    db_path = _make_test_db(tmp_path, {"debug-fix": zero_stubs + substantive})
+    state = compute_self_baselines(db_path, b2_small)
+    bl = state.by_type["debug-fix"]
+
+    # p10 of substantive turn_counts [60..79] with n=20:
+    # idx = max(0, int(20*0.10)-1) = 1 -> sorted[1] = 61
+    # effective = max(min(61, 59), 20) = 59 (b2 cap)
+    assert bl.scope_floor == 59, (
+        f"Expected scope_floor=59 (b2-capped from substantive p10=61), got {bl.scope_floor}. "
+        "Zero-token stubs may be polluting the p10 computation."
+    )
+    # Guard must NOT have fired (floor should be data-derived, not MIN_MEANINGFUL_TURNS=20)
+    assert bl.scope_floor != MIN_MEANINGFUL_TURNS, (
+        f"scope_floor == MIN_MEANINGFUL_TURNS={MIN_MEANINGFUL_TURNS}: guard fired when it "
+        "should not have — zero-token stubs are still in the p10 computation."
+    )

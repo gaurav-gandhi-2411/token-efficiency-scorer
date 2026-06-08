@@ -28,6 +28,7 @@ def _make_judge_absent_result() -> ThreeAxisResult:
         band_verdict="within_band",
         interpretation="Within the debug-fix band.",
         token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
+        baseline_source="b2_corpus",
         judge_verdict=None,
         judge_score=None,
         judge_reasoning=None,

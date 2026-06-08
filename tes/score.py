@@ -20,9 +20,13 @@ consumers receive the honesty — not bolted on in CLI formatting only (spec dec
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tes.baselines import BUNDLED_BASELINES_PATH, compute_real_tokens, load_baselines
 from tes.classify import classify_session
+
+if TYPE_CHECKING:
+    from tes.self_baseline import SelfBaselineState
 
 # ---------------------------------------------------------------------------
 # Domain-of-validity constants (one per axis, inline in result object)
@@ -122,6 +126,7 @@ class ThreeAxisResult:
     band_verdict: str           # "within_band" | "above_p75" | "below_p25" | "unavailable"
     interpretation: str
     token_domain_of_validity: str
+    baseline_source: str        # "self" | "building" | "corpus" | "b2_corpus"
 
     # --- trajectory axis ---
     judge_verdict: str | None
@@ -275,6 +280,7 @@ def score_session(
     baselines: dict,
     judge_entry: dict | None = None,
     waste_entry: dict | None = None,
+    self_baseline: SelfBaselineState | None = None,
 ) -> ThreeAxisResult:
     """Score a single adapted session record against the three-axis scorer.
 
@@ -293,30 +299,120 @@ def score_session(
     waste_entry:
         Optional pre-computed waste signals dict from pool_waste_signals.jsonl.
         When absent, waste axis shows no detected events.
+    self_baseline:
+        Optional per-user self-baseline state from tes.self_baseline.load_or_compute().
+        When provided the token axis scores against the user's own lean reference
+        (source='self') or shows the cold-start building state.
+        Falls back to the B2 corpus baseline when not provided or when the type is
+        still building and corpus_fallback was not enabled.
 
     Returns
     -------
     ThreeAxisResult
         All three scoring axes with domain-of-validity per axis.
+        baseline_source indicates which reference was used for the token axis.
     """
     impl_result: EfficiencyResult = _score_session_impl(
         record, baselines, judge_entry=judge_entry, waste_entry=waste_entry
     )
 
+    task_type = impl_result.task_type
+    turn_count: int = record.get("turn_count", 0)
+    real_tokens = impl_result.real_tokens
+
+    # Resolve which TypeBaseline to use for the token axis.
+    type_bl = (
+        self_baseline.by_type.get(task_type)
+        if self_baseline is not None
+        else None
+    )
+
+    if type_bl is not None and type_bl.source == "self":
+        # Self-baseline active: score against user's own lean reference.
+        scope_floor = type_bl.scope_floor
+        if turn_count < scope_floor:
+            tok_scope = "out_of_scope"
+            tok_baseline_avail = False
+            tok_p25: int | None = None
+            tok_median: int | None = None
+            tok_p75: int | None = None
+            tok_band = "unavailable"
+            tok_interp = (
+                f"Session scope too small for a token-economy reference "
+                f"({turn_count} turns; {task_type} self-derived floor is {scope_floor} turns). "
+                "Trajectory verdict only."
+            )
+        else:
+            tok_scope = "in_scope"
+            tok_baseline_avail = True
+            tok_p25, tok_median, tok_p75 = type_bl.p25, type_bl.median, type_bl.p75
+            # Non-None for source='self' — TypeBaseline invariant.
+            p25_v = tok_p25 if tok_p25 is not None else 0
+            p75_v = tok_p75 if tok_p75 is not None else 0
+            if real_tokens > p75_v:
+                tok_band = "above_p75"
+                tok_interp = (
+                    f"Session used {real_tokens:,} tokens — above your lean p75 "
+                    f"({p75_v:,}) for {task_type}. "
+                    "Heavier than your typical efficient run. "
+                    "(Relative to YOUR OWN lean waste-free sessions — not an absolute verdict.)"
+                )
+            elif real_tokens < p25_v:
+                tok_band = "below_p25"
+                tok_interp = (
+                    f"Token cost is lean for {task_type} ({real_tokens:,} tokens, "
+                    f"below your lean p25 reference ({p25_v:,})). "
+                    + _lean_judgment(impl_result.judge_verdict)
+                )
+            else:
+                tok_band = "within_band"
+                tok_interp = (
+                    f"Session used {real_tokens:,} tokens — within your lean reference band "
+                    f"[{p25_v:,}–{p75_v:,}] for {task_type}. "
+                    "(Relative to YOUR OWN lean waste-free sessions — not an absolute verdict.)"
+                )
+        tok_dov = type_bl.domain_of_validity
+        tok_source = "self"
+
+    elif type_bl is not None and type_bl.source == "building":
+        # Self-baseline not yet ready: apply self-derived scope floor, band unavailable.
+        scope_floor = type_bl.scope_floor
+        tok_scope = "out_of_scope" if turn_count < scope_floor else "in_scope"
+        tok_baseline_avail = False
+        tok_p25, tok_median, tok_p75 = None, None, None
+        tok_band = "unavailable"
+        tok_interp = (
+            f"Building your {task_type} self-baseline: need {type_bl.sessions_needed} more "
+            "waste-free sessions. Trajectory verdict available in the meantime."
+        )
+        tok_dov = type_bl.domain_of_validity
+        tok_source = "building"
+
+    else:
+        # Corpus fallback (type_bl.source == 'corpus') or no self-baseline → B2 result.
+        tok_scope = impl_result.scope_status
+        tok_baseline_avail = impl_result.baseline_available
+        tok_p25, tok_median, tok_p75 = impl_result.p25, impl_result.median, impl_result.p75
+        tok_band = impl_result.band_verdict
+        tok_interp = impl_result.interpretation
+        tok_dov = TOKEN_DOMAIN_OF_VALIDITY
+        tok_source = type_bl.source if type_bl is not None else "b2_corpus"
+
     return ThreeAxisResult(
         # --- identity ---
         session_id=impl_result.session_id,
-        task_type=impl_result.task_type,
+        task_type=task_type,
         # --- token axis ---
-        real_tokens=impl_result.real_tokens,
-        scope_status=impl_result.scope_status,
-        baseline_available=impl_result.baseline_available,
-        p25=impl_result.p25,
-        p75=impl_result.p75,
-        median=impl_result.median,
-        band_verdict=impl_result.band_verdict,
-        interpretation=impl_result.interpretation,
-        token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
+        real_tokens=real_tokens,
+        scope_status=tok_scope,
+        baseline_available=tok_baseline_avail,
+        p25=tok_p25,
+        p75=tok_p75,
+        median=tok_median,
+        band_verdict=tok_band,
+        interpretation=tok_interp,
+        token_domain_of_validity=tok_dov,
+        baseline_source=tok_source,
         # --- trajectory axis ---
         judge_verdict=impl_result.judge_verdict,
         judge_score=impl_result.judge_score,
