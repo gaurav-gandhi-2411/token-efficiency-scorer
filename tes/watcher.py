@@ -26,6 +26,7 @@ from typing import Any
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.score import ThreeAxisResult, score_session
+from tes.self_baseline import load_or_compute
 from tes.store import file_hash, needs_scoring, open_db, upsert_session
 from tes.waste import build_waste_entry
 
@@ -50,6 +51,7 @@ def score_session_file(
     baselines: dict,
     *,
     use_judge: bool = False,
+    self_baseline=None,
 ) -> ThreeAxisResult | None:
     """Score a single CC session JSONL file. Returns None on any scoring error.
 
@@ -57,9 +59,8 @@ def score_session_file(
       adapt → build_waste_entry → score_session(judge_entry=None unless use_judge).
     Same session → same ThreeAxisResult whether called from the watcher or `tes score`.
 
-    Any exception raised by adapt, build_waste_entry, score_session, or the judge
-    step is caught here, logged, and converted to a None return so the caller can
-    continue processing remaining sessions.
+    self_baseline: pass load_or_compute() result to route through user's own baseline.
+    When None, falls through to B2 corpus (backward-compatible default).
     """
     try:
         record = adapt_session(path)
@@ -75,7 +76,12 @@ def score_session_file(
             from tes.judge import JudgeConfig, score_trajectory  # noqa: PLC0415
             judge_entry = score_trajectory(record, JudgeConfig())
 
-        return score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
+        return score_session(
+            record, baselines,
+            judge_entry=judge_entry,
+            waste_entry=waste_entry,
+            self_baseline=self_baseline,
+        )
     except Exception:
         logger.exception("Failed to score %s — skipping", path.name)
         return None
@@ -86,10 +92,13 @@ def _scan_once(
     conn: Any,
     baselines: dict,
     *,
+    self_baseline=None,
     _now: float | None = None,
 ) -> int:
     """One scan cycle. Returns the count of sessions scored this cycle.
 
+    self_baseline: SelfBaselineState from load_or_compute() — refreshed each cycle
+    by run_watcher() so new sessions influence the reference as they accumulate.
     _now is injectable for testing (avoids sleeping in tests).
     """
     now = _now if _now is not None else time.time()
@@ -123,6 +132,7 @@ def _scan_once(
                 jsonl_path,
                 baselines,
                 use_judge=config.background_judge,
+                self_baseline=self_baseline,
             )
             if result is None:
                 continue
@@ -163,7 +173,10 @@ def run_watcher(
 
     while True:
         try:
-            count = _scan_once(config, conn, baselines)
+            # Refresh self-baseline each cycle so new sessions accumulate into
+            # the reference pool without restarting the watcher.
+            self_bl = load_or_compute(config.db_path, baselines)
+            count = _scan_once(config, conn, baselines, self_baseline=self_bl)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)
         except Exception:
