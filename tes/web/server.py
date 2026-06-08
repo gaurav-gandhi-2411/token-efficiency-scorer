@@ -21,6 +21,13 @@ from tes.store import (
     trajectory_render_state,
 )
 
+# Historical anchor: B2-era scored sessions among content sessions (turn_count > 0).
+# At P4 activation (2026-06-08): 545 total unavailable, 509 zero-turn stubs,
+# 36 content sessions OOS under B2 scope gates → 174/210 content sessions scored (82.9%).
+_B2_ERA_CONTENT_SCORED: int = 174
+_B2_ERA_CONTENT_SCORED_PCT: float = 82.9
+_B2_ERA_CONTENT_TOTAL: int = 210
+
 
 @dataclass
 class ServerConfig:
@@ -31,52 +38,37 @@ class ServerConfig:
 
 
 def _projected_metrics(conn: sqlite3.Connection, self_bl_state) -> dict:
-    """Compute projected scoring rates using self-baseline scope floors.
+    """Compute coverage metrics using content-session denominator.
 
-    Does NOT re-score sessions — computes analytically from stored turn_counts
-    and the current self-baseline state.  Used for the headline metric.
+    Does NOT re-score sessions — computes from stored turn_counts and band_verdicts.
+    Splits sessions into content (turn_count > 0) vs empty stubs (turn_count = 0/NULL).
+    Empty stubs are never scorable by anything — they're excluded from the coverage %.
     """
     total: int = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
-    old_unavailable: int = conn.execute(
-        "SELECT COUNT(*) FROM sessions WHERE band_verdict = 'unavailable'"
+    content_sessions: int = conn.execute(
+        "SELECT COUNT(*) FROM sessions WHERE turn_count > 0"
+    ).fetchone()[0]
+    empty_stubs: int = total - content_sessions
+    content_self_scored: int = conn.execute(
+        "SELECT COUNT(*) FROM sessions WHERE turn_count > 0 AND band_verdict != 'unavailable'"
     ).fetchone()[0]
 
-    projected_self = 0
-    projected_building = 0
-    projected_oos = 0
-
-    for task_type, type_bl in self_bl_state.by_type.items():
-        sf = type_bl.scope_floor
-        in_scope: int = conn.execute(
-            "SELECT COUNT(*) FROM sessions WHERE task_type = ? AND turn_count >= ?",
-            (task_type, sf),
-        ).fetchone()[0]
-        oos: int = conn.execute(
-            "SELECT COUNT(*) FROM sessions "
-            "WHERE task_type = ? AND (turn_count < ? OR turn_count IS NULL)",
-            (task_type, sf),
-        ).fetchone()[0]
-        if type_bl.source == "self":
-            projected_self += in_scope
-        else:
-            projected_building += in_scope
-        projected_oos += oos
-
-    def pct(n: int) -> float:
+    def pct_of_total(n: int) -> float:
         return round(n / max(1, total) * 100, 1)
+
+    def pct_of_content(n: int) -> float:
+        return round(n / max(1, content_sessions) * 100, 1)
 
     return {
         "total": total,
-        "old_unavailable": old_unavailable,
-        "old_unavailable_pct": pct(old_unavailable),
-        "projected_self": projected_self,
-        "projected_self_pct": pct(projected_self),
-        "projected_building": projected_building,
-        "projected_building_pct": pct(projected_building),
-        "projected_oos": projected_oos,
-        "projected_oos_pct": pct(projected_oos),
-        "projected_unavailable": total - projected_self,
-        "projected_unavailable_pct": pct(total - projected_self),
+        "content_sessions": content_sessions,
+        "empty_stubs": empty_stubs,
+        "empty_stubs_pct": pct_of_total(empty_stubs),
+        "content_self_scored": content_self_scored,
+        "content_self_pct": pct_of_content(content_self_scored),
+        "b2_content_scored": _B2_ERA_CONTENT_SCORED,
+        "b2_content_scored_pct": _B2_ERA_CONTENT_SCORED_PCT,
+        "b2_content_total": _B2_ERA_CONTENT_TOTAL,
     }
 
 
