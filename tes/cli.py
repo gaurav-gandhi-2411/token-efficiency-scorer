@@ -16,13 +16,18 @@ import json
 import sys
 from pathlib import Path
 
+from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.judge import JudgeConfig, score_trajectory
 from tes.report import format_human, format_json
 from tes.score import score_session
 from tes.waste import build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
 from tes import __version__
+
+# Load price table once at import time — prices don't change between sessions in a run.
+_PRICES: dict = load_price_table()
 
 
 def _discover_sessions(path: Path) -> list[Path]:
@@ -60,14 +65,52 @@ def score_path(
     if use_judge:
         judge_entry = score_trajectory(record, judge_config)
 
+    # Cost annotation: compute from measured tokens at per-turn rates.
+    session_cost: SessionCost | None = None
+    digest_dict = record.get("digest", {})
+    if digest_dict and digest_dict.get("turns"):
+        try:
+            digest = reconstruct_digest(digest_dict)
+            session_cost = compute_session_cost(digest, _PRICES)
+        except Exception:
+            pass  # cost failure must never break CLI output
+
     result = score_session(
-        record, baselines, judge_entry=judge_entry, waste_entry=waste_entry
+        record, baselines,
+        judge_entry=judge_entry,
+        waste_entry=waste_entry,
+        session_cost=session_cost,
     )
+
+    # Cost vs baseline framing: look up from the store if available.
+    baseline_cost_band: tuple[float, float, float] | None = None
+    if store_conn is not None and session_cost is not None:
+        try:
+            import sqlite3 as _sqlite3  # noqa: PLC0415
+            from tes.self_baseline import compute_baseline_cost_band  # noqa: PLC0415
+            task_type = result.task_type
+            # Derive scope_floor from DB: use p10 of turn_counts as a rough floor (min 20).
+            tc_rows = store_conn.execute(  # type: ignore[union-attr]
+                "SELECT turn_count FROM sessions "
+                "WHERE task_type = ? AND turn_count > 0 ORDER BY turn_count",
+                (task_type,),
+            ).fetchall()
+            if tc_rows:
+                counts = [r[0] for r in tc_rows]
+                p10_idx = max(0, int(len(counts) * 0.10) - 1)
+                scope_floor = max(20, counts[p10_idx])
+            else:
+                scope_floor = 20
+            baseline_cost_band = compute_baseline_cost_band(
+                store_conn, task_type, scope_floor  # type: ignore[arg-type]
+            )
+        except Exception:
+            pass  # baseline band lookup failure is non-fatal
 
     if json_mode:
         print(format_json(result))
     else:
-        print(format_human(result))
+        print(format_human(result, baseline_cost_band=baseline_cost_band))
 
     if store_conn is not None:
         try:
