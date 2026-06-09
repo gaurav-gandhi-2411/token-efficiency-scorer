@@ -131,4 +131,54 @@
 {% endif %}
 <div class="caveat">{{ session.waste_domain_of_validity }}</div>
 
+{# ---- COST ANNOTATION ---- #}
+<h2>Cost Annotation</h2>
+<p style="font-size:0.85em;color:#555;margin-top:-0.4rem;">
+  Cost is not a score. It annotates the token axis at API-equivalent rates.
+  Flat-plan users: marginal cost differs; token consumption is the honest metric.
+</p>
+
+{% if session.get("session_cost_usd") is not none %}
+<table>
+  <tr>
+    <th>Session Cost</th>
+    <td>
+      <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
+      {% if session.get("cost_approximate") %}
+        <span class="cost-approx">[~] APPROXIMATE</span>
+      {% endif %}
+    </td>
+  </tr>
+  {% if cost_vs_baseline_pct is not none %}
+  <tr>
+    <th>vs Your Baseline</th>
+    <td>
+      {% if cost_vs_baseline_pct >= 0 %}
+        <span class="cost-above">+{{ cost_vs_baseline_pct }}% above your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+      {% else %}
+        <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+      {% endif %}
+    </td>
+  </tr>
+  {% else %}
+  <tr>
+    <th>vs Your Baseline</th>
+    <td class="tag-unavailable">No baseline cost comparison yet (need more waste-free sessions with cost data)</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <th>Price Provenance</th>
+    <td style="font-size:0.85em;color:#555;">{{ price_provenance }}</td>
+  </tr>
+</table>
+{% if session.get("cost_domain_of_validity") %}
+<details style="margin-top:0.5rem;">
+  <summary style="cursor:pointer;font-size:0.85em;color:#555;">Domain of validity (click to expand)</summary>
+  <div class="caveat">{{ session.cost_domain_of_validity }}</div>
+</details>
+{% endif %}
+{% else %}
+<p class="tag-unavailable">Cost not computed for this session (run <code>backfill_cost()</code> or re-score).</p>
+{% endif %}
+
 {% endblock %}
