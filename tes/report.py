@@ -12,6 +12,7 @@ import textwrap
 from typing import Any
 
 from tes.score import ThreeAxisResult
+from tes.web.cost_format import format_cost_usd, format_cost_vs_baseline, format_price_provenance
 
 _WIDTH = 76
 _BORDER = "═" * _WIDTH
@@ -43,7 +44,20 @@ def _format_turns(turns: list[int]) -> str:
     return ", ".join(pairs) if pairs else str(turns)
 
 
-def format_human(result: ThreeAxisResult) -> str:
+def format_human(
+    result: ThreeAxisResult,
+    baseline_cost_band: tuple[float, float, float] | None = None,
+) -> str:
+    """Format a ThreeAxisResult as a human-readable multi-section report.
+
+    Parameters
+    ----------
+    result:
+        The scored session result.
+    baseline_cost_band:
+        Optional (p25_usd, median_usd, p75_usd) for relative cost framing.
+        When None the cost section shows the dollar amount with a dashboard note.
+    """
     lines: list[str] = []
 
     # Header
@@ -112,6 +126,40 @@ def format_human(result: ThreeAxisResult) -> str:
                 lines.append(f"      Evidence: {snip!r}")
     lines.append("")
     lines.append(_wrap(result.waste_domain_of_validity))
+
+    # ── COST ANNOTATION ──
+    # Cost is an annotation on the token axis. Not a score. Not a composite.
+    lines.append(_section_divider("COST ANNOTATION"))
+    if result.session_cost_usd is None:
+        lines.append("  Cost: not computed (run backfill_cost() or re-score the session)")
+    else:
+        # Load prices for provenance line — lazy import to avoid circular at module level.
+        try:
+            from tes.cost import load_price_table  # noqa: PLC0415
+            _prices = load_price_table()
+            provenance_line = format_price_provenance(_prices)
+        except Exception:
+            provenance_line = "Prices: see ~/.tes/prices.json or bundled tes/data/prices.json"
+
+        cost_str = format_cost_usd(result.session_cost_usd)
+        vs_str = format_cost_vs_baseline(result.session_cost_usd, baseline_cost_band)
+
+        if baseline_cost_band is not None:
+            lines.append(f"  Cost:  {cost_str}  ({vs_str})")
+        else:
+            lines.append(f"  Cost:  {cost_str}  (no baseline cost comparison yet)")
+        lines.append(f"         {provenance_line}")
+        if result.cost_approximate:
+            lines.append(
+                "         [APPROXIMATE: some turns priced at default rate — "
+                "see cost_domain_of_validity]"
+            )
+
+    lines.append("")
+    lines.append(_wrap(
+        "Cost is not a score. It annotates the token axis at API-equivalent rates. "
+        "Flat-plan users: marginal cost differs; token consumption is the honest metric."
+    ))
     lines.append(_BORDER)
 
     return "\n".join(lines)
