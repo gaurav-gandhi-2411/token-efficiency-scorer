@@ -26,6 +26,7 @@ from tes.baselines import BUNDLED_BASELINES_PATH, compute_real_tokens, load_base
 from tes.classify import classify_session
 
 if TYPE_CHECKING:
+    from tes.cost import SessionCost
     from tes.self_baseline import SelfBaselineState
 
 # ---------------------------------------------------------------------------
@@ -138,6 +139,11 @@ class ThreeAxisResult:
     waste_event_count: int
     waste_events: list[dict]
     waste_domain_of_validity: str
+
+    # --- cost annotation (P5: annotation on token axis, not a score, not a composite) ---
+    session_cost_usd: float | None = None
+    cost_approximate: bool = False
+    cost_domain_of_validity: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +287,8 @@ def score_session(
     judge_entry: dict | None = None,
     waste_entry: dict | None = None,
     self_baseline: SelfBaselineState | None = None,
+    session_cost: SessionCost | None = None,
+    baseline_cost_band: tuple[float, float, float] | None = None,
 ) -> ThreeAxisResult:
     """Score a single adapted session record against the three-axis scorer.
 
@@ -305,6 +313,13 @@ def score_session(
         (source='self') or shows the cold-start building state.
         Falls back to the B2 corpus baseline when not provided or when the type is
         still building and corpus_fallback was not enabled.
+    session_cost:
+        Optional pre-computed session cost from tes.cost.compute_session_cost.
+        When provided, session_cost_usd and cost_approximate are populated on the result.
+        Cost is an annotation only — not a score, not part of a composite.
+    baseline_cost_band:
+        Optional (p25_usd, median_usd, p75_usd) from self_baseline.compute_baseline_cost_band.
+        Stored for downstream framing; not used in scoring.
 
     Returns
     -------
@@ -398,6 +413,10 @@ def score_session(
         tok_dov = TOKEN_DOMAIN_OF_VALIDITY
         tok_source = type_bl.source if type_bl is not None else "b2_corpus"
 
+    cost_usd = session_cost.total_usd if session_cost else None
+    cost_approx = session_cost.approximate if session_cost else False
+    cost_dov = session_cost.domain_of_validity if session_cost else ""
+
     return ThreeAxisResult(
         # --- identity ---
         session_id=impl_result.session_id,
@@ -422,6 +441,10 @@ def score_session(
         waste_event_count=impl_result.waste_event_count,
         waste_events=impl_result.waste_events,
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
+        # --- cost annotation ---
+        session_cost_usd=cost_usd,
+        cost_approximate=cost_approx,
+        cost_domain_of_validity=cost_dov,
     )
 
 

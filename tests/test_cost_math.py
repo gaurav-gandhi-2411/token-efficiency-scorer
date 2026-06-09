@@ -9,7 +9,7 @@ prices.json. All float comparisons use pytest.approx(rel=1e-9).
 import pytest
 
 from tes._digest import SessionDigest, TurnDigest
-from tes.cost import compute_session_cost, compute_turn_cost
+from tes.cost import compute_session_cost, compute_turn_cost, load_price_table, _resolve_model
 
 PRICES: dict = {
     "as_of": "2026-06-09",
@@ -222,3 +222,31 @@ def test_fresh_tokens_clamped_to_zero() -> None:
     assert tc.cache_creation_cost == pytest.approx(0.00011250, rel=1e-9)
     assert tc.output_cost == pytest.approx(0.00015, rel=1e-9)
     assert tc.total_usd == pytest.approx(0.00028650, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — Legacy model: claude-3-5-haiku-20241022 resolves to $0.80/$4
+# ---------------------------------------------------------------------------
+
+def test_legacy_haiku_3_5_resolves_correctly() -> None:
+    bundled = load_price_table()
+    resolved_key, is_approx, reason = _resolve_model("claude-3-5-haiku-20241022", bundled)
+    assert resolved_key == "claude-3-5-haiku"
+    assert is_approx is False
+    assert reason == ""
+    assert bundled["models"]["claude-3-5-haiku"]["input_usd_per_mtok"] == pytest.approx(0.80, rel=1e-9)
+    assert bundled["models"]["claude-3-5-haiku"]["output_usd_per_mtok"] == pytest.approx(4.0, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Test 9 — Legacy model: claude-opus-4-1 resolves to $15/$75
+# ---------------------------------------------------------------------------
+
+def test_legacy_opus_4_1_resolves_correctly() -> None:
+    bundled = load_price_table()
+    resolved_key, is_approx, reason = _resolve_model("claude-opus-4-1", bundled)
+    assert resolved_key == "claude-opus-4-1"
+    assert is_approx is False
+    assert reason == ""
+    assert bundled["models"]["claude-opus-4-1"]["input_usd_per_mtok"] == pytest.approx(15.0, rel=1e-9)
+    assert bundled["models"]["claude-opus-4-1"]["output_usd_per_mtok"] == pytest.approx(75.0, rel=1e-9)

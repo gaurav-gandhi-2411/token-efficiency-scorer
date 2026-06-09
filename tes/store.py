@@ -144,6 +144,16 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         )
         conn.commit()
 
+    cost_cols = {
+        "session_cost_usd": "ALTER TABLE sessions ADD COLUMN session_cost_usd REAL",
+        "cost_approximate": "ALTER TABLE sessions ADD COLUMN cost_approximate INTEGER",
+        "cost_domain_of_validity": "ALTER TABLE sessions ADD COLUMN cost_domain_of_validity TEXT",
+    }
+    for col_name, alter_sql in cost_cols.items():
+        if col_name not in existing_cols:
+            conn.execute(alter_sql)
+            conn.commit()
+
     return conn
 
 
@@ -214,7 +224,8 @@ def upsert_session(
                 judge_verdict, judge_score, judge_reasoning,
                 trajectory_domain_of_validity, judge_source_hash,
                 waste_event_count, waste_events, waste_domain_of_validity,
-                turn_count
+                turn_count,
+                session_cost_usd, cost_approximate, cost_domain_of_validity
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -224,7 +235,8 @@ def upsert_session(
                 ?, ?, ?,
                 ?, ?,
                 ?, ?, ?,
-                ?
+                ?,
+                ?, ?, ?
             )
             """,
             (
@@ -240,6 +252,8 @@ def upsert_session(
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
+                result.session_cost_usd, int(result.cost_approximate),
+                result.cost_domain_of_validity or "",
             ),
         )
 
@@ -258,7 +272,8 @@ def upsert_session(
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
-                turn_count = ?
+                turn_count = ?,
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
             WHERE session_id = ?
             """,
             (
@@ -273,6 +288,8 @@ def upsert_session(
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
+                result.session_cost_usd, int(result.cost_approximate),
+                result.cost_domain_of_validity or "",
                 result.session_id,
             ),
         )
@@ -290,7 +307,8 @@ def upsert_session(
                 interpretation = ?, token_domain_of_validity = ?,
                 baseline_source = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
-                turn_count = ?
+                turn_count = ?,
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
             WHERE session_id = ?
             """,
             (
@@ -303,6 +321,8 @@ def upsert_session(
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
+                result.session_cost_usd, int(result.cost_approximate),
+                result.cost_domain_of_validity or "",
                 result.session_id,
             ),
         )
@@ -322,7 +342,8 @@ def upsert_session(
                 judge_verdict = ?, judge_score = ?, judge_reasoning = ?,
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
-                turn_count = ?
+                turn_count = ?,
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
             WHERE session_id = ?
             """,
             (
@@ -337,6 +358,8 @@ def upsert_session(
                 result.waste_event_count, json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
+                result.session_cost_usd, int(result.cost_approximate),
+                result.cost_domain_of_validity or "",
                 result.session_id,
             ),
         )
@@ -423,6 +446,62 @@ def backfill_turn_counts(db_path: Path | str | None = None) -> dict[str, int]:
     return {"updated": updated, "missing_source": missing, "errors": errors}
 
 
+def backfill_cost(
+    db_path: Path | str | None = None,
+    prices: dict | None = None,
+) -> dict[str, int]:
+    """Populate session_cost_usd for sessions currently missing it.
+
+    Re-adapts from source JSONL (not stored digest) so model strings and
+    cache_creation tokens are available. Returns summary dict:
+      {"updated": N, "missing_source": M, "errors": E, "approximate": A}
+    """
+    from tes.adapt import adapt_session
+    from tes.cost import compute_session_cost, load_price_table
+    from tes._digest import reconstruct_digest
+
+    if prices is None:
+        prices = load_price_table()
+
+    conn = open_db(db_path)
+    rows = conn.execute(
+        "SELECT session_id, source_path FROM sessions "
+        "WHERE session_cost_usd IS NULL AND source_path IS NOT NULL"
+    ).fetchall()
+
+    updated = missing = errors = approximate = 0
+
+    for session_id, source_path in rows:
+        p = Path(source_path)
+        if not p.exists():
+            missing += 1
+            continue
+        try:
+            record = adapt_session(p)
+            digest = reconstruct_digest(record["digest"])
+            session_cost = compute_session_cost(digest, prices)
+            conn.execute(
+                "UPDATE sessions SET "
+                "  session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ? "
+                "WHERE session_id = ?",
+                (
+                    session_cost.total_usd,
+                    int(session_cost.approximate),
+                    session_cost.domain_of_validity,
+                    session_id,
+                ),
+            )
+            conn.commit()
+            updated += 1
+            if session_cost.approximate:
+                approximate += 1
+        except Exception:
+            errors += 1
+
+    conn.close()
+    return {"updated": updated, "missing_source": missing, "errors": errors, "approximate": approximate}
+
+
 def _deserialize_row(row: sqlite3.Row) -> dict:
     """Convert a sqlite3.Row to a plain dict with JSON fields decoded."""
     d = dict(row)
@@ -434,6 +513,7 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
         and d["judge_source_hash"]
         and d["judge_source_hash"] != d["source_hash"]
     )
+    d["cost_approximate"] = bool(d.get("cost_approximate", 0))
     return d
 
 
@@ -469,6 +549,7 @@ __all__ = [
     "needs_scoring",
     "upsert_session",
     "backfill_turn_counts",
+    "backfill_cost",
     "get_session",
     "list_sessions",
 ]
