@@ -32,6 +32,7 @@
       <th>Baseline</th>
       <th>Trajectory</th>
       <th>Waste Events</th>
+      <th>Cost <span style="font-weight:normal;font-size:0.82em;color:#888;">(annotation)</span></th>
     </tr>
   </thead>
   <tbody>
@@ -73,10 +74,33 @@
         {% endif %}
       </td>
       <td>{{ session.waste_event_count }}</td>
+      <td>
+        {% if session.get("session_cost_usd") is not none %}
+          <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
+          {% if session.get("cost_approximate") %}
+            <span class="cost-approx" title="Some turns priced at default model rate">[~]</span>
+          {% endif %}
+          {% if session.get("cost_vs_baseline_pct") is not none %}
+            {% set pct = session.cost_vs_baseline_pct %}
+            {% if pct >= 0 %}
+              <span class="cost-above">(+{{ pct }}% vs baseline)</span>
+            {% else %}
+              <span class="cost-below">({{ pct }}% vs baseline)</span>
+            {% endif %}
+          {% else %}
+            <span class="cost-no-baseline">(no baseline yet)</span>
+          {% endif %}
+        {% else %}
+          <span class="tag-unavailable">—</span>
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% if price_provenance %}
+<p class="cost-provenance">{{ price_provenance }} &middot; Cost annotates the token axis — not a score.</p>
+{% endif %}
 {% else %}
 <p class="empty">No sessions scored yet. Run <code>tes score &lt;path&gt;</code> to score a session.</p>
 {% endif %}

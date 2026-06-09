@@ -12,7 +12,8 @@ from pathlib import Path
 from flask import Flask, abort, g, render_template
 
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.self_baseline import load_or_compute
+from tes.cost import load_price_table
+from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import (
     TrajectoryRenderState,
     get_session,
@@ -20,6 +21,7 @@ from tes.store import (
     open_db,
     trajectory_render_state,
 )
+from tes.web.cost_format import format_cost_usd, format_cost_pct_vs_baseline, format_price_provenance
 
 # Historical anchor: B2-era scored sessions among content sessions (turn_count > 0).
 # At P4 activation (2026-06-08): 545 total unavailable, 509 zero-turn stubs,
@@ -107,6 +109,9 @@ def create_app(config: ServerConfig) -> Flask:
 
     baselines_path = config.cc_baselines_path or BUNDLED_BASELINES_PATH
     _b2 = load_baselines(baselines_path)
+    # Load price table once at app startup — prices don't change between requests.
+    _prices = load_price_table()
+    _price_provenance = format_price_provenance(_prices)
 
     # -----------------------------------------------------------------------
     # Database connection helpers
@@ -136,7 +141,6 @@ def create_app(config: ServerConfig) -> Flask:
     def session_list() -> str:
         conn = get_db()
         sessions = list_sessions(conn, limit=100)
-        pairs = [(s, trajectory_render_state(s)) for s in sessions]
 
         total_scored = len(sessions)
         task_type_counts: dict[str, int] = {}
@@ -147,6 +151,28 @@ def create_app(config: ServerConfig) -> Flask:
         self_bl = get_self_bl()
         headline = _projected_metrics(conn, self_bl) if self_bl is not None else None
 
+        # Annotate each session dict with cost-vs-baseline framing.
+        # Compute cost bands per task type (one DB query per unique type).
+        cost_bands: dict[str, tuple[float, float, float] | None] = {}
+        for s in sessions:
+            tt = s["task_type"]
+            if tt not in cost_bands:
+                type_bl = self_bl.by_type.get(tt) if self_bl is not None else None
+                scope_floor = type_bl.scope_floor if type_bl is not None else 20
+                cost_bands[tt] = compute_baseline_cost_band(conn, tt, scope_floor)
+
+            band = cost_bands.get(tt)
+            cost_usd = s.get("session_cost_usd")
+            if band is not None and cost_usd is not None:
+                pct = format_cost_pct_vs_baseline(float(cost_usd), band)
+                s["cost_vs_baseline_pct"] = pct
+                s["baseline_cost_median"] = band[1]
+            else:
+                s["cost_vs_baseline_pct"] = None
+                s["baseline_cost_median"] = None
+
+        pairs = [(s, trajectory_render_state(s)) for s in sessions]
+
         return render_template(
             "session_list.html",
             pairs=pairs,
@@ -154,6 +180,7 @@ def create_app(config: ServerConfig) -> Flask:
             task_type_counts=task_type_counts,
             headline=headline,
             TrajectoryRenderState=TrajectoryRenderState,
+            price_provenance=_price_provenance,
         )
 
     @app.route("/session/<session_id>")
@@ -163,11 +190,32 @@ def create_app(config: ServerConfig) -> Flask:
         if session is None:
             abort(404)
         traj_state = trajectory_render_state(session)
+
+        # Compute cost band for this session's task type.
+        self_bl = get_self_bl()
+        task_type = session.get("task_type", "")
+        type_bl = self_bl.by_type.get(task_type) if self_bl is not None else None
+        scope_floor = type_bl.scope_floor if type_bl is not None else 20
+        cost_band = compute_baseline_cost_band(conn, task_type, scope_floor)
+
+        cost_usd = session.get("session_cost_usd")
+        if cost_band is not None and cost_usd is not None:
+            pct = format_cost_pct_vs_baseline(float(cost_usd), cost_band)
+            cost_vs_baseline_pct = pct
+            baseline_cost_median = cost_band[1]
+        else:
+            cost_vs_baseline_pct = None
+            baseline_cost_median = None
+
         return render_template(
             "session_detail.html",
             session=session,
             traj_state=traj_state,
             TrajectoryRenderState=TrajectoryRenderState,
+            price_provenance=_price_provenance,
+            cost_band=cost_band,
+            cost_vs_baseline_pct=cost_vs_baseline_pct,
+            baseline_cost_median=baseline_cost_median,
         )
 
     @app.route("/trends")
