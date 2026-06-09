@@ -93,6 +93,60 @@ def _build_domain_of_validity(
     return TOKEN_DOMAIN_OF_VALIDITY
 
 
+def compute_baseline_cost_band(
+    conn: sqlite3.Connection,
+    task_type: str,
+    scope_floor: int,
+    outlier_cap_pct: float = 0.90,
+    lean_fraction: float = 0.50,
+    min_lean_n: int = 8,
+) -> tuple[float, float, float] | None:
+    """Return (p25_usd, median_usd, p75_usd) for the lean token-subset sessions that also have cost data.
+
+    Uses the same lean-subset selection as compute_self_baselines (sorted by real_tokens,
+    p90 outlier cap, lower half), but returns cost quartiles instead of token quartiles.
+    Returns None if fewer than min_lean_n sessions have both session_cost_usd populated
+    and real_tokens > 0.
+    """
+    rows = conn.execute(
+        "SELECT real_tokens, session_cost_usd FROM sessions "
+        "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0 "
+        "  AND session_cost_usd IS NOT NULL "
+        "  AND ("
+        "    (turn_count IS NOT NULL AND turn_count >= ?)"
+        "    OR (turn_count IS NULL AND scope_status = 'in_scope')"
+        "  )",
+        (task_type, scope_floor),
+    ).fetchall()
+
+    if not rows:
+        return None
+
+    pairs = sorted((int(r[0]), float(r[1])) for r in rows)
+    tokens_sorted = [p[0] for p in pairs]
+
+    cap_value = _percentile(tokens_sorted, outlier_cap_pct)
+    pairs_capped = [(t, c) for t, c in pairs if t <= cap_value]
+
+    if not pairs_capped:
+        return None
+
+    tokens_capped = [p[0] for p in pairs_capped]
+    lean_cutoff = statistics.median(tokens_capped)
+    lean_costs = [c for t, c in pairs_capped if t <= lean_cutoff]
+
+    if len(lean_costs) < min_lean_n:
+        return None
+
+    lean_costs_sorted = sorted(lean_costs)
+    n = len(lean_costs_sorted)
+    p25_c = lean_costs_sorted[max(0, int(n * 0.25) - 1)]
+    median_c = statistics.median(lean_costs_sorted)
+    p75_c = lean_costs_sorted[min(int(n * 0.75), n - 1)]
+
+    return float(p25_c), float(median_c), float(p75_c)
+
+
 def _compute_scope_floor(
     conn: sqlite3.Connection,
     task_type: str,
@@ -406,6 +460,7 @@ __all__ = [
     "MIN_MEANINGFUL_TURNS",
     "TypeBaseline",
     "SelfBaselineState",
+    "compute_baseline_cost_band",
     "compute_self_baselines",
     "load_or_compute",
 ]
