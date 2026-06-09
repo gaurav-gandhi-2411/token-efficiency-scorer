@@ -23,10 +23,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.score import ThreeAxisResult, score_session
-from tes.self_baseline import load_or_compute
+from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import file_hash, needs_scoring, open_db, upsert_session
 from tes.waste import build_waste_entry
 
@@ -52,6 +54,7 @@ def score_session_file(
     *,
     use_judge: bool = False,
     self_baseline=None,
+    prices: dict | None = None,
 ) -> ThreeAxisResult | None:
     """Score a single CC session JSONL file. Returns None on any scoring error.
 
@@ -61,6 +64,8 @@ def score_session_file(
 
     self_baseline: pass load_or_compute() result to route through user's own baseline.
     When None, falls through to B2 corpus (backward-compatible default).
+    prices: pre-loaded price table from load_price_table(). Loaded once at startup
+    and passed per-session — never reloaded inside this function.
     """
     try:
         record = adapt_session(path)
@@ -76,11 +81,23 @@ def score_session_file(
             from tes.judge import JudgeConfig, score_trajectory  # noqa: PLC0415
             judge_entry = score_trajectory(record, JudgeConfig())
 
+        # Cost annotation: compute from measured tokens at per-turn rates.
+        # Price table is passed in (loaded once at startup by run_watcher).
+        session_cost: SessionCost | None = None
+        try:
+            digest_dict = record.get("digest", {})
+            if digest_dict and digest_dict.get("turns"):
+                digest = reconstruct_digest(digest_dict)
+                session_cost = compute_session_cost(digest, prices)
+        except Exception:
+            logger.debug("Cost annotation failed for %s — continuing without cost", path.name)
+
         return score_session(
             record, baselines,
             judge_entry=judge_entry,
             waste_entry=waste_entry,
             self_baseline=self_baseline,
+            session_cost=session_cost,
         )
     except Exception:
         logger.exception("Failed to score %s — skipping", path.name)
@@ -93,12 +110,14 @@ def _scan_once(
     baselines: dict,
     *,
     self_baseline=None,
+    prices: dict | None = None,
     _now: float | None = None,
 ) -> int:
     """One scan cycle. Returns the count of sessions scored this cycle.
 
     self_baseline: SelfBaselineState from load_or_compute() — refreshed each cycle
     by run_watcher() so new sessions influence the reference as they accumulate.
+    prices: pre-loaded price table passed in by run_watcher (loaded once at startup).
     _now is injectable for testing (avoids sleeping in tests).
     """
     now = _now if _now is not None else time.time()
@@ -133,6 +152,7 @@ def _scan_once(
                 baselines,
                 use_judge=config.background_judge,
                 self_baseline=self_baseline,
+                prices=prices,
             )
             if result is None:
                 continue
@@ -162,6 +182,8 @@ def run_watcher(
     Stops cleanly when stop_event is set (or runs forever if None).
     """
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    # Load price table once at startup — prices don't change between sessions.
+    prices = load_price_table()
     conn = open_db(config.db_path)
     logger.info(
         "Watcher started: cc_path=%s  interval=%ds  stability=%ds  judge=%s",
@@ -176,7 +198,7 @@ def run_watcher(
             # Refresh self-baseline each cycle so new sessions accumulate into
             # the reference pool without restarting the watcher.
             self_bl = load_or_compute(config.db_path, baselines)
-            count = _scan_once(config, conn, baselines, self_baseline=self_bl)
+            count = _scan_once(config, conn, baselines, self_baseline=self_bl, prices=prices)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)
         except Exception:
