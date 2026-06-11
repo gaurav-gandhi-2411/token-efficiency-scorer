@@ -1,6 +1,6 @@
 # tracegauge
 
-Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Runs entirely on your machine. Nothing leaves.
+Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Runs entirely on your machine. No server, nothing transmitted — ever. An optional command exports a redacted local file you inspect and control.
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
@@ -45,7 +45,9 @@ Read this before installing. These are not caveats to hide — they're the hones
 
 **What waste detection covers.** The two waste detectors catch observable-invariant patterns only: exact-match retry loops with no state change, and redundant file reads where the content was unchanged. Judgment-of-progress waste (was this cycle productive? was this approach the right one?) is not covered — that requires human labeling and is out of scope.
 
-**The moat is the product.** All scoring is local. Your session logs never leave your machine. No telemetry, no phone-home, no external network calls (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration.
+**Local by default.** All scoring is local. No telemetry, no phone-home, no external network calls (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration.
+
+**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. Nothing is transmitted anywhere — tracegauge has no server. The file is yours; the tool never reads it back or uploads it. See [PRIVACY.md](PRIVACY.md) for the complete field list and schema.
 
 ---
 
@@ -99,7 +101,7 @@ tes serve [--port PORT] [--scan-interval SECONDS] [--stability-window SECONDS] \
 - **Store**: SQLite at `~/.tes/tes.db` (WAL mode; watcher writes and dashboard reads concurrently without locks).
 - **Manual scores share the dashboard**: `tes score <path>` results also write to the store.
 
-Moat properties: binds `127.0.0.1` only (never exposed to external interfaces), no data leaves the machine, redaction on by default at ingestion.
+Moat properties: binds `127.0.0.1` only (never exposed to external interfaces), redaction on by default at ingestion, no external network calls.
 
 To enable the trajectory judge in the background watcher:
 ```bash
@@ -114,7 +116,7 @@ tes serve --background-judge
 - No composite efficiency score. The three axes are independent by design — a single number would hide the axis-specific domain limitations.
 - No "catches all inefficiency." The waste detectors fire on observable-invariant patterns only.
 - No accuracy guarantee on the trajectory axis. It's an LLM judge, coherence-validated, not human-calibrated.
-- No data contribution / cloud scoring. The tool is local-only. A voluntary corpus contribution mechanism is on the roadmap (opt-in, redacted digests only) but not built.
+- No cloud scoring. The scoring pipeline is fully local. `tracegauge export-contribution` (P7) provides a local-file-only contribution export: opt-in, content-free, nothing transmitted. Server-side aggregation is not built.
 - No cross-agent support yet. The CC adapter is Claude Code–specific; OpenCode/Codex/Aider would need their own adapters and re-validation.
 
 ---
@@ -166,7 +168,7 @@ The scoring components were validated through a five-phase credibility arc (B1�
 
 ## Roadmap
 
-- **Corpus de-biasing:** voluntary opt-in digest contribution (no source code, redacted) to build a broader calibration baseline. Not built yet.
+- **Corpus de-biasing:** `tracegauge export-contribution` (P7) writes a local content-free digest for voluntary contribution. Server-side aggregation, pooled baselines, and legal review are follow-on work.
 - **Smaller judge:** a laptop-runnable quantized model for the trajectory axis (requires a new B3-equivalent corroboration run, not a swap).
 - **Cross-agent support:** adapters for OpenCode, Codex, Aider once tool_result data is available for re-validation.
 - **`tes install-hook`:** explicit opt-in SessionEnd hook for zero-latency scoring (modifies `~/.claude/settings.json` only on user request).
