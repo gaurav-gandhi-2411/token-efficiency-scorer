@@ -1,100 +1,107 @@
-# Project Spec: tracegauge — Cost Translation (Iteration P5)
+# Project Spec: tracegauge — Corpus Contribution, Client-Side & Send-Disabled (Iteration P7)
 
 ## Goal
 
-Translate the token axis into dollars: every scored session shows its actual API cost AND how that compares to the user's own efficient baseline — e.g. "this debug-fix session cost ~$4.20, about 62% above your typical efficient run (~$2.60)." This is the "so what" layer that makes the self-baseline (P4) speak the language every developer understands: money.
+Build the CLIENT side of opt-in corpus contribution: the mechanism that lets a user EXPORT a redacted, content-free, allow-listed digest of their sessions — to a LOCAL FILE they can inspect — so that (in a LATER, separate phase) a shared corpus could be built to give new users a meaningful day-one baseline instead of cold-start limbo.
 
-Cost is computed from MEASURED tokens (it's the one axis that can be near-exact), so the discipline is to make it ACTUALLY exact — real per-model rates, correct cache accounting (read vs creation), per-turn pricing — not "roughly right." A developer will check this against their actual bill; it must hold up.
+THIS PHASE BUILDS: the payload definition, the allow-list redaction, the consent/preview flow, and a `tracegauge export-contribution` command that writes the payload to a local file the user opens and verifies.
 
-## The honesty constraint (cost must match reality)
+THIS PHASE DOES NOT BUILD: any server, any network transmission, any backend, any actual data collection. NOTHING leaves the machine in P7. The payload goes to a local file, full stop. Transmission + server + the legal surface (privacy policy, retention, GDPR) are a SEPARATE later decision, made only after the payload is proven trustworthy and lawyer-reviewed.
 
-Cost is the most checkable number tracegauge produces. Therefore:
-- **Per-turn, per-model pricing.** CC sessions can mix models (Opus/Sonnet/Haiku across turns). Price each turn at ITS model's rate, not a blanket assumption.
-- **Correct cache accounting — three distinct token classes, three rates:**
-  - fresh input → full input rate
-  - cache READ (reused cached content) → ~10% of input rate (90% discount)
-  - cache CREATION (first-time caching) → a PREMIUM: 1.25× input (5-min cache) or 2× input (1-hr cache)
-  - output → full output rate
-  CC's raw logs record `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` separately per assistant turn. The cost model MUST use all four, not the P4 efficiency-measure's simplification (which nets cache_read out for a DIFFERENT purpose). Cost ≠ the real_tokens efficiency measure — they're computed differently and must not be conflated.
-- **Honest about unknowns.** If a turn's model string is missing, or cache-creation cache-duration (5min vs 1hr) can't be determined, state the assumption used and flag the cost as approximate for that session rather than silently guessing. Default cache-creation to the 5-min (1.25×) rate unless the logs indicate otherwise, and SAY that's the assumption.
-- **Bundled prices go stale.** The price table is bundled with a "prices as of <date>" stamp and is user-overridable. The displayed cost notes the price-table date so a user knows if it's current. Stale-but-labeled beats wrong-and-silent.
+## The core tension this phase must respect (read first — non-negotiable)
 
-## Bundled default price table (verify against current Anthropic pricing at build time)
-Per million tokens, standard rates (the executor MUST re-verify these against Anthropic's official pricing page at build time — do not trust this spec's numbers blindly; they're a starting point as of June 2026):
-- Opus 4.x (4.6/4.7/4.8): $5.00 input / $25.00 output
-- Sonnet 4.6: $3.00 input / $15.00 output
-- Haiku 4.5: $1.00 input / $5.00 output
-- Cache read: 10% of the model's input rate (90% discount)
-- Cache creation: 1.25× input rate (5-min) default; 2× input rate (1-hr) if determinable
-- Legacy models (Opus 4.1 $15/$75, Haiku 3 $0.25/$1.25, etc.): include a reasonable legacy table; price unknown/old model strings at the closest known rate and flag as approximate.
-Model-string matching must be tolerant (e.g. "claude-opus-4-7-20260416" → Opus 4.x rate) and fall back gracefully (unknown → flag approximate, use a stated default).
+Every prior phase was LOCAL BY CONSTRUCTION. The moat — "your data never leaves your machine" — is enforced, tested, and printed on the PyPI landing page. Corpus contribution, by its nature, is about data EVENTUALLY leaving the machine. So:
 
-## Current state
-See CURRENT_STATE.md. tracegauge 0.2.0 published. P1-P4 complete:
-- Self-baseline (P4): token axis scored vs the user's own lean waste-free runs per task type. baseline_source tracked. 89% of content sessions get a self-baseline verdict.
-- SQLite store has per-session real_tokens + ThreeAxisResult; the DIGEST has per-turn token data (CC to verify the cache-class breakdown + model string survive into the digest).
-- `tes serve` watcher + dashboard. Moat: local-only. Detectors frozen. Reports 01-11 immutable.
+1. **The default install stays 100% local. The moat promise stays TRUE for the default.** Contribution is opt-in, explicit, off by default, and in P7 doesn't transmit at all (writes a local file).
+2. **The README's moat language must be UPDATED HONESTLY** to: "local by default; you can OPTIONALLY export a redacted, content-free contribution file — here is exactly what it contains — for a future shared-baseline program. Nothing is transmitted without your explicit action, and in this version nothing is transmitted at all." No bait-and-switch. The promise changes from "never leaves" to "never leaves unless YOU explicitly export it, and you can see exactly what that export contains."
+3. **What CAN be exported must be PROVABLY content-free** — allow-listed numeric/categorical fields only, NEVER code/prompts/paths/content. Provable by construction (allow-list), not by scrubbing.
+
+## The payload design (locked: option a — per-session rows, strictly allow-listed)
+
+The contribution payload is a set of per-session rows, each containing ONLY these explicitly enumerated fields and NOTHING else:
+- `task_type` (categorical: one of the 5 known types + fallback)
+- `real_tokens` (int)
+- `token_count_input`, `token_count_output`, `cache_creation`, `cache_read` (ints — the four cost classes, AGGREGATED to session level, not per-turn)
+- `waste_event_count` (int)
+- `waste_detectors_fired` (list of detector NAMES only — e.g. ["REPEATED-FAILED-RETRY"] — NOT the proof turns, NOT the evidence snippets, which contain content)
+- `model` (categorical model string, e.g. "claude-sonnet-4-6" — allow-listed against the known model table; unknown → "other")
+- `turn_count` (int)
+- `week_bucket` (source_mtime rounded to ISO week — NOT a precise timestamp, to avoid timing fingerprints)
+- `tracegauge_version`, `schema_version` (provenance)
+- `contributor_id` (a RANDOM opaque UUID generated per-install, NOT derived from anything identifying — lets the future corpus dedupe/weight without knowing who the user is; user can regenerate or omit)
+
+EXPLICITLY EXCLUDED (must never appear in the payload): session_id (could correlate), source_path (file paths = content + identity), any evidence/snippet/error text, any prompt or code, proof-turn CONTENT (counts ok, content no), precise timestamps, any free-text field, the judge reasoning, interpretation strings.
+
+The allow-list is the SAFETY MECHANISM: the export builds each row by EXPLICITLY copying ONLY the enumerated fields from a known source — it must NOT serialize a session object and "remove" sensitive fields (that's the unsafe pattern — a new field added later would leak by default). Build the payload field-by-field from the allow-list; anything not on the list cannot appear by construction.
 
 ## Scope
 
 ### In scope
-1. **Cost model** (`tes/cost.py`): per-turn, per-model, cache-class-correct dollar computation over a session's digest. Returns session_cost_usd + a breakdown (input/output/cache-read/cache-creation $ and tokens), + an `approximate` flag + the reason if approximate.
-2. **Cost vs self-baseline:** compute the dollar cost of the user's self-baseline median + band for the task type (same lean-subset sessions, priced), so a session's cost can be shown as "$X, N% above/below your typical efficient run (~$Y)." The comparison anchors on P4's self-baseline, in dollars.
-3. **Bundled price table** (`tes/data/prices.json`): current rates + "as of" date + cache multipliers + legacy table, user-overridable via config/CLI/env (`--price-table <path>` or `~/.tes/prices.json`).
-4. **Surfacing:** per-session cost + the baseline-relative framing in CLI output and dashboard; the price-table date shown; the approximate flag surfaced when set.
-5. **Store:** persist session_cost_usd + breakdown so the dashboard/trends don't recompute every read (and so a future trends phase has the series).
-6. **Honesty:** cost carries its own domain-of-validity ("computed from measured tokens at <model> rates, prices as of <date>; cache read/creation accounted; approximate when model/cache-duration unknown"). Cost is NOT part of a composite — it's a dollar annotation on the token axis, not a fourth score.
+1. **Payload builder** (`tes/contribution.py`): from the store, build per-session allow-listed rows per the locked field list. Field-by-field construction from the allow-list (NOT object-minus-fields). Returns a payload object + a manifest (what fields are included, the schema version, the row count).
+2. **`tracegauge export-contribution` CLI command**: writes the payload to a local file (e.g. `~/.tes/contribution-<date>.jsonl` or a user-specified path). Off by default — only runs when explicitly invoked. Prints a CONSENT/PREVIEW summary BEFORE writing: "This will write N rows containing ONLY these fields: [list]. NO code, prompts, paths, timestamps, or session content. NOTHING is transmitted — this writes a local file you can inspect. Continue? [y/N]" Requires explicit confirmation.
+3. **The preview/inspect affordance**: the command (or a `--preview` flag) shows a SAMPLE row (real data, so the user sees exactly what their contribution looks like) and the full field list, before any file is written. The user can open the resulting file and read it — it's human-readable JSONL.
+4. **Content-free verification test**: a test that takes a payload built from sessions with KNOWN sensitive content (secrets, file paths, prompts in the source) and asserts NONE of it appears in the payload — proving the allow-list works. Plus a test that asserts the payload contains ONLY the enumerated fields (any extra key = test failure).
+5. **README + docs update**: honest moat language (local by default; optional inspectable export; nothing transmitted in this version), and a CONTRIBUTING/PRIVACY note describing exactly what the payload contains and excludes.
+6. **Schema versioning** on the payload (so a future corpus can handle version evolution).
 
-### Out of scope
-- Waste-event cost attribution (that's the next phase, P6 — waste prominence — which will use this cost model to price each waste event).
-- Trends over time (P7).
-- Subscription/plan cost modeling (Max/Pro flat fees) — tracegauge prices the TOKENS as if API-metered; note that a flat-plan user's marginal cost differs, but the token-cost is the honest "what this would cost at API rates" / "what this is consuming." State this framing; don't try to model plan economics.
-- Changing the token efficiency measure, detectors, judge, or self-baseline math.
-- Any network/data egress. Prices are bundled, not fetched at runtime.
+### Out of scope (explicitly, for a LATER separate decision)
+- ANY network transmission / upload / server connection. NOTHING leaves the machine in P7.
+- The corpus SERVER (receive/validate/aggregate/redistribute) — a separate backend project with its own privacy/legal/security surface.
+- The legal surface: privacy policy, data retention, GDPR/CCPA, terms — required BEFORE any transmission, not in P7.
+- The pooled-baseline computation / validation (how to build a trustworthy day-one baseline from pooled rows — that needs the corpus to exist + B2-level validation; later).
+- Actually distributing pooled baselines back to users.
+- Changing detectors, judge, self-baseline math, cost model.
 - Modifying reports 01-11.
 
+### Hard rules
+- NOTHING IS TRANSMITTED in P7. The export writes a LOCAL FILE only. No network code, no server URL, no upload. (A test asserts no network egress in the contribution path — same discipline as the moat tests.)
+- ALLOW-LIST BY CONSTRUCTION: the payload is built by copying ONLY enumerated fields. Never serialize-then-remove. A test asserts the payload has ONLY the allow-listed keys.
+- CONTENT-FREE PROVEN: a test with known-sensitive source asserts zero leakage.
+- OPT-IN, EXPLICIT, OFF BY DEFAULT: export only on explicit command + confirmation. Default install transmits/exports nothing.
+- MOAT LANGUAGE UPDATED HONESTLY: README reflects "local by default; optional inspectable export; nothing transmitted in this version." No bait-and-switch.
+- Detectors frozen, reports 01-11 immutable, no human labels.
+
 ## Tech stack
-- Python, reuse `tes/`. Cost computed from the digest's per-turn token+model data (CC verifies the digest preserves: per-turn input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, model string — if the digest dropped any, that's a digest-enrichment sub-task, escalate).
-- prices.json bundled as package-data (like cc_baselines.json).
-- pytest: cost math correctness (a known token+model breakdown → exact expected dollars), cache-class accounting, per-turn mixed-model, approximate-flagging, price-override, baseline-cost comparison.
+- Python, reuse `tes/`. Payload built from the SQLite store (the allow-listed fields are already columns/derivable).
+- Output: human-readable JSONL the user can open.
+- pytest: content-free proof, allow-list-only proof, no-network proof, consent-gate behavior, schema version present.
 
 ## Architecture (new/changed)
 ```
 tes/
-├── cost.py             # NEW: per-turn per-model cache-correct cost; session cost + breakdown + approximate flag
-├── data/prices.json    # NEW: bundled price table (rates, as-of date, cache multipliers, legacy)
-├── score.py            # CHANGED: attach session_cost_usd + breakdown to the result (annotation, not a score)
-├── self_baseline.py    # CHANGED: expose the self-baseline band IN DOLLARS for the comparison
-├── store.py            # CHANGED: persist session_cost_usd + breakdown
-└── web/                # CHANGED: show cost + "N% vs your efficient run" + price-date + approx flag
+├── contribution.py     # NEW: allow-listed payload builder + manifest; field-by-field from allow-list
+├── cli.py              # CHANGED: add `tracegauge export-contribution` (consent/preview, writes local file)
+└── (no server, no network module — by design)
 
 tests/
-├── test_cost_math.py            # NEW: exact-dollar correctness incl. cache read/creation, mixed-model
-├── test_cost_approximate.py     # NEW: unknown model / unknown cache-duration -> flagged, not silent
-├── test_price_override.py       # NEW: user price table overrides bundled
-└── test_cost_vs_baseline.py     # NEW: "N% above your efficient run" computed correctly
+├── test_contribution_content_free.py  # NEW: known-sensitive source -> zero leakage in payload
+├── test_contribution_allowlist.py     # NEW: payload has ONLY enumerated keys; extra key = fail
+├── test_contribution_no_network.py     # NEW: no network egress in the contribution path
+└── test_contribution_consent.py        # NEW: export requires explicit confirmation; off by default
+
+README.md / PRIVACY.md  # CHANGED/NEW: honest moat language + exact payload contents/exclusions
 ```
 
 ## Key design decisions (resolve early, escalate)
-1. **Digest sufficiency (verify FIRST):** does the stored digest preserve per-turn cache_creation / cache_read / model? If the digest only kept summed real_tokens, cost can't be computed accurately from the store — CC must check and, if needed, enrich the digest (re-adapt from source JSONL). Report what the digest actually has BEFORE building cost.py. This gates everything.
-2. **Cache-creation duration:** can the logs distinguish 5-min vs 1-hr cache writes? If not, default to 5-min (1.25×) and flag the assumption. State what's determinable.
-3. **Baseline cost comparison basis:** compare a session's cost to the self-baseline MEDIAN cost (point estimate, "62% above your typical") and/or show the band ($Ylo–$Yhi). Recommend: show both — the % vs median as the headline, the band as context. Relative framing, never absolute "efficient/inefficient."
-4. **Flat-plan framing:** how to phrase cost for Max/Pro users whose marginal token cost is $0. Recommend framing as "API-equivalent cost / token consumption" with a one-line note, not a claim about their actual bill. Decide the copy.
-5. **Approximate threshold:** if >X% of a session's turns are approximate-priced (unknown model), flag the whole session cost approximate. Pick X.
+1. **contributor_id**: random per-install UUID (for future dedupe/weighting) vs omit entirely. Recommend: random opaque UUID, stored in ~/.tes/, REGENERATABLE, with an `--anonymous` flag to omit it. It carries no identity (random), only lets a future corpus avoid double-counting one user. Confirm it's not derivable from anything identifying (not hostname, not username, not path).
+2. **week_bucket granularity**: ISO week vs month. Recommend ISO week (enough for future cohort analysis, coarse enough to avoid precise-timing fingerprints). Confirm no precise timestamp leaks.
+3. **Preview UX**: show one real sample row + full field list + the explicit exclusions, then confirm. Decide the exact copy — it must make the user CONFIDENT they know what's in it.
+4. **Model field for unknown/empty**: map to "other" (don't leak an unrecognized raw string that could theoretically be a custom/identifying model name). Allow-list against the known model table.
+5. **Where the file lands**: default ~/.tes/contribution-<date>.jsonl + a --output path. The user owns the file; tracegauge never auto-sends it.
 
 ## Verification commands
 ```yaml
-- name: cost-math-exact
-  cmd: python -m pytest tests/test_cost_math.py -v   # known breakdown -> exact dollars, cache read+creation correct
+- name: content-free
+  cmd: python -m pytest tests/test_contribution_content_free.py -v   # known secrets/paths/prompts -> zero leakage
   required: true
-- name: cost-approximate-honest
-  cmd: python -m pytest tests/test_cost_approximate.py -v   # unknowns flagged, not silently guessed
+- name: allowlist-only
+  cmd: python -m pytest tests/test_contribution_allowlist.py -v       # ONLY enumerated keys present
   required: true
-- name: price-override
-  cmd: python -m pytest tests/test_price_override.py -v
+- name: no-network
+  cmd: python -m pytest tests/test_contribution_no_network.py -v      # no egress in contribution path
   required: true
-- name: cost-vs-baseline
-  cmd: python -m pytest tests/test_cost_vs_baseline.py -v
+- name: consent-gate
+  cmd: python -m pytest tests/test_contribution_consent.py -v         # explicit confirm required, off by default
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
@@ -105,39 +112,29 @@ tests/
 ```
 
 ## Escalation rules
-- VERIFY DIGEST SUFFICIENCY FIRST (decision 1). If the digest lacks per-turn cache-class/model data, escalate before building — cost accuracy depends on it.
-- RE-VERIFY bundled prices against Anthropic's official pricing at build time; don't trust the spec's numbers.
-- If cost can only be computed approximately for most of the real store (e.g. digests pre-date the needed fields): report honestly and escalate on whether to re-adapt from source or ship cost only for sessions with sufficient data.
-- BEFORE conflating cost with the real_tokens efficiency measure: they're different computations — keep separate.
-- Detectors/judge/self-baseline math frozen.
-
-## Hard rules
-- COST MUST MATCH REALITY: per-turn per-model rates, cache read (10%) + cache creation (1.25×/2×) accounted correctly, output at full. The math is tested to exact dollars.
-- HONEST UNKNOWNS: unknown model/cache-duration -> stated assumption + approximate flag, never silent guess.
-- PRICE PROVENANCE: bundled prices stamped with an "as-of" date, user-overridable, date shown in output.
-- COST IS AN ANNOTATION, NOT A SCORE: no composite; cost annotates the token axis. Relative framing vs the user's own baseline, never absolute.
-- MOAT: prices bundled, no runtime fetch, no egress. Reports 01-11 immutable. No human labels.
+- If building the payload tempts ANY network code, a server URL, or a transmission path: STOP — that is explicitly out of scope for P7, escalate.
+- If the allow-list approach would miss a field the future corpus "needs": note it for the later corpus-design phase; do NOT add content-bearing fields to make the corpus richer — content-free is the hard constraint.
+- BEFORE updating the README moat language: show the consultant the exact new wording — the honesty of the public promise is load-bearing.
+- Detectors/judge/self-baseline/cost frozen.
 
 ## Budget
-- Soft: 2-3 CC sessions. Local/$0.
-- No GCP, no API spend.
+- Soft: 2-3 CC sessions. Local/$0. No GCP, no API, NO server, no network.
 
 ## Success criteria (verify ALL before done)
-- cost.py computes per-turn, per-model, cache-class-correct session cost; exact-dollar test passes (incl. cache read + creation).
-- Mixed-model sessions priced per-turn correctly.
-- Unknown model / cache-duration -> approximate flag + stated assumption (test passes).
-- Bundled prices re-verified current + "as-of" date stamped; user override works (test passes).
-- Per-session cost shown with baseline-relative framing ("$X, N% above/below your typical efficient run $Y"), anchored on P4 self-baseline, in dollars; price-date + approx flag surfaced.
-- Cost persisted to the store. Cost carries its own domain-of-validity; not part of a composite.
-- On the real store: report a sample of real session costs + the baseline-relative framing, and confirm cost is NOT conflated with real_tokens.
-- Detectors frozen, full suite green, reports 01-11 untouched, git clean.
+- `tracegauge export-contribution` builds a per-session allow-listed payload, writes a local human-readable JSONL file, after an explicit consent/preview the user confirms.
+- Content-free test passes: known secrets/paths/prompts/snippets in source -> ZERO leakage in payload.
+- Allow-list test passes: payload contains ONLY the enumerated fields; any extra key fails.
+- No-network test passes: nothing in the contribution path transmits; it writes a local file only.
+- Consent-gate test passes: export is off by default, requires explicit confirmation, shows the preview + exclusions first.
+- contributor_id is a random opaque per-install UUID (not derivable from identity), regeneratable, omittable via --anonymous.
+- README/PRIVACY updated with honest moat language (local by default; optional inspectable export; nothing transmitted this version) + exact payload contents/exclusions — consultant-reviewed wording.
+- Payload has schema_version. Detectors frozen. Full suite green. Reports 01-11 untouched. Git clean.
+- NO server, NO network, NO transmission exists in the codebase.
 
 ## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + report 08 + spec.md + tes/score.py + self_baseline.py + the adapter/digest code. Internalize: cost-matches-reality, per-turn per-model, cache read vs creation, annotation-not-score.
-2. VERIFY DIGEST SUFFICIENCY: does the digest preserve per-turn input/output/cache_creation/cache_read/model? Report exactly what's there. HOLD — if insufficient, we decide enrich-vs-scope before building.
-3. RE-VERIFY current Anthropic prices; build tes/data/prices.json (rates, as-of date, cache multipliers, legacy, override mechanism).
-4. cost.py: per-turn per-model cache-correct cost + breakdown + approximate flag. Exact-dollar + approximate + mixed-model tests. HOLD for consultant read of the cost math.
-5. Wire score.py (cost annotation) + self_baseline.py (baseline cost band) + store (persist). cost-vs-baseline test.
-6. Dashboard + CLI: cost + "N% vs your efficient run" + price-date + approx flag, relative framing, no composite.
-7. On the real store: sample costs + baseline-relative framing rendered. Full suite green. HOLD for consultant read before P5 done.
-```
+1. Read CURRENT_STATE.md + spec.md + tes/store.py + tes/cost.py + the existing moat/redaction tests. Internalize: nothing-transmitted-in-P7, allow-list-by-construction, opt-in-explicit, honest-moat-update.
+2. Build contribution.py: the allow-listed payload builder (field-by-field from the enumerated list, NOT object-minus-fields) + manifest. HOLD for consultant read of the EXACT field list + the build approach.
+3. Content-free + allow-list-only + no-network tests (these are the safety gates — write them strong). HOLD for consultant read of the test that proves zero leakage.
+4. CLI `export-contribution`: consent/preview (sample row + field list + exclusions), explicit confirm, write local file. Consent-gate test.
+5. README/PRIVACY honest moat update. HOLD for consultant review of the exact public wording.
+6. Full suite green; confirm NO network/server anywhere. Show the consultant: a real exported sample row + the rendered consent/preview + the new README moat paragraph. HOLD before P7 done.
