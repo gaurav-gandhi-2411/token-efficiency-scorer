@@ -5,13 +5,17 @@ from __future__ import annotations
 Binds 127.0.0.1 ONLY. Never 0.0.0.0. No external network egress.
 """
 
+import json
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from flask import Flask, abort, g, render_template
 
+from tes.adapt import adapt_session
+from tes.attribution import AttributionResult, compute_attribution
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tes._digest import reconstruct_digest
 from tes.cost import load_price_table
 from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import (
@@ -21,7 +25,172 @@ from tes.store import (
     open_db,
     trajectory_render_state,
 )
+from tes.waste import build_waste_entry
 from tes.web.cost_format import format_cost_usd, format_cost_pct_vs_baseline, format_price_provenance
+
+# ---------------------------------------------------------------------------
+# Attribution helpers
+# ---------------------------------------------------------------------------
+
+
+def _compute_session_attribution(
+    session: dict,
+    prices: dict,
+) -> AttributionResult | None:
+    """Try to compute attribution for a session; returns None on any failure."""
+    source_path = session.get("source_path")
+    if not source_path:
+        return None
+    src = Path(source_path)
+    if not src.exists():
+        return None
+    try:
+        record = adapt_session(src)
+        if record is None:
+            return None
+        digest_turns = record.get("digest", {}).get("turns", [])
+        waste_entry = build_waste_entry(record["session_id"], digest_turns)
+        digest_obj = record.get("digest")
+        if digest_obj is None:
+            return None
+        digest = reconstruct_digest(digest_obj)
+        return compute_attribution(digest, waste_entry, prices)
+    except Exception:
+        return None
+
+
+def _build_attribution_takeaway(attr: AttributionResult) -> str:
+    """Deterministic one-line takeaway with data-gated actionable hint.
+
+    Hint rules (fires at most one):
+      context >= 60% of cost  → context lever hint
+      output  >= 40% of cost  → output lever hint (only when context < 60%)
+      neither                 → description only, no lever
+    """
+    total_usd = attr.total_usd
+    if total_usd == 0:
+        return "No cost data — token bucket counts available in attribution table."
+
+    def pct(v: float) -> int:
+        return round(v / total_usd * 100)
+
+    resend_pct = pct(attr.context_resend_usd)
+    growth_pct = pct(attr.context_growth_usd)
+    output_pct = pct(attr.output_usd)
+    context_pct = resend_pct + growth_pct
+    waste_usd = attr.rr_waste_usd + attr.rfr_waste_usd
+
+    parts: list[str] = []
+    if context_pct > 0:
+        parts.append(f"context ({resend_pct}% re-send + {growth_pct}% growth)")
+    if output_pct > 0:
+        parts.append(f"output ({output_pct}%)")
+
+    cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
+    waste_str = f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
+
+    # Data-gated lever hint — fires only when a bucket genuinely dominates
+    if context_pct >= 60:
+        hint = " — a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."
+    elif output_pct >= 40:
+        hint = " — output was a large cost share; shorter responses or fewer regenerations reduce this."
+    else:
+        hint = ""
+
+    return cost_desc + waste_str + "." + hint
+
+
+def _build_attribution_rows(attr: AttributionResult) -> list[dict]:
+    """Build attribution table rows sorted by cost% descending."""
+    tb = attr.total_billed_tokens
+    total_usd = attr.total_usd
+
+    def tok_pct(v: int) -> float:
+        return round(v / tb * 100, 1) if tb else 0.0
+
+    def cost_pct(v: float) -> float:
+        return round(v / total_usd * 100, 1) if total_usd else 0.0
+
+    rows = [
+        {
+            "label": "Context re-send (cache reads)",
+            "bucket": "B3",
+            "tokens": attr.context_resend_tokens,
+            "tok_pct": tok_pct(attr.context_resend_tokens),
+            "usd": attr.context_resend_usd,
+            "cost_pct": cost_pct(attr.context_resend_usd),
+            "is_waste": False,
+        },
+        {
+            "label": "Output",
+            "bucket": "B4",
+            "tokens": attr.output_tokens,
+            "tok_pct": tok_pct(attr.output_tokens),
+            "usd": attr.output_usd,
+            "cost_pct": cost_pct(attr.output_usd),
+            "is_waste": False,
+        },
+        {
+            "label": "Context growth (cache writes)",
+            "bucket": "B6",
+            "tokens": attr.context_growth_tokens,
+            "tok_pct": tok_pct(attr.context_growth_tokens),
+            "usd": attr.context_growth_usd,
+            "cost_pct": cost_pct(attr.context_growth_usd),
+            "is_waste": False,
+        },
+        {
+            "label": "Fresh input (not attributable to detected waste)",
+            "bucket": "B5",
+            "tokens": attr.fresh_input_tokens,
+            "tok_pct": tok_pct(attr.fresh_input_tokens),
+            "usd": attr.fresh_input_usd,
+            "cost_pct": cost_pct(attr.fresh_input_usd),
+            "is_waste": False,
+        },
+        {
+            "label": "Redundant-read waste",
+            "bucket": "B1",
+            "tokens": attr.rr_waste_tokens,
+            "tok_pct": tok_pct(attr.rr_waste_tokens),
+            "usd": attr.rr_waste_usd,
+            "cost_pct": cost_pct(attr.rr_waste_usd),
+            "is_waste": True,
+        },
+        {
+            "label": "Retry-loop waste",
+            "bucket": "B2",
+            "tokens": attr.rfr_waste_tokens,
+            "tok_pct": tok_pct(attr.rfr_waste_tokens),
+            "usd": attr.rfr_waste_usd,
+            "cost_pct": cost_pct(attr.rfr_waste_usd),
+            "is_waste": True,
+        },
+    ]
+    return sorted(rows, key=lambda r: r["cost_pct"], reverse=True)
+
+
+def _stored_attribution_line(session: dict) -> str | None:
+    """One-line attribution summary from STORED data only (no file I/O).
+
+    Used in session list — shows waste cost breakdown from stored waste_events JSON.
+    """
+    cost_usd = session.get("session_cost_usd")
+    if cost_usd is None:
+        return None
+    waste_events_raw = session.get("waste_events", "[]")
+    try:
+        waste_events = json.loads(waste_events_raw) if isinstance(waste_events_raw, str) else (waste_events_raw or [])
+    except (json.JSONDecodeError, TypeError):
+        waste_events = []
+
+    waste_usd = sum(e.get("wasted_cost_usd") or 0 for e in waste_events)
+    n_events = session.get("waste_event_count", 0) or 0
+
+    if n_events > 0:
+        return f"${float(cost_usd):.2f} total · waste ${waste_usd:.2f} ({n_events} event{'s' if n_events != 1 else ''})"
+    return f"${float(cost_usd):.2f} total · no waste detected"
+
 
 # Historical anchor: B2-era scored sessions among content sessions (turn_count > 0).
 # At P4 activation (2026-06-08): 545 total unavailable, 509 zero-turn stubs,
@@ -173,6 +342,10 @@ def create_app(config: ServerConfig) -> Flask:
 
         pairs = [(s, trajectory_render_state(s)) for s in sessions]
 
+        # Annotate each session with a stored-data attribution line (no file I/O).
+        for s, _ in pairs:
+            s["attribution_line"] = _stored_attribution_line(s)
+
         return render_template(
             "session_list.html",
             pairs=pairs,
@@ -207,6 +380,11 @@ def create_app(config: ServerConfig) -> Flask:
             cost_vs_baseline_pct = None
             baseline_cost_median = None
 
+        # Attribution — requires source JSONL file; gracefully returns None if unavailable.
+        attribution = _compute_session_attribution(session, _prices)
+        attribution_takeaway = _build_attribution_takeaway(attribution) if attribution else None
+        attribution_rows = _build_attribution_rows(attribution) if attribution else None
+
         return render_template(
             "session_detail.html",
             session=session,
@@ -216,6 +394,9 @@ def create_app(config: ServerConfig) -> Flask:
             cost_band=cost_band,
             cost_vs_baseline_pct=cost_vs_baseline_pct,
             baseline_cost_median=baseline_cost_median,
+            attribution=attribution,
+            attribution_takeaway=attribution_takeaway,
+            attribution_rows=attribution_rows,
         )
 
     @app.route("/trends")

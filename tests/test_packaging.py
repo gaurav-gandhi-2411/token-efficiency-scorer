@@ -70,7 +70,7 @@ def test_package_name_is_tracegauge() -> None:
 
     meta = metadata("tracegauge")
     assert meta["Name"] == "tracegauge"
-    assert meta["Version"] == "0.3.0"
+    assert meta["Version"] == "0.4.0"
     # PEP 639: setuptools>=70 with license = "AGPL-3.0-only" (SPDX string) emits
     # "License-Expression" in the METADATA file. Fall back to "License" for older
     # build backends that may use the legacy classifier-based field.

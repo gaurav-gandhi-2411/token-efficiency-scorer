@@ -54,13 +54,71 @@
 </table>
 <div class="caveat">{{ session.token_domain_of_validity }}</div>
 
+{# ---- TOKEN ATTRIBUTION ---- #}
+<h2>Token Attribution</h2>
+<p style="font-size:0.85em;color:#555;margin-top:-0.4rem;">
+  Where did all billed tokens go? (over all billed tokens including cached re-reads)
+</p>
+
+{% if attribution %}
+
+{% if attribution_takeaway %}
+<p style="font-size:0.92em;font-weight:bold;margin-bottom:0.6rem;">{{ attribution_takeaway }}</p>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th>Bucket</th>
+      <th style="text-align:right;">Tokens</th>
+      <th style="text-align:right;">Tok%</th>
+      <th style="text-align:right;">Cost</th>
+      <th style="text-align:right;">Cost% ▼</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in attribution_rows %}
+    <tr{% if row.is_waste %} style="color:#cc4400;"{% endif %}>
+      <td>{{ row.bucket }} &nbsp; {{ row.label }}</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ "{:,}".format(row.tokens) }}</td>
+      <td style="text-align:right;">{{ row.tok_pct }}%</td>
+      <td style="text-align:right;font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
+      <td style="text-align:right;"><strong>{{ row.cost_pct }}%</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr style="font-weight:bold;border-top:2px solid #ccc;">
+      <td>TOTAL (billed)</td>
+      <td style="text-align:right;">{{ "{:,}".format(attribution.total_billed_tokens) }}</td>
+      <td style="text-align:right;">100%</td>
+      <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
+      <td style="text-align:right;">100%</td>
+    </tr>
+  </tfoot>
+</table>
+<p style="font-size:0.82em;color:#666;margin-top:0.2rem;">
+  real_tokens (verdict basis): {{ "{:,}".format(attribution.real_tokens) }}
+  &mdash; differs from total_billed because cached re-reads are excluded from the verdict axis.
+</p>
+<div class="caveat">{{ attribution.domain_of_validity }}</div>
+
+{% else %}
+<p class="tag-unavailable">Source file not accessible — attribution requires the original JSONL log.
+  Ensure <code>source_path</code> is reachable, or re-run <code>tes score &lt;path&gt;</code>.</p>
+{% endif %}
+
 {# ---- TRAJECTORY QUALITY ---- #}
 <h2>Trajectory Quality</h2>
 
 {% if traj_state == TrajectoryRenderState.UNAVAILABLE %}
-  <p><span class="tag-unavailable">UNAVAILABLE — no local judge configured</span></p>
-  <p>To enable trajectory scoring, install <a href="https://ollama.com">Ollama</a> and run
-     <code>tes score &lt;path&gt; --judge</code>. Token and waste axes still ran.</p>
+  <p><span class="tag-unavailable">UNAVAILABLE — no trajectory verdict scored</span></p>
+  <p style="font-size:0.9em;">Two options to enable:</p>
+  <ul style="font-size:0.9em;">
+    <li><strong>Local (free):</strong> Install <a href="https://ollama.com">Ollama</a>, pull <code>qwen3:8b</code> and <code>gemma3:12b</code>, then run <code>tes score &lt;path&gt; --judge</code></li>
+    <li><strong>API (opt-in, uses your key):</strong> <code>tes score &lt;path&gt; --api-judge --api-judge-key YOUR_KEY</code></li>
+  </ul>
+  <p style="font-size:0.85em;color:#555;">Token and waste axes ran — trajectory scoring is an optional enhancement.</p>
 {% elif traj_state == TrajectoryRenderState.STALE %}
   <table>
     <tr><th>Verdict</th><td><span class="tag-stale">{{ session.judge_verdict }}</span></td></tr>
