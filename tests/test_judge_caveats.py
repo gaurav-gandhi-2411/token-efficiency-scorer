@@ -124,9 +124,9 @@ _MINIMAL_RECORD = {
 
 
 def test_api_judge_verdict_is_compatible_with_score_session():
-    """API judge_entry passes through score_session and trajectory_domain_of_validity is set."""
+    """API judge_entry passes through score_session; result has API-specific DOV."""
     from tes.baselines import load_baselines, BUNDLED_BASELINES_PATH
-    from tes.score import score_session
+    from tes.score import score_session, TRAJECTORY_DOMAIN_OF_VALIDITY
 
     config = ApiJudgeConfig(api_key="sk-key")
     mock_resp = MagicMock()
@@ -142,7 +142,34 @@ def test_api_judge_verdict_is_compatible_with_score_session():
     result = score_session(_MINIMAL_RECORD, baselines, judge_entry=judge_entry)
 
     assert result.judge_verdict == "MUCH_BETTER"
-    assert result.trajectory_domain_of_validity == TRAJECTORY_DOMAIN_OF_VALIDITY
-    # The DOV on the result must contain the B3 caveats
+    # API-judge DOV must be DIFFERENT from the local judge DOV
+    assert result.trajectory_domain_of_validity != TRAJECTORY_DOMAIN_OF_VALIDITY
+    # Must still carry B3 caveats
     assert "corroborated" in result.trajectory_domain_of_validity.lower()
     assert "model-dependent" in result.trajectory_domain_of_validity.lower()
+    # Must carry the API-specific extra caveat
+    assert "not part of" in result.trajectory_domain_of_validity.lower()
+    assert "indicative" in result.trajectory_domain_of_validity.lower()
+    # Must name the API model
+    assert "claude-haiku-4-5-20251001" in result.trajectory_domain_of_validity
+
+
+def test_local_judge_verdict_uses_standard_dov():
+    """Local judge (judge_path absent) still uses TRAJECTORY_DOMAIN_OF_VALIDITY."""
+    from tes.baselines import load_baselines, BUNDLED_BASELINES_PATH
+    from tes.score import score_session, TRAJECTORY_DOMAIN_OF_VALIDITY
+
+    # A judge_entry without judge_path (local judge format)
+    local_judge_entry = {
+        "session_id": "test-caveats",
+        "verdict": "BETTER",
+        "judge_score": 0.75,
+        "reasoning": "Mostly purposeful.",
+        "confidence": 0.8,
+    }
+
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    result = score_session(_MINIMAL_RECORD, baselines, judge_entry=local_judge_entry)
+
+    assert result.judge_verdict == "BETTER"
+    assert result.trajectory_domain_of_validity == TRAJECTORY_DOMAIN_OF_VALIDITY
