@@ -41,6 +41,15 @@ ALLOWED_FIELDS: frozenset[str] = frozenset(
     }
 )
 
+_KNOWN_TASK_TYPES: frozenset[str] = frozenset({
+    "ml-eval", "debug-fix", "infra-deploy", "research-recon", "feature-build",
+})
+
+_KNOWN_DETECTOR_NAMES: frozenset[str] = frozenset({
+    "REPEATED-FAILED-RETRY",
+    "REDUNDANT-READ",
+})
+
 _KNOWN_MODELS: frozenset[str] = frozenset(
     {
         "claude-opus-4-8",
@@ -141,12 +150,19 @@ def _allowed_model(raw_model: str | None) -> str:
     return stripped if stripped in _KNOWN_MODELS else "other"
 
 
+def _allowed_task_type(raw: str | None) -> str:
+    """Clamp task_type to the known taxonomy; unknown → 'other'."""
+    if raw in _KNOWN_TASK_TYPES:
+        return raw
+    return "other"
+
+
 def _extract_waste_detectors(waste_events: list[dict]) -> list[str]:
-    """Return sorted unique detector_type names from waste_events — never evidence/content."""
+    """Return sorted unique detector names — only from the known set, never evidence/content."""
     names = {
-        event["detector_type"]
+        event["detector"]
         for event in waste_events
-        if isinstance(event, dict) and "detector_type" in event
+        if isinstance(event, dict) and event.get("detector") in _KNOWN_DETECTOR_NAMES
     }
     return sorted(names)
 
@@ -239,7 +255,7 @@ def build_contribution_payload(
         # Build the payload row FIELD-BY-FIELD from the 14 allow-listed fields.
         # NEVER use {**session_row} — explicit construction prevents future column leakage.
         payload_row: dict = {
-            "task_type": session_row.get("task_type"),
+            "task_type": _allowed_task_type(session_row.get("task_type")),
             "real_tokens": session_row.get("real_tokens"),
             "token_count_input": components["token_count_input"],
             "token_count_output": components["token_count_output"],
