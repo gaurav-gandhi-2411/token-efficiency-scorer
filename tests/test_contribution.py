@@ -79,12 +79,12 @@ def test_allowed_model_none_returns_other() -> None:
 
 def test_extract_waste_detectors_deduplicates_and_sorts() -> None:
     events = [
-        {"detector_type": "repetition", "evidence": "some content"},
-        {"detector_type": "over_clarify", "evidence": "other content"},
-        {"detector_type": "repetition", "evidence": "dup content"},
+        {"detector": "REPEATED-FAILED-RETRY", "evidence": "some content"},
+        {"detector": "REDUNDANT-READ", "evidence": "other content"},
+        {"detector": "REPEATED-FAILED-RETRY", "evidence": "dup content"},
     ]
     result = _extract_waste_detectors(events)
-    assert result == ["over_clarify", "repetition"]
+    assert result == ["REDUNDANT-READ", "REPEATED-FAILED-RETRY"]
 
 
 def test_extract_waste_detectors_empty_list() -> None:
@@ -92,12 +92,27 @@ def test_extract_waste_detectors_empty_list() -> None:
 
 
 def test_extract_waste_detectors_no_evidence_leaks() -> None:
-    events = [{"detector_type": "probe_leak", "evidence": "SECRET", "content": "ALSO_SECRET"}]
+    events = [{"detector": "REPEATED-FAILED-RETRY", "evidence": "SECRET", "content": "ALSO_SECRET"}]
     result = _extract_waste_detectors(events)
-    assert result == ["probe_leak"]
-    # Verify none of the event values except detector_type appear
+    assert result == ["REPEATED-FAILED-RETRY"]
+    # Verify none of the event values except detector name appear
     assert "SECRET" not in str(result)
     assert "ALSO_SECRET" not in str(result)
+
+
+def test_extract_waste_detectors_unknown_detector_dropped() -> None:
+    """An unknown detector name is silently dropped — never passed through raw."""
+    events = [{"detector": "UNKNOWN-CUSTOM-DETECTOR", "evidence": "SECRET"}]
+    result = _extract_waste_detectors(events)
+    assert result == []
+    assert "UNKNOWN-CUSTOM-DETECTOR" not in str(result)
+
+
+def test_extract_waste_detectors_wrong_key_returns_empty() -> None:
+    """Events using the old 'detector_type' key produce no output (wrong key, silently ignored)."""
+    events = [{"detector_type": "REPEATED-FAILED-RETRY", "evidence": "content"}]
+    result = _extract_waste_detectors(events)
+    assert result == []
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +272,9 @@ def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
         judge_reasoning="SHOULD NOT APPEAR",
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{"detector_type": "probe", "evidence": "SENSITIVE"}],
+        waste_events=[{"detector": "REDUNDANT-READ", "session_id": "test-banned-check",
+                       "turns": [2, 4], "repeat_count": 1,
+                       "evidence": {"content": "SENSITIVE"}}],
         waste_domain_of_validity="",
         session_cost_usd=None,
         cost_approximate=False,
@@ -274,4 +291,4 @@ def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
         assert banned not in row
     # Evidence must not appear in waste_detectors_fired
     assert "SENSITIVE" not in str(row["waste_detectors_fired"])
-    assert row["waste_detectors_fired"] == ["probe"]
+    assert row["waste_detectors_fired"] == ["REDUNDANT-READ"]
