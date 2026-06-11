@@ -1,7 +1,162 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-08 (P4 DONE). Read this BEFORE planning. This supersedes
-the prior snapshot dated 2026-06-08 (P3 DONE).
+Snapshot as of 2026-06-11 (P7 DONE). Read this BEFORE planning. This supersedes
+the prior snapshot dated 2026-06-10 (P6 DONE).
+
+---
+
+## Iteration status: P7 DONE — Corpus contribution, client-side & send-disabled
+
+**What P7 delivered:**
+
+**`tes/contribution.py` — allow-listed payload builder:**
+- `build_contribution_payload()`: builds per-session rows field-by-field from the 14-field
+  allow-list only. Never serializes a session object and removes fields — a future store column
+  cannot leak by construction. Re-adapts source JSONL (backfill_cost pattern) to populate
+  `token_count_input`, `token_count_output`, `cache_creation`, `cache_read`, `model`; nulls
+  for inaccessible sources.
+- Three value-level closed-set guards (not just key guards): `task_type` → known 5 types or
+  "other", `model` → allow-listed 16 keys or "other", `waste_detectors_fired` → only
+  `{"REPEATED-FAILED-RETRY", "REDUNDANT-READ"}` — unknown strings silently dropped.
+- `contributor_id`: random opaque UUID from `~/.tes/contributor_id.txt`; not identity-derived;
+  regeneratable; omittable via `--anonymous`.
+- `week_bucket`: ISO year-week from `source_mtime` — no precise timestamp.
+
+**`tracegauge export-contribution` CLI command:**
+- Shows consent/preview BEFORE writing: real sample row from the user's store (all
+  numbers/categoricals/UUID/ISO-week — zero content), full field list, explicit NEVER-INCLUDED
+  list, output path, and "NOTHING is transmitted anywhere — tracegauge has no server."
+- Requires explicit `y` confirmation. `--preview` shows preview without writing.
+- Writes `~/.tes/contribution-<date>.jsonl` (human-readable JSONL, user inspects and controls).
+- `--anonymous` omits contributor_id. `--output` overrides path.
+
+**Safety tests (strongest verification in the project):**
+- `test_contribution_content_free.py`: plants real secrets (API keys, file paths, project names,
+  exotic model strings, evidence snippets, judge reasoning, session IDs) in every hiding spot;
+  serializes the payload to JSON bytes; asserts zero hits for every planted string. Tests VALUES,
+  not just keys. Omnibus test covers all in one pass.
+- `test_contribution_allowlist.py`: every row has EXACTLY ALLOWED_FIELDS keys; extra key = fail.
+- `test_contribution_no_network.py`: patches `socket.socket.connect` to fail-hard; asserts no
+  network call is made during `build_contribution_payload`. Any accidental future network import
+  breaks this test before shipping.
+- `test_contribution_consent.py`: preview shows real row + field list + exclusions; file not written
+  without `y`; anonymous path; field keys confirmed post-write.
+
+**README/PRIVACY honest moat update:**
+- Tagline: "No server, nothing transmitted — ever. An optional command exports a redacted local
+  file you inspect and control."
+- Moat section: "local by default" replaces "your session logs never leave your machine"; optional
+  export described accurately with PRIVACY.md link.
+- `tes serve` moat line: removed "no data leaves the machine" (no longer unconditional); replaced
+  with "no external network calls" (still unconditional for serve/score).
+- "What this does NOT do": updated to reflect P7 built but server-side not built.
+- `PRIVACY.md` (new): complete field table, exclusions, allow-list-by-construction note,
+  contributor_id non-derivation, WHY the export exists, transmission section.
+
+**Version fix:** `pyproject.toml` bumped from `0.1.0` → `0.2.0` to match the v0.2.0 git tag
+set at P4. `tracegauge_version` in contribution rows now shows `0.2.0` (was reading stale
+installed metadata). Package reinstalled.
+
+**Test count: 296 green (244 pre-P7 + 52 P7). Detectors frozen. Reports 01-11 untouched.**
+
+---
+
+## P7 BOUNDARY — explicit, do not cross in future sessions without re-establishing consent
+
+**P7 is client-side only. LOCAL FILE, NOTHING TRANSMITTED.**
+
+The following are NOT built and are a SEPARATE future decision:
+- Any server-side aggregation, upload endpoint, or network transmission
+- Pooled-baseline computation (how to validate a corpus of contributed rows — requires its own
+  B2-level validation arc once data exists)
+- Distributing pooled baselines back to users
+- The legal surface beyond `PRIVACY.md`: privacy policy, data retention, GDPR/CCPA compliance,
+  terms of service — ALL required BEFORE any data ever leaves a machine
+- Any consent flow for transmission (the P7 consent flow is for local-file export only)
+
+A future session that builds transmission infrastructure must treat this as a NEW greenfield
+decision with explicit user go-ahead — not as a continuation of P7. The contribution file
+currently sitting at `~/.tes/contribution-<date>.jsonl` is the user's file; tracegauge never
+reads it back, never uploads it, and no daemon watches for it.
+
+---
+
+## Phase 4 (Trends) — PARKED, do not build
+
+**Decision (2026-06-10):** Trends deferred. Data probe showed the current store cannot support
+honest trends, and building a trend feature now would draw confident lines through noise.
+
+**Why deferred:**
+- **29-day sprint, not sustained history.** All 719 sessions span 2026-05-09 to 2026-06-07.
+  44% of sessions are in the final week (W22). A 4-week line implies history that doesn't exist.
+- **Circular-baseline trap confirmed with data.** 4 of 5 task types only crossed the
+  `min_lean_n=8` self-baseline activation gate in the second half of that 4-week window.
+  debug-fix — the only type with an active baseline in both halves — shifted +28% median as
+  the lean subset grew from 10 → 20 sessions. "Trending toward baseline" would measure the
+  baseline moving toward the user, not user improvement.
+- **feature-build is a stub factory.** 518 of 540 feature-build sessions are real_tokens=0
+  stubs. Only 22 content sessions exist; only 2 qualifying weeks meet the ≥5/week threshold.
+  The "540 sessions" number is misleading.
+- **New-user problem.** A new user's first month would get an even worse version of the
+  same lie — a trend line through 3–5 sessions per type.
+
+**Cold-start gate (for when trends ARE built):**
+- ≥ 3 calendar-week windows with ≥ 5 content sessions of that type, AND
+- Self-baseline active (`source='self'`, lean_n ≥ 8) for that type.
+- Until both: show "Building your [type] trend — N more sessions or more time needed."
+- At a typical pace this gate is met after ~3–4 weeks of active use per type.
+
+**Trending approach when eventually built:**
+- Trend raw `real_tokens` or raw `session_cost_usd` over time.
+- Show the current self-baseline as a static reference line.
+- Do NOT trend "delta from baseline" — the baseline moves as sessions accumulate.
+
+**Next step:** Product decision in progress on what is most valuable given waste came back
+small and trends are not yet supportable. Standing by.
+
+---
+
+## Iteration status: P6 DONE — Waste backfill + per-event cost annotation
+
+**What P6 delivered:**
+
+**Correctness fix — waste backfill:**
+- `backfill_waste()` in `tes/store.py`: re-runs frozen detectors on all accessible sessions,
+  embeds `wasted_cost_usd` per event into the `waste_events` JSON blob. Hash-independent
+  (fixes the stale-zeros bug: sessions scored before waste detection was wired show 0 in store).
+- `tes backfill-waste` CLI subcommand with `--db-path` option.
+- Expected reconcile against inventory: 43 events / 22 sessions / ~$1.89 total wasted cost.
+
+**Cost annotation definition (wasted_cost_usd per event):**
+- `proof_turns[2:]` only — the redundant turns. `proof_turns[0:2]` is the first
+  (legitimate) call+result pair; it's real work, not waste.
+- RR-A events have only 2 proof turns → redundant = [] → `wasted_cost_usd = 0.0`.
+- `annotate_waste_costs()` in `tes/waste.py`: mutates event dicts in-place, returns same list.
+- Embedded in the existing `waste_events` JSON blob — no new DB column, no migration.
+
+**PATH-A behavioral note (not a regression):**
+- `REDUNDANT-READ PATH-A` fires zero events on the live session population (2026-06-10).
+- ROOT CAUSE: CC no longer emits "File unchanged since last read" in `content_snippet`
+  on current versions. The PATH-A check (`snip.startswith("File unchanged since last read")`)
+  is a plain string match — it was never broken by regex changes.
+- THIS IS NOT the v2.1.38 PATH-B break (that was `^\d+\t` failing on arrow-format output,
+  fixed in P1 with dual-format `r"^\d+\t|^\s+\d+→"`).
+- Waste coverage on current CC is effectively PATH-B only (redundant content reads) + RFR.
+- Detector is frozen — do NOT add a fallback or patch PATH-A until CC re-emits the hint.
+
+**Surface changes (per-event cost visible, not loud):**
+- `tes/report.py` `format_human()`: waste event lines now show `~$0.042` inline when nonzero.
+- `tes/web/templates/session_detail.html`: "Wasted Cost" column in waste events table.
+- `tes/web/server.py` `/baseline-status` route: queries `waste_by_type` from store.
+- `tes/web/templates/baseline_status.html`: "Waste Concentration" section — one paragraph,
+  shows per-type distribution and zero-waste in feature-build. Shows "run backfill-waste" note
+  when store still has all-zeros.
+
+**Tests:** 10 new unit tests in `tests/test_waste_costs.py` covering `annotate_waste_costs`
+(RFR 2-repeat, RFR 3-repeat, RR-B, RR-A zero-cost, empty list, in-place mutation, missing
+turn in map, multi-event, all-zero, empty turns list).
+
+**Test count: 194 green (184 P4 + 10 P6). Reports 01-11 untouched. Detectors frozen.**
 
 ---
 
