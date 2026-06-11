@@ -23,11 +23,45 @@ from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.judge import JudgeConfig, score_trajectory
 from tes.report import format_human, format_json
 from tes.score import score_session
-from tes.waste import build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
+from tes.waste import annotate_waste_costs, build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
 from tes import __version__
 
 # Load price table once at import time — prices don't change between sessions in a run.
 _PRICES: dict = load_price_table()
+
+
+def _print_contribution_preview(payload: object, out_path: Path) -> None:
+    """Print the consent/preview screen for export-contribution.
+
+    Shows: row count, one real sample row (JSON), full field list, explicit
+    exclusions, output path, and the non-transmission statement.
+    """
+    from tes.contribution import ALLOWED_FIELDS, ContributionPayload
+    payload = payload  # type: ContributionPayload
+
+    sep = "─" * 72
+    print(sep)
+    print("CONTRIBUTION EXPORT PREVIEW")
+    print(sep)
+    print(f"\n  {payload.manifest.row_count} session(s) found in your store.\n")
+
+    print("SAMPLE ROW (real data from your store):\n")
+    sample = payload.rows[0]
+    print(json.dumps(sample, indent=2, default=str))
+
+    print("\nFIELDS INCLUDED (all content-free):")
+    for field_name in sorted(ALLOWED_FIELDS):
+        print(f"  {field_name}")
+
+    print("\nNEVER INCLUDED:")
+    for excluded in payload.manifest.fields_excluded:
+        print(f"  {excluded}")
+
+    print(f"\nOutput: {out_path}")
+    print("This writes a local file ONLY.")
+    print("NOTHING is transmitted anywhere — tracegauge has no server and sends no data.")
+    print("You can open and inspect the file yourself.")
+    print(f"\n{sep}")
 
 
 def _discover_sessions(path: Path) -> list[Path]:
@@ -74,6 +108,11 @@ def score_path(
             session_cost = compute_session_cost(digest, _PRICES)
         except Exception:
             pass  # cost failure must never break CLI output
+
+    # Embed per-event wasted cost (redundant turns only) into waste_events.
+    if session_cost is not None:
+        per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
+        annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
     result = score_session(
         record, baselines,
@@ -177,6 +216,23 @@ def main() -> None:
         help="Ollama endpoint URL (default: http://localhost:11434).",
     )
 
+    backfill_p = sub.add_parser(
+        "backfill-waste",
+        help="Re-run frozen detectors on all stored sessions; fix stale waste counts.",
+        description=(
+            "Re-run REPEATED-FAILED-RETRY and REDUNDANT-READ detectors on every session "
+            "in the store whose source file is accessible, embed per-event wasted_cost_usd "
+            "(redundant turns only, P5 cost model), and write correct waste_event_count + "
+            "waste_events to the store. Fixes the stale-zeros bug from sessions scored "
+            "before waste detection was fully wired. Detectors are frozen (byte-verbatim)."
+        ),
+    )
+    backfill_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+
     serve_p = sub.add_parser(
         "serve",
         help="Launch background watcher + localhost dashboard (token+waste auto-scoring).",
@@ -219,9 +275,52 @@ def main() -> None:
         ),
     )
 
+    export_p = sub.add_parser(
+        "export-contribution",
+        help="Export a redacted, content-free local file for the optional corpus contribution program.",
+        description=(
+            "Build an allow-listed, content-free summary of your scored sessions and write it "
+            "to a local file you can inspect. NOTHING is transmitted — tracegauge has no server. "
+            "Shows a preview and requires explicit confirmation before writing."
+        ),
+    )
+    export_p.add_argument(
+        "--output", default=None, dest="output",
+        metavar="PATH",
+        help="Output file path (default: ~/.tes/contribution-<date>.jsonl).",
+    )
+    export_p.add_argument(
+        "--anonymous", action="store_true",
+        help="Omit contributor_id from all rows.",
+    )
+    export_p.add_argument(
+        "--preview", action="store_true",
+        help="Show the sample row and field list without writing any file.",
+    )
+    export_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+
     args = parser.parse_args()
     if args.command is None:
         parser.print_help()
+        sys.exit(0)
+
+    if args.command == "backfill-waste":
+        from pathlib import Path as _Path
+        from tes.store import backfill_waste
+
+        db_path = _Path(args.db_path).expanduser() if args.db_path else None
+        print("Running waste backfill — re-running frozen detectors on all accessible sessions...")
+        summary = backfill_waste(db_path=db_path)
+        print(f"  Sessions with waste written: {summary['updated']}")
+        print(f"  Sessions confirmed 0-waste:  {summary['no_waste']}")
+        print(f"  Source files not accessible: {summary['missing_source']}")
+        print(f"  Errors (skipped):            {summary['errors']}")
+        total_processed = summary['updated'] + summary['no_waste']
+        print(f"  Total processed: {total_processed}")
         sys.exit(0)
 
     if args.command == "serve":
@@ -268,6 +367,77 @@ def main() -> None:
         finally:
             stop_event.set()
             watcher_thread.join(timeout=5)
+        sys.exit(0)
+
+    if args.command == "export-contribution":
+        from datetime import date as _date
+        from tes.contribution import build_contribution_payload, get_or_create_contributor_id
+        from tes.store import open_db as _open_db
+
+        db_path = Path(args.db_path).expanduser() if args.db_path else None
+
+        try:
+            conn = _open_db(db_path)
+        except Exception as exc:
+            print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        contributor_id: str | None = None if args.anonymous else get_or_create_contributor_id()
+
+        try:
+            payload = build_contribution_payload(
+                conn,
+                contributor_id=contributor_id,
+                include_source_components=True,
+            )
+        except Exception as exc:
+            print(f"[ERROR] Failed to build contribution payload: {exc}", file=sys.stderr)
+            conn.close()
+            sys.exit(1)
+
+        if payload.manifest.row_count == 0:
+            print("No sessions found in store. Run `tes score` or `tes serve` first.")
+            conn.close()
+            sys.exit(0)
+
+        today_str = _date.today().isoformat()
+        out_path = (
+            Path(args.output).expanduser()
+            if args.output
+            else Path.home() / ".tes" / f"contribution-{today_str}.jsonl"
+        )
+
+        _print_contribution_preview(payload, out_path)
+
+        if args.preview:
+            print("\n[--preview mode: no file written]")
+            conn.close()
+            sys.exit(0)
+
+        try:
+            answer = input("\nContinue? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+
+        if answer != "y":
+            print("Aborted — no file written.")
+            conn.close()
+            sys.exit(0)
+
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(out_path, "w", encoding="utf-8") as fh:
+                for row in payload.rows:
+                    fh.write(json.dumps(row) + "\n")
+            print(f"\nWritten: {out_path}")
+            print(f"  {payload.manifest.row_count} row(s)")
+            print("  Open the file to inspect it. Nothing has been transmitted.")
+        except Exception as exc:
+            print(f"[ERROR] Failed to write file: {exc}", file=sys.stderr)
+            conn.close()
+            sys.exit(1)
+
+        conn.close()
         sys.exit(0)
 
     # --- score command ---
