@@ -63,6 +63,24 @@ WASTE_DOMAIN_OF_VALIDITY: str = (
 )
 
 
+def build_api_trajectory_dov(api_model: str) -> str:
+    """DOV for API-judge verdicts: same B3 caveats + model-not-validated extra.
+
+    The B3 cross-model corroboration (84-96%) was measured on Qwen3 30B (local)
+    and Gemma 3 27B — NOT on any API model. An API judge uses the validated
+    v3 rubric on an unvalidated model. The extra caveat is non-negotiable.
+    """
+    return (
+        "Positive signal (MUCH_BETTER/BETTER) is cross-model corroborated (84-96%; B3 "
+        "report, validated on Qwen3 30B + Gemma 3 27B). Negative signal (WORSE/MUCH_WORSE) "
+        "is model-dependent; do not treat as fact. No human accuracy calibration. "
+        f"API judge ({api_model}): rubric is the validated v3 prompt; {api_model} was NOT "
+        "part of the B3 cross-model corroboration — treat verdict as indicative, not "
+        "equivalent to the validated local judge. "
+        "UNAVAILABLE when no judge result is provided."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Internal result dataclass (behaviour-preservation compatible with scripts/efficiency_score.py)
 # ---------------------------------------------------------------------------
@@ -417,6 +435,16 @@ def score_session(
     cost_approx = session_cost.approximate if session_cost else False
     cost_dov = session_cost.domain_of_validity if session_cost else ""
 
+    # Use API-specific DOV when the judge_entry came from the API path.
+    # The API judge uses the validated rubric but on a model NOT validated in B3.
+    _traj_dov: str
+    if judge_entry is not None and judge_entry.get("judge_path") == "api":
+        _traj_dov = build_api_trajectory_dov(
+            judge_entry.get("api_model", "api-model")
+        )
+    else:
+        _traj_dov = TRAJECTORY_DOMAIN_OF_VALIDITY
+
     return ThreeAxisResult(
         # --- identity ---
         session_id=impl_result.session_id,
@@ -436,7 +464,7 @@ def score_session(
         judge_verdict=impl_result.judge_verdict,
         judge_score=impl_result.judge_score,
         judge_reasoning=impl_result.judge_reasoning,
-        trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
+        trajectory_domain_of_validity=_traj_dov,
         # --- waste axis ---
         waste_event_count=impl_result.waste_event_count,
         waste_events=impl_result.waste_events,
@@ -456,4 +484,5 @@ __all__ = [
     "TOKEN_DOMAIN_OF_VALIDITY",
     "TRAJECTORY_DOMAIN_OF_VALIDITY",
     "WASTE_DOMAIN_OF_VALIDITY",
+    "build_api_trajectory_dov",
 ]
