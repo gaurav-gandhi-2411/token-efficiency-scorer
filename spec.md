@@ -1,107 +1,117 @@
-# Project Spec: tracegauge — Corpus Contribution, Client-Side & Send-Disabled (Iteration P7)
+# Project Spec: tracegauge — Token Attribution + Judge-On-Demand (Iteration P8)
 
 ## Goal
 
-Build the CLIENT side of opt-in corpus contribution: the mechanism that lets a user EXPORT a redacted, content-free, allow-listed digest of their sessions — to a LOCAL FILE they can inspect — so that (in a LATER, separate phase) a shared corpus could be built to give new users a meaningful day-one baseline instead of cold-start limbo.
+Turn tracegauge from a thermometer ("you used 1.4M tokens, +640%") into a diagnostic that answers the user's actual question: **"are my tokens used PROPERLY?"** Two halves:
 
-THIS PHASE BUILDS: the payload definition, the allow-list redaction, the consent/preview flow, and a `tracegauge export-contribution` command that writes the payload to a local file the user opens and verifies.
+- **A — Token Attribution (deterministic, no GPU):** break each session's tokens into WHERE THEY WENT — productive work vs. re-read files vs. retry loops vs. context re-send/bloat. This is the measurable form of "properly." It builds on data already in the digest (per-turn input/output/cache_creation/cache_read, the waste detectors).
+- **B — Judge On-Demand (the AI/ML half):** make trajectory-quality scoring actually available, via EITHER a local Ollama judge OR an opt-in API-key judge (Claude via the user's own key). Answers the judgment question A can't: "was this work justified / on-track / efficient in PATH, not just volume?"
 
-THIS PHASE DOES NOT BUILD: any server, any network transmission, any backend, any actual data collection. NOTHING leaves the machine in P7. The payload goes to a local file, full stop. Transmission + server + the legal surface (privacy policy, retention, GDPR) are a SEPARATE later decision, made only after the payload is proven trustworthy and lawyer-reviewed.
+Together they answer "properly": A says WHERE the tokens went (measured), B says WHETHER that was justified (judged). The current "+640%" headline becomes a diagnosis: "1.4M tokens — 60% productive, 25% context re-send, 10% redundant reads; judge says substantial work but context bloat cost ~$3; a checkpoint around turn 100 would have helped."
 
-## The core tension this phase must respect (read first — non-negotiable)
+## The honesty constraint specific to this phase (read first)
 
-Every prior phase was LOCAL BY CONSTRUCTION. The moat — "your data never leaves your machine" — is enforced, tested, and printed on the PyPI landing page. Corpus contribution, by its nature, is about data EVENTUALLY leaving the machine. So:
+**Token attribution must be MEASURED, not estimated by vibes.** The temptation is to slap plausible-looking percentages on a pie chart. That would be the exact "meaningful-but-fake number" failure this project has refused all along. So:
 
-1. **The default install stays 100% local. The moat promise stays TRUE for the default.** Contribution is opt-in, explicit, off by default, and in P7 doesn't transmit at all (writes a local file).
-2. **The README's moat language must be UPDATED HONESTLY** to: "local by default; you can OPTIONALLY export a redacted, content-free contribution file — here is exactly what it contains — for a future shared-baseline program. Nothing is transmitted without your explicit action, and in this version nothing is transmitted at all." No bait-and-switch. The promise changes from "never leaves" to "never leaves unless YOU explicitly export it, and you can see exactly what that export contains."
-3. **What CAN be exported must be PROVABLY content-free** — allow-listed numeric/categorical fields only, NEVER code/prompts/paths/content. Provable by construction (allow-list), not by scrubbing.
+1. **Every attribution bucket must be defined by an OBSERVABLE, defensible rule** over the session digest — not a heuristic guess. "Re-read tokens" = tokens in turns the REDUNDANT-READ detector fired on (already proven). "Retry-loop tokens" = tokens in REPEATED-FAILED-RETRY turns (already proven). "Context re-send" = a DEFINED, measurable quantity (see below). "Productive" is the RESIDUAL after the measurable-waste buckets — and must be LABELED as residual, not claimed as "definitely productive."
+2. **Buckets must sum to the session's real token total** (reconciliation — like the cost sum check). No tokens unaccounted, no double-counting.
+3. **Attribution carries its domain of validity:** "productive" is "not-attributable-to-measured-waste," NOT a positive proof of value. The tool must not claim "60% of your tokens were productive" — it claims "60% were not attributable to detectable waste; the judge assesses whether that work was on-track."
+4. **The judge (B) is where JUDGMENT lives — and it carries the B3 caveats:** positive signal corroborated, negative model-dependent, no human calibration. An API judge (vs local) does NOT change those caveats — it changes availability, not validity.
 
-## The payload design (locked: option a — per-session rows, strictly allow-listed)
+## The token-attribution buckets (A — define rigorously, escalate the definitions)
 
-The contribution payload is a set of per-session rows, each containing ONLY these explicitly enumerated fields and NOTHING else:
-- `task_type` (categorical: one of the 5 known types + fallback)
-- `real_tokens` (int)
-- `token_count_input`, `token_count_output`, `cache_creation`, `cache_read` (ints — the four cost classes, AGGREGATED to session level, not per-turn)
-- `waste_event_count` (int)
-- `waste_detectors_fired` (list of detector NAMES only — e.g. ["REPEATED-FAILED-RETRY"] — NOT the proof turns, NOT the evidence snippets, which contain content)
-- `model` (categorical model string, e.g. "claude-sonnet-4-6" — allow-listed against the known model table; unknown → "other")
-- `turn_count` (int)
-- `week_bucket` (source_mtime rounded to ISO week — NOT a precise timestamp, to avoid timing fingerprints)
-- `tracegauge_version`, `schema_version` (provenance)
-- `contributor_id` (a RANDOM opaque UUID generated per-install, NOT derived from anything identifying — lets the future corpus dedupe/weight without knowing who the user is; user can regenerate or omit)
+For a session, attribute its real tokens into observable buckets that SUM to the total:
+1. **Redundant-read tokens** — token cost of the turns the REDUNDANT-READ detector flagged (the re-read content). Measured, proof-turns already exist.
+2. **Retry-loop tokens** — token cost of the REPEATED-FAILED-RETRY redundant attempts (2nd-onward, same as the P6 waste-cost definition). Measured.
+3. **Context re-send / growth** — THE BIG NEW ONE, and the hardest to define honestly. CC re-sends conversation context every turn; cache_read tokens are the re-sent context (billed at 0.10x). High cache_read relative to fresh input = lots of context being carried. DEFINE a defensible measure: e.g. "context-carry tokens = cumulative cache_read" or "context-GROWTH = the rate at which per-turn input grows over the session." Decide the exact, defensible definition (see design decisions). This must be a REAL measure of re-sent/growing context, labeled precisely — NOT a vibe.
+4. **Output tokens** — the agent's actual generation (measured directly).
+5. **Productive/residual input** — fresh input tokens NOT attributable to the above. LABELED as residual ("not attributable to detected waste"), never "proven productive."
 
-EXPLICITLY EXCLUDED (must never appear in the payload): session_id (could correlate), source_path (file paths = content + identity), any evidence/snippet/error text, any prompt or code, proof-turn CONTENT (counts ok, content no), precise timestamps, any free-text field, the judge reasoning, interpretation strings.
+Reconciliation: buckets must sum to real_tokens (or to total billed tokens — pick ONE basis and be consistent; cost-basis vs efficiency-basis must not be conflated, same as P5). A test asserts the sum reconciles.
 
-The allow-list is the SAFETY MECHANISM: the export builds each row by EXPLICITLY copying ONLY the enumerated fields from a known source — it must NOT serialize a session object and "remove" sensitive fields (that's the unsafe pattern — a new field added later would leak by default). Build the payload field-by-field from the allow-list; anything not on the list cannot appear by construction.
+## The judge on-demand (B — both paths)
+
+Make trajectory-quality ACTUALLY AVAILABLE, two ways, user picks:
+1. **Local Ollama** (exists today) — `--judge` with the local Qwen model. Surface it as a first-class, documented option (currently buried/UNAVAILABLE with no easy on-ramp).
+2. **API key (NEW)** — opt-in: the user provides their own API key (env var, e.g. `ANTHROPIC_API_KEY`, or config), and the judge calls the API model to score trajectory. This makes the judge available to users WITHOUT a GPU — the majority.
+
+Constraints on the API judge:
+- **OPT-IN, EXPLICIT.** Default stays no-judge (UNAVAILABLE). The user must explicitly enable the API judge AND it must be clear that this SENDS SESSION CONTENT TO THE API (a moat consideration — it's the user's own key/data/call, but data leaves the machine for the judge). Clear consent, like the contribution preview: "Enabling the API judge sends session trajectory data to <provider> using your key. Continue?"
+- **The user's OWN key.** tracegauge never ships a key, never proxies through a tracegauge server (there is no server). The call goes from the user's machine directly to the API provider with the user's key. Document this.
+- **Same B3 caveats apply** regardless of local-vs-API: positive corroborated, negative model-dependent, no human calibration. The judge VERDICT carries the same domain-of-validity; the API path changes availability, not validity.
+- **`tes serve --judge`** (local) and a documented API-judge enablement. The judge-footgun guard stays: background judging is still opt-in (running it on every session continuously, local or API, has cost/throughput implications — surface them).
+- **The API judge must use the SAME judge prompt / scoring rubric** as the validated local Qwen judge (the B1/B3 v3 prompt), so verdicts are comparable. If the API model needs prompt adaptation, that's a re-validation question — flag it; do NOT silently use a different rubric.
+
+## Current state
+tracegauge 0.3.1 on PyPI. P1-P7 done. Two install bugs (templates, watcher db_path) found via real-user testing + fixed. The product WORKS end-to-end now (dashboard renders, watcher scores). Self-baseline (P4), cost (P5), waste backfill (P6), contribution export (P7). Judge exists (local Qwen, tiered) but is UNAVAILABLE without a GPU and has no easy on-ramp. Detectors frozen. Reports 01-11 immutable.
 
 ## Scope
 
 ### In scope
-1. **Payload builder** (`tes/contribution.py`): from the store, build per-session allow-listed rows per the locked field list. Field-by-field construction from the allow-list (NOT object-minus-fields). Returns a payload object + a manifest (what fields are included, the schema version, the row count).
-2. **`tracegauge export-contribution` CLI command**: writes the payload to a local file (e.g. `~/.tes/contribution-<date>.jsonl` or a user-specified path). Off by default — only runs when explicitly invoked. Prints a CONSENT/PREVIEW summary BEFORE writing: "This will write N rows containing ONLY these fields: [list]. NO code, prompts, paths, timestamps, or session content. NOTHING is transmitted — this writes a local file you can inspect. Continue? [y/N]" Requires explicit confirmation.
-3. **The preview/inspect affordance**: the command (or a `--preview` flag) shows a SAMPLE row (real data, so the user sees exactly what their contribution looks like) and the full field list, before any file is written. The user can open the resulting file and read it — it's human-readable JSONL.
-4. **Content-free verification test**: a test that takes a payload built from sessions with KNOWN sensitive content (secrets, file paths, prompts in the source) and asserts NONE of it appears in the payload — proving the allow-list works. Plus a test that asserts the payload contains ONLY the enumerated fields (any extra key = test failure).
-5. **README + docs update**: honest moat language (local by default; optional inspectable export; nothing transmitted in this version), and a CONTRIBUTING/PRIVACY note describing exactly what the payload contains and excludes.
-6. **Schema versioning** on the payload (so a future corpus can handle version evolution).
+1. **Attribution module** (`tes/attribution.py`): compute the token buckets per session from the digest, reconciling to the total. Each bucket from a defensible observable rule. Residual labeled honestly.
+2. **Judge on-demand**: surface `tes serve --judge` (local) properly; ADD an opt-in API-key judge path (user's own key, explicit consent, same rubric, same caveats). Both populate the trajectory axis.
+3. **Dashboard surfacing (the diagnostic view)**: per-session attribution breakdown (where the tokens went) + the judge verdict when available. This is the "are they used properly" answer made visible.
+4. **Reconciliation test**: buckets sum to the session total; no double-count, no unaccounted tokens.
+5. **Honest labeling**: attribution carries DOV ("residual = not-attributable-to-detected-waste, not proven-productive"); judge carries B3 caveats; API-judge consent makes data-leaves-for-judge explicit.
+6. **Apply to the real store**: attribution on the existing sessions; report what the breakdown looks like on the user's heavy sessions (e.g. the 1.4M-token infra session — where DID those tokens go?).
 
-### Out of scope (explicitly, for a LATER separate decision)
-- ANY network transmission / upload / server connection. NOTHING leaves the machine in P7.
-- The corpus SERVER (receive/validate/aggregate/redistribute) — a separate backend project with its own privacy/legal/security surface.
-- The legal surface: privacy policy, data retention, GDPR/CCPA, terms — required BEFORE any transmission, not in P7.
-- The pooled-baseline computation / validation (how to build a trustworthy day-one baseline from pooled rows — that needs the corpus to exist + B2-level validation; later).
-- Actually distributing pooled baselines back to users.
-- Changing detectors, judge, self-baseline math, cost model.
+### Out of scope
+- Inverting the dashboard priorities / the bigger UI redesign (that's the NEXT phase, P9 — noted, parked, the user asked for better UI).
+- Corpus transmission/server (still P7-deferred).
+- Changing detectors, real_tokens, cost model, self-baseline math.
+- Re-validating the judge rubric for a new API model beyond flagging if adaptation is needed.
+- Trends (still parked).
 - Modifying reports 01-11.
 
 ### Hard rules
-- NOTHING IS TRANSMITTED in P7. The export writes a LOCAL FILE only. No network code, no server URL, no upload. (A test asserts no network egress in the contribution path — same discipline as the moat tests.)
-- ALLOW-LIST BY CONSTRUCTION: the payload is built by copying ONLY enumerated fields. Never serialize-then-remove. A test asserts the payload has ONLY the allow-listed keys.
-- CONTENT-FREE PROVEN: a test with known-sensitive source asserts zero leakage.
-- OPT-IN, EXPLICIT, OFF BY DEFAULT: export only on explicit command + confirmation. Default install transmits/exports nothing.
-- MOAT LANGUAGE UPDATED HONESTLY: README reflects "local by default; optional inspectable export; nothing transmitted in this version." No bait-and-switch.
-- Detectors frozen, reports 01-11 immutable, no human labels.
+- ATTRIBUTION IS MEASURED: every bucket from an observable rule; "productive" is residual, LABELED as such, never claimed as proven value. Buckets reconcile to the total (tested).
+- API JUDGE IS OPT-IN + EXPLICIT-CONSENT: default no-judge; enabling sends data to the API with the user's own key; clear consent; no tracegauge server, no shipped key.
+- JUDGE CAVEATS UNCHANGED by path: B3 domain-of-validity applies to local AND API verdicts. Same rubric/prompt as the validated judge, or flag re-validation.
+- MOAT: local scoring still local; the ONLY data-egress is the opt-in API judge, with explicit consent, user's own key, direct to provider. Default install transmits nothing.
+- Detectors frozen, reports immutable, no human labels.
 
 ## Tech stack
-- Python, reuse `tes/`. Payload built from the SQLite store (the allow-listed fields are already columns/derivable).
-- Output: human-readable JSONL the user can open.
-- pytest: content-free proof, allow-list-only proof, no-network proof, consent-gate behavior, schema version present.
+- Python, reuse tes/. Attribution from the digest (per-turn tokens + cache classes + waste events — all present post-P5/P6).
+- API judge: a thin client calling the provider's API with the user's key, reusing the existing judge prompt/parse logic (layer2_judge). No new heavy deps beyond an HTTP client already present (httpx).
+- pytest: attribution reconciliation, bucket-rule correctness, API-judge opt-in/consent, API-judge uses-same-rubric, no-egress-without-consent.
 
 ## Architecture (new/changed)
 ```
 tes/
-├── contribution.py     # NEW: allow-listed payload builder + manifest; field-by-field from allow-list
-├── cli.py              # CHANGED: add `tracegauge export-contribution` (consent/preview, writes local file)
-└── (no server, no network module — by design)
-
+├── attribution.py      # NEW: token buckets per session, reconciling to total
+├── judge.py            # CHANGED: add API-key judge path alongside local Ollama; same rubric
+├── score.py            # CHANGED: attach attribution; judge via local OR api per config
+├── cli.py              # CHANGED: tes serve --judge (local), API-judge enablement + consent
+├── web/                # CHANGED: per-session attribution breakdown + judge verdict view
 tests/
-├── test_contribution_content_free.py  # NEW: known-sensitive source -> zero leakage in payload
-├── test_contribution_allowlist.py     # NEW: payload has ONLY enumerated keys; extra key = fail
-├── test_contribution_no_network.py     # NEW: no network egress in the contribution path
-└── test_contribution_consent.py        # NEW: export requires explicit confirmation; off by default
-
-README.md / PRIVACY.md  # CHANGED/NEW: honest moat language + exact payload contents/exclusions
+├── test_attribution_reconcile.py   # buckets sum to total, no double-count
+├── test_attribution_rules.py       # each bucket from its observable rule (re-read = detector turns, etc.)
+├── test_api_judge_optin.py         # default off; explicit consent; data-egress only on consent
+├── test_api_judge_rubric.py        # API judge uses the SAME prompt/rubric as local
+└── test_judge_caveats.py           # B3 DOV on both local + API verdicts
 ```
 
 ## Key design decisions (resolve early, escalate)
-1. **contributor_id**: random per-install UUID (for future dedupe/weighting) vs omit entirely. Recommend: random opaque UUID, stored in ~/.tes/, REGENERATABLE, with an `--anonymous` flag to omit it. It carries no identity (random), only lets a future corpus avoid double-counting one user. Confirm it's not derivable from anything identifying (not hostname, not username, not path).
-2. **week_bucket granularity**: ISO week vs month. Recommend ISO week (enough for future cohort analysis, coarse enough to avoid precise-timing fingerprints). Confirm no precise timestamp leaks.
-3. **Preview UX**: show one real sample row + full field list + the explicit exclusions, then confirm. Decide the exact copy — it must make the user CONFIDENT they know what's in it.
-4. **Model field for unknown/empty**: map to "other" (don't leak an unrecognized raw string that could theoretically be a custom/identifying model name). Allow-list against the known model table.
-5. **Where the file lands**: default ~/.tes/contribution-<date>.jsonl + a --output path. The user owns the file; tracegauge never auto-sends it.
+1. **Context re-send/growth definition** — the hardest, most important. Options: (a) cumulative cache_read as "context-carry"; (b) per-turn input growth rate (how fast context balloons); (c) "context efficiency" = useful-output per context-token-carried. Pick the MOST DEFENSIBLE, observable one and label it precisely. This is the bucket most prone to becoming a vibe — escalate the definition for consultant review BEFORE building the breakdown.
+2. **Attribution basis** — cost-basis (dollars per bucket) or token-basis (tokens per bucket)? Recommend token-basis for the breakdown + show dollars alongside (reuse P5). Be consistent; don't conflate.
+3. **"Productive" labeling** — confirm the residual is labeled "not attributable to detected waste," never "productive." The DOV wording matters.
+4. **API judge provider/model** — which API model? Recommend the user's choice with a sensible default; but it must run the SAME rubric as validated. If the default API model would give materially different verdicts than the validated Qwen, that's a flag, not a silent swap.
+5. **API judge consent UX** — exact consent copy (data leaves for the judge, your key, your call). Mirror the P7 contribution-preview honesty.
+6. **Background API judge** — should `tes serve --background-judge` allow the API path? Cost implications (every session hitting the API). Recommend: allowed but with a clear cost warning, OR background stays local-only and API is for on-demand `tes score --judge`. Decide.
 
 ## Verification commands
 ```yaml
-- name: content-free
-  cmd: python -m pytest tests/test_contribution_content_free.py -v   # known secrets/paths/prompts -> zero leakage
+- name: attribution-reconciles
+  cmd: python -m pytest tests/test_attribution_reconcile.py -v   # buckets sum to total
   required: true
-- name: allowlist-only
-  cmd: python -m pytest tests/test_contribution_allowlist.py -v       # ONLY enumerated keys present
+- name: attribution-rules
+  cmd: python -m pytest tests/test_attribution_rules.py -v        # each bucket from its observable rule
   required: true
-- name: no-network
-  cmd: python -m pytest tests/test_contribution_no_network.py -v      # no egress in contribution path
+- name: api-judge-optin
+  cmd: python -m pytest tests/test_api_judge_optin.py -v          # off by default, consent required, no egress without it
   required: true
-- name: consent-gate
-  cmd: python -m pytest tests/test_contribution_consent.py -v         # explicit confirm required, off by default
+- name: api-judge-rubric
+  cmd: python -m pytest tests/test_api_judge_rubric.py -v         # same rubric as validated judge
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
@@ -112,29 +122,29 @@ README.md / PRIVACY.md  # CHANGED/NEW: honest moat language + exact payload cont
 ```
 
 ## Escalation rules
-- If building the payload tempts ANY network code, a server URL, or a transmission path: STOP — that is explicitly out of scope for P7, escalate.
-- If the allow-list approach would miss a field the future corpus "needs": note it for the later corpus-design phase; do NOT add content-bearing fields to make the corpus richer — content-free is the hard constraint.
-- BEFORE updating the README moat language: show the consultant the exact new wording — the honesty of the public promise is load-bearing.
-- Detectors/judge/self-baseline/cost frozen.
+- The CONTEXT RE-SEND/GROWTH bucket definition: escalate for consultant review BEFORE building — it's the bucket most likely to become a meaningless-but-plausible number.
+- If "productive" can't be cleanly defined as residual: escalate rather than claim positive value.
+- If the API judge would need a DIFFERENT prompt/rubric than the validated Qwen judge (giving non-comparable verdicts): escalate — do not silently swap rubrics.
+- If attribution can't reconcile to the total: STOP — unaccounted/double-counted tokens mean the breakdown is wrong.
+- API egress only ever on explicit consent; if any code path could send data without consent: STOP.
 
 ## Budget
-- Soft: 2-3 CC sessions. Local/$0. No GCP, no API, NO server, no network.
+- Soft: 3-5 CC sessions. Local/$0 for attribution. API judge testing uses the user's key (minimal — a few test sessions); confirm before any real API calls in testing.
 
 ## Success criteria (verify ALL before done)
-- `tracegauge export-contribution` builds a per-session allow-listed payload, writes a local human-readable JSONL file, after an explicit consent/preview the user confirms.
-- Content-free test passes: known secrets/paths/prompts/snippets in source -> ZERO leakage in payload.
-- Allow-list test passes: payload contains ONLY the enumerated fields; any extra key fails.
-- No-network test passes: nothing in the contribution path transmits; it writes a local file only.
-- Consent-gate test passes: export is off by default, requires explicit confirmation, shows the preview + exclusions first.
-- contributor_id is a random opaque per-install UUID (not derivable from identity), regeneratable, omittable via --anonymous.
-- README/PRIVACY updated with honest moat language (local by default; optional inspectable export; nothing transmitted this version) + exact payload contents/exclusions — consultant-reviewed wording.
-- Payload has schema_version. Detectors frozen. Full suite green. Reports 01-11 untouched. Git clean.
-- NO server, NO network, NO transmission exists in the codebase.
+- Attribution breaks each session into reconciling buckets (re-read, retry, context-carry, output, residual-productive), each from an observable rule, summing to the total (test passes).
+- "Productive" is labeled residual ("not attributable to detected waste"), never claimed as proven value.
+- Judge available via BOTH local Ollama (`tes serve --judge` surfaced properly) AND opt-in API key (user's own key, explicit consent that data leaves for the judge, no tracegauge server/key).
+- API judge uses the SAME validated rubric as the local judge; B3 caveats on both (tests pass).
+- Default install: no judge, no egress. API judge only on explicit opt-in + consent (test passes).
+- Dashboard shows the per-session attribution breakdown + judge verdict — the "where did my tokens go / was it justified" diagnostic.
+- On the real store: report the attribution breakdown for a heavy session (the 1.4M infra one) — where DID the tokens go?
+- Detectors frozen, full suite green, reports 01-11 untouched, git clean. New version (0.4.0 — minor, real features), clean-room, user publishes.
 
 ## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + spec.md + tes/store.py + tes/cost.py + the existing moat/redaction tests. Internalize: nothing-transmitted-in-P7, allow-list-by-construction, opt-in-explicit, honest-moat-update.
-2. Build contribution.py: the allow-listed payload builder (field-by-field from the enumerated list, NOT object-minus-fields) + manifest. HOLD for consultant read of the EXACT field list + the build approach.
-3. Content-free + allow-list-only + no-network tests (these are the safety gates — write them strong). HOLD for consultant read of the test that proves zero leakage.
-4. CLI `export-contribution`: consent/preview (sample row + field list + exclusions), explicit confirm, write local file. Consent-gate test.
-5. README/PRIVACY honest moat update. HOLD for consultant review of the exact public wording.
-6. Full suite green; confirm NO network/server anywhere. Show the consultant: a real exported sample row + the rendered consent/preview + the new README moat paragraph. HOLD before P7 done.
+1. Read CURRENT_STATE.md + reports 01/06/09 (judge validation) + 10 (waste) + spec.md + tes/cost.py + tes/judge.py + the digest schema. Internalize: attribution-measured-not-guessed, residual-not-productive, API-judge-opt-in-same-rubric.
+2. DESIGN the attribution buckets, especially the context-re-send/growth definition. Write the exact observable rule for each bucket. HOLD for consultant review of the DEFINITIONS before building (this is the meaningful-number gate).
+3. Build attribution.py + reconciliation test + per-bucket rule tests. HOLD for consultant read of the breakdown on a REAL heavy session.
+4. Judge on-demand: surface local --judge; add opt-in API-key path (same rubric, explicit consent, no egress without consent). Tests: opt-in, consent, same-rubric, caveats.
+5. Dashboard: per-session attribution breakdown + judge verdict. Honest labeling throughout.
+6. Apply to real store; report attribution on heavy sessions. New version, clean-room, full suite. HOLD for consultant read before P8 done + user publish.
