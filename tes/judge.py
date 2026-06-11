@@ -138,12 +138,104 @@ class JudgeConfig:
     inference_timeout_s: float = 300.0  # covers cold load (~30-60s) + large-session prefill
 
 
+@dataclass
+class ApiJudgeConfig:
+    """Configuration for the opt-in API-key trajectory judge.
+
+    The user's own API key. No tracegauge server involved. The call goes
+    directly from this machine to the API provider with the user's key.
+
+    REQUIRES consent_given=True in score_trajectory_api() before any
+    network call is made — enforced unconditionally.
+
+    Same validated v3 rubric as the local Qwen judge (same JUDGE_SYSTEM_PROMPT
+    + _JUDGE_USER_TEMPLATE). Different model may interpret the rubric differently
+    (B3: exact-match cross-model agreement is 58%; adjacent 85%). B3 caveats apply.
+    """
+
+    api_key: str                         # user's own key; never shipped with tracegauge
+    model: str = "claude-haiku-4-5-20251001"  # override with --api-judge-model
+    provider: str = "anthropic"          # only "anthropic" currently supported
+    inference_timeout_s: float = 120.0
+
+
 # User-facing hint when judge is unavailable.
 JUDGE_SETUP_HINT: str = (
     "Trajectory quality requires a local judge model (~18GB VRAM). "
     "To enable: install Ollama (https://ollama.ai), then run: "
     "ollama pull qwen3:30b-a3b. "
     "Without the judge, token and waste axes still run fully."
+)
+
+# Template for the interactive consent screen shown before any API judge call.
+# Mirrors the P7 contribution-preview discipline: real data shown, NEVER-SENT
+# list explicit, direct-to-provider call confirmed, B3 caveats inline.
+API_JUDGE_CONSENT_NOTICE_TEMPLATE: str = (
+    "═" * 70 + "\n"
+    "API JUDGE — OPT-IN CONSENT\n"
+    "═" * 70 + "\n"
+    "\n"
+    "Enabling the API judge will SEND SESSION TRAJECTORY DATA to Anthropic\n"
+    "using your API key.\n"
+    "\n"
+    "What will be sent:\n"
+    "  • Session ID: {session_id}\n"
+    "  • Task type:  {task_type}\n"
+    "  • Turn-by-turn trajectory (tool names, token counts, 300-char snippets)\n"
+    "\n"
+    "What will NOT be sent:\n"
+    "  • Raw file contents (secrets are redacted at ingestion — always ON)\n"
+    "  • File paths, project names, or any content beyond the trajectory digest\n"
+    "\n"
+    "Provider: Anthropic (api.anthropic.com)\n"
+    "Model:    {model}\n"
+    "Your key: {api_key_source}\n"
+    "\n"
+    "No tracegauge server. The call goes directly from your machine to Anthropic.\n"
+    "Your data, your key, your provider. tracegauge never sees the response.\n"
+    "\n"
+    "Domain-of-validity (same as local judge — API path changes availability only):\n"
+    "  Positive signal (MUCH_BETTER/BETTER) corroborated at 84–96%% cross-model.\n"
+    "  Negative signal (WORSE/MUCH_WORSE) is model-dependent — do not treat as fact.\n"
+    "  No human accuracy calibration. API judge uses the same v3 rubric as the\n"
+    "  validated local Qwen judge; a different model may interpret it differently.\n"
+    "\n"
+    "═" * 70
+)
+
+
+def build_api_judge_consent_notice(
+    session_id: str,
+    task_type: str,
+    model: str,
+    api_key_source: str,
+) -> str:
+    """Build the consent notice string for a specific session."""
+    return API_JUDGE_CONSENT_NOTICE_TEMPLATE.format(
+        session_id=session_id,
+        task_type=task_type,
+        model=model,
+        api_key_source=api_key_source,
+    )
+
+
+JUDGE_SETUP_HINT_FULL: str = (
+    "Trajectory quality is UNAVAILABLE (no local judge configured).\n"
+    "\n"
+    "Two options to enable it:\n"
+    "\n"
+    "  Option 1 — Local (free, requires ~18 GB VRAM):\n"
+    "    1. Install Ollama: https://ollama.ai\n"
+    "    2. ollama pull qwen3:30b-a3b\n"
+    "    3. Re-run — the judge auto-detects when the model is available.\n"
+    "\n"
+    "  Option 2 — API (opt-in, your own key, sends trajectory data to Anthropic):\n"
+    "    export ANTHROPIC_API_KEY=<your-key>\n"
+    "    tes score <path> --api-judge\n"
+    "    (Shows a consent screen before sending anything.)\n"
+    "\n"
+    "Without the judge, token and waste axes still run fully.\n"
+    "Token + waste is a complete result — trajectory is an enhancement, not a fix."
 )
 
 
@@ -298,9 +390,126 @@ def score_trajectory(
     return _call_judge_api(record, config)
 
 
+def _call_api_judge(
+    record: dict[str, Any],
+    config: "ApiJudgeConfig",
+) -> dict[str, Any] | None:
+    """Internal Anthropic API call — only called after consent_given=True is confirmed.
+
+    Uses the EXACT SAME JUDGE_SYSTEM_PROMPT and _build_user_prompt as the local
+    Ollama judge. The rubric is identical; only the model and transport differ.
+
+    NOTE: build_waste_entry(session_id, turns) expects digest turn dicts (the
+    record["digest"]["turns"] list), not raw JSONL turns. This matches the
+    watcher's call convention and must be maintained by any caller.
+    """
+    import json as _json
+
+    scoring_rec = {**record, "domain_id": record.get("domain_id", "CC")}
+    user_prompt = _build_user_prompt(scoring_rec)
+
+    try:
+        resp = httpx.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": config.api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": config.model,
+                "max_tokens": 1024,
+                "system": JUDGE_SYSTEM_PROMPT,
+                "messages": [{"role": "user", "content": user_prompt}],
+            },
+            timeout=config.inference_timeout_s,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        text = data["content"][0]["text"]
+        raw = _json.loads(text)
+    except httpx.ReadTimeout:
+        print(
+            f"  API judge timed out after {config.inference_timeout_s:.0f}s "
+            "— trajectory UNAVAILABLE",
+            file=sys.stderr,
+        )
+        return None
+    except httpx.HTTPStatusError as exc:
+        print(f"  API judge HTTP error {exc.response.status_code}: {exc}", file=sys.stderr)
+        return None
+    except Exception as exc:
+        print(f"  API judge error: {exc}", file=sys.stderr)
+        return None
+
+    verdict = str(raw.get("verdict", "")).upper().strip()
+    if verdict not in VERDICT_TO_FLOAT:
+        return None
+
+    raw_conf = raw.get("confidence", 0.5)
+    try:
+        confidence = float(raw_conf)
+    except (TypeError, ValueError):
+        confidence = 0.5
+
+    return {
+        "session_id": record.get("session_id", ""),
+        "verdict": verdict,
+        "judge_score": VERDICT_TO_FLOAT[verdict],
+        "reasoning": str(raw.get("reasoning", "")),
+        "confidence": confidence,
+        "judge_path": "api",
+        "api_model": config.model,
+    }
+
+
+def score_trajectory_api(
+    record: dict[str, Any],
+    config: "ApiJudgeConfig",
+    *,
+    consent_given: bool,
+) -> dict[str, Any] | None:
+    """Run the v3 trajectory judge via the Anthropic API (opt-in path).
+
+    Uses the SAME validated v3 rubric (JUDGE_SYSTEM_PROMPT + _JUDGE_USER_TEMPLATE)
+    as the local Qwen judge. Different model → may interpret rubric differently.
+    B3 caveats apply identically: positive corroborated, negative model-dependent,
+    no human calibration.
+
+    Parameters
+    ----------
+    record:
+        Adapted session record from tes.adapt.adapt_session.
+    config:
+        ApiJudgeConfig with the user's own API key and model choice.
+    consent_given:
+        MUST be True before any network call is attempted. When False, returns
+        None immediately with ZERO network activity — the consent gate is
+        unconditional and cannot be bypassed. Callers obtain consent via the
+        interactive prompt built from build_api_judge_consent_notice().
+
+    Returns
+    -------
+    dict or None
+        Same judge_entry dict format as score_trajectory() — compatible with
+        score_session(judge_entry=result). None on no consent, missing key,
+        or any call failure.
+    """
+    if not consent_given:
+        return None
+    if not config.api_key:
+        return None
+    return _call_api_judge(record, config)
+
+
 __all__ = [
     "JudgeConfig",
+    "ApiJudgeConfig",
     "JUDGE_SETUP_HINT",
+    "JUDGE_SETUP_HINT_FULL",
+    "API_JUDGE_CONSENT_NOTICE_TEMPLATE",
+    "build_api_judge_consent_notice",
     "is_judge_available",
     "score_trajectory",
+    "score_trajectory_api",
 ]
