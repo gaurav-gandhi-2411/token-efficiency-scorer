@@ -29,8 +29,8 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.score import ThreeAxisResult, score_session
 from tes.self_baseline import compute_baseline_cost_band, load_or_compute
-from tes.store import file_hash, needs_scoring, open_db, upsert_session
-from tes.waste import build_waste_entry
+from tes.store import file_hash, needs_scoring, open_db, resolve_db_path, upsert_session
+from tes.waste import annotate_waste_costs, build_waste_entry
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,11 @@ def score_session_file(
                 session_cost = compute_session_cost(digest, prices)
         except Exception:
             logger.debug("Cost annotation failed for %s — continuing without cost", path.name)
+
+        # Embed per-event wasted cost (redundant turns only) into waste_events.
+        if session_cost is not None:
+            per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
+            annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
         return score_session(
             record, baselines,
@@ -184,7 +189,10 @@ def run_watcher(
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
     # Load price table once at startup — prices don't change between sessions.
     prices = load_price_table()
-    conn = open_db(config.db_path)
+    # Resolve once so both open_db and load_or_compute use the same concrete path.
+    # config.db_path is None when tes serve runs without --db-path; Path(None) crashes.
+    db_path = resolve_db_path(config.db_path)
+    conn = open_db(db_path)
     logger.info(
         "Watcher started: cc_path=%s  interval=%ds  stability=%ds  judge=%s",
         config.cc_path,
@@ -197,7 +205,7 @@ def run_watcher(
         try:
             # Refresh self-baseline each cycle so new sessions accumulate into
             # the reference pool without restarting the watcher.
-            self_bl = load_or_compute(config.db_path, baselines)
+            self_bl = load_or_compute(db_path, baselines)
             count = _scan_once(config, conn, baselines, self_baseline=self_bl, prices=prices)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)

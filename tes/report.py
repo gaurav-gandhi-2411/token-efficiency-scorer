@@ -111,17 +111,19 @@ def format_human(
             ev_turns = ev.get("turns", [])
             evi = ev.get("evidence", {})
             turns_str = _format_turns(ev_turns)
+            cost_usd = ev.get("wasted_cost_usd")
+            cost_str = f"  ~${cost_usd:.3f}" if cost_usd is not None and cost_usd > 0 else ""
             if det == "REPEATED-FAILED-RETRY":
                 rc = ev.get("repeat_count", "?")
                 snip = evi.get("error_snippet", "")[:60]
-                lines.append(f"  [{idx}] {det} — {rc} retries, turns: {turns_str}")
+                lines.append(f"  [{idx}] {det} — {rc} retries, turns: {turns_str}{cost_str}")
                 lines.append(f"      Evidence: {snip!r}")
             elif det == "REDUNDANT-READ":
                 path_label = evi.get("path", "?")
                 gap = evi.get("gap", "?")
                 snip = evi.get("content_snippet", "")[:60]
                 lines.append(
-                    f"  [{idx}] {det} (PATH-{path_label}) — gap={gap}, turns: {turns_str}"
+                    f"  [{idx}] {det} (PATH-{path_label}) — gap={gap}, turns: {turns_str}{cost_str}"
                 )
                 lines.append(f"      Evidence: {snip!r}")
     lines.append("")
