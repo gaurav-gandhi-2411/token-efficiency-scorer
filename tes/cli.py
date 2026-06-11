@@ -20,7 +20,15 @@ from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
-from tes.judge import JudgeConfig, score_trajectory
+from tes.judge import (
+    ApiJudgeConfig,
+    JudgeConfig,
+    JUDGE_SETUP_HINT_FULL,
+    build_api_judge_consent_notice,
+    is_judge_available,
+    score_trajectory,
+    score_trajectory_api,
+)
 from tes.report import format_human, format_json
 from tes.score import score_session
 from tes.waste import annotate_waste_costs, build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
@@ -161,6 +169,95 @@ def score_path(
             pass  # store write failure must never break the CLI output
 
 
+def _score_path_with_api_judge(
+    path: Path,
+    baselines: dict,
+    judge_config: JudgeConfig,
+    use_local_judge: bool,
+    json_mode: bool,
+    store_conn: object = None,
+    api_judge_config: ApiJudgeConfig | None = None,
+    api_judge_consent: bool = False,
+) -> None:
+    """Score a session with optional local or API judge.
+
+    When api_judge_config is provided AND api_judge_consent=True, uses the API
+    judge instead of the local judge. Otherwise falls through to use_local_judge.
+    """
+    try:
+        record = adapt_session(path)
+    except Exception as exc:
+        print(f"[ERROR] Failed to adapt {path.name}: {exc}", file=sys.stderr)
+        return
+
+    session_id: str = record.get("session_id", path.stem)
+    turns: list[dict] = record.get("digest", {}).get("turns", [])
+    waste_entry = build_waste_entry(session_id, turns)
+
+    judge_entry: dict | None = None
+    if api_judge_config is not None and api_judge_consent:
+        judge_entry = score_trajectory_api(record, api_judge_config, consent_given=True)
+    elif use_local_judge:
+        judge_entry = score_trajectory(record, judge_config)
+
+    session_cost: SessionCost | None = None
+    digest_dict = record.get("digest", {})
+    if digest_dict and digest_dict.get("turns"):
+        try:
+            digest = reconstruct_digest(digest_dict)
+            session_cost = compute_session_cost(digest, _PRICES)
+        except Exception:
+            pass
+
+    if session_cost is not None:
+        per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
+        annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
+
+    result = score_session(
+        record, baselines,
+        judge_entry=judge_entry,
+        waste_entry=waste_entry,
+        session_cost=session_cost,
+    )
+
+    baseline_cost_band: tuple[float, float, float] | None = None
+    if store_conn is not None and session_cost is not None:
+        try:
+            import sqlite3 as _sqlite3  # noqa: PLC0415
+            from tes.self_baseline import compute_baseline_cost_band  # noqa: PLC0415
+            task_type = result.task_type
+            tc_rows = store_conn.execute(  # type: ignore[union-attr]
+                "SELECT turn_count FROM sessions "
+                "WHERE task_type = ? AND turn_count > 0 ORDER BY turn_count",
+                (task_type,),
+            ).fetchall()
+            if tc_rows:
+                counts = [r[0] for r in tc_rows]
+                p10_idx = max(0, int(len(counts) * 0.10) - 1)
+                scope_floor = max(20, counts[p10_idx])
+            else:
+                scope_floor = 20
+            baseline_cost_band = compute_baseline_cost_band(
+                store_conn, task_type, scope_floor  # type: ignore[arg-type]
+            )
+        except Exception:
+            pass
+
+    if json_mode:
+        print(format_json(result))
+    else:
+        print(format_human(result, baseline_cost_band=baseline_cost_band))
+
+    if store_conn is not None:
+        try:
+            from tes.store import file_hash, upsert_session  # noqa: PLC0415
+            source_hash = file_hash(path)
+            source_mtime = path.stat().st_mtime
+            upsert_session(store_conn, result, str(path), source_mtime, source_hash)
+        except Exception:
+            pass
+
+
 def main() -> None:
     """CLI entry point."""
     # Ensure UTF-8 output on Windows (cp1252 console cannot encode ═/─ box-drawing chars)
@@ -214,6 +311,32 @@ def main() -> None:
         default="http://localhost:11434",
         metavar="URL",
         help="Ollama endpoint URL (default: http://localhost:11434).",
+    )
+    score_p.add_argument(
+        "--api-judge",
+        action="store_true",
+        dest="api_judge",
+        help=(
+            "Use the Anthropic API as trajectory judge (opt-in). "
+            "Requires ANTHROPIC_API_KEY env var or --api-judge-key. "
+            "Shows a consent screen before sending any session data. "
+            "Uses the same validated v3 rubric as the local judge. "
+            "Cannot be combined with --no-judge."
+        ),
+    )
+    score_p.add_argument(
+        "--api-judge-model",
+        default="claude-haiku-4-5-20251001",
+        metavar="MODEL",
+        dest="api_judge_model",
+        help="Anthropic model for the API judge (default: claude-haiku-4-5-20251001).",
+    )
+    score_p.add_argument(
+        "--api-judge-key",
+        default=None,
+        metavar="KEY",
+        dest="api_judge_key",
+        help="Anthropic API key (default: ANTHROPIC_API_KEY env var).",
     )
 
     backfill_p = sub.add_parser(
@@ -270,8 +393,10 @@ def main() -> None:
     serve_p.add_argument(
         "--background-judge", action="store_true", dest="background_judge",
         help=(
-            "Enable trajectory judge in the background watcher. "
-            "WARNING: runs a 30B model on your GPU for every new session continuously."
+            "Enable trajectory judge in the background watcher (local Ollama only). "
+            "Requires Ollama + qwen3:30b-a3b (~18 GB VRAM). "
+            "Setup: install Ollama (https://ollama.ai) then 'ollama pull qwen3:30b-a3b'. "
+            "For on-demand judging without a GPU: use 'tes score <path> --api-judge' instead."
         ),
     )
 
@@ -441,14 +566,44 @@ def main() -> None:
         sys.exit(0)
 
     # --- score command ---
-    # Load bundled baselines
+    import os as _os  # noqa: PLC0415
+
+    if getattr(args, "api_judge", False) and getattr(args, "no_judge", False):
+        print("[ERROR] --api-judge and --no-judge are mutually exclusive.", file=sys.stderr)
+        sys.exit(1)
+
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
 
     judge_config = JudgeConfig(
         model=args.judge_model,
         endpoint=args.judge_endpoint,
     )
-    use_judge = not args.no_judge
+
+    # Resolve API judge config when --api-judge is set.
+    api_judge_config: ApiJudgeConfig | None = None
+    api_judge_consent: bool = False
+
+    if getattr(args, "api_judge", False):
+        api_key = getattr(args, "api_judge_key", None) or _os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            print(
+                "[ERROR] --api-judge requires ANTHROPIC_API_KEY env var or --api-judge-key.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        api_judge_config = ApiJudgeConfig(
+            api_key=api_key,
+            model=getattr(args, "api_judge_model", "claude-haiku-4-5-20251001"),
+        )
+        # Show consent notice for first/only session.
+        # For multi-session scoring, consent is per-run (obtained once before the loop).
+        api_key_source = (
+            "--api-judge-key argument"
+            if getattr(args, "api_judge_key", None)
+            else "ANTHROPIC_API_KEY env var"
+        )
+
+    use_local_judge = not getattr(args, "no_judge", False) and not getattr(args, "api_judge", False)
 
     target = Path(args.path).expanduser().resolve()
     if not target.exists():
@@ -460,18 +615,48 @@ def main() -> None:
         print(f"[ERROR] No .jsonl files found in {target}", file=sys.stderr)
         sys.exit(1)
 
-    from tes.store import open_db
+    # API judge consent: obtained once before scoring any sessions.
+    if api_judge_config is not None:
+        # Show notice for the first session's identity (or generic if multiple).
+        notice_session_id = "this session" if len(session_paths) > 1 else session_paths[0].stem
+        notice_task_type = "auto-detected" if len(session_paths) > 1 else "auto-detected"
+        notice = build_api_judge_consent_notice(
+            session_id=notice_session_id,
+            task_type=notice_task_type,
+            model=api_judge_config.model,
+            api_key_source=api_key_source,
+        )
+        print(notice)
+        try:
+            answer = input("\nContinue? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+        if answer != "y":
+            print("Aborted — no data sent.")
+            sys.exit(0)
+        api_judge_consent = True
+
+    # Print judge on-ramp hint when local judge would be used but is unavailable.
+    if use_local_judge and not is_judge_available(judge_config):
+        print(f"\n{JUDGE_SETUP_HINT_FULL}\n", file=sys.stderr)
+
+    from tes.store import open_db  # noqa: PLC0415
     store_conn = None
     try:
         store_conn = open_db()
     except Exception:
-        pass  # store unavailable is non-fatal for `tes score`
+        pass
 
     try:
         for sp in session_paths:
-            score_path(sp, baselines, judge_config, use_judge, args.json_mode, store_conn=store_conn)
+            _score_path_with_api_judge(
+                sp, baselines, judge_config, use_local_judge, args.json_mode,
+                store_conn=store_conn,
+                api_judge_config=api_judge_config,
+                api_judge_consent=api_judge_consent,
+            )
             if not args.json_mode and len(session_paths) > 1:
-                print()  # blank line separator between sessions in human mode
+                print()
     finally:
         if store_conn is not None:
             store_conn.close()
