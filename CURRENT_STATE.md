@@ -1,7 +1,81 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-11 (P7 DONE). Read this BEFORE planning. This supersedes
-the prior snapshot dated 2026-06-10 (P6 DONE).
+Snapshot as of 2026-06-12 (P8 DONE). Read this BEFORE planning. This supersedes
+the prior snapshot dated 2026-06-11 (P7 DONE).
+
+---
+
+## Iteration status: P8 DONE — Token Attribution + Judge On-Demand (v0.4.0)
+
+**What P8 delivered:**
+
+**`tes/attribution.py` — Six-bucket token attribution:**
+- `compute_attribution(digest, waste_entry, prices)` → `AttributionResult`
+- 6 reconciling buckets: B1 RR waste, B2 RFR waste, B3 Context re-send (cache reads),
+  B4 Output, B5 Fresh input (not attributable to detected waste), B6 Context growth (cache writes)
+- Algebraic invariant: B1+…+B6 == `total_billed_tokens` (tested, held on real data)
+- Hard-locked labels: B3 never "bloat", B5 never "productive", B6 never "wasteful"
+- Attribution basis = `total_billed_tokens` (all billed incl. cache re-reads); distinct from
+  `real_tokens` verdict basis — labeled "over ALL billed tokens" throughout
+- Dollar view alongside token view: cache_read billed at 0.1×, so B3 = 95% of tokens but
+  49% of cost — the divergence IS the diagnostic insight
+
+**`tes/judge.py` — API judge (opt-in, explicit consent):**
+- `ApiJudgeConfig`, `score_trajectory_api()`, `build_api_judge_consent_notice()`
+- `consent_given=False` → return None unconditionally, ZERO network calls
+- Same v3 rubric as validated local judge; same system prompt, same user template
+- Consent screen separates "secrets redacted" from "content-safe" (honest: 300-char snippets
+  MAY contain code/file content, other content NOT filtered)
+- `JUDGE_SETUP_HINT_FULL` points to both --judge (Ollama) and --api-judge (API key) paths
+
+**`tes/score.py` — API-judge DOV:**
+- `build_api_trajectory_dov(api_model)`: carries B3 caveats + extra: "{model} was NOT part
+  of B3 cross-model corroboration — treat verdict as indicative, not equivalent to validated
+  local judge." API-judge DOV ≠ local-judge DOV (enforced by test)
+
+**`tes/cli.py` — --api-judge flags:**
+- `tes score <path> --api-judge [--api-judge-model MODEL] [--api-judge-key KEY]`
+- Resolves key from flag or ANTHROPIC_API_KEY env; shows consent notice; requires explicit `y`
+- --background-judge help updated to mention both local and API options
+- UNAVAILABLE output now points to both --judge and --api-judge
+
+**`tes/web/server.py` + templates — Attribution dashboard:**
+- `session_detail`: computes attribution from source JSONL (graceful None if file missing)
+- Dollar-ranked table: sorted by cost% DESC; shows both tok% and cost% side-by-side
+- One-line takeaway with data-gated actionable hint:
+  - context >= 60% of cost → "— a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."
+  - output >= 40% of cost → "— output was a large cost share; shorter responses or fewer regenerations reduce this."
+  - neither fires → description only
+- real_tokens vs total_billed note beneath table (prevents verdict-vs-attribution confusion)
+- session_list: stored-data attribution one-liner (total + waste events, no file I/O)
+- Trajectory UNAVAILABLE now points to both on-ramps (Ollama and --api-judge)
+
+**Key P8 diagnostic confirmed on real data:**
+- infra-deploy (6.3M real_tokens, $83/session): context 70% of cost (49% re-send + 21% growth),
+  output 30%, waste $0.15 (0.2%) — "carrying large contexts, not thrashing"
+- ml-eval (7.4M real_tokens, $117/session): context 77% of cost (59% re-send + 18% growth),
+  zero waste — same pattern
+- token-vs-dollar divergence confirmed: B3 = 95% of tokens but 49% of cost (billed 0.1×);
+  output = 1% of tokens but 30% of cost — side-by-side table makes this visible
+
+**New tests (P8):** 48 tests across 6 files — attribution reconciliation (8), attribution rules (12),
+API judge opt-in (7), API judge rubric consistency (7), judge caveats (14).
+**Test count: 339 green (297 pre-P8 + 42 P8). Detectors frozen. Reports 01-11 immutable.**
+
+**MOAT held:** local scoring stays local; ONLY egress = consented API judge call (user's key,
+direct to provider, consent_given gate unconditional). Default install transmits nothing.
+
+---
+
+## P8 BOUNDARY — explicit
+
+**Attribution is measured, not guessed.** B5 ("Fresh input") is a residual — it is NEVER
+labeled "productive." The attribution DOV makes this explicit: "whether non-waste tokens were
+used WELL is the judge's question, not attribution's."
+
+**API judge is indicative, not validated.** The rubric is the same v3 rubric. The MODEL
+(Haiku or other API model) was NOT part of the B3 cross-model corroboration. The DOV
+names the model and labels the verdict "indicative, not equivalent to the validated local judge."
 
 ---
 
