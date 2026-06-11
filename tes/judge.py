@@ -168,8 +168,10 @@ JUDGE_SETUP_HINT: str = (
 )
 
 # Template for the interactive consent screen shown before any API judge call.
-# Mirrors the P7 contribution-preview discipline: real data shown, NEVER-SENT
-# list explicit, direct-to-provider call confirmed, B3 caveats inline.
+# Mirrors the P7 contribution-preview discipline: show exactly what leaves before
+# it leaves. NEVER-SENT list is conservative — only claims what's guaranteed.
+# 300-char snippets CAN carry code/content; secrets are scrubbed but arbitrary
+# content is not filtered. That distinction must appear here, not just in docs.
 _CONSENT_SEP = "═" * 70
 API_JUDGE_CONSENT_NOTICE_TEMPLATE: str = (
     _CONSENT_SEP + "\n"
@@ -182,11 +184,15 @@ API_JUDGE_CONSENT_NOTICE_TEMPLATE: str = (
     + "What will be sent:\n"
     + "  • Session ID: {session_id}\n"
     + "  • Task type:  {task_type}\n"
-    + "  • Turn-by-turn trajectory (tool names, token counts, 300-char snippets)\n"
+    + "  • Turn-by-turn trajectory: tool names, token counts per turn\n"
+    + "  • 300-char snippets of tool inputs/outputs — these MAY contain code,\n"
+    + "    file content, or other material from your session. Detected API keys\n"
+    + "    and secrets are redacted at ingestion; other content is NOT filtered.\n"
     + "\n"
     + "What will NOT be sent:\n"
-    + "  • Raw file contents (secrets are redacted at ingestion — always ON)\n"
-    + "  • File paths, project names, or any content beyond the trajectory digest\n"
+    + "  • Detected secrets/API keys (redacted at ingestion before any call)\n"
+    + "  • Complete file contents (only up to 300-char excerpts in snippets)\n"
+    + "  • Full file paths or project names beyond what appears in snippets\n"
     + "\n"
     + "Provider: Anthropic (api.anthropic.com)\n"
     + "Model:    {model}\n"
