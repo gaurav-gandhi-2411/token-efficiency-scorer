@@ -88,6 +88,29 @@
 <div class="caveat">{{ row.domain_of_validity }}</div>
 {% endfor %}
 
+{% if waste_by_type %}
+<h2>Waste Concentration</h2>
+{% set total_events = waste_by_type | sum(attribute='total_events') %}
+{% if total_events > 0 %}
+<p class="caveat">
+  Detectable waste (observable-invariant only: retry loops + redundant reads) is concentrated in
+  <strong>ml-eval, infra-deploy, and research-recon</strong> — the infrastructure/ML-ops types where
+  identical-failure retries and redundant file reads occur.
+  {% for row in waste_by_type if row.total_events > 0 %}
+    <strong>{{ row.task_type }}</strong>: {{ row.total_events }} event(s) in {{ row.with_waste }} of {{ row.total }} sessions;
+  {% endfor %}
+  feature-build ({{ waste_by_type | selectattr('task_type', 'eq', 'feature-build') | map(attribute='total') | first | default(0) }} sessions): zero waste events.
+  Total: {{ total_events }} events across all types.
+  See <a href="https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md">report 11</a> for corpus characterisation.
+</p>
+{% else %}
+<p class="caveat">
+  No waste events in store — run <code>tes backfill-waste</code> to detect and record waste across all sessions.
+  Expected concentration (from inventory): ml-eval &gt; infra-deploy &gt; research-recon; zero in feature-build.
+</p>
+{% endif %}
+{% endif %}
+
 {% else %}
 <p class="empty">No baseline data available. Run <code>tes score</code> to accumulate sessions.</p>
 {% endif %}

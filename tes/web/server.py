@@ -249,15 +249,30 @@ def create_app(config: ServerConfig) -> Flask:
         conn = get_db()
         self_bl = get_self_bl()
         if self_bl is None:
-            return render_template("baseline_status.html", status_rows=[], headline=None)
+            return render_template("baseline_status.html", status_rows=[], headline=None,
+                                   waste_by_type=[])
 
         headline = _projected_metrics(conn, self_bl)
         status_rows = _per_type_status(conn, self_bl)
+
+        waste_rows = conn.execute(
+            """
+            SELECT task_type,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN waste_event_count > 0 THEN 1 ELSE 0 END) AS with_waste,
+                   SUM(waste_event_count) AS total_events
+            FROM sessions
+            GROUP BY task_type
+            ORDER BY total_events DESC
+            """
+        ).fetchall()
+        waste_by_type = [dict(r) for r in waste_rows]
 
         return render_template(
             "baseline_status.html",
             status_rows=status_rows,
             headline=headline,
+            waste_by_type=waste_by_type,
         )
 
     return app

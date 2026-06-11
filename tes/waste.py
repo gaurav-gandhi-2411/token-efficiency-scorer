@@ -36,9 +36,32 @@ def build_waste_entry(session_id: str, turns: list[dict[str, Any]]) -> dict[str,
     }
 
 
+def annotate_waste_costs(
+    waste_events: list[dict[str, Any]],
+    per_turn_cost: dict[int, float],
+) -> list[dict[str, Any]]:
+    """Embed wasted_cost_usd into each waste event dict in-place; returns the same list.
+
+    Definition: cost of the REDUNDANT turns only — proof_turns[2:] — skipping the
+    first legitimate call+result pair.  AI turns carry their measured per-turn cost;
+    tool/user turns are absent from per_turn_cost so contribute 0 (they don't generate
+    output tokens directly; their context cost is amortised into the next AI turn's
+    cache_read charge, which IS included for AI call turns).
+
+    RR-A events have only two proof turns ([call, result]), so redundant = [] → cost 0.
+    This is conservative: PATH-A is currently silent on the live session population.
+    """
+    for event in waste_events:
+        proof_turns: list[int] = event.get("turns", [])
+        redundant: list[int] = proof_turns[2:]
+        event["wasted_cost_usd"] = sum(per_turn_cost.get(ti, 0.0) for ti in redundant)
+    return waste_events
+
+
 __all__ = [
     "WasteEvent",
     "detect_redundant_read",
     "detect_repeated_failed_retry",
     "build_waste_entry",
+    "annotate_waste_costs",
 ]

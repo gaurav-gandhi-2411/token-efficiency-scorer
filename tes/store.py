@@ -91,18 +91,22 @@ _DEFAULT_DIR = Path.home() / ".tes"
 _DEFAULT_DB = _DEFAULT_DIR / "tes.db"
 
 
+def resolve_db_path(path: Path | str | None = None) -> Path:
+    """Canonical DB path resolution: explicit arg → TES_DB_PATH env var → ~/.tes/tes.db."""
+    if path is not None:
+        return Path(path)
+    if env_val := os.environ.get("TES_DB_PATH"):
+        return Path(env_val)
+    return _DEFAULT_DB
+
+
 def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     """Open (or create) the TES database.
 
     Path resolution: explicit arg → TES_DB_PATH env var → ~/.tes/tes.db.
     Raises RuntimeError on PermissionError or schema version mismatch.
     """
-    if path is not None:
-        db_path = Path(path)
-    elif env_val := os.environ.get("TES_DB_PATH"):
-        db_path = Path(env_val)
-    else:
-        db_path = _DEFAULT_DB
+    db_path = resolve_db_path(path)
 
     try:
         db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -446,6 +450,77 @@ def backfill_turn_counts(db_path: Path | str | None = None) -> dict[str, int]:
     return {"updated": updated, "missing_source": missing, "errors": errors}
 
 
+def backfill_waste(
+    db_path: Path | str | None = None,
+    prices: dict | None = None,
+) -> dict[str, int]:
+    """Re-run frozen detectors on all accessible sessions; embed per-event costs.
+
+    Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
+    scored before waste detection was wired show waste_event_count=0 in the store).
+
+    Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E}
+    where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
+    processed with 0 detected events, "missing_source" = source file not accessible.
+    """
+    from tes.adapt import adapt_session
+    from tes.cost import compute_session_cost, load_price_table
+    from tes._digest import reconstruct_digest
+    from tes.waste import annotate_waste_costs, build_waste_entry
+
+    if prices is None:
+        prices = load_price_table()
+
+    conn = open_db(db_path)
+    rows = conn.execute(
+        "SELECT session_id, source_path FROM sessions WHERE source_path IS NOT NULL"
+    ).fetchall()
+
+    updated = 0
+    no_waste = 0
+    missing = 0
+    errors = 0
+
+    for row in rows:
+        session_id: str = row["session_id"]
+        p = Path(row["source_path"])
+        if not p.exists():
+            missing += 1
+            continue
+        try:
+            record = adapt_session(p)
+            turns: list[dict] = record.get("digest", {}).get("turns", [])
+            waste_entry = build_waste_entry(session_id, turns)
+
+            per_turn_cost: dict[int, float] = {}
+            try:
+                digest = reconstruct_digest(record.get("digest", {}))
+                sc = compute_session_cost(digest, prices)
+                per_turn_cost = {tc.turn_index: tc.total_usd for tc in sc.turn_costs}
+            except Exception:
+                pass  # cost failure → wasted_cost_usd will be 0 for all events
+
+            waste_events = waste_entry["waste_events"]
+            annotate_waste_costs(waste_events, per_turn_cost)
+
+            count = len(waste_events)
+            conn.execute(
+                "UPDATE sessions SET waste_event_count = ?, waste_events = ? WHERE session_id = ?",
+                (count, json.dumps(waste_events), session_id),
+            )
+            conn.commit()
+
+            if count > 0:
+                updated += 1
+            else:
+                no_waste += 1
+        except Exception:
+            errors += 1
+
+    conn.close()
+    return {"updated": updated, "no_waste": no_waste, "missing_source": missing, "errors": errors}
+
+
 def backfill_cost(
     db_path: Path | str | None = None,
     prices: dict | None = None,
@@ -544,11 +619,13 @@ __all__ = [
     "SCHEMA_VERSION",
     "TrajectoryRenderState",
     "trajectory_render_state",
+    "resolve_db_path",
     "open_db",
     "file_hash",
     "needs_scoring",
     "upsert_session",
     "backfill_turn_counts",
+    "backfill_waste",
     "backfill_cost",
     "get_session",
     "list_sessions",
