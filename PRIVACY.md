@@ -58,3 +58,34 @@ Regenerate by deleting the file. Omit entirely with `--anonymous`.
 writes a local file. There is no upload, no server endpoint, no daemon that
 would pick up the file. Any future transmission step would be separate,
 explicitly opt-in, with a new consent flow and independent legal review first.
+
+---
+
+## API judge (opt-in, explicit consent per session)
+
+`tes score <path> --api-judge` scores trajectory quality using an API-hosted model
+(default: `claude-haiku-4-5-20251001`) with your own API key. **This is the one
+feature in tracegauge that sends data off-machine.**
+
+This is distinct from the contribution export: the API judge sends raw session
+content (snippets) to a third-party model provider; the contribution export is
+content-free (numeric counts only) and is never transmitted by tracegauge.
+
+**What is sent.** A session digest containing 300-character conversation snippets,
+task type, turn-level structure, and token counts. Sent from your machine directly
+to the model provider's API (e.g., `api.anthropic.com`). Tracegauge servers are
+not involved.
+
+**Secrets.** Redacted at ingestion using the standard secret redactor (API keys,
+tokens, private key headers, etc.). Other content — code, prompts, file paths —
+is NOT filtered. The digest is not content-safe beyond secret removal.
+
+**Consent.** A consent notice is shown before any data is sent, naming what will
+be sent and explicitly stating that snippets may contain code or file content.
+You must type `y` to proceed. Without explicit consent, no network call is made —
+the gate is unconditional in code.
+
+**Domain of validity.** The API judge uses the same validated v3 rubric as the
+local judge. The API model was not part of the B3 cross-model corroboration
+(Qwen3 + Gemma3) — the verdict is indicative, not equivalent to the validated
+local judge.

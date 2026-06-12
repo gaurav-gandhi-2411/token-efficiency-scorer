@@ -1,6 +1,6 @@
 # tracegauge
 
-Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Runs entirely on your machine. No server, nothing transmitted — ever. An optional command exports a redacted local file you inspect and control.
+Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted by default. Two opt-in paths, very different: a local contribution export (content-free, never transmitted by tracegauge); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. See [PRIVACY.md](PRIVACY.md).
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
@@ -71,11 +71,20 @@ Requires a local GPU (~18 GB VRAM). Without the judge, this axis is `UNAVAILABLE
 
 **Domain of validity:** positive signal cross-model corroborated (B3 report); negative signal is model-dependent. No human gold labels.
 
-To enable:
+To enable local judge (free, GPU required):
 ```bash
 # Install Ollama: https://ollama.ai
-ollama pull qwen3:30b-a3b   # ~18 GB
-tes score <path>             # judge auto-detected
+ollama pull qwen3:30b-a3b      # ~18 GB VRAM
+tes score <path> --judge       # explicit flag, or auto-detected when Ollama is running
+```
+
+To use the opt-in API judge (no GPU needed):
+```bash
+tes score <path> --api-judge --api-judge-key YOUR_KEY
+# Sends session data — including 300-char snippets that may contain your code — to your provider.
+# Uses the same validated v3 rubric. Requires explicit consent per session (shown at prompt).
+# The API model is not part of the B3 cross-model corroboration — verdict is indicative.
+# See PRIVACY.md for what is sent.
 ```
 
 ### Deterministic waste
@@ -86,6 +95,16 @@ Two observable-invariant detectors with proof turns attached to every event:
 - **REDUNDANT-READ** — same file content read twice with no edit between reads (PATH-A: CC's own "File unchanged" verdict; PATH-B: content-match, gap ≤ 5 turns). Dual-format regex handles both pre- and post-v2.1.38 CC output.
 
 **Domain of validity:** observable-invariant only. Fires conservatively — misses judgment-of-progress waste by design.
+
+---
+
+## Token attribution
+
+The session-detail view in `tes serve` breaks billed token spend into six named buckets — context re-send (cache reads), context growth (cache writes), output, fresh input, redundant-read waste, and retry-loop waste — reconciling exactly to total billed tokens.
+
+Dollar and token percentages are shown side-by-side because they diverge significantly: cache re-reads may be 95% of tokens but only 49% of cost (billed at 0.1×), while output at 1% of tokens can be 30% of cost (billed at full rate). The dollar column is what matters for spend; the token column is what the verdict axis measures. These should not be compared directly.
+
+Attribution is computed from the source JSONL on demand. A deterministic one-line takeaway is generated from the bucket values, with a data-gated lever hint when a bucket genuinely dominates (e.g. "Cost: context (49% re-send + 21% growth) and output (30%); detectable waste $0.15. — a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send.").
 
 ---
 
