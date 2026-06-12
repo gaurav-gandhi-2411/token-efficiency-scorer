@@ -1,150 +1,130 @@
-# Project Spec: tracegauge — Token Attribution + Judge-On-Demand (Iteration P8)
+# Project Spec: tracegauge — Dashboard UI Redesign (Iteration P9)
 
 ## Goal
 
-Turn tracegauge from a thermometer ("you used 1.4M tokens, +640%") into a diagnostic that answers the user's actual question: **"are my tokens used PROPERLY?"** Two halves:
+Redesign the `tes serve` dashboard from the current functional-but-plain templates into an MLflow-style developer tool with consumer polish where it aids comprehension: clear visual hierarchy, cards, charts for the attribution breakdown, and a session-detail page that reads as a *diagnosis* (lead with the answer, support with the data). The redesign makes the P4-P8 diagnostic FEEL as good as it is — WITHOUT losing a single piece of the honesty that the plain version carried.
 
-- **A — Token Attribution (deterministic, no GPU):** break each session's tokens into WHERE THEY WENT — productive work vs. re-read files vs. retry loops vs. context re-send/bloat. This is the measurable form of "properly." It builds on data already in the digest (per-turn input/output/cache_creation/cache_read, the waste detectors).
-- **B — Judge On-Demand (the AI/ML half):** make trajectory-quality scoring actually available, via EITHER a local Ollama judge OR an opt-in API-key judge (Claude via the user's own key). Answers the judgment question A can't: "was this work justified / on-track / efficient in PATH, not just volume?"
+This is a presentation-layer phase. It changes how data is DISPLAYED. It does NOT change what is measured, scored, attributed, judged, or how — those are frozen. Same numbers, better-presented.
 
-Together they answer "properly": A says WHERE the tokens went (measured), B says WHETHER that was justified (judged). The current "+640%" headline becomes a diagnosis: "1.4M tokens — 60% productive, 25% context re-send, 10% redundant reads; judge says substantial work but context bloat cost ~$3; a checkpoint around turn 100 would have helped."
+## The non-negotiable constraint (read first — this is the whole risk)
 
-## The honesty constraint specific to this phase (read first)
+A UI redesign is the single most dangerous place for this project's honesty to silently erode. "Cleaning up" an interface is exactly how caveats get truncated, nuance gets simplified away, and warnings get softened for visual flow. So the hard rule: **every honest element that survived to the CURRENT rendered page MUST survive to the redesigned page, with equal or greater prominence.** Specifically, ALL of these must remain present and legible after the redesign (a checklist test verifies each):
 
-**Token attribution must be MEASURED, not estimated by vibes.** The temptation is to slap plausible-looking percentages on a pie chart. That would be the exact "meaningful-but-fake number" failure this project has refused all along. So:
+1. **Domain-of-validity caveats** on every axis (token/trajectory/waste) — not hidden behind a tooltip the user won't hover, not truncated. May be collapsible IF the collapsed state still signals the caveat exists and one click reveals it — but the DEFAULT visible state must make clear the number is caveated.
+2. **The dollar% AND token% shown together** in attribution — the divergence (95% tokens / 49% cost) IS the insight; a redesign must not show only one. Both, side by side, in any chart or card.
+3. **"Over all billed tokens" basis label** on attribution + the "do not compare to real_tokens verdict" note — must survive, not get dropped for cleanliness.
+4. **UNAVAILABLE rendered as complete/expected, NOT as an error** — the most common state (no judge) must look like a normal finished report, not a red broken thing. Polish makes this EASIER (a clean "judge not configured — enable with..." card), not harder.
+5. **"Relative to YOUR OWN baseline, not absolute"** framing on token verdicts — survives.
+6. **Self vs corpus vs building baseline source** label per session — survives.
+7. **Waste proof-turns + evidence** accessible (can be behind a click/expand, but present).
+8. **The API-judge consent + "may contain your code"** — if the UI surfaces judge enablement, the data-egress warning survives at full honesty.
+9. **No composite score** — the redesign must NOT invent a single blended "tracegauge score" gauge/number to look slick. Three labeled axes + cost annotation, still separate.
+10. **The deterministic one-line takeaway** — featured, not lost.
 
-1. **Every attribution bucket must be defined by an OBSERVABLE, defensible rule** over the session digest — not a heuristic guess. "Re-read tokens" = tokens in turns the REDUNDANT-READ detector fired on (already proven). "Retry-loop tokens" = tokens in REPEATED-FAILED-RETRY turns (already proven). "Context re-send" = a DEFINED, measurable quantity (see below). "Productive" is the RESIDUAL after the measurable-waste buckets — and must be LABELED as residual, not claimed as "definitely productive."
-2. **Buckets must sum to the session's real token total** (reconciliation — like the cost sum check). No tokens unaccounted, no double-counting.
-3. **Attribution carries its domain of validity:** "productive" is "not-attributable-to-measured-waste," NOT a positive proof of value. The tool must not claim "60% of your tokens were productive" — it claims "60% were not attributable to detectable waste; the judge assesses whether that work was on-track."
-4. **The judge (B) is where JUDGMENT lives — and it carries the B3 caveats:** positive signal corroborated, negative model-dependent, no human calibration. An API judge (vs local) does NOT change those caveats — it changes availability, not validity.
+If a design choice forces dropping/softening any of these for visual reasons: the honesty wins, escalate. Prettier-at-the-cost-of-honest is a REGRESSION, not an improvement.
 
-## The token-attribution buckets (A — define rigorously, escalate the definitions)
+## Design decisions (made by consultant, since the user delegated design judgment — reviewable)
 
-For a session, attribute its real tokens into observable buckets that SUM to the total:
-1. **Redundant-read tokens** — token cost of the turns the REDUNDANT-READ detector flagged (the re-read content). Measured, proof-turns already exist.
-2. **Retry-loop tokens** — token cost of the REPEATED-FAILED-RETRY redundant attempts (2nd-onward, same as the P6 waste-cost definition). Measured.
-3. **Context re-send / growth** — THE BIG NEW ONE, and the hardest to define honestly. CC re-sends conversation context every turn; cache_read tokens are the re-sent context (billed at 0.10x). High cache_read relative to fresh input = lots of context being carried. DEFINE a defensible measure: e.g. "context-carry tokens = cumulative cache_read" or "context-GROWTH = the rate at which per-turn input grows over the session." Decide the exact, defensible definition (see design decisions). This must be a REAL measure of re-sent/growing context, labeled precisely — NOT a vibe.
-4. **Output tokens** — the agent's actual generation (measured directly).
-5. **Productive/residual input** — fresh input tokens NOT attributable to the above. LABELED as residual ("not attributable to detected waste"), never "proven productive."
-
-Reconciliation: buckets must sum to real_tokens (or to total billed tokens — pick ONE basis and be consistent; cost-basis vs efficiency-basis must not be conflated, same as P5). A test asserts the sum reconciles.
-
-## The judge on-demand (B — both paths)
-
-Make trajectory-quality ACTUALLY AVAILABLE, two ways, user picks:
-1. **Local Ollama** (exists today) — `--judge` with the local Qwen model. Surface it as a first-class, documented option (currently buried/UNAVAILABLE with no easy on-ramp).
-2. **API key (NEW)** — opt-in: the user provides their own API key (env var, e.g. `ANTHROPIC_API_KEY`, or config), and the judge calls the API model to score trajectory. This makes the judge available to users WITHOUT a GPU — the majority.
-
-Constraints on the API judge:
-- **OPT-IN, EXPLICIT.** Default stays no-judge (UNAVAILABLE). The user must explicitly enable the API judge AND it must be clear that this SENDS SESSION CONTENT TO THE API (a moat consideration — it's the user's own key/data/call, but data leaves the machine for the judge). Clear consent, like the contribution preview: "Enabling the API judge sends session trajectory data to <provider> using your key. Continue?"
-- **The user's OWN key.** tracegauge never ships a key, never proxies through a tracegauge server (there is no server). The call goes from the user's machine directly to the API provider with the user's key. Document this.
-- **Same B3 caveats apply** regardless of local-vs-API: positive corroborated, negative model-dependent, no human calibration. The judge VERDICT carries the same domain-of-validity; the API path changes availability, not validity.
-- **`tes serve --judge`** (local) and a documented API-judge enablement. The judge-footgun guard stays: background judging is still opt-in (running it on every session continuously, local or API, has cost/throughput implications — surface them).
-- **The API judge must use the SAME judge prompt / scoring rubric** as the validated local Qwen judge (the B1/B3 v3 prompt), so verdicts are comparable. If the API model needs prompt adaptation, that's a re-validation question — flag it; do NOT silently use a different rubric.
+- **Style target:** MLflow-functional core (data-dense, developer-facing, fast, no heavy SPA) with consumer polish in the VISUAL HIERARCHY and the attribution charts. Reference feel: a clean dev-tool dashboard (think Linear/Vercel restraint) — generous whitespace, clear typography, cards for grouping, but NEVER at the expense of data density a developer wants.
+- **Tech:** stay server-rendered Jinja2 (no SPA build step — keeps the moat-simple, dependency-light footprint). Polish via clean CSS + a LIGHTWEIGHT charting approach (inline SVG or a single small charting lib from cdnjs IF justified — escalate before adding a heavy JS dep; prefer inline SVG for the attribution bars, which are simple). NO localStorage/sessionStorage. Charts render from server-passed data.
+- **Session list (landing):** a clean table/card hybrid — per session: task type, the cost, the band verdict (with baseline-source), waste indicator, and the one-line takeaway as the row's human-readable summary. Sortable/scannable. This is where the user lands; it should answer "which sessions cost the most / which have issues" at a glance.
+- **Session detail (the diagnosis page):** lead with the ONE-LINE TAKEAWAY as a headline, then the COST attribution as the hero visual (a horizontal stacked bar or bars showing the buckets, dollar-ranked, with BOTH %s on hover/label), then the three axes each as a card carrying its verdict + caveat, then waste events (expandable with proof-turns), then the judge section (verdict or the enable-judge card). The page should read top-to-bottom as: "here's the answer (takeaway) -> here's where the money went (attribution) -> here's the detail (axes) -> here's the evidence (waste/judge)."
+- **Attribution as the hero chart:** a horizontal stacked bar (cost-ranked), each segment a bucket, labeled with $ and both %s. This is the visual that makes "where did my tokens go" instant. Honest labels on every segment.
+- **Baseline-status + trends:** baseline-status page gets the same card polish. (Trends stays PARKED — do not build trend charts; if a trends nav item exists, it shows the "building/parked" honest state.)
+- **Color discipline:** use color to AID comprehension (e.g. waste = a distinct accent, cost severity = a gradient) but UNAVAILABLE is NEUTRAL (gray/calm), never red/alarm — it's expected, not an error. Don't use alarming red for "above_p75" either — it's "heavier than your lean runs," not "bad."
 
 ## Current state
-tracegauge 0.3.1 on PyPI. P1-P7 done. Two install bugs (templates, watcher db_path) found via real-user testing + fixed. The product WORKS end-to-end now (dashboard renders, watcher scores). Self-baseline (P4), cost (P5), waste backfill (P6), contribution export (P7). Judge exists (local Qwen, tiered) but is UNAVAILABLE without a GPU and has no easy on-ramp. Detectors frozen. Reports 01-11 immutable.
+tracegauge 0.4.0 BUILT + VERIFIED but PUBLISH HELD for this UI phase. P1-P8 complete. Current dashboard: functional Jinja2 templates (session list, session detail w/ attribution table, baseline-status), localhost-only, renders correctly but plain. All the honest elements (the 10 above) are present in the current plain version — the redesign must preserve every one. Detectors frozen, reports immutable.
 
 ## Scope
 
 ### In scope
-1. **Attribution module** (`tes/attribution.py`): compute the token buckets per session from the digest, reconciling to the total. Each bucket from a defensible observable rule. Residual labeled honestly.
-2. **Judge on-demand**: surface `tes serve --judge` (local) properly; ADD an opt-in API-key judge path (user's own key, explicit consent, same rubric, same caveats). Both populate the trajectory axis.
-3. **Dashboard surfacing (the diagnostic view)**: per-session attribution breakdown (where the tokens went) + the judge verdict when available. This is the "are they used properly" answer made visible.
-4. **Reconciliation test**: buckets sum to the session total; no double-count, no unaccounted tokens.
-5. **Honest labeling**: attribution carries DOV ("residual = not-attributable-to-detected-waste, not proven-productive"); judge carries B3 caveats; API-judge consent makes data-leaves-for-judge explicit.
-6. **Apply to the real store**: attribution on the existing sessions; report what the breakdown looks like on the user's heavy sessions (e.g. the 1.4M-token infra session — where DID those tokens go?).
+1. Redesign the Jinja2 templates + CSS for: session list (landing), session detail (the diagnosis page), baseline-status. Clean visual hierarchy, cards, the attribution hero chart (inline SVG stacked bar), polish.
+2. The attribution visual: cost-ranked stacked bar (or bar set), both %s per bucket, honest labels, dollar+token.
+3. Preserve ALL 10 honesty elements (checklist test).
+4. Keep it server-rendered, localhost-only, dependency-light. Inline SVG for charts preferred; escalate before any heavy JS dep.
+5. Responsive enough to be usable (it's a local dev dashboard, not mobile-first, but shouldn't break at common window sizes).
+6. A "honesty-survived" verification: a test (or a documented manual checklist run in the clean-room) confirming each of the 10 elements renders in the new templates.
 
 ### Out of scope
-- Inverting the dashboard priorities / the bigger UI redesign (that's the NEXT phase, P9 — noted, parked, the user asked for better UI).
-- Corpus transmission/server (still P7-deferred).
-- Changing detectors, real_tokens, cost model, self-baseline math.
-- Re-validating the judge rubric for a new API model beyond flagging if adaptation is needed.
-- Trends (still parked).
+- Any change to scoring, attribution math, judge, cost, self-baseline, detectors (presentation only — same numbers).
+- Building trends (parked — trends nav shows the parked/building state, no trend charts).
+- A SPA / heavy frontend framework / build step.
+- localStorage/sessionStorage (forbidden).
+- New data egress (no CDN calls beyond optionally one charting lib from cdnjs IF escalated+justified; prefer inline SVG = zero external).
 - Modifying reports 01-11.
 
 ### Hard rules
-- ATTRIBUTION IS MEASURED: every bucket from an observable rule; "productive" is residual, LABELED as such, never claimed as proven value. Buckets reconcile to the total (tested).
-- API JUDGE IS OPT-IN + EXPLICIT-CONSENT: default no-judge; enabling sends data to the API with the user's own key; clear consent; no tracegauge server, no shipped key.
-- JUDGE CAVEATS UNCHANGED by path: B3 domain-of-validity applies to local AND API verdicts. Same rubric/prompt as the validated judge, or flag re-validation.
-- MOAT: local scoring still local; the ONLY data-egress is the opt-in API judge, with explicit consent, user's own key, direct to provider. Default install transmits nothing.
-- Detectors frozen, reports immutable, no human labels.
+- HONESTY SURVIVES: all 10 listed elements present + legible in the redesign (checklist verified). Prettier never drops a caveat. Escalate if a design forces it.
+- NO COMPOSITE SCORE invented for slickness. Three axes + cost annotation stay separate + labeled.
+- UNAVAILABLE = calm/neutral/expected, never error-styled.
+- PRESENTATION ONLY: same numbers, no scoring/math changes. Detectors frozen (git diff empty).
+- Server-rendered, localhost-only, no new egress, no browser storage. Moat intact.
+- Reports 01-11 immutable.
 
 ## Tech stack
-- Python, reuse tes/. Attribution from the digest (per-turn tokens + cache classes + waste events — all present post-P5/P6).
-- API judge: a thin client calling the provider's API with the user's key, reusing the existing judge prompt/parse logic (layer2_judge). No new heavy deps beyond an HTTP client already present (httpx).
-- pytest: attribution reconciliation, bucket-rule correctness, API-judge opt-in/consent, API-judge uses-same-rubric, no-egress-without-consent.
+- Jinja2 server-rendered templates + CSS (clean, modern, hand-written or minimal framework). Inline SVG for the attribution chart (simple stacked bars — no lib needed). If a chart genuinely needs a lib, escalate (prefer cdnjs, but prefer inline SVG more).
+- Flask backend unchanged (it already passes the data; the redesign consumes the same context).
+- pytest + a rendering checklist: assert the templates render with real data and each honesty element's text/marker is present in the output HTML.
 
-## Architecture (new/changed)
+## Architecture (changed)
 ```
-tes/
-├── attribution.py      # NEW: token buckets per session, reconciling to total
-├── judge.py            # CHANGED: add API-key judge path alongside local Ollama; same rubric
-├── score.py            # CHANGED: attach attribution; judge via local OR api per config
-├── cli.py              # CHANGED: tes serve --judge (local), API-judge enablement + consent
-├── web/                # CHANGED: per-session attribution breakdown + judge verdict view
+tes/web/
+├── templates/          # REDESIGNED: session_list, session_detail, baseline_status (+ a base layout)
+│   ├── base.html       # NEW: shared layout, nav, the CSS
+│   ├── session_list.html
+│   ├── session_detail.html
+│   └── baseline_status.html
+├── static/             # CSS (+ any minimal assets; no heavy JS)
+└── server.py           # unchanged data passing (or minor: pass chart-ready data structures)
+
 tests/
-├── test_attribution_reconcile.py   # buckets sum to total, no double-count
-├── test_attribution_rules.py       # each bucket from its observable rule (re-read = detector turns, etc.)
-├── test_api_judge_optin.py         # default off; explicit consent; data-egress only on consent
-├── test_api_judge_rubric.py        # API judge uses the SAME prompt/rubric as local
-└── test_judge_caveats.py           # B3 DOV on both local + API verdicts
+├── test_ui_honesty_survives.py   # NEW: each of the 10 elements present in rendered output
+└── (existing render tests updated for new templates)
 ```
-
-## Key design decisions (resolve early, escalate)
-1. **Context re-send/growth definition** — the hardest, most important. Options: (a) cumulative cache_read as "context-carry"; (b) per-turn input growth rate (how fast context balloons); (c) "context efficiency" = useful-output per context-token-carried. Pick the MOST DEFENSIBLE, observable one and label it precisely. This is the bucket most prone to becoming a vibe — escalate the definition for consultant review BEFORE building the breakdown.
-2. **Attribution basis** — cost-basis (dollars per bucket) or token-basis (tokens per bucket)? Recommend token-basis for the breakdown + show dollars alongside (reuse P5). Be consistent; don't conflate.
-3. **"Productive" labeling** — confirm the residual is labeled "not attributable to detected waste," never "productive." The DOV wording matters.
-4. **API judge provider/model** — which API model? Recommend the user's choice with a sensible default; but it must run the SAME rubric as validated. If the default API model would give materially different verdicts than the validated Qwen, that's a flag, not a silent swap.
-5. **API judge consent UX** — exact consent copy (data leaves for the judge, your key, your call). Mirror the P7 contribution-preview honesty.
-6. **Background API judge** — should `tes serve --background-judge` allow the API path? Cost implications (every session hitting the API). Recommend: allowed but with a clear cost warning, OR background stays local-only and API is for on-demand `tes score --judge`. Decide.
 
 ## Verification commands
 ```yaml
-- name: attribution-reconciles
-  cmd: python -m pytest tests/test_attribution_reconcile.py -v   # buckets sum to total
+- name: honesty-survives
+  cmd: python -m pytest tests/test_ui_honesty_survives.py -v   # all 10 honesty elements render
   required: true
-- name: attribution-rules
-  cmd: python -m pytest tests/test_attribution_rules.py -v        # each bucket from its observable rule
-  required: true
-- name: api-judge-optin
-  cmd: python -m pytest tests/test_api_judge_optin.py -v          # off by default, consent required, no egress without it
-  required: true
-- name: api-judge-rubric
-  cmd: python -m pytest tests/test_api_judge_rubric.py -v         # same rubric as validated judge
+- name: templates-render
+  cmd: python -m pytest tests/ -k "render or template or dashboard" -v
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
   required: true
-- name: full-suite
-  cmd: python -m pytest -q
+- name: no-scoring-change
+  cmd: python -m pytest -q   # full suite; scoring/attribution tests unchanged + green
   required: true
 ```
 
 ## Escalation rules
-- The CONTEXT RE-SEND/GROWTH bucket definition: escalate for consultant review BEFORE building — it's the bucket most likely to become a meaningless-but-plausible number.
-- If "productive" can't be cleanly defined as residual: escalate rather than claim positive value.
-- If the API judge would need a DIFFERENT prompt/rubric than the validated Qwen judge (giving non-comparable verdicts): escalate — do not silently swap rubrics.
-- If attribution can't reconcile to the total: STOP — unaccounted/double-counted tokens mean the breakdown is wrong.
-- API egress only ever on explicit consent; if any code path could send data without consent: STOP.
+- If ANY design choice forces dropping/softening one of the 10 honesty elements: STOP, escalate — honesty wins over aesthetics.
+- BEFORE adding any heavy JS/charting dependency (vs inline SVG): escalate.
+- BEFORE inventing any composite/blended single-score visual: STOP — explicitly forbidden.
+- If tempted to restyle UNAVAILABLE or above_p75 as alarm/error/red: STOP — they're expected/neutral states.
+- Presentation only — if a "fix" requires touching scoring/attribution/judge math: out of scope, escalate.
 
 ## Budget
-- Soft: 3-5 CC sessions. Local/$0 for attribution. API judge testing uses the user's key (minimal — a few test sessions); confirm before any real API calls in testing.
+- Soft: 3-5 CC sessions. Local/$0. No GCP, no API, no server.
 
 ## Success criteria (verify ALL before done)
-- Attribution breaks each session into reconciling buckets (re-read, retry, context-carry, output, residual-productive), each from an observable rule, summing to the total (test passes).
-- "Productive" is labeled residual ("not attributable to detected waste"), never claimed as proven value.
-- Judge available via BOTH local Ollama (`tes serve --judge` surfaced properly) AND opt-in API key (user's own key, explicit consent that data leaves for the judge, no tracegauge server/key).
-- API judge uses the SAME validated rubric as the local judge; B3 caveats on both (tests pass).
-- Default install: no judge, no egress. API judge only on explicit opt-in + consent (test passes).
-- Dashboard shows the per-session attribution breakdown + judge verdict — the "where did my tokens go / was it justified" diagnostic.
-- On the real store: report the attribution breakdown for a heavy session (the 1.4M infra one) — where DID the tokens go?
-- Detectors frozen, full suite green, reports 01-11 untouched, git clean. New version (0.4.0 — minor, real features), clean-room, user publishes.
+- Redesigned session list (landing), session detail (diagnosis page), baseline-status — MLflow-functional + consumer polish (hierarchy, cards, the attribution hero chart).
+- Attribution rendered as a cost-ranked visual (inline SVG stacked bar) with BOTH dollar% and token% per bucket + honest bucket labels.
+- Session detail reads top-down: takeaway -> attribution -> axes -> evidence.
+- ALL 10 honesty elements present + legible (test passes): the 3 DOV caveats, dollar+token together, billed-basis label, UNAVAILABLE-as-complete, relative-not-absolute, baseline-source, waste proof-turns, API-judge code-exposure warning, NO composite, the one-line takeaway.
+- UNAVAILABLE + above_p75 are neutral/calm, not error/alarm styled.
+- Server-rendered, localhost-only, no browser storage, no new egress (inline SVG, or escalated+justified single lib).
+- Same numbers as 0.4.0 (presentation only); scoring/attribution/judge/detector tests unchanged + green; detectors frozen.
+- Clean-room: the redesigned dashboard renders from the installed wheel on real sessions (templates IN the wheel — remember the P3 template-packaging bug; verify templates ship).
+- Reports 01-11 untouched. Full suite green. Version bump (0.4.0 still unpublished — this redesign ships AS 0.4.0, or bump to 0.5.0 — decide at publish).
 
 ## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + reports 01/06/09 (judge validation) + 10 (waste) + spec.md + tes/cost.py + tes/judge.py + the digest schema. Internalize: attribution-measured-not-guessed, residual-not-productive, API-judge-opt-in-same-rubric.
-2. DESIGN the attribution buckets, especially the context-re-send/growth definition. Write the exact observable rule for each bucket. HOLD for consultant review of the DEFINITIONS before building (this is the meaningful-number gate).
-3. Build attribution.py + reconciliation test + per-bucket rule tests. HOLD for consultant read of the breakdown on a REAL heavy session.
-4. Judge on-demand: surface local --judge; add opt-in API-key path (same rubric, explicit consent, no egress without consent). Tests: opt-in, consent, same-rubric, caveats.
-5. Dashboard: per-session attribution breakdown + judge verdict. Honest labeling throughout.
-6. Apply to real store; report attribution on heavy sessions. New version, clean-room, full suite. HOLD for consultant read before P8 done + user publish.
+1. Read CURRENT_STATE.md + spec.md + the CURRENT tes/web/templates + server.py. Inventory the 10 honesty elements AS THEY CURRENTLY RENDER (so the redesign has a concrete preservation target). HOLD — show me the inventory (where each of the 10 currently lives) before redesigning, so we agree on what must survive.
+2. Build base.html layout + CSS (the visual system: typography, cards, color discipline, UNAVAILABLE-neutral). HOLD for my read of the base look (describe or show the rendered shell) before applying to all pages.
+3. Redesign session_detail (the diagnosis page) — takeaway headline, attribution hero SVG chart (cost-ranked, both %s), axis cards with caveats, waste expand, judge card. The honesty checklist test. HOLD for my read of the rendered detail page on a REAL session.
+4. Redesign session_list (landing) + baseline_status.
+5. honesty-survives test (all 10) + full suite + detectors frozen.
+6. Clean-room: redesigned dashboard renders from the installed wheel (templates ship — verify, per the P3 bug). HOLD for my read of the rendered pages from the clean-room before publish.
+```
