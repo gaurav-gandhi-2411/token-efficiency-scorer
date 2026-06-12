@@ -2,49 +2,272 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>TES Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tracegauge{% block title_suffix %}{% endblock %}</title>
   <style>
-    body { font-family: monospace; max-width: 1100px; margin: 2rem auto; color: #222; padding: 0 1rem; }
-    nav { margin-bottom: 1.5rem; }
-    nav a { margin-right: 1.5rem; text-decoration: none; color: #0066cc; }
-    nav a:hover { text-decoration: underline; }
-    h1 { font-size: 1.2rem; margin-bottom: 0.5rem; }
-    h2 { font-size: 1rem; margin-top: 1.5rem; border-bottom: 1px solid #ccc; padding-bottom: 0.2rem; }
-    table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
-    th, td { text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid #e8e8e8; font-size: 0.9rem; }
-    th { background: #f5f5f5; }
-    a { color: #0066cc; }
-    .tag-unavailable { color: #888; font-style: italic; }
-    .tag-stale { color: #b8860b; }
-    .tag-current { color: #006400; }
-    .tag-above { color: #cc4400; }
-    .tag-below { color: #006400; }
-    .tag-within { color: #333; }
-    .caveat { background: #f9f9f9; border-left: 3px solid #ccc; padding: 0.5rem 0.7rem; font-size: 0.82em; margin: 0.4rem 0 0.8rem; color: #444; }
-    .proof-turn { font-size: 0.82em; color: #555; margin-left: 1rem; }
-    .stale-note { color: #b8860b; font-size: 0.85em; font-style: italic; }
-    pre { background: #f5f5f5; padding: 0.5rem; font-size: 0.82em; overflow-x: auto; }
-    .empty { color: #888; font-style: italic; }
-    .tag-self { color: #006400; font-weight: bold; }
-    .tag-building { color: #b8860b; }
-    .tag-corpus { color: #888; font-style: italic; }
-    .metric-box { background: #f0f7ff; border-left: 3px solid #0066cc; padding: 0.5rem 0.7rem; margin: 0.4rem 0 0.8rem; font-size: 0.9rem; }
-    .metric-highlight { font-size: 1.1rem; font-weight: bold; color: #006400; }
-    .metric-old { font-size: 0.9rem; color: #888; }
-    .cost-amount { font-weight: bold; }
-    .cost-approx { color: #b8860b; font-size: 0.82em; margin-left: 0.25rem; }
-    .cost-above { color: #cc4400; font-size: 0.82em; margin-left: 0.25rem; }
-    .cost-below { color: #006400; font-size: 0.82em; margin-left: 0.25rem; }
-    .cost-no-baseline { color: #888; font-size: 0.82em; margin-left: 0.25rem; }
-    .cost-provenance { font-size: 0.78em; color: #888; margin-top: 0.2rem; }
+    /* ── reset ───────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── base typography ─────────────────────────────────────────── */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #111827;
+      background: #f8f9fa;
+    }
+
+    h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.01em;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #374151;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 0.3rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    a { color: #2563eb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── nav ─────────────────────────────────────────────────────── */
+    nav.nav {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      height: 52px;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .nav-brand {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: -0.01em;
+      text-decoration: none;
+      margin-right: 2.5rem;
+    }
+    .nav-brand span { color: #9ca3af; font-weight: 400; }
+
+    .nav-links { display: flex; }
+
+    .nav-links a {
+      color: #6b7280;
+      text-decoration: none;
+      font-size: 0.875rem;
+      padding: 0 0.875rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      border-bottom: 2px solid transparent;
+      transition: color 0.12s;
+    }
+    .nav-links a:hover { color: #111827; text-decoration: none; }
+    .nav-links a.active { color: #111827; border-bottom-color: #111827; font-weight: 500; }
+
+    /* ── page layout ─────────────────────────────────────────────── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+    /* ── cards ───────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #6b7280;
+      margin-bottom: 0.75rem;
+    }
+
+    /* ── sections ────────────────────────────────────────────────── */
+    .section { margin-top: 2rem; }
+
+    .section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── takeaway headline ───────────────────────────────────────── */
+    .takeaway {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #111827;
+      line-height: 1.5;
+      padding: 0.9rem 1.25rem;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-left: 4px solid #111827;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 1.5rem;
+    }
+
+    /* ── caveats (domain-of-validity) ────────────────────────────── */
+    .caveat {
+      background: #f8fafc;
+      border-left: 3px solid #cbd5e1;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.8rem;
+      color: #475569;
+      border-radius: 0 4px 4px 0;
+      margin: 0.5rem 0 1rem;
+      line-height: 1.55;
+    }
+
+    /* ── metric box ──────────────────────────────────────────────── */
+    .metric-box {
+      background: #eff6ff;
+      border-left: 3px solid #3b82f6;
+      padding: 0.6rem 0.9rem;
+      border-radius: 0 4px 4px 0;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+    }
+
+    .metric-highlight { font-size: 1.05rem; font-weight: 700; color: #166534; }
+    .metric-old { font-size: 0.85rem; color: #9ca3af; }
+
+    /* ── badges (.badge-*) ───────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 0.15em 0.55em;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+
+    .badge-unavailable { background: #f3f4f6; color: #9ca3af; font-weight: 400; font-style: italic; }
+    .badge-above       { background: #fef3c7; color: #92400e; }
+    .badge-within      { background: #f3f4f6; color: #374151; }
+    .badge-below       { background: #dcfce7; color: #166534; }
+    .badge-self        { background: #dcfce7; color: #166534; font-weight: 700; }
+    .badge-building    { background: #fef3c7; color: #92400e; }
+    .badge-corpus      { background: #f3f4f6; color: #9ca3af; font-style: italic; }
+    .badge-current     { background: #dcfce7; color: #166534; }
+    .badge-stale       { background: #fef3c7; color: #92400e; }
+
+    /* ── inline tag equivalents (existing content template names) ── */
+    .tag-unavailable { color: #9ca3af; font-style: italic; }
+    .tag-stale       { color: #92400e; }
+    .tag-current     { color: #166534; }
+    .tag-above       { color: #92400e; }   /* amber, NOT red */
+    .tag-below       { color: #166534; }
+    .tag-within      { color: #374151; }
+    .tag-self        { color: #166534; font-weight: 700; }
+    .tag-building    { color: #92400e; }
+    .tag-corpus      { color: #9ca3af; font-style: italic; }
+
+    /* ── tables ──────────────────────────────────────────────────── */
+    table { border-collapse: collapse; width: 100%; font-size: 0.875rem; }
+
+    th {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #6b7280;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid #f3f4f6;
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+
+    /* ── cost / metric values ────────────────────────────────────── */
+    .cost-amount     { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .cost-approx     { color: #d97706; font-size: 0.78em; margin-left: 0.25rem; }
+    .cost-above      { color: #d97706; font-size: 0.8em; margin-left: 0.25rem; }
+    .cost-below      { color: #16a34a; font-size: 0.8em; margin-left: 0.25rem; }
+    .cost-no-baseline { color: #9ca3af; font-size: 0.8em; margin-left: 0.25rem; }
+    .cost-provenance  { font-size: 0.75em; color: #9ca3af; margin-top: 0.3rem; }
+
+    /* ── misc ────────────────────────────────────────────────────── */
+    .empty          { color: #9ca3af; font-style: italic; font-size: 0.875rem; }
+    .proof-turn     { font-size: 0.8em; color: #6b7280; }
+    .stale-note     { color: #d97706; font-size: 0.85em; font-style: italic; margin-top: 0.5rem; }
+    .waste-indicator { color: #d97706; font-weight: 600; }
+    .mono {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.82em;
+    }
+    .text-muted { color: #6b7280; }
+    .text-faint { color: #9ca3af; }
+
+    pre {
+      background: #f8f9fa;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.78rem;
+      overflow-x: auto;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+
+    code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.84em;
+      background: #f3f4f6;
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+    }
+
+    details summary {
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.875rem;
+      color: #374151;
+      font-weight: 500;
+      padding: 0.4rem 0;
+      list-style: none;
+    }
+    details summary::before { content: '▶ '; font-size: 0.7em; color: #9ca3af; }
+    details[open] summary::before { content: '▼ '; }
+    details[open] summary { margin-bottom: 0.75rem; }
   </style>
 </head>
 <body>
-  <nav>
-    <a href="/">Sessions</a>
-    <a href="/trends">Trends</a>
-    <a href="/baseline-status">Baseline Status</a>
+  <nav class="nav">
+    <a href="/" class="nav-brand">tracegauge <span>dashboard</span></a>
+    <div class="nav-links">
+      <a href="/" {% if request.endpoint in ('session_list', 'session_detail') %}class="active"{% endif %}>Sessions</a>
+      <a href="/trends" {% if request.endpoint == 'trends' %}class="active"{% endif %}>Trends</a>
+      <a href="/baseline-status" {% if request.endpoint == 'baseline_status' %}class="active"{% endif %}>Baseline Status</a>
+    </div>
   </nav>
-  {% block content %}{% endblock %}
+  <div class="page">
+    {% block content %}{% endblock %}
+  </div>
 </body>
 </html>
