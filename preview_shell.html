@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>tracegauge{% block title_suffix %}{% endblock %}</title>
+  <title>tracegauge — design preview</title>
   <style>
     /* ── reset ───────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -170,11 +170,11 @@
     .badge-current     { background: #dcfce7; color: #166534; }
     .badge-stale       { background: #fef3c7; color: #92400e; }
 
-    /* ── inline tag equivalents (existing content template names) ── */
+    /* ── inline tag equivalents ──────────────────────────────────── */
     .tag-unavailable { color: #9ca3af; font-style: italic; }
     .tag-stale       { color: #92400e; }
     .tag-current     { color: #166534; }
-    .tag-above       { color: #92400e; }   /* amber, NOT red */
+    .tag-above       { color: #92400e; }
     .tag-below       { color: #166534; }
     .tag-within      { color: #374151; }
     .tag-self        { color: #166534; font-weight: 700; }
@@ -255,19 +255,228 @@
     details summary::before { content: '▶ '; font-size: 0.7em; color: #9ca3af; }
     details[open] summary::before { content: '▼ '; }
     details[open] summary { margin-bottom: 0.75rem; }
+
+    /* ── preview-only helpers ────────────────────────────────────── */
+    .preview-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #9ca3af;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+    .badge-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      align-items: flex-start;
+    }
+    .badge-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .badge-item .badge-name {
+      font-size: 0.65rem;
+      color: #9ca3af;
+      text-align: center;
+    }
+    ul.clean-list {
+      list-style: disc;
+      padding-left: 1.25rem;
+      font-size: 0.875rem;
+      color: #374151;
+      line-height: 1.7;
+    }
   </style>
 </head>
 <body>
+
+  <!-- ── 1. Nav bar ────────────────────────────────────────────── -->
   <nav class="nav">
-    <a href="/" class="nav-brand">tracegauge <span>dashboard</span></a>
+    <a href="#" class="nav-brand">tracegauge <span>dashboard</span></a>
     <div class="nav-links">
-      <a href="/" {% if request.endpoint in ('session_list', 'session_detail') %}class="active"{% endif %}>Sessions</a>
-      <a href="/trends" {% if request.endpoint == 'trends' %}class="active"{% endif %}>Trends</a>
-      <a href="/baseline-status" {% if request.endpoint == 'baseline_status' %}class="active"{% endif %}>Baseline Status</a>
+      <a href="#" class="active">Sessions</a>
+      <a href="#">Trends</a>
+      <a href="#">Baseline Status</a>
     </div>
   </nav>
+
   <div class="page">
-    {% block content %}{% endblock %}
-  </div>
+
+    <!-- ── 2. Page headline ──────────────────────────────────────── -->
+    <h1>Session: 3f8a91c2b&#x2026;e4d7</h1>
+
+    <!-- ── 3. Takeaway block ─────────────────────────────────────── -->
+    <div class="preview-label">Component: .takeaway</div>
+    <div class="takeaway">
+      Cost: context (70% re-send + 7% growth) and output (23%); no detectable waste. —
+      a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send.
+    </div>
+
+    <!-- ── 4. Badge states ───────────────────────────────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: .badge-* (all states)</div>
+      <div class="badge-grid">
+        <div class="badge-item">
+          <span class="badge badge-unavailable">UNAVAILABLE</span>
+          <span class="badge-name">.badge-unavailable</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-above">above_p75</span>
+          <span class="badge-name">.badge-above</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-within">within_band</span>
+          <span class="badge-name">.badge-within</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-below">below_p25</span>
+          <span class="badge-name">.badge-below</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-self">self</span>
+          <span class="badge-name">.badge-self</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-building">building</span>
+          <span class="badge-name">.badge-building</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-corpus">corpus</span>
+          <span class="badge-name">.badge-corpus</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-current">CURRENT</span>
+          <span class="badge-name">.badge-current</span>
+        </div>
+        <div class="badge-item">
+          <span class="badge badge-stale">STALE</span>
+          <span class="badge-name">.badge-stale</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 5. Sample card with mini table ────────────────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: .card + table</div>
+      <div class="card">
+        <div class="card-title">Token Economy</div>
+        <table>
+          <tbody>
+            <tr>
+              <td>Band Verdict</td>
+              <td><span class="badge badge-above">above_p75</span></td>
+            </tr>
+            <tr>
+              <td>Baseline</td>
+              <td>
+                <span class="badge badge-self">self</span>
+                <span class="text-muted" style="margin-left:0.4rem;">vs your own lean runs</span>
+              </td>
+            </tr>
+            <tr>
+              <td>Scope Status</td>
+              <td>in_scope</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── 6. Caveat block ───────────────────────────────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: .caveat</div>
+      <div class="caveat">
+        Token axis measures real_tokens (de-cached) against your own lean waste-free ml-eval sessions
+        (self-baseline, 20 lean sessions). Scope floor: 96 turns. Verdict: above_p75 = heavier than your
+        own lean runs of this type — not a quality judgment. Valid for Claude Code caching-native sessions only.
+      </div>
+    </div>
+
+    <!-- ── 7. Section label + expandable waste ───────────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: .section-label + &lt;details&gt;</div>
+      <div class="section-label">Deterministic Waste</div>
+      <details>
+        <summary>2 waste events — $0.15 · show proof turns</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Turns</th>
+              <th>Cost</th>
+              <th>Evidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>REDUNDANT-READ</td>
+              <td>14, 22</td>
+              <td><span class="cost-amount">$0.15</span></td>
+              <td class="proof-turn">evidence snippet — same file read twice without intervening write…</td>
+            </tr>
+          </tbody>
+        </table>
+      </details>
+    </div>
+
+    <!-- ── 8. UNAVAILABLE card (calm, never alarming) ────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: UNAVAILABLE state — .badge-unavailable inside .card</div>
+      <div class="card">
+        <div class="card-title">Trajectory Quality</div>
+        <p style="margin-bottom:0.6rem;">
+          <span class="badge badge-unavailable">UNAVAILABLE</span>
+        </p>
+        <p style="margin-bottom:0.75rem; font-size:0.875rem; color:#374151;">
+          Token and waste axes ran. Trajectory scoring is optional — enable with one of:
+        </p>
+        <ul class="clean-list">
+          <li>Run a local Ollama model (free, no data leaves your machine): <code>JUDGE_PROVIDER=ollama</code></li>
+          <li>Pass <code>--api-judge</code> to use your configured cloud provider.</li>
+        </ul>
+        <p class="text-muted" style="margin-top:0.75rem; font-size:0.8rem;">
+          API judge note: sends session data including 300-char snippets that may contain your code to your provider.
+        </p>
+      </div>
+    </div>
+
+    <!-- ── 9. h2 + attribution table ─────────────────────────────── -->
+    <div class="section">
+      <div class="preview-label">Component: h2 + styled table</div>
+      <h2>Attribution</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Bucket</th>
+            <th>Tok %</th>
+            <th>Cost %</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Context re-send</td>
+            <td>70%</td>
+            <td>68%</td>
+          </tr>
+          <tr>
+            <td>Context growth</td>
+            <td>7%</td>
+            <td>8%</td>
+          </tr>
+          <tr>
+            <td>Output</td>
+            <td>23%</td>
+            <td>24%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /.page -->
 </body>
 </html>
