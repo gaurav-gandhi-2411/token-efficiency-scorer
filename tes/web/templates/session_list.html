@@ -1,105 +1,98 @@
 {% extends "base.html" %}
+{% block title_suffix %} — Sessions{% endblock %}
 {% block content %}
-<h1>TES Scoring Ledger — Sessions</h1>
 
-<p>Total scored: <strong>{{ total_scored }}</strong></p>
+<h1>Sessions <span class="text-faint" style="font-weight:400; font-size:0.85rem;">({{ total_scored }})</span></h1>
 
+{# Coverage headline (self-baseline active) #}
 {% if headline %}
 <div class="metric-box">
-  <strong>Token verdict coverage — self-baseline active on all 5 task types</strong><br>
-  Sessions with content: <strong>{{ headline.content_sessions }}</strong> &mdash;
-  <span class="metric-highlight">{{ headline.content_self_scored }} ({{ headline.content_self_pct }}%)</span>
-  scored against your own lean runs.<br>
-  <span class="metric-old">Pre-self-baseline (B2 corpus): {{ headline.b2_content_scored }} of {{ headline.b2_content_total }} content sessions scored ({{ headline.b2_content_scored_pct }}%).</span><br>
-  <em style="font-size:0.85rem; color:#555;">Empty/stub sessions (no work product): {{ headline.empty_stubs }} of {{ headline.total }} total &mdash; not scoring failures.</em>
-  &mdash; <a href="/baseline-status">baseline status by type &rarr;</a>
+  <strong>Self-baseline active on all 5 task types.</strong>
+  Content sessions scored vs your own lean runs:
+  <span class="metric-highlight">{{ headline.content_self_scored }} / {{ headline.content_sessions }}
+    ({{ headline.content_self_pct }}%)</span>
+  <span class="metric-old">&nbsp;&middot;&nbsp; Pre-self-baseline (B2 corpus):
+    {{ headline.b2_content_scored }}/{{ headline.b2_content_total }}
+    ({{ headline.b2_content_scored_pct }}%)</span>
+  <br>
+  <span style="font-size:0.82em; color:#6b7280; margin-top:2px; display:inline-block;">
+    Empty/stub sessions (no work product): {{ headline.empty_stubs }} of {{ headline.total }} total
+    &mdash; not scoring failures.
+  </span>
+  &nbsp;&middot;&nbsp; <a href="/baseline-status">baseline status by type &rarr;</a>
 </div>
 {% endif %}
 
+{# Honesty element 5: relative-not-absolute framing #}
 <div class="caveat">
-  Token verdicts relative to YOUR OWN lean waste-free sessions (self-baseline) where active.
-  Baseline source shown per session. See session detail for full domain-of-validity.
+  Token verdicts are relative to <strong>your own lean waste-free sessions</strong> of each type
+  (self-baseline) where active &mdash; not an absolute efficiency standard.
+  Baseline source shown per session. See session detail for full domain of validity.
 </div>
 
 {% if pairs %}
 <table>
   <thead>
     <tr>
-      <th>Session ID</th>
-      <th>Task Type</th>
-      <th>Scored At</th>
-      <th>Token Band</th>
-      <th>Baseline</th>
+      <th>Session</th>
+      <th>Token verdict</th>
       <th>Trajectory</th>
-      <th>Waste Events</th>
-      <th>Cost <span style="font-weight:normal;font-size:0.82em;color:#888;">(annotation)</span></th>
-      <th>Attribution <span style="font-weight:normal;font-size:0.82em;color:#888;">(stored)</span></th>
+      <th>Waste</th>
     </tr>
   </thead>
   <tbody>
     {% for session, traj_state in pairs %}
     <tr>
-      <td><a href="/session/{{ session.session_id }}">{{ session.session_id[:16] }}…</a></td>
-      <td>{{ session.task_type }}</td>
-      <td>{{ session.scored_at[:19] | replace("T", " ") }}</td>
+      {# Honesty element 10: attribution_line as the most prominent row text #}
       <td>
-        {% if session.band_verdict == "above_p75" %}
-          <span class="tag-above">{{ session.band_verdict }}</span>
-        {% elif session.band_verdict == "below_p25" %}
-          <span class="tag-below">{{ session.band_verdict }}</span>
-        {% elif session.band_verdict == "within_band" %}
-          <span class="tag-within">{{ session.band_verdict }}</span>
-        {% else %}
-          {{ session.band_verdict }}
-        {% endif %}
+        <a href="/session/{{ session.session_id }}"
+           style="font-weight:600; color:#111827; display:block; margin-bottom:3px; text-decoration:none;">
+          {{ session.get("attribution_line") or (session.session_id[:14] ~ "…") }}
+        </a>
+        <span class="mono text-faint" style="font-size:0.75rem;">
+          {{ session.session_id[:14] }}&hellip;
+          &nbsp;&middot;&nbsp; {{ session.task_type }}
+          &nbsp;&middot;&nbsp; {{ session.scored_at[:10] }}
+        </span>
       </td>
-      <td>
+      {# Honesty elements 4+6: band badge + baseline-source badge, UNAVAILABLE neutral #}
+      <td style="white-space:nowrap;">
+        {% if session.band_verdict == "above_p75" %}
+          <span class="badge badge-above">above_p75</span>
+        {% elif session.band_verdict == "below_p25" %}
+          <span class="badge badge-below">below_p25</span>
+        {% elif session.band_verdict == "within_band" %}
+          <span class="badge badge-within">within_band</span>
+        {% else %}
+          <span class="badge badge-unavailable">{{ session.band_verdict }}</span>
+        {% endif %}
+        <br style="margin:2px 0;">
         {% set bs = session.get("baseline_source", "b2_corpus") %}
         {% if bs == "self" %}
-          <span class="tag-self">self</span>
+          <span class="badge badge-self">self</span>
         {% elif bs == "building" %}
-          <span class="tag-building">building</span>
+          <span class="badge badge-building">building</span>
         {% elif bs == "corpus" %}
-          <span class="tag-corpus">corpus</span>
+          <span class="badge badge-corpus">corpus</span>
         {% else %}
-          <span class="tag-corpus">b2</span>
+          <span class="badge badge-corpus">b2</span>
         {% endif %}
       </td>
+      {# Trajectory — UNAVAILABLE rendered neutral (element 4) #}
       <td>
         {% if traj_state.value == "unavailable" %}
-          <span class="tag-unavailable">UNAVAILABLE</span>
+          <span class="badge badge-unavailable">&mdash;</span>
         {% elif traj_state.value == "stale" %}
-          <span class="tag-stale">{{ session.judge_verdict }} (stale)</span>
+          <span class="badge badge-stale">{{ session.judge_verdict }} (stale)</span>
         {% else %}
-          <span class="tag-current">{{ session.judge_verdict }}</span>
+          <span class="badge badge-current">{{ session.judge_verdict }}</span>
         {% endif %}
       </td>
-      <td>{{ session.waste_event_count }}</td>
       <td>
-        {% if session.get("session_cost_usd") is not none %}
-          <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
-          {% if session.get("cost_approximate") %}
-            <span class="cost-approx" title="Some turns priced at default model rate">[~]</span>
-          {% endif %}
-          {% if session.get("cost_vs_baseline_pct") is not none %}
-            {% set pct = session.cost_vs_baseline_pct %}
-            {% if pct >= 0 %}
-              <span class="cost-above">(+{{ pct }}% vs baseline)</span>
-            {% else %}
-              <span class="cost-below">({{ pct }}% vs baseline)</span>
-            {% endif %}
-          {% else %}
-            <span class="cost-no-baseline">(no baseline yet)</span>
-          {% endif %}
+        {% if session.waste_event_count > 0 %}
+          <span class="waste-indicator">{{ session.waste_event_count }}</span>
         {% else %}
-          <span class="tag-unavailable">—</span>
-        {% endif %}
-      </td>
-      <td style="font-size:0.82em;color:#555;">
-        {% if session.get("attribution_line") %}
-          <a href="/session/{{ session.session_id }}" style="color:#555;text-decoration:none;">{{ session.attribution_line }}</a>
-        {% else %}
-          <span style="color:#bbb;">—</span>
+          <span class="text-faint">0</span>
         {% endif %}
       </td>
     </tr>
@@ -107,9 +100,10 @@
   </tbody>
 </table>
 {% if price_provenance %}
-<p class="cost-provenance">{{ price_provenance }} &middot; Cost annotates the token axis — not a score.</p>
+<p class="cost-provenance">{{ price_provenance }} &middot; Cost shown in session summary &mdash; not a score.</p>
 {% endif %}
 {% else %}
 <p class="empty">No sessions scored yet. Run <code>tes score &lt;path&gt;</code> to score a session.</p>
 {% endif %}
+
 {% endblock %}

@@ -1,251 +1,405 @@
 {% extends "base.html" %}
+{% block title_suffix %} — {{ session.session_id[:12] }}{% endblock %}
 {% block content %}
-<h1>Session: {{ session.session_id }}</h1>
 
-<table>
-  <tr><th>Task Type</th><td>{{ session.task_type }}</td></tr>
-  <tr><th>Source Path</th><td>{{ session.source_path }}</td></tr>
-  <tr><th>Scored At</th><td>{{ session.scored_at[:19] | replace("T", " ") }} UTC</td></tr>
-  <tr><th>Axes Scored</th><td>{{ session.axes_scored | join(", ") }}</td></tr>
-</table>
-
-{# ---- TOKEN ECONOMY ---- #}
-<h2>Token Economy</h2>
-<table>
-  <tr><th>Real Tokens</th><td>{{ "{:,}".format(session.real_tokens) }}</td></tr>
-  <tr>
-    <th>Band Verdict</th>
-    <td>
-      {% if session.band_verdict == "above_p75" %}
-        <span class="tag-above">{{ session.band_verdict }}</span>
-      {% elif session.band_verdict == "below_p25" %}
-        <span class="tag-below">{{ session.band_verdict }}</span>
-      {% elif session.band_verdict == "within_band" %}
-        <span class="tag-within">{{ session.band_verdict }}</span>
-      {% else %}
-        {{ session.band_verdict }}
-      {% endif %}
-    </td>
-  </tr>
-  {% if session.baseline_available %}
-  <tr><th>p25 Baseline</th><td>{{ "{:,}".format(session.p25) if session.p25 is not none else "—" }}</td></tr>
-  <tr><th>Median Baseline</th><td>{{ "{:,}".format(session.median) if session.median is not none else "—" }}</td></tr>
-  <tr><th>p75 Baseline</th><td>{{ "{:,}".format(session.p75) if session.p75 is not none else "—" }}</td></tr>
-  {% else %}
-  <tr><th>Baseline</th><td class="tag-unavailable">Not available for this task type</td></tr>
-  {% endif %}
-  <tr>
-    <th>Baseline Reference</th>
-    <td>
-      {% set bs = session.get("baseline_source", "b2_corpus") %}
-      {% if bs == "self" %}
-        <span class="tag-self">vs your own lean runs ({{ session.p25 | default("?", true) | string }} – {{ session.p75 | default("?", true) | string }} token band)</span>
-      {% elif bs == "building" %}
-        <span class="tag-building">building your baseline — self-baseline not yet active</span>
-      {% elif bs == "corpus" %}
-        <span class="tag-corpus">corpus fallback (infra-heavy — your own baseline pending)</span>
-      {% else %}
-        <span class="tag-corpus">B2 reference corpus (infra-heavy single-developer; self-baseline not yet scored)</span>
-      {% endif %}
-    </td>
-  </tr>
-  <tr><th>Scope Status</th><td>{{ session.scope_status }}</td></tr>
-  <tr><th>Interpretation</th><td>{{ session.interpretation }}</td></tr>
-</table>
-<div class="caveat">{{ session.token_domain_of_validity }}</div>
-
-{# ---- TOKEN ATTRIBUTION ---- #}
-<h2>Token Attribution</h2>
-<p style="font-size:0.85em;color:#555;margin-top:-0.4rem;">
-  Where did all billed tokens go? (over all billed tokens including cached re-reads)
+{# ── Session header ──────────────────────────────────────────────── #}
+<h1><span class="mono">{{ session.session_id }}</span></h1>
+<p style="margin-top:-1rem; margin-bottom:1.5rem; font-size:0.8rem; color:#6b7280;">
+  {{ session.task_type }}
+  &middot; {{ session.scored_at[:19] | replace("T", " ") }} UTC
+  &middot; <span style="color:#9ca3af;">{{ session.source_path }}</span>
 </p>
 
-{% if attribution %}
-
+{# ── Takeaway ────────────────────────────────────────────────────── #}
 {% if attribution_takeaway %}
-<p style="font-size:0.92em;font-weight:bold;margin-bottom:0.6rem;">{{ attribution_takeaway }}</p>
+<div class="takeaway">{{ attribution_takeaway }}</div>
 {% endif %}
 
-<table>
-  <thead>
-    <tr>
-      <th>Bucket</th>
-      <th style="text-align:right;">Tokens</th>
-      <th style="text-align:right;">Tok%</th>
-      <th style="text-align:right;">Cost</th>
-      <th style="text-align:right;">Cost% ▼</th>
-    </tr>
-  </thead>
-  <tbody>
+{# ── Attribution ─────────────────────────────────────────────────── #}
+{% set bcolors = {"B1": "#f59e0b", "B2": "#f97316", "B3": "#3b82f6", "B4": "#8b5cf6", "B5": "#94a3b8", "B6": "#0ea5e9"} %}
+
+<div class="section">
+  <div class="section-label">Attribution — where did the cost go?</div>
+
+  {% if attribution and attribution_rows %}
+
+  {# ---- Dual stacked bar SVG ---- #}
+  {# Two parallel horizontal bars: top = Cost%, bottom = Tokens%. Same bucket order (cost-ranked).
+     The visual difference between the two bars IS the insight (e.g. 95% tok vs 49% cost for B3). #}
+  {% set bar_w = 660 %}
+  {% set bar_h = 34 %}
+  {% set label_w = 58 %}
+  {% set gap = 10 %}
+  {% set svg_h = bar_h * 2 + gap + 18 %}
+  {% set svg_w = label_w + bar_w + 4 %}
+
+  <div style="margin-bottom:0.75rem; overflow-x:auto;">
+  <svg viewBox="0 0 {{ svg_w }} {{ svg_h }}"
+       xmlns="http://www.w3.org/2000/svg"
+       style="width:100%; max-width:{{ svg_w }}px; display:block; overflow:visible;">
+
+    <!-- Y-axis labels -->
+    <text x="{{ label_w - 6 }}" y="{{ (bar_h / 2 + 5) | round(1) }}"
+          text-anchor="end" font-size="11" fill="#9ca3af"
+          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">Cost</text>
+    <text x="{{ label_w - 6 }}" y="{{ (bar_h + gap + bar_h / 2 + 5) | round(1) }}"
+          text-anchor="end" font-size="11" fill="#9ca3af"
+          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">Tokens</text>
+
+    <!-- X-axis tick marks -->
+    <text x="{{ label_w }}" y="{{ svg_h }}"
+          font-size="9" fill="#9ca3af"
+          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">0%</text>
+    <text x="{{ label_w + bar_w }}" y="{{ svg_h }}"
+          text-anchor="end" font-size="9" fill="#9ca3af"
+          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">100%</text>
+
+    {# ---- Cost bar (top) ---- #}
+    {% set ns = namespace(cx=label_w | float) %}
     {% for row in attribution_rows %}
-    <tr{% if row.is_waste %} style="color:#cc4400;"{% endif %}>
-      <td>{{ row.bucket }} &nbsp; {{ row.label }}</td>
-      <td style="text-align:right;font-variant-numeric:tabular-nums;">{{ "{:,}".format(row.tokens) }}</td>
-      <td style="text-align:right;">{{ row.tok_pct }}%</td>
-      <td style="text-align:right;font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
-      <td style="text-align:right;"><strong>{{ row.cost_pct }}%</strong></td>
-    </tr>
+      {% set seg_w = (row.cost_pct / 100.0 * bar_w) | round(2) %}
+      {% if seg_w > 0.5 %}
+        <rect x="{{ ns.cx | round(2) }}" y="0"
+              width="{{ seg_w }}" height="{{ bar_h }}"
+              fill="{{ bcolors.get(row.bucket, '#94a3b8') }}">
+          <title>{{ row.bucket }} {{ row.label }}: {{ row.cost_pct }}% cost / {{ row.tok_pct }}% tokens</title>
+        </rect>
+        {% if seg_w >= 32 %}
+          <text x="{{ (ns.cx + seg_w / 2) | round(1) }}" y="{{ (bar_h / 2 + 4) | round(1) }}"
+                text-anchor="middle" font-size="10" fill="white" font-weight="600"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">{{ row.cost_pct }}%</text>
+        {% endif %}
+        {% set ns.cx = ns.cx + seg_w %}
+      {% endif %}
     {% endfor %}
-  </tbody>
-  <tfoot>
-    <tr style="font-weight:bold;border-top:2px solid #ccc;">
-      <td>TOTAL (billed)</td>
-      <td style="text-align:right;">{{ "{:,}".format(attribution.total_billed_tokens) }}</td>
-      <td style="text-align:right;">100%</td>
-      <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
-      <td style="text-align:right;">100%</td>
-    </tr>
-  </tfoot>
-</table>
-<p style="font-size:0.82em;color:#666;margin-top:0.2rem;">
-  real_tokens (verdict basis): {{ "{:,}".format(attribution.real_tokens) }}
-  &mdash; differs from total_billed because cached re-reads are excluded from the verdict axis.
-</p>
-<div class="caveat">{{ attribution.domain_of_validity }}</div>
+    <!-- Cost bar border -->
+    <rect x="{{ label_w }}" y="0" width="{{ bar_w }}" height="{{ bar_h }}"
+          fill="none" stroke="#e5e7eb" stroke-width="1"/>
 
-{% else %}
-<p class="tag-unavailable">Source file not accessible — attribution requires the original JSONL log.
-  Ensure <code>source_path</code> is reachable, or re-run <code>tes score &lt;path&gt;</code>.</p>
-{% endif %}
+    {# ---- Token bar (bottom) — same bucket order, sized by tok_pct ---- #}
+    {% set ns = namespace(cx=label_w | float) %}
+    {% for row in attribution_rows %}
+      {% set seg_w = (row.tok_pct / 100.0 * bar_w) | round(2) %}
+      {% if seg_w > 0.5 %}
+        <rect x="{{ ns.cx | round(2) }}" y="{{ bar_h + gap }}"
+              width="{{ seg_w }}" height="{{ bar_h }}"
+              fill="{{ bcolors.get(row.bucket, '#94a3b8') }}" opacity="0.7">
+          <title>{{ row.bucket }} {{ row.label }}: {{ row.tok_pct }}% tokens / {{ row.cost_pct }}% cost</title>
+        </rect>
+        {% if seg_w >= 32 %}
+          <text x="{{ (ns.cx + seg_w / 2) | round(1) }}" y="{{ (bar_h + gap + bar_h / 2 + 4) | round(1) }}"
+                text-anchor="middle" font-size="10" fill="white" font-weight="600"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">{{ row.tok_pct }}%</text>
+        {% endif %}
+        {% set ns.cx = ns.cx + seg_w %}
+      {% endif %}
+    {% endfor %}
+    <!-- Token bar border -->
+    <rect x="{{ label_w }}" y="{{ bar_h + gap }}" width="{{ bar_w }}" height="{{ bar_h }}"
+          fill="none" stroke="#e5e7eb" stroke-width="1"/>
 
-{# ---- TRAJECTORY QUALITY ---- #}
-<h2>Trajectory Quality</h2>
+  </svg>
+  </div>
 
-{% if traj_state == TrajectoryRenderState.UNAVAILABLE %}
-  <p><span class="tag-unavailable">UNAVAILABLE — no trajectory verdict scored</span></p>
-  <p style="font-size:0.9em;">Two options to enable:</p>
-  <ul style="font-size:0.9em;">
-    <li><strong>Local (free):</strong> Install <a href="https://ollama.com">Ollama</a>, pull <code>qwen3:8b</code> and <code>gemma3:12b</code>, then run <code>tes score &lt;path&gt; --judge</code></li>
-    <li><strong>API (opt-in, uses your key):</strong> <code>tes score &lt;path&gt; --api-judge --api-judge-key YOUR_KEY</code></li>
-  </ul>
-  <p style="font-size:0.85em;color:#555;">Token and waste axes ran — trajectory scoring is an optional enhancement.</p>
-{% elif traj_state == TrajectoryRenderState.STALE %}
-  <table>
-    <tr><th>Verdict</th><td><span class="tag-stale">{{ session.judge_verdict }}</span></td></tr>
-    {% if session.judge_score is not none %}
-    <tr><th>Score</th><td><span class="tag-stale">{{ "%.2f"|format(session.judge_score) }}</span></td></tr>
-    {% endif %}
-    {% if session.judge_reasoning %}
-    <tr><th>Reasoning</th><td>{{ session.judge_reasoning }}</td></tr>
-    {% endif %}
-  </table>
-  <p class="stale-note">
-    Verdict from an earlier version of this session (session grew after judging).
-    Re-run <code>tes score &lt;path&gt;</code> to update.
-  </p>
-{% else %}
-  {# CURRENT #}
-  <table>
-    <tr><th>Verdict</th><td><span class="tag-current">{{ session.judge_verdict }}</span></td></tr>
-    {% if session.judge_score is not none %}
-    <tr><th>Score</th><td><span class="tag-current">{{ "%.2f"|format(session.judge_score) }}</span></td></tr>
-    {% endif %}
-    {% if session.judge_reasoning %}
-    <tr><th>Reasoning</th><td>{{ session.judge_reasoning }}</td></tr>
-    {% endif %}
-  </table>
-{% endif %}
-<div class="caveat">{{ session.trajectory_domain_of_validity }}</div>
-
-{# ---- DETERMINISTIC WASTE ---- #}
-<h2>Deterministic Waste</h2>
-
-{% if session.waste_event_count == 0 %}
-  <p>0 events detected.</p>
-{% else %}
-  <p>{{ session.waste_event_count }} event(s) detected.</p>
-  <table>
+  {# ---- Companion table: both cost% and tok% per bucket ---- #}
+  <table style="width:auto; min-width:480px; margin-bottom:0.5rem;">
     <thead>
       <tr>
-        <th>Detector</th>
-        <th>Proof Turns</th>
-        <th>Wasted Cost</th>
-        <th>Evidence</th>
+        <th></th>
+        <th>Bucket</th>
+        <th style="text-align:right;">Cost% ▼</th>
+        <th style="text-align:right;">Tok%</th>
+        <th style="text-align:right;">Cost ($)</th>
       </tr>
     </thead>
     <tbody>
-      {% for event in session.waste_events %}
-      <tr>
-        <td>{{ event.get("detector", "—") }}</td>
-        <td class="proof-turn">
-          {% set turns = event.get("turns", []) %}
-          {% if turns %}
-            {{ turns | join(", ") }}
-          {% else %}
-            —
-          {% endif %}
+      {% for row in attribution_rows %}
+      <tr{% if row.is_waste %} style="color:#d97706;"{% endif %}>
+        <td style="width:16px; padding-right:0;">
+          <span style="display:inline-block; width:10px; height:10px; border-radius:2px;
+                background:{{ bcolors.get(row.bucket, '#94a3b8') }}; vertical-align:middle;"></span>
         </td>
-        <td>
-          {% set wc = event.get("wasted_cost_usd") %}
-          {% if wc is not none and wc > 0 %}
-            <span class="cost-amount">~${{ "%.3f" | format(wc) }}</span>
-          {% else %}
-            <span style="color:#999;">—</span>
-          {% endif %}
-        </td>
-        <td>
-          {% set evidence = event.get("evidence", {}) %}
-          {% if evidence %}
-            <pre>{{ evidence | tojson(indent=2) }}</pre>
-          {% else %}
-            —
-          {% endif %}
-        </td>
+        <td style="font-weight:600;">{{ row.bucket }} <span class="text-muted" style="font-weight:400; font-size:0.82em;">{{ row.label }}</span></td>
+        <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">{{ row.cost_pct }}%</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums; color:#6b7280;">{{ row.tok_pct }}%</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
       </tr>
       {% endfor %}
     </tbody>
+    <tfoot>
+      <tr style="font-weight:600; border-top:2px solid #e5e7eb;">
+        <td></td>
+        <td>TOTAL (billed)</td>
+        <td style="text-align:right;">100%</td>
+        <td style="text-align:right; color:#6b7280;">100%</td>
+        <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
+      </tr>
+    </tfoot>
   </table>
-{% endif %}
-<div class="caveat">{{ session.waste_domain_of_validity }}</div>
 
-{# ---- COST ANNOTATION ---- #}
-<h2>Cost Annotation</h2>
-<p style="font-size:0.85em;color:#555;margin-top:-0.4rem;">
-  Cost is not a score. It annotates the token axis at API-equivalent rates.
-  Flat-plan users: marginal cost differs; token consumption is the honest metric.
-</p>
+  {# Honesty element 3: billed-basis label + real_tokens != verdict note #}
+  <p style="font-size:0.78rem; color:#9ca3af; margin-top:0.3rem; margin-bottom:0.25rem;">
+    Basis: {{ "{:,}".format(attribution.total_billed_tokens) }} total billed tokens (includes cached re-reads).
+    real_tokens (verdict basis): {{ "{:,}".format(attribution.real_tokens) }}
+    &mdash; cached re-reads are excluded from the verdict axis but included in this chart; do not compare attribution cost% directly to the real_tokens verdict.
+  </p>
+  <div class="caveat">{{ attribution.domain_of_validity }}</div>
 
-{% if session.get("session_cost_usd") is not none %}
-<table>
-  <tr>
-    <th>Session Cost</th>
-    <td>
-      <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
-      {% if session.get("cost_approximate") %}
-        <span class="cost-approx">[~] APPROXIMATE</span>
-      {% endif %}
-    </td>
-  </tr>
-  {% if cost_vs_baseline_pct is not none %}
-  <tr>
-    <th>vs Your Baseline</th>
-    <td>
-      {% if cost_vs_baseline_pct >= 0 %}
-        <span class="cost-above">+{{ cost_vs_baseline_pct }}% above your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
-      {% else %}
-        <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
-      {% endif %}
-    </td>
-  </tr>
   {% else %}
-  <tr>
-    <th>vs Your Baseline</th>
-    <td class="tag-unavailable">No baseline cost comparison yet (need more waste-free sessions with cost data)</td>
-  </tr>
+  {# Attribution source file not accessible #}
+  <div class="card">
+    <span class="badge badge-unavailable">UNAVAILABLE</span>
+    <p style="margin-top:0.5rem; font-size:0.875rem; color:#374151;">
+      Source file not accessible — attribution requires the original JSONL log.
+      Ensure <code>source_path</code> is reachable, or re-run <code>tes score &lt;path&gt;</code>.
+    </p>
+  </div>
   {% endif %}
-  <tr>
-    <th>Price Provenance</th>
-    <td style="font-size:0.85em;color:#555;">{{ price_provenance }}</td>
-  </tr>
-</table>
-{% if session.get("cost_domain_of_validity") %}
-<details style="margin-top:0.5rem;">
-  <summary style="cursor:pointer;font-size:0.85em;color:#555;">Domain of validity (click to expand)</summary>
-  <div class="caveat">{{ session.cost_domain_of_validity }}</div>
-</details>
-{% endif %}
-{% else %}
-<p class="tag-unavailable">Cost not computed for this session (run <code>backfill_cost()</code> or re-score).</p>
+</div>
+
+{# ── Token Economy ───────────────────────────────────────────────── #}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Token Economy</div>
+    <table style="width:auto;">
+      <tbody>
+        <tr>
+          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Real Tokens</td>
+          <td class="cost-amount">{{ "{:,}".format(session.real_tokens) }}</td>
+        </tr>
+        <tr>
+          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band Verdict</td>
+          <td>
+            {% if session.band_verdict == "above_p75" %}
+              <span class="badge badge-above">above_p75</span>
+            {% elif session.band_verdict == "below_p25" %}
+              <span class="badge badge-below">below_p25</span>
+            {% elif session.band_verdict == "within_band" %}
+              <span class="badge badge-within">within_band</span>
+            {% else %}
+              <span class="badge badge-unavailable">{{ session.band_verdict }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          {# Honesty element 5: "relative to YOUR OWN baseline" + element 6: baseline source #}
+          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Baseline</td>
+          <td>
+            {% set bs = session.get("baseline_source", "b2_corpus") %}
+            {% if bs == "self" %}
+              <span class="badge badge-self">self</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">
+                vs your own lean waste-free runs
+                {% if session.p25 is not none and session.p75 is not none %}
+                  ({{ "{:,}".format(session.p25) }}–{{ "{:,}".format(session.p75) }} token band)
+                {% endif %}
+              </span>
+            {% elif bs == "building" %}
+              <span class="badge badge-building">building</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">self-baseline not yet active</span>
+            {% elif bs == "corpus" %}
+              <span class="badge badge-corpus">corpus</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">infra-heavy fallback — your own baseline pending</span>
+            {% else %}
+              <span class="badge badge-corpus">b2</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">B2 reference corpus (infra-heavy single-developer; self-baseline not yet scored)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if session.baseline_available %}
+        <tr>
+          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band</td>
+          <td class="text-muted" style="font-size:0.82rem;">
+            p25 {{ "{:,}".format(session.p25) if session.p25 is not none else "—" }}
+            &nbsp;·&nbsp; median {{ "{:,}".format(session.median) if session.median is not none else "—" }}
+            &nbsp;·&nbsp; p75 {{ "{:,}".format(session.p75) if session.p75 is not none else "—" }}
+          </td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Scope</td>
+          <td class="text-muted" style="font-size:0.82rem;">{{ session.scope_status }}</td>
+        </tr>
+        <tr>
+          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Interpretation</td>
+          <td style="font-size:0.82rem;">{{ session.interpretation }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {# Honesty element 1: DOV caveat — visible, not buried #}
+    <div class="caveat">{{ session.token_domain_of_validity }}</div>
+  </div>
+</div>
+
+{# ── Trajectory Quality ──────────────────────────────────────────── #}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Trajectory Quality</div>
+
+    {% if traj_state == TrajectoryRenderState.UNAVAILABLE %}
+      {# Honesty element 4: UNAVAILABLE = calm invitation, not an error #}
+      <p style="margin-bottom:0.75rem;">
+        <span class="badge badge-unavailable">UNAVAILABLE</span>
+      </p>
+      <p style="font-size:0.875rem; color:#374151; margin-bottom:0.6rem;">
+        Token and waste axes ran. Trajectory scoring is optional — enable with one of:
+      </p>
+      <ul style="list-style:disc; padding-left:1.25rem; font-size:0.875rem; color:#374151; line-height:1.8; margin-bottom:0.75rem;">
+        <li>
+          <strong>Local (free, no data leaves your machine):</strong>
+          Install <a href="https://ollama.com">Ollama</a>, pull <code>qwen3:8b</code> and
+          <code>gemma3:12b</code>, then re-run <code>tes score &lt;path&gt; --judge</code>
+        </li>
+        <li>
+          <strong>API (opt-in, uses your key):</strong>
+          <code>tes score &lt;path&gt; --api-judge --api-judge-key YOUR_KEY</code>
+        </li>
+      </ul>
+      {# Honesty element 8: API-judge data-egress warning (ADDED — was absent from old template) #}
+      <p style="font-size:0.8rem; color:#9ca3af;">
+        API judge note: sends session data &mdash; including 300-char snippets that may contain your code &mdash; to your configured provider. Explicit consent required at the CLI before any data is sent.
+      </p>
+
+    {% elif traj_state == TrajectoryRenderState.STALE %}
+      <p style="margin-bottom:0.5rem;">
+        <span class="badge badge-stale">{{ session.judge_verdict }}</span>
+        {% if session.judge_score is not none %}
+          <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">score {{ "%.2f" | format(session.judge_score) }}</span>
+        {% endif %}
+      </p>
+      {% if session.judge_reasoning %}
+        <p style="font-size:0.875rem; color:#374151; margin-bottom:0.5rem;">{{ session.judge_reasoning }}</p>
+      {% endif %}
+      <p class="stale-note">Verdict from an earlier version of this session (session grew after judging). Re-run <code>tes score &lt;path&gt;</code> to update.</p>
+
+    {% else %}
+      {# CURRENT #}
+      <p style="margin-bottom:0.5rem;">
+        <span class="badge badge-current">{{ session.judge_verdict }}</span>
+        {% if session.judge_score is not none %}
+          <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">score {{ "%.2f" | format(session.judge_score) }}</span>
+        {% endif %}
+      </p>
+      {% if session.judge_reasoning %}
+        <p style="font-size:0.875rem; color:#374151;">{{ session.judge_reasoning }}</p>
+      {% endif %}
+    {% endif %}
+
+    {# Honesty element 1: trajectory DOV — visible #}
+    <div class="caveat">{{ session.trajectory_domain_of_validity }}</div>
+  </div>
+</div>
+
+{# ── Deterministic Waste ─────────────────────────────────────────── #}
+<div class="section">
+  <div class="section-label">Deterministic Waste</div>
+
+  {% if session.waste_event_count == 0 %}
+    <p class="text-muted" style="font-size:0.875rem; margin-bottom:0.5rem;">No waste detected.</p>
+  {% else %}
+    {# Compute total waste cost for collapsed-state signal (honesty element 7) #}
+    {% set wns = namespace(total=0.0) %}
+    {% for ev in session.waste_events %}
+      {% set wc = ev.get("wasted_cost_usd") %}
+      {% if wc is not none and wc > 0 %}{% set wns.total = wns.total + wc %}{% endif %}
+    {% endfor %}
+    {# Honesty element 7: collapsed state SHOWS count + cost; one click reveals evidence #}
+    <details>
+      <summary>
+        {{ session.waste_event_count }} waste event{{ 's' if session.waste_event_count != 1 else '' }}
+        {% if wns.total > 0.0001 %}
+          &nbsp;&mdash;&nbsp;<span class="waste-indicator">${{ "%.2f" | format(wns.total) }}</span>
+        {% endif %}
+        &nbsp;&middot;&nbsp;show proof turns
+      </summary>
+      <table style="margin-top:0.5rem;">
+        <thead>
+          <tr>
+            <th>Detector</th>
+            <th>Proof Turns</th>
+            <th>Wasted Cost</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in session.waste_events %}
+          <tr>
+            <td>{{ event.get("detector", "—") }}</td>
+            <td class="proof-turn">
+              {% set turns = event.get("turns", []) %}
+              {% if turns %}{{ turns | join(", ") }}{% else %}—{% endif %}
+            </td>
+            <td>
+              {% set wc = event.get("wasted_cost_usd") %}
+              {% if wc is not none and wc > 0 %}
+                <span class="cost-amount">~${{ "%.3f" | format(wc) }}</span>
+              {% else %}
+                <span class="text-faint">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set evidence = event.get("evidence", {}) %}
+              {% if evidence %}<pre>{{ evidence | tojson(indent=2) }}</pre>{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  {# Honesty element 1: waste DOV — always visible #}
+  <div class="caveat">{{ session.waste_domain_of_validity }}</div>
+</div>
+
+{# ── Cost Annotation ─────────────────────────────────────────────── #}
+{% if session.get("session_cost_usd") is not none %}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Cost Annotation</div>
+    <table style="width:auto;">
+      <tbody>
+        <tr>
+          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
+          <td>
+            <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
+            {% if session.get("cost_approximate") %}
+              <span class="cost-approx">[~] approximate</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">vs Your Baseline</td>
+          <td>
+            {% if cost_vs_baseline_pct is not none %}
+              {% if cost_vs_baseline_pct >= 0 %}
+                <span class="cost-above">+{{ cost_vs_baseline_pct }}% above your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+              {% else %}
+                <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+              {% endif %}
+            {% else %}
+              <span class="badge badge-unavailable">no baseline yet</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Price Basis</td>
+          <td class="text-muted" style="font-size:0.82rem;">{{ price_provenance }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-faint" style="font-size:0.78rem; margin-top:0.6rem;">
+      Cost is not a score. It annotates the token axis at API-equivalent rates.
+      Flat-plan users: marginal cost differs; token consumption is the honest metric.
+    </p>
+    {% if session.get("cost_domain_of_validity") %}
+    <details style="margin-top:0.5rem;">
+      <summary style="font-size:0.8rem; color:#6b7280;">Cost domain of validity</summary>
+      <div class="caveat" style="margin-top:0.4rem;">{{ session.cost_domain_of_validity }}</div>
+    </details>
+    {% endif %}
+  </div>
+</div>
 {% endif %}
 
 {% endblock %}

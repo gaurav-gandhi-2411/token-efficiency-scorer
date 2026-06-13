@@ -1,114 +1,112 @@
 {% extends "base.html" %}
+{% block title_suffix %} — Baseline Status{% endblock %}
 {% block content %}
-<h1>TES Baseline Status</h1>
 
+<h1>Baseline Status</h1>
+
+{# Honesty element 5: relative-not-absolute framing — prominent at top #}
 <div class="caveat">
-  Self-baseline verdicts are <strong>relative to YOUR OWN lean waste-free sessions of each type</strong> —
-  not an absolute efficiency standard. "within_band" means comparable to your leaner sessions of that type,
-  not that your work is universally efficient.
+  Self-baseline verdicts are <strong>relative to YOUR OWN lean waste-free sessions of each type</strong>
+  &mdash; not an absolute efficiency standard. "within_band" means comparable to your leaner sessions
+  of that type, not that your work is universally efficient.
 </div>
 
 {% if headline %}
-<h2>Coverage — Content Sessions</h2>
-<div class="metric-box">
-  <table style="width:auto; margin:0;">
-    <tr>
-      <td style="padding-right:2rem;"><strong>Sessions with content (turn_count &gt; 0)</strong></td>
-      <td><strong>{{ headline.content_sessions }}</strong></td>
-    </tr>
-    <tr>
-      <td><strong>Scored vs your lean runs (self-baseline)</strong></td>
-      <td><span class="metric-highlight">{{ headline.content_self_scored }} ({{ headline.content_self_pct }}%)</span></td>
-    </tr>
-    <tr>
-      <td>Out of scope — below scope floor</td>
-      <td>{{ headline.content_sessions - headline.content_self_scored }}</td>
-    </tr>
-    <tr>
-      <td>Pre-self-baseline (B2 corpus)</td>
-      <td><span class="metric-old">{{ headline.b2_content_scored }} of {{ headline.b2_content_total }} ({{ headline.b2_content_scored_pct }}%)</span></td>
-    </tr>
-    <tr style="border-top:1px solid #ddd;">
-      <td style="padding-top:0.5rem;"><em>Empty/stub sessions (no work product)</em></td>
-      <td style="padding-top:0.5rem;"><em>{{ headline.empty_stubs }} ({{ headline.empty_stubs_pct }}% of {{ headline.total }} total)</em></td>
-    </tr>
-  </table>
+<div class="section">
+  <div class="section-label">Coverage &mdash; Content Sessions</div>
+  <div class="metric-box">
+    Sessions with content:&nbsp;<strong>{{ headline.content_sessions }}</strong>
+    &nbsp;&middot;&nbsp;
+    Scored vs your lean runs:&nbsp;<span class="metric-highlight">{{ headline.content_self_scored }} ({{ headline.content_self_pct }}%)</span>
+    &nbsp;&middot;&nbsp;
+    Out of scope:&nbsp;{{ headline.content_sessions - headline.content_self_scored }}
+    <br>
+    <span class="metric-old">Pre-self-baseline (B2 corpus): {{ headline.b2_content_scored }} of {{ headline.b2_content_total }} ({{ headline.b2_content_scored_pct }}%)</span>
+    <br>
+    <em style="font-size:0.82em; color:#6b7280;">
+      Empty/stub sessions (no work product): {{ headline.empty_stubs }} ({{ headline.empty_stubs_pct }}% of {{ headline.total }} total) &mdash; not scoring failures.
+    </em>
+  </div>
 </div>
 {% endif %}
 
 {% if status_rows %}
-<h2>Per-Type Status</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Task Type</th>
-      <th>Total</th>
-      <th>In-Scope</th>
-      <th>Waste-Free</th>
-      <th>Lean-N</th>
-      <th>Scope Floor</th>
-      <th>Status</th>
-      <th>Baseline Band</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for row in status_rows %}
-    <tr>
-      <td><strong>{{ row.task_type }}</strong></td>
-      <td>{{ row.total }}</td>
-      <td>{{ row.in_scope }}</td>
-      <td>{{ row.waste_free_n }}</td>
-      <td>{{ row.lean_n }}</td>
-      <td>{{ row.scope_floor }} turns</td>
-      <td>
-        {% if row.source == "self" %}
-          <span class="tag-self">ACTIVE (self)</span>
-        {% elif row.source == "building" %}
-          <span class="tag-building">building — {{ row.sessions_needed }} more lean sessions needed</span>
-        {% else %}
-          <span class="tag-corpus">corpus fallback</span>
-        {% endif %}
-      </td>
-      <td>
-        {% if row.p25 is not none and row.p75 is not none %}
-          {{ "{:,}".format(row.p25) }} – {{ "{:,}".format(row.p75) }}
-          (median {{ "{:,}".format(row.median) }})
-        {% else %}
-          <span class="tag-unavailable">—</span>
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="section">
+  <div class="section-label">Per-Type Baseline Status</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Task Type</th>
+        <th>Sessions</th>
+        <th>In-Scope</th>
+        <th>Lean-N</th>
+        <th>Scope Floor</th>
+        <th>Status</th>
+        <th>Band</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in status_rows %}
+      <tr>
+        <td><strong>{{ row.task_type }}</strong></td>
+        <td>{{ row.total }}</td>
+        <td>{{ row.in_scope }}</td>
+        <td>{{ row.lean_n }}</td>
+        <td>{{ row.scope_floor }} turns</td>
+        <td>
+          {% if row.source == "self" %}
+            <span class="badge badge-self">ACTIVE (self)</span>
+          {% elif row.source == "building" %}
+            <span class="badge badge-building">building</span>
+            <span class="text-faint" style="font-size:0.78rem; margin-left:0.25rem;">{{ row.sessions_needed }} more needed</span>
+          {% else %}
+            <span class="badge badge-corpus">corpus fallback</span>
+          {% endif %}
+        </td>
+        <td class="text-muted" style="font-size:0.82rem;">
+          {% if row.p25 is not none and row.p75 is not none %}
+            {{ "{:,}".format(row.p25) }} &ndash; {{ "{:,}".format(row.p75) }}
+            <span class="text-faint" style="font-size:0.78rem;">(med {{ "{:,}".format(row.median) }})</span>
+          {% else %}
+            <span class="text-faint">&mdash;</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-<h2>Domain of Validity per Type</h2>
-{% for row in status_rows %}
-<h3 style="font-size:0.9rem; margin-top:1rem;">{{ row.task_type }}</h3>
-<div class="caveat">{{ row.domain_of_validity }}</div>
-{% endfor %}
+<div class="section">
+  <div class="section-label">Domain of Validity per Type</div>
+  {% for row in status_rows %}
+  <p style="font-size:0.82rem; font-weight:600; color:#374151; margin-top:0.75rem; margin-bottom:0.2rem;">{{ row.task_type }}</p>
+  <div class="caveat">{{ row.domain_of_validity }}</div>
+  {% endfor %}
+</div>
 
 {% if waste_by_type %}
-<h2>Waste Concentration</h2>
-{% set total_events = waste_by_type | sum(attribute='total_events') %}
-{% if total_events > 0 %}
-<p class="caveat">
-  Detectable waste (observable-invariant only: retry loops + redundant reads) is concentrated in
-  <strong>ml-eval, infra-deploy, and research-recon</strong> — the infrastructure/ML-ops types where
-  identical-failure retries and redundant file reads occur.
-  {% for row in waste_by_type if row.total_events > 0 %}
-    <strong>{{ row.task_type }}</strong>: {{ row.total_events }} event(s) in {{ row.with_waste }} of {{ row.total }} sessions;
-  {% endfor %}
-  feature-build ({{ waste_by_type | selectattr('task_type', 'eq', 'feature-build') | map(attribute='total') | first | default(0) }} sessions): zero waste events.
-  Total: {{ total_events }} events across all types.
-  See <a href="https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md">report 11</a> for corpus characterisation.
-</p>
-{% else %}
-<p class="caveat">
-  No waste events in store — run <code>tes backfill-waste</code> to detect and record waste across all sessions.
-  Expected concentration (from inventory): ml-eval &gt; infra-deploy &gt; research-recon; zero in feature-build.
-</p>
-{% endif %}
+<div class="section">
+  <div class="section-label">Waste Concentration</div>
+  {% set total_events = waste_by_type | sum(attribute='total_events') %}
+  {% if total_events > 0 %}
+  <div class="caveat">
+    Detectable waste (observable-invariant only: retry loops + redundant reads) is concentrated in
+    <strong>ml-eval, infra-deploy, and research-recon</strong> &mdash; the infrastructure/ML-ops types.
+    {% for row in waste_by_type if row.total_events > 0 %}
+      <strong>{{ row.task_type }}</strong>: {{ row.total_events }} event(s) in {{ row.with_waste }} of {{ row.total }} sessions;
+    {% endfor %}
+    feature-build ({{ waste_by_type | selectattr('task_type', 'eq', 'feature-build') | map(attribute='total') | first | default(0) }} sessions): zero waste events.
+    Total: {{ total_events }} events.
+    See <a href="https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md">report 11</a> for corpus characterisation.
+  </div>
+  {% else %}
+  <div class="caveat">
+    No waste events in store &mdash; run <code>tes backfill-waste</code> to detect and record waste
+    across all sessions. Expected concentration: ml-eval &gt; infra-deploy &gt; research-recon; zero in feature-build.
+  </div>
+  {% endif %}
+</div>
 {% endif %}
 
 {% else %}

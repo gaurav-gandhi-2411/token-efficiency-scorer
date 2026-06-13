@@ -1,83 +1,49 @@
 {% extends "base.html" %}
+{% block title_suffix %} — Trends{% endblock %}
 {% block content %}
-<h1>TES Trends</h1>
 
-{# ---- TASK TYPE DISTRIBUTION ---- #}
-<h2>Task Type Distribution</h2>
-<div class="caveat">
-  Token baselines calibrated per task type — see domain of validity.
+<h1>Trends</h1>
+
+<div class="card">
+  <div class="card-title">Status &mdash; Building</div>
+  <p style="font-size:0.875rem; color:#374151; margin-bottom:0.75rem;">
+    Trend analysis requires sufficient session history before it can provide honest,
+    non-misleading results. The cold-start gate is not yet met across all task types.
+  </p>
+  <div class="caveat">
+    <strong>Why trends are parked:</strong> Honest trend analysis requires a stable self-baseline
+    (&ge; 8 lean sessions) AND &ge; 3 calendar-week windows with &ge; 5 content sessions per type.
+    Drawing trend lines through fewer sessions produces confident-looking graphs over noise.
+    A trend that appears to show improvement &mdash; but reflects a shifting baseline or sparse
+    data &mdash; is worse than no trend.
+  </div>
+  <p style="font-size:0.82rem; color:#6b7280; margin-top:0.6rem;">
+    When the gate is met: trend raw session cost or real_tokens over time, with the self-baseline
+    as a static reference line. Do NOT trend &ldquo;delta from baseline&rdquo; &mdash;
+    the baseline shifts as sessions accumulate.
+  </p>
 </div>
+
 {% if task_type_rows %}
-<table>
-  <thead>
-    <tr><th>Task Type</th><th>Count</th></tr>
-  </thead>
-  <tbody>
-    {% for row in task_type_rows %}
-    <tr>
-      <td>{{ row.task_type }}</td>
-      <td>{{ row.cnt }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty">No sessions scored yet.</p>
-{% endif %}
-
-{# ---- TOKEN BAND DISTRIBUTION ---- #}
-<h2>Token Band Distribution</h2>
-<div class="caveat">
-  above_p75 = above the 75th percentile of quality-gated sessions in the reference corpus.
-  See domain of validity.
+<div class="section">
+  <div class="section-label">Session Count by Type</div>
+  <table style="width:auto;">
+    <thead>
+      <tr>
+        <th>Task Type</th>
+        <th style="text-align:right;">Sessions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in task_type_rows %}
+      <tr>
+        <td>{{ row.task_type }}</td>
+        <td style="text-align:right;">{{ row.cnt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
-{% if band_verdict_rows %}
-<table>
-  <thead>
-    <tr><th>Band Verdict</th><th>Count</th></tr>
-  </thead>
-  <tbody>
-    {% for row in band_verdict_rows %}
-    <tr>
-      <td>
-        {% if row.band_verdict == "above_p75" %}
-          <span class="tag-above">{{ row.band_verdict }}</span>
-        {% elif row.band_verdict == "below_p25" %}
-          <span class="tag-below">{{ row.band_verdict }}</span>
-        {% elif row.band_verdict == "within_band" %}
-          <span class="tag-within">{{ row.band_verdict }}</span>
-        {% else %}
-          {{ row.band_verdict }}
-        {% endif %}
-      </td>
-      <td>{{ row.cnt }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty">No sessions scored yet.</p>
-{% endif %}
-
-{# ---- WASTE EVENTS OVER TIME ---- #}
-<h2>Waste Events Over Time (last 50 sessions)</h2>
-{% if waste_over_time_rows %}
-<table>
-  <thead>
-    <tr><th>Scored At</th><th>Session ID</th><th>Waste Events</th></tr>
-  </thead>
-  <tbody>
-    {% for row in waste_over_time_rows %}
-    <tr>
-      <td>{{ row.scored_at[:19] | replace("T", " ") }}</td>
-      <td><a href="/session/{{ row.session_id }}">{{ row.session_id[:16] }}…</a></td>
-      <td>{{ row.waste_event_count }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="empty">No sessions scored yet.</p>
 {% endif %}
 
 {% endblock %}
