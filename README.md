@@ -8,6 +8,20 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 
 ---
 
+## Features
+
+tracegauge is feature-complete — the current release bundles the full validated toolchain (B1–B5 research arc + every shipped phase):
+
+- **Self-baseline token scoring** — your sessions are scored against *your own* lean, waste-free sessions per task type, not a one-size-fits-all corpus. Falls back to the bundled reference corpus until your self-baseline activates.
+- **Dollar cost attribution** — six reconciling buckets (B1–B6) that split every billed token into where the money actually went; token% and cost% shown side by side so the cache-read divergence (lots of tokens, little cost) is visible.
+- **Deterministic waste detection** — frozen, observable-invariant detectors (repeated-failed-retry, redundant-read) with proof turns and per-event wasted cost. No LLM judgment, no false-positive guessing.
+- **Trajectory judge** — purposefulness verdict from a local Ollama model ($0, GPU) *or* an opt-in API judge that sends snippets to your model provider only on explicit per-session consent. Renders UNAVAILABLE as a complete, expected state when no judge is configured.
+- **Diagnostic dashboard** — `tes serve` runs a localhost-only (`127.0.0.1`) web dashboard that auto-scores finished sessions and shows the three axes, attribution, and waste with every domain-of-validity caveat carried to the surface. No composite/blended score — each axis stands on its own.
+
+Local by default: scoring and the dashboard make zero external network calls. The only egress is the opt-in API judge (your key, your consent).
+
+---
+
 ## Quick start
 
 ```bash
