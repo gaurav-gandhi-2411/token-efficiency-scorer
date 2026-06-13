@@ -24,26 +24,36 @@ Local by default: scoring and the dashboard make zero external network calls. Th
 
 ## Quick start
 
+The tool already knows where your sessions live (`~/.claude/projects`). You don't type paths or memorize flags — **just run `tes`**.
+
 ```bash
 pip install tracegauge
 
-# Background watcher + localhost dashboard (http://127.0.0.1:4747/)
-tes serve
+# Just run it — bare `tes` launches the localhost dashboard (http://127.0.0.1:4747/)
+tes
 
-# Score a single session
-tes score ~/.claude/projects/<project-id>/<session-id>.jsonl
+# Score your most recent session — no path needed
+tes score
 
-# Score all sessions in a project directory
-tes score ~/.claude/projects/<project-id>/
+# Pick from a list of your recent sessions
+tes score --pick
 
-# Machine-readable output
-tes score <path> --json
+# Run the trajectory judge — auto-detects a local Ollama judge or an API key,
+# and guides you to the single simplest setup step if neither is present
+tes score --judge
+```
 
-# Version
+That's the whole frictionless path. Power-user / scripting forms still work:
+
+```bash
+tes serve                                  # same as bare `tes`, with flags (--port, --cc-path, …)
+tes score <path>.jsonl                     # score a specific file
+tes score ~/.claude/projects/<project>/    # score every session in a directory
+tes score <path> --json                    # machine-readable output
 tes --version
 ```
 
-`tes serve` starts two things: a background scan loop that auto-scores finished Claude Code sessions (token economy + deterministic waste, judge OFF by default), and a web dashboard on `http://127.0.0.1:4747/` where scores accumulate.
+Bare `tes` (and `tes serve`) start two things: a background scan loop that auto-scores finished Claude Code sessions (token economy + deterministic waste, judge OFF by default), and a web dashboard on `http://127.0.0.1:4747/` where scores accumulate. Session resolution for `tes score` is: explicit PATH > `--pick` > most recent session.
 
 ---
 
@@ -85,21 +95,28 @@ Requires a local GPU (~18 GB VRAM). Without the judge, this axis is `UNAVAILABLE
 
 **Domain of validity:** positive signal cross-model corroborated (B3 report); negative signal is model-dependent. No human gold labels.
 
-To enable local judge (free, GPU required):
+Just add `--judge` — the tool detects what's available and does the work:
+
 ```bash
-# Install Ollama: https://ollama.ai
-ollama pull qwen3:30b-a3b      # ~18 GB VRAM
-tes score <path> --judge       # explicit flag, or auto-detected when Ollama is running
+tes score --judge
 ```
 
-To use the opt-in API judge (no GPU needed):
+What `--judge` does, in order:
+1. **Local Ollama judge running?** → use it (free, ~18 GB VRAM; `ollama pull qwen3:30b-a3b` to install — see https://ollama.ai).
+2. **No local judge, but `ANTHROPIC_API_KEY` set?** → *offers* the API judge and shows a consent screen. **Nothing is sent until you confirm** — auto-detecting a key never auto-sends data.
+3. **Neither?** → prints the single simplest setup step. It never fails cryptically. Token + waste axes always run regardless.
+
+To use the opt-in API judge directly (no GPU needed):
 ```bash
+tes score --api-judge                      # uses ANTHROPIC_API_KEY from the env
 tes score <path> --api-judge --api-judge-key YOUR_KEY
 # Sends session data — including 300-char snippets that may contain your code — to your provider.
 # Uses the same validated v3 rubric. Requires explicit consent per session (shown at prompt).
 # The API model is not part of the B3 cross-model corroboration — verdict is indicative.
 # See PRIVACY.md for what is sent.
 ```
+
+> **Consent is never silent.** Frictionless means the tool finds the judge for you — not that it sends your data without asking. Every byte of egress passes the per-session consent screen requiring an explicit `y`. The judge also stays OFF by default in the background watcher (a GPU/cost footgun guard).
 
 ### Deterministic waste
 
