@@ -1,7 +1,56 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-13 (P9 DONE — 0.5.0 LIVE on PyPI). Read this BEFORE planning.
-This supersedes the prior snapshot dated 2026-06-12 (P8 DONE).
+Snapshot as of 2026-06-13 (0.6.0 DONE — Frictionless UX LIVE on PyPI). Read this
+BEFORE planning. This supersedes the prior snapshot (P9 DONE — 0.5.0 LIVE).
+
+---
+
+## Iteration status: 0.6.0 DONE — Frictionless UX; LIVE on PyPI
+
+**Published:** https://pypi.org/project/tracegauge/0.6.0/ — `pip install tracegauge` → 0.6.0.
+**Git tag:** `v0.6.0` at commit `85738f9` (pushed to origin AFTER the PyPI upload + a fresh
+real-PyPI install confirmed — tag never points at an unpublished version).
+
+**Ergonomics ONLY — the engine, numbers, attribution, cost math, detectors, and honesty
+surfacing are byte-for-byte unchanged from 0.5.0.** This release fixes the front door a real
+user tripped on: the natural commands now just work, and the tool finds sessions/judge for you.
+
+**What 0.6.0 delivered (CLI ergonomics in `tes/cli.py` + a detect-only helper in `tes/judge.py`):**
+- **Bare `tes` launches the dashboard** (= `tes serve`). `tes --help` still shows help; `tes
+  <unknown>` still errors via argparse.
+- **`tes score` needs no path** — scores the most recent session (newest `.jsonl` under
+  `~/.claude/projects` by mtime) and prints which one. `--pick` shows a numbered recent list;
+  explicit `PATH` still works. Resolution order: explicit PATH > `--pick` > newest.
+- **Clean `--judge` on-switch** — `tes score --judge` works; the old `ambiguous option:
+  --judge could match --judge-model, --judge-endpoint` error is gone.
+- **Judge auto-detect + guide** — `--judge` uses a running local Ollama judge; else if
+  `ANTHROPIC_API_KEY` is set it *offers* the API judge behind the existing consent screen;
+  else prints the single simplest setup step (never cryptic-fails). Token + waste always run.
+- **First-run orientation line** on serve/bare-`tes` (session count + dashboard URL) and on
+  `tes score` (which session was auto-selected).
+
+**Non-negotiables held (verified by tests):**
+- **API-judge consent stays the egress gate.** Auto-detecting a key NEVER sends data;
+  `detect_env_api_key()` is network-free; egress still requires explicit `y`. Guarded by
+  `test_judge_autodetect.py` (consent-declined → no config reaches the scorer; unconditional
+  `score_trajectory_api(consent_given=False)` no-network gate).
+- Judge OFF by default in the background watcher (GPU/cost footgun). `tes/_waste_detectors.py`
+  byte-frozen (`git diff` empty). Reports 01–11 immutable. Moat intact (local by default; only
+  egress = consented API judge).
+
+**Tests:** 377 green (364 from 0.5.0 + 13 new across `test_cli_ergonomics.py` [bare-tes-serves,
+no-path-newest, --pick, explicit-path-wins, --judge-not-ambiguous, flag conflicts] and
+`test_judge_autodetect.py` [Ollama-preferred, API-offered-on-key, consent-declined-no-egress,
+consent-accepted-passes-config, guide-when-nothing, unconditional no-silent-egress]).
+
+**Post-publish verification (real PyPI, 2026-06-13):**
+- Fresh throwaway venv, `pip install --no-cache-dir tracegauge==0.6.0` from production PyPI
+  (one CDN-propagation retry). `tes`/`tracegauge --version` → `tes 0.6.0`; `tes.__file__` in
+  site-packages.
+- Frictionless UX confirmed from the PUBLISHED artifact (the whole point of this version):
+  bare `tes` → dashboard on `127.0.0.1:4747` scanning ~/.claude/projects (1,014 files found);
+  `tes score` (no path) → resolved to newest session with orientation line + full three-axis
+  report; `tes score --judge` parses without the ambiguity error.
 
 ---
 
