@@ -1,130 +1,127 @@
-# Project Spec: tracegauge — Dashboard UI Redesign (Iteration P9)
+# Project Spec: tracegauge — Frictionless UX (Iteration 0.6.0)
 
 ## Goal
 
-Redesign the `tes serve` dashboard from the current functional-but-plain templates into an MLflow-style developer tool with consumer polish where it aids comprehension: clear visual hierarchy, cards, charts for the attribution breakdown, and a session-detail page that reads as a *diagnosis* (lead with the answer, support with the data). The redesign makes the P4-P8 diagnostic FEEL as good as it is — WITHOUT losing a single piece of the honesty that the plain version carried.
+Eliminate the setup friction a real user hit: having to know magic flags, hunt for session-file paths, and manually configure the judge. The principle: **the user does almost nothing; the tool does the work.** The tool already knows where sessions live (the watcher scans ~/.claude/projects) — it should never make the user type a path or decode a cryptic argparse error.
 
-This is a presentation-layer phase. It changes how data is DISPLAYED. It does NOT change what is measured, scored, attributed, judged, or how — those are frozen. Same numbers, better-presented.
+This is a UX/CLI-ergonomics phase. It changes how the user INVOKES the tool and how defaults behave. It does NOT change any scoring, attribution, judge logic, cost math, detectors, or honesty surfacing — those are frozen and correct. Same engine, frictionless front door.
 
-## The non-negotiable constraint (read first — this is the whole risk)
+## The friction being removed (real user report)
 
-A UI redesign is the single most dangerous place for this project's honesty to silently erode. "Cleaning up" an interface is exactly how caveats get truncated, nuance gets simplified away, and warnings get softened for visual flow. So the hard rule: **every honest element that survived to the CURRENT rendered page MUST survive to the redesigned page, with equal or greater prominence.** Specifically, ALL of these must remain present and legible after the redesign (a checklist test verifies each):
+A user on a fresh 0.5.0 install hit ALL of these in one session:
+- `tes score --judge` → "ambiguous option: --judge could match --judge-model, --judge-endpoint" (there's no plain --judge flag; the obvious command errors).
+- `tes score` with no path → had to go dig through ~/.claude/projects to find a session file to pass.
+- To use the judge → would have to install Ollama, know the model name, pull 18GB, OR find an API key and pass it as a flag — with no guidance.
 
-1. **Domain-of-validity caveats** on every axis (token/trajectory/waste) — not hidden behind a tooltip the user won't hover, not truncated. May be collapsible IF the collapsed state still signals the caveat exists and one click reveals it — but the DEFAULT visible state must make clear the number is caveated.
-2. **The dollar% AND token% shown together** in attribution — the divergence (95% tokens / 49% cost) IS the insight; a redesign must not show only one. Both, side by side, in any chart or card.
-3. **"Over all billed tokens" basis label** on attribution + the "do not compare to real_tokens verdict" note — must survive, not get dropped for cleanliness.
-4. **UNAVAILABLE rendered as complete/expected, NOT as an error** — the most common state (no judge) must look like a normal finished report, not a red broken thing. Polish makes this EASIER (a clean "judge not configured — enable with..." card), not harder.
-5. **"Relative to YOUR OWN baseline, not absolute"** framing on token verdicts — survives.
-6. **Self vs corpus vs building baseline source** label per session — survives.
-7. **Waste proof-turns + evidence** accessible (can be behind a click/expand, but present).
-8. **The API-judge consent + "may contain your code"** — if the UI surfaces judge enablement, the data-egress warning survives at full honesty.
-9. **No composite score** — the redesign must NOT invent a single blended "tracegauge score" gauge/number to look slick. Three labeled axes + cost annotation, still separate.
-10. **The deterministic one-line takeaway** — featured, not lost.
+The fix principle, in priority order:
+1. The OBVIOUS command should WORK (no cryptic errors on natural input).
+2. NO PATHS for the common case (the tool knows where sessions are).
+3. AUTO-DETECT what's available (Ollama running? API key in env?) and USE it; where genuine setup is unavoidable (the judge needs a model the tool can't install), DETECT-AND-GUIDE with the single simplest next step — never fail with a manual-reading error.
 
-If a design choice forces dropping/softening any of these for visual reasons: the honesty wins, escalate. Prettier-at-the-cost-of-honest is a REGRESSION, not an improvement.
+## What "minimal user work" means concretely (the deliverables)
 
-## Design decisions (made by consultant, since the user delegated design judgment — reviewable)
+1. **Bare `tes` does the obvious thing.** `tes` with no subcommand → launches `tes serve` (the dashboard — the most useful default). Today it likely shows help; it should DO the useful thing. (`tes --help` still shows help; `tes <unknown>` still errors helpfully.)
 
-- **Style target:** MLflow-functional core (data-dense, developer-facing, fast, no heavy SPA) with consumer polish in the VISUAL HIERARCHY and the attribution charts. Reference feel: a clean dev-tool dashboard (think Linear/Vercel restraint) — generous whitespace, clear typography, cards for grouping, but NEVER at the expense of data density a developer wants.
-- **Tech:** stay server-rendered Jinja2 (no SPA build step — keeps the moat-simple, dependency-light footprint). Polish via clean CSS + a LIGHTWEIGHT charting approach (inline SVG or a single small charting lib from cdnjs IF justified — escalate before adding a heavy JS dep; prefer inline SVG for the attribution bars, which are simple). NO localStorage/sessionStorage. Charts render from server-passed data.
-- **Session list (landing):** a clean table/card hybrid — per session: task type, the cost, the band verdict (with baseline-source), waste indicator, and the one-line takeaway as the row's human-readable summary. Sortable/scannable. This is where the user lands; it should answer "which sessions cost the most / which have issues" at a glance.
-- **Session detail (the diagnosis page):** lead with the ONE-LINE TAKEAWAY as a headline, then the COST attribution as the hero visual (a horizontal stacked bar or bars showing the buckets, dollar-ranked, with BOTH %s on hover/label), then the three axes each as a card carrying its verdict + caveat, then waste events (expandable with proof-turns), then the judge section (verdict or the enable-judge card). The page should read top-to-bottom as: "here's the answer (takeaway) -> here's where the money went (attribution) -> here's the detail (axes) -> here's the evidence (waste/judge)."
-- **Attribution as the hero chart:** a horizontal stacked bar (cost-ranked), each segment a bucket, labeled with $ and both %s. This is the visual that makes "where did my tokens go" instant. Honest labels on every segment.
-- **Baseline-status + trends:** baseline-status page gets the same card polish. (Trends stays PARKED — do not build trend charts; if a trends nav item exists, it shows the "building/parked" honest state.)
-- **Color discipline:** use color to AID comprehension (e.g. waste = a distinct accent, cost severity = a gradient) but UNAVAILABLE is NEUTRAL (gray/calm), never red/alarm — it's expected, not an error. Don't use alarming red for "above_p75" either — it's "heavier than your lean runs," not "bad."
+2. **`tes score` needs NO path.** With no path argument, it auto-scores the MOST RECENT session (locked decision: option a). The tool finds the newest .jsonl under ~/.claude/projects by mtime, scores it, prints the report. A `--pick` flag (option b) shows a short numbered list of recent sessions (e.g. last 10, with task type / time / a one-line hint) to choose from. An explicit PATH still works (power users / scripting). Resolution order: explicit path > --pick (interactive list) > newest session (default).
+
+3. **The `--judge` flag WORKS.** Add a plain `--judge` as an explicit on-switch (turns the local judge on / makes intent explicit), resolving the current ambiguity with --judge-model/--judge-endpoint. `--judge` = "use the local judge" (the obvious meaning). The ambiguity error must be gone — the natural command succeeds.
+
+4. **Judge auto-detect + guide (the irreducible-setup part, handled gracefully):**
+   - On a judge-requesting run (or even by default when scoring), DETECT: is Ollama running locally with a usable model? If yes → use it, no flags needed.
+   - DETECT: is an API key present in the environment (e.g. ANTHROPIC_API_KEY)? If yes AND the user opts into the API judge → use it (with the existing per-session consent — consent is NOT removed; it's a moat/honesty non-negotiable).
+   - If NEITHER is available and the user wanted a judge → DO NOT error cryptically. Print the single simplest path: "No local judge detected. Fastest option: [the one best step]. Token + waste axes ran fully without it." Detect-and-guide, never fail-with-manual.
+   - The judge stays OFF by default in the background watcher (the GPU/cost footgun guard is unchanged). This is about making the ON path frictionless when the user wants it, not auto-enabling it.
+
+5. **First-run friendliness.** On the very first `tes serve` / `tes score`, if the store is empty or it's clearly a first run, a one-line friendly orientation ("scanning ~/.claude/projects … found N sessions … dashboard at http://127.0.0.1:4747"). Not a wizard — just clarity so the user isn't staring at a blank thing wondering if it worked.
+
+## The honesty / non-negotiable boundary (autonomy does NOT override)
+
+Making it frictionless must NOT erode the disciplines:
+- **API-judge consent stays.** Auto-detecting an API key does NOT mean auto-sending data. The per-session consent ("sends session data including snippets that may contain your code") is REQUIRED before any egress. Frictionless ≠ silent data egress. This is the one place "minimal user work" must NOT cut a corner.
+- **Judge OFF by default in background watcher** — unchanged (GPU/cost footgun).
+- **No scoring/attribution/judge/cost/detector changes** — same numbers, same honesty surfacing. Detectors frozen (git diff empty).
+- **Moat intact** — defaults stay local; the only egress is the still-consented API judge.
+- Reports 01-11 immutable. No human labels.
 
 ## Current state
-tracegauge 0.4.0 BUILT + VERIFIED but PUBLISH HELD for this UI phase. P1-P8 complete. Current dashboard: functional Jinja2 templates (session list, session detail w/ attribution table, baseline-status), localhost-only, renders correctly but plain. All the honest elements (the 10 above) are present in the current plain version — the redesign must preserve every one. Detectors frozen, reports immutable.
+tracegauge 0.5.0 LIVE on PyPI, feature-complete (B1-B5 + P1-P9). The engine is correct and the dashboard is polished. The gap is purely the FRONT DOOR — invocation ergonomics and judge setup friction. CURRENT_STATE reflects 0.5.0 LIVE. Detectors frozen, reports immutable.
 
 ## Scope
-
 ### In scope
-1. Redesign the Jinja2 templates + CSS for: session list (landing), session detail (the diagnosis page), baseline-status. Clean visual hierarchy, cards, the attribution hero chart (inline SVG stacked bar), polish.
-2. The attribution visual: cost-ranked stacked bar (or bar set), both %s per bucket, honest labels, dollar+token.
-3. Preserve ALL 10 honesty elements (checklist test).
-4. Keep it server-rendered, localhost-only, dependency-light. Inline SVG for charts preferred; escalate before any heavy JS dep.
-5. Responsive enough to be usable (it's a local dev dashboard, not mobile-first, but shouldn't break at common window sizes).
-6. A "honesty-survived" verification: a test (or a documented manual checklist run in the clean-room) confirming each of the 10 elements renders in the new templates.
+1. CLI ergonomics: bare `tes` → serve; `tes score` no-path → newest session; `--pick` interactive list; explicit path still works.
+2. Fix the `--judge` ambiguity: add a clean `--judge` on-switch.
+3. Judge auto-detect (Ollama running? API key in env?) + detect-and-guide messaging (never cryptic-fail); consent preserved for API.
+4. First-run orientation line.
+5. Help text + README updated so the minimal-effort usage is the documented path ("just run `tes`").
+6. Tests: no-path-scores-newest, --pick lists, --judge no longer ambiguous + turns judge on, auto-detect picks Ollama/API correctly, API consent still required (no silent egress), bare-tes-serves.
 
 ### Out of scope
-- Any change to scoring, attribution math, judge, cost, self-baseline, detectors (presentation only — same numbers).
-- Building trends (parked — trends nav shows the parked/building state, no trend charts).
-- A SPA / heavy frontend framework / build step.
-- localStorage/sessionStorage (forbidden).
-- New data egress (no CDN calls beyond optionally one charting lib from cdnjs IF escalated+justified; prefer inline SVG = zero external).
-- Modifying reports 01-11.
-
-### Hard rules
-- HONESTY SURVIVES: all 10 listed elements present + legible in the redesign (checklist verified). Prettier never drops a caveat. Escalate if a design forces it.
-- NO COMPOSITE SCORE invented for slickness. Three axes + cost annotation stay separate + labeled.
-- UNAVAILABLE = calm/neutral/expected, never error-styled.
-- PRESENTATION ONLY: same numbers, no scoring/math changes. Detectors frozen (git diff empty).
-- Server-rendered, localhost-only, no new egress, no browser storage. Moat intact.
-- Reports 01-11 immutable.
+- Any scoring/attribution/judge/cost/detector logic change (ergonomics only).
+- Auto-installing Ollama or any model (can't, won't — detect-and-guide only).
+- Removing or weakening the API-judge consent (non-negotiable).
+- Auto-enabling the judge in the background watcher (footgun guard stays).
+- New data egress paths. Reports 01-11. Trends (still parked).
 
 ## Tech stack
-- Jinja2 server-rendered templates + CSS (clean, modern, hand-written or minimal framework). Inline SVG for the attribution chart (simple stacked bars — no lib needed). If a chart genuinely needs a lib, escalate (prefer cdnjs, but prefer inline SVG more).
-- Flask backend unchanged (it already passes the data; the redesign consumes the same context).
-- pytest + a rendering checklist: assert the templates render with real data and each honesty element's text/marker is present in the output HTML.
+- Python, reuse tes/. CLI is argparse in tes/cli.py — restructure invocation/defaults, add subcommand-less default + --pick + --judge. Session discovery reuses the watcher's existing ~/.claude/projects scan (newest-by-mtime).
+- Judge detect: a quick Ollama health probe (already exists in tes/judge.py) + an env-var check for the API key.
+- pytest for the new ergonomics + the consent-preserved guard.
 
 ## Architecture (changed)
 ```
-tes/web/
-├── templates/          # REDESIGNED: session_list, session_detail, baseline_status (+ a base layout)
-│   ├── base.html       # NEW: shared layout, nav, the CSS
-│   ├── session_list.html
-│   ├── session_detail.html
-│   └── baseline_status.html
-├── static/             # CSS (+ any minimal assets; no heavy JS)
-└── server.py           # unchanged data passing (or minor: pass chart-ready data structures)
-
+tes/cli.py        # default-subcommand (bare tes -> serve), tes score no-path -> newest,
+                  # --pick, clean --judge, judge auto-detect + guide messaging, first-run line
+tes/judge.py      # reuse the Ollama probe; add env-API-key detect (NO auto-send — detect only)
+tes/watcher.py    # reuse session-discovery (newest-by-mtime) — or factor a shared helper
 tests/
-├── test_ui_honesty_survives.py   # NEW: each of the 10 elements present in rendered output
-└── (existing render tests updated for new templates)
+├── test_cli_ergonomics.py      # bare tes, no-path-newest, --pick, --judge-not-ambiguous
+├── test_judge_autodetect.py    # detects Ollama/API; guides when neither; consent still required
+└── (existing tests unchanged + green)
 ```
 
 ## Verification commands
 ```yaml
-- name: honesty-survives
-  cmd: python -m pytest tests/test_ui_honesty_survives.py -v   # all 10 honesty elements render
+- name: cli-ergonomics
+  cmd: python -m pytest tests/test_cli_ergonomics.py -v
   required: true
-- name: templates-render
-  cmd: python -m pytest tests/ -k "render or template or dashboard" -v
+- name: judge-autodetect-consent-preserved
+  cmd: python -m pytest tests/test_judge_autodetect.py -v   # auto-detect works AND API consent still gates egress
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
   required: true
-- name: no-scoring-change
-  cmd: python -m pytest -q   # full suite; scoring/attribution tests unchanged + green
+- name: no-engine-change
+  cmd: python -m pytest -q   # full suite; scoring/attribution/judge/cost tests unchanged + green
   required: true
 ```
 
-## Escalation rules
-- If ANY design choice forces dropping/softening one of the 10 honesty elements: STOP, escalate — honesty wins over aesthetics.
-- BEFORE adding any heavy JS/charting dependency (vs inline SVG): escalate.
-- BEFORE inventing any composite/blended single-score visual: STOP — explicitly forbidden.
-- If tempted to restyle UNAVAILABLE or above_p75 as alarm/error/red: STOP — they're expected/neutral states.
-- Presentation only — if a "fix" requires touching scoring/attribution/judge math: out of scope, escalate.
+## Escalation rules (autonomous mode — escalate ONLY these)
+- PUBLISHING 0.6.0 to PyPI (irreversible; user's token) — the expected publish escalation.
+- If any ergonomics change would WEAKEN the API-judge consent or create silent egress — STOP, escalate (it's the one corner that must not be cut).
+- Touching frozen detectors / immutable reports / scoring math — out of scope, escalate.
+- Otherwise: DECIDE AND ACT. Implementation, messaging copy, --pick UX, detect logic, first-run wording — all your call; report, don't ask.
 
-## Budget
-- Soft: 3-5 CC sessions. Local/$0. No GCP, no API, no server.
+## Hard rules
+- ERGONOMICS ONLY: same engine, same numbers, same honesty. Detectors frozen.
+- API-JUDGE CONSENT PRESERVED: frictionless must not become silent egress. Auto-detect a key ≠ auto-send.
+- Judge OFF by default in background; the obvious manual ON path just works.
+- The OBVIOUS command WORKS (no cryptic argparse errors on natural input).
+- Moat intact; reports immutable; publish-immediately (0.6.0 ships when done).
 
-## Success criteria (verify ALL before done)
-- Redesigned session list (landing), session detail (diagnosis page), baseline-status — MLflow-functional + consumer polish (hierarchy, cards, the attribution hero chart).
-- Attribution rendered as a cost-ranked visual (inline SVG stacked bar) with BOTH dollar% and token% per bucket + honest bucket labels.
-- Session detail reads top-down: takeaway -> attribution -> axes -> evidence.
-- ALL 10 honesty elements present + legible (test passes): the 3 DOV caveats, dollar+token together, billed-basis label, UNAVAILABLE-as-complete, relative-not-absolute, baseline-source, waste proof-turns, API-judge code-exposure warning, NO composite, the one-line takeaway.
-- UNAVAILABLE + above_p75 are neutral/calm, not error/alarm styled.
-- Server-rendered, localhost-only, no browser storage, no new egress (inline SVG, or escalated+justified single lib).
-- Same numbers as 0.4.0 (presentation only); scoring/attribution/judge/detector tests unchanged + green; detectors frozen.
-- Clean-room: the redesigned dashboard renders from the installed wheel on real sessions (templates IN the wheel — remember the P3 template-packaging bug; verify templates ship).
-- Reports 01-11 untouched. Full suite green. Version bump (0.4.0 still unpublished — this redesign ships AS 0.4.0, or bump to 0.5.0 — decide at publish).
+## Success criteria (verify ALL)
+- `tes` (bare) launches the dashboard.
+- `tes score` (no path) scores the newest session; `tes score --pick` lists recent to choose; explicit path still works.
+- `tes score --judge` works (no ambiguity error), turns the local judge on.
+- Judge auto-detects Ollama/API-key and uses what's available; when neither, guides with the single simplest step (no cryptic fail). API egress still requires per-session consent (tested — no silent send).
+- First-run shows a friendly orientation line.
+- README/help document the minimal path ("just run `tes`").
+- Same numbers (engine untouched); detectors frozen; full suite green; reports 01-11 untouched.
+- 0.6.0 built, clean-roomed (works from installed wheel), and PUBLISHED (publish-immediately) — verified by fresh pip install.
 
-## Build order (orchestrator may adjust)
-1. Read CURRENT_STATE.md + spec.md + the CURRENT tes/web/templates + server.py. Inventory the 10 honesty elements AS THEY CURRENTLY RENDER (so the redesign has a concrete preservation target). HOLD — show me the inventory (where each of the 10 currently lives) before redesigning, so we agree on what must survive.
-2. Build base.html layout + CSS (the visual system: typography, cards, color discipline, UNAVAILABLE-neutral). HOLD for my read of the base look (describe or show the rendered shell) before applying to all pages.
-3. Redesign session_detail (the diagnosis page) — takeaway headline, attribution hero SVG chart (cost-ranked, both %s), axis cards with caveats, waste expand, judge card. The honesty checklist test. HOLD for my read of the rendered detail page on a REAL session.
-4. Redesign session_list (landing) + baseline_status.
-5. honesty-survives test (all 10) + full suite + detectors frozen.
-6. Clean-room: redesigned dashboard renders from the installed wheel (templates ship — verify, per the P3 bug). HOLD for my read of the rendered pages from the clean-room before publish.
-```
+## Build order (orchestrator decides details autonomously)
+1. Read CURRENT_STATE.md + tes/cli.py + tes/judge.py + tes/watcher.py. Confirm context + the ergonomics-only / consent-preserved boundary in 4-6 lines.
+2. Implement the CLI ergonomics (bare tes, no-path-newest, --pick, clean --judge) + judge auto-detect + guide + first-run line. Decide messaging/UX autonomously.
+3. Tests (ergonomics + consent-preserved-no-silent-egress). Full suite green, detectors frozen.
+4. README/help update to the minimal path.
+5. Build + twine check + CLEAN-ROOM (works from installed wheel: bare tes serves, tes score scores newest, --judge works, consent preserved).
+6. Bump 0.5.0 -> 0.6.0, CHANGELOG. ESCALATE with the prepared publish command + clean-room result for the user to upload (publish-immediately). After upload, confirm fresh pip install.
