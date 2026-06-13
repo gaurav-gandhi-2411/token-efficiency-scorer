@@ -1,7 +1,51 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-12 (P8 DONE). Read this BEFORE planning. This supersedes
-the prior snapshot dated 2026-06-11 (P7 DONE).
+Snapshot as of 2026-06-13 (P9 DONE — 0.5.0 LIVE on PyPI). Read this BEFORE planning.
+This supersedes the prior snapshot dated 2026-06-12 (P8 DONE).
+
+---
+
+## Iteration status: P9 DONE — Dashboard UI redesign; 0.5.0 is the LIVE consolidated release
+
+**Published:** https://pypi.org/project/tracegauge/0.5.0/ — `pip install tracegauge` → 0.5.0.
+**Git tag:** `v0.5.0` at commit `c079e5d` (pushed to origin AFTER the PyPI upload confirmed —
+tag never points at an unpublished version).
+
+**0.5.0 is the SINGLE consolidated complete version.** It contains ALL features built across
+the whole arc: B1-B5 validated detectors + P1-P9 (self-baseline token scoring, dollar cost
+attribution, deterministic waste detection, trajectory judge [local or opt-in API], the
+diagnostic dashboard). 0.2.0 and 0.4.0 were built-but-never-published; that version drift is
+now closed. PUBLISH-IMMEDIATELY is the standing rule: a phase is not done until LIVE on PyPI
+and a fresh `pip install` confirms it.
+
+**What P9 delivered:**
+- Polished CSS visual system (`base.html`) + redesigned dashboard views: `session_list`,
+  `session_detail`, `baseline_status`, `trends`.
+- `tests/test_ui_honesty_survives.py` — 20-assertion regression guard. Every honesty element
+  must survive any future restyle: the 3 domain-of-validity caveats, UNAVAILABLE rendered as
+  a calm/neutral badge (never an error class), relative "your own lean baseline" framing,
+  baseline-source labels (self/building/corpus/b2), waste proof turns, API-judge egress
+  warning, both Tok%/Cost% columns, billed-basis label, and no composite/blended score.
+
+**Release mechanics (0.5.0):**
+- `pyproject.toml` version → 0.5.0; `tests/test_packaging.py` version assertion → 0.5.0.
+- README: **Features** section added at the top (tool is feature-complete regardless of the
+  version number). New `CHANGELOG.md` marks 0.5.0 as the consolidated current release and
+  honestly records 0.2.0/0.4.0 as built-but-never-published (folded into 0.5.0).
+- Commits: `2906b6f` (P9 templates + honesty test), `c079e5d` (0.5.0 consolidation).
+
+**Post-publish verification (real PyPI, 2026-06-13):**
+- Fresh throwaway venv, `pip install --no-cache-dir tracegauge==0.5.0` from production PyPI.
+- `tracegauge --version` / `tes --version` → `tes 0.5.0`; `tes.__file__` in venv site-packages;
+  bundled `cc_baselines.json` present.
+- `tes serve` from the PyPI install: dashboard up on 127.0.0.1 (localhost-only bind), watcher
+  auto-scored 100 sessions, secret redaction fired in-flight, all dashboard routes 200.
+- Session-detail render from the PyPI-installed templates: all 20 honesty elements intact
+  (token/trajectory/waste DOV, UNAVAILABLE=neutral, source-aware baseline framing, attribution
+  table, no composite score). The P3 packaging-bug guard (templates ship in the wheel) holds.
+
+**Test count: 364 green. Detectors frozen (`git diff tes/_waste_detectors.py` empty). Reports
+01-11 immutable. Moat intact (local by default; only egress = opt-in API judge).**
 
 ---
 
