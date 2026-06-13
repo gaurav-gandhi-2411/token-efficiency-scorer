@@ -17,6 +17,7 @@ Public API:
     score_trajectory(record, config) -> dict | None
 """
 
+import os
 import sys
 from dataclasses import dataclass
 from typing import Any
@@ -263,6 +264,21 @@ def _probe_ollama_tags(endpoint: str, timeout: float) -> list[str]:
         return [m["name"] for m in data.get("models", [])]
     except Exception:
         return []
+
+
+def detect_env_api_key(env_var: str = "ANTHROPIC_API_KEY") -> str | None:
+    """Detect an Anthropic API key in the environment. DETECT ONLY — never sends.
+
+    Returns the key string if a non-empty value is present, else None.
+
+    CRITICAL: detecting a key does NOT authorize egress. This function performs
+    zero network activity and grants no permission to transmit. Any API-judge
+    call still passes through the unconditional per-session consent gate
+    (score_trajectory_api(consent_given=...)) before a single byte leaves the
+    machine. Auto-detect a key ≠ auto-send — that boundary is the moat.
+    """
+    key = os.environ.get(env_var, "").strip()
+    return key or None
 
 
 def is_judge_available(config: JudgeConfig | None = None) -> bool:
@@ -516,6 +532,7 @@ __all__ = [
     "JUDGE_SETUP_HINT_FULL",
     "API_JUDGE_CONSENT_NOTICE_TEMPLATE",
     "build_api_judge_consent_notice",
+    "detect_env_api_key",
     "is_judge_available",
     "score_trajectory",
     "score_trajectory_api",

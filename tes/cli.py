@@ -2,18 +2,27 @@ from __future__ import annotations
 
 """tes/cli.py — Command-line interface for the Token-Efficiency Scorer.
 
-Entry points:
-    tes score <path> [options]   — score one or more CC session JSONL files
+Frictionless front door (the tool does the work; the user does almost nothing):
+    tes                          — bare command launches the dashboard (= tes serve)
+    tes score                    — scores your MOST RECENT session (no path needed)
+    tes score --pick             — pick from a list of recent sessions
+    tes score <path> [options]   — score a specific file/directory (power users)
+    tes score --judge            — run the trajectory judge (auto-detects Ollama/API)
     tes serve [options]          — background watcher + localhost dashboard
 
-The PATH for `score` may be a single CC session JSONL file or a directory
-containing *.jsonl files. Sessions are adapted through the frozen CC adapter
-(secret redaction ON by default) and scored on three axes.
+Session resolution order: explicit PATH > --pick > newest session by mtime.
+Sessions are adapted through the frozen CC adapter (secret redaction ON by
+default) and scored on three axes. The engine, numbers, and honesty surfacing
+are unchanged from 0.5.0 — this is invocation ergonomics only.
+
+API-judge egress is NEVER silent: auto-detecting ANTHROPIC_API_KEY only OFFERS
+the API judge; the per-session consent screen still gates every byte that leaves.
 """
 
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from tes._digest import reconstruct_digest
@@ -25,10 +34,12 @@ from tes.judge import (
     JudgeConfig,
     JUDGE_SETUP_HINT_FULL,
     build_api_judge_consent_notice,
+    detect_env_api_key,
     is_judge_available,
     score_trajectory,
     score_trajectory_api,
 )
+from tes.watcher import DEFAULT_CC_PATH
 from tes.report import format_human, format_json
 from tes.score import score_session
 from tes.waste import annotate_waste_costs, build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
@@ -77,6 +88,141 @@ def _discover_sessions(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
     return sorted(path.glob("*.jsonl"))
+
+
+def _resolve_cc_path(cc_path_arg: str | None) -> Path:
+    """Resolve the Claude Code projects directory (the tool knows where sessions live)."""
+    return Path(cc_path_arg).expanduser() if cc_path_arg else DEFAULT_CC_PATH
+
+
+def _recent_sessions(cc_path: Path, limit: int | None = None) -> list[tuple[Path, float]]:
+    """Return (path, mtime) for *.jsonl sessions under cc_path, newest first.
+
+    The tool already scans ~/.claude/projects (this mirrors the watcher's discovery)
+    so the user never has to hunt for a session path. limit=None returns all.
+    """
+    if not cc_path.exists():
+        return []
+    found: list[tuple[Path, float]] = []
+    for p in cc_path.rglob("*.jsonl"):
+        try:
+            found.append((p, p.stat().st_mtime))
+        except OSError:
+            continue
+    found.sort(key=lambda pm: pm[1], reverse=True)
+    return found[:limit] if limit is not None else found
+
+
+def _newest_session(cc_path: Path) -> Path | None:
+    """Return the single most-recently-modified CC session, or None if none exist."""
+    recent = _recent_sessions(cc_path, limit=1)
+    return recent[0][0] if recent else None
+
+
+def _fmt_age(mtime: float, _now: float | None = None) -> str:
+    """Human-readable 'modified N ago' string from an mtime."""
+    now = _now if _now is not None else time.time()
+    delta = max(0.0, now - mtime)
+    if delta < 90:
+        return "just now"
+    if delta < 5400:  # < 90 min
+        return f"{int(delta // 60)}m ago"
+    if delta < 172800:  # < 48 h
+        return f"{int(delta // 3600)}h ago"
+    return f"{int(delta // 86400)}d ago"
+
+
+def _fmt_size(path: Path) -> str:
+    """Human-readable file size."""
+    try:
+        size = float(path.stat().st_size)
+    except OSError:
+        return "?"
+    for unit in ("B", "KB", "MB"):
+        if size < 1024:
+            return f"{size:.0f}{unit}" if unit == "B" else f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.1f}GB"
+
+
+def _project_label(path: Path) -> str:
+    """A short, readable label for the project a session belongs to.
+
+    CC encodes the project path as the parent directory name under
+    ~/.claude/projects (e.g. 'C--Users-gaura-ml-projects-token-efficiency-scorer').
+    Show the tail so the user can recognize it without a wall of path encoding.
+    """
+    name = path.parent.name
+    return name[-40:] if len(name) > 40 else name
+
+
+def _pick_session(cc_path: Path) -> list[Path]:
+    """Interactive picker: show recent sessions, return the chosen one (or [] if aborted)."""
+    recent = _recent_sessions(cc_path, limit=10)
+    if not recent:
+        print(f"[ERROR] No CC sessions found under {cc_path}.", file=sys.stderr)
+        return []
+    print("Recent Claude Code sessions:\n")
+    for i, (p, m) in enumerate(recent, 1):
+        print(f"  [{i}]  {_project_label(p):<40}  {p.stem[:8]}…  {_fmt_age(m):>8}  {_fmt_size(p):>8}")
+    try:
+        raw = input(f"\nPick a session to score [1-{len(recent)}, default 1]: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        return []
+    if raw == "":
+        choice = 1
+    else:
+        try:
+            choice = int(raw)
+        except ValueError:
+            print("Not a number — aborted.")
+            return []
+    if not (1 <= choice <= len(recent)):
+        print("Out of range — aborted.")
+        return []
+    return [recent[choice - 1][0]]
+
+
+def _resolve_score_targets(args: argparse.Namespace) -> list[Path]:
+    """Resolve which session(s) to score.
+
+    Resolution order (locked): explicit PATH > --pick (interactive list) > newest.
+    The common case needs no path at all — the tool scores the most recent session.
+    Returns [] when nothing should be scored (error printed, or pick aborted).
+    """
+    if args.path is not None:
+        target = Path(args.path).expanduser().resolve()
+        if not target.exists():
+            print(f"[ERROR] Path not found: {target}", file=sys.stderr)
+            return []
+        paths = _discover_sessions(target)
+        if not paths:
+            print(f"[ERROR] No .jsonl files found in {target}", file=sys.stderr)
+        return paths
+
+    cc_path = _resolve_cc_path(getattr(args, "cc_path", None))
+
+    if getattr(args, "pick", False):
+        return _pick_session(cc_path)
+
+    newest = _newest_session(cc_path)
+    if newest is None:
+        print(
+            f"[ERROR] No Claude Code sessions found under {cc_path}.\n"
+            "        Run some Claude Code sessions first, or pass an explicit PATH.",
+            file=sys.stderr,
+        )
+        return []
+    # First-run / orientation: tell the user exactly what was auto-selected.
+    print(
+        "No path given — scoring your most recent session "
+        "(use `tes score --pick` to choose, or pass a PATH):\n"
+        f"  {newest.name}\n"
+        f"  {_project_label(newest)} · modified {_fmt_age(newest.stat().st_mtime)}\n",
+        file=sys.stderr,
+    )
+    return [newest]
 
 
 def score_path(
@@ -258,6 +404,81 @@ def _score_path_with_api_judge(
             pass
 
 
+def _store_session_count(db_path: Path | None) -> int | None:
+    """Return the number of sessions already in the store, or None if unavailable.
+
+    Used only for a friendly first-run orientation line — never affects scoring.
+    """
+    try:
+        from tes.store import open_db, resolve_db_path  # noqa: PLC0415
+        conn = open_db(resolve_db_path(db_path))
+        try:
+            return int(conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0])
+        finally:
+            conn.close()
+    except Exception:
+        return None
+
+
+def _run_serve(
+    *,
+    port: int = 4747,
+    scan_interval: int = 120,
+    stability_window: int = 300,
+    cc_path_arg: str | None = None,
+    db_path_arg: str | None = None,
+    background_judge: bool = False,
+) -> None:
+    """Launch the watcher + localhost dashboard. Shared by `tes serve` and bare `tes`.
+
+    Blocks until Ctrl+C. Prints a first-run orientation line so the user is never
+    left staring at a blank screen wondering whether anything happened.
+    """
+    from tes.watcher import WatcherConfig, start_watcher  # noqa: PLC0415
+    from tes.web.server import ServerConfig, start_server  # noqa: PLC0415
+
+    db_path = Path(db_path_arg).expanduser() if db_path_arg else None
+    cc_path = _resolve_cc_path(cc_path_arg)
+
+    if background_judge:
+        print(
+            "\nWARNING: --background-judge enabled.\n"
+            "This runs qwen3:30b-a3b (~18 GB VRAM) on your GPU for every new CC session.\n"
+            "Ensure Ollama is running before proceeding.\n",
+            file=sys.stderr,
+        )
+
+    watcher_config = WatcherConfig(
+        cc_path=cc_path,
+        scan_interval=scan_interval,
+        stability_window=stability_window,
+        db_path=db_path,
+        background_judge=background_judge,
+    )
+    server_config = ServerConfig(host="127.0.0.1", port=port, db_path=db_path)
+
+    # First-run orientation — the tool tells you what it found and where to look.
+    found = len(_recent_sessions(cc_path))
+    already_scored = _store_session_count(db_path)
+    print("TES service starting...")
+    print(f"  Dashboard:        http://127.0.0.1:{port}/")
+    print(f"  Watching:         {cc_path}  ({found} session file(s) found)")
+    if not already_scored:
+        print("  First run:        scoring begins as sessions settle; the dashboard fills in live.")
+    print(f"  Scan interval:    {scan_interval}s")
+    print(f"  Stability window: {stability_window}s")
+    print(f"  Judge:            {'ON (--background-judge)' if background_judge else 'OFF (token+waste only)'}")
+    print(f"  Database:         {db_path or '~/.tes/tes.db'}")
+    print("  Press Ctrl+C to stop.", flush=True)
+
+    watcher_thread, stop_event = start_watcher(watcher_config)
+    try:
+        start_server(server_config)  # blocks until Ctrl+C / process exit
+    finally:
+        stop_event.set()
+        watcher_thread.join(timeout=5)
+
+
 def main() -> None:
     """CLI entry point."""
     # Ensure UTF-8 output on Windows (cp1252 console cannot encode ═/─ box-drawing chars)
@@ -287,13 +508,41 @@ def main() -> None:
     score_p.add_argument(
         "path",
         metavar="PATH",
-        help="Path to a CC session JSONL file or directory of JSONL files.",
+        nargs="?",
+        default=None,
+        help=(
+            "Optional path to a CC session JSONL file or directory of JSONL files. "
+            "If omitted, the most recent session under ~/.claude/projects is scored. "
+            "Use --pick to choose from a list instead."
+        ),
+    )
+    score_p.add_argument(
+        "--pick",
+        action="store_true",
+        help="Choose from a numbered list of your recent sessions instead of scoring the newest.",
+    )
+    score_p.add_argument(
+        "--cc-path",
+        default=None,
+        dest="cc_path",
+        metavar="PATH",
+        help="Claude Code projects directory to search (default: ~/.claude/projects).",
     )
     score_p.add_argument(
         "--json",
         action="store_true",
         dest="json_mode",
         help="Output full ThreeAxisResult as JSON (includes domain-of-validity strings).",
+    )
+    score_p.add_argument(
+        "--judge",
+        action="store_true",
+        help=(
+            "Run the trajectory-quality judge. Auto-detects a local Ollama judge; if none is "
+            "found but an API key is in your environment, offers the API judge (consent "
+            "required before any data is sent). With neither, prints the single simplest "
+            "setup step — token + waste axes always run regardless."
+        ),
     )
     score_p.add_argument(
         "--no-judge",
@@ -430,7 +679,9 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command is None:
-        parser.print_help()
+        # Bare `tes` does the obvious useful thing: launch the dashboard.
+        # (`tes --help` still shows help; `tes <unknown>` still errors via argparse.)
+        _run_serve()
         sys.exit(0)
 
     if args.command == "backfill-waste":
@@ -449,49 +700,14 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "serve":
-        from pathlib import Path as _Path
-        from tes.watcher import WatcherConfig, start_watcher, DEFAULT_CC_PATH
-        from tes.web.server import ServerConfig, start_server
-
-        db_path = _Path(args.db_path).expanduser() if args.db_path else None
-        cc_path = _Path(args.cc_path).expanduser() if args.cc_path else DEFAULT_CC_PATH
-
-        if args.background_judge:
-            print(
-                "\nWARNING: --background-judge enabled.\n"
-                "This runs qwen3:30b-a3b (~18 GB VRAM) on your GPU for every new CC session.\n"
-                "Ensure Ollama is running before proceeding.\n",
-                file=sys.stderr,
-            )
-
-        watcher_config = WatcherConfig(
-            cc_path=cc_path,
+        _run_serve(
+            port=args.port,
             scan_interval=args.scan_interval,
             stability_window=args.stability_window,
-            db_path=db_path,
+            cc_path_arg=args.cc_path,
+            db_path_arg=args.db_path,
             background_judge=args.background_judge,
         )
-        server_config = ServerConfig(
-            host="127.0.0.1",
-            port=args.port,
-            db_path=db_path,
-        )
-
-        print(f"TES service starting...")
-        print(f"  Dashboard:        http://127.0.0.1:{args.port}/")
-        print(f"  Watching:         {cc_path}")
-        print(f"  Scan interval:    {args.scan_interval}s")
-        print(f"  Stability window: {args.stability_window}s")
-        print(f"  Judge:            {'ON (--background-judge)' if args.background_judge else 'OFF (token+waste only)'}")
-        print(f"  Database:         {db_path or '~/.tes/tes.db'}")
-        print(f"  Press Ctrl+C to stop.", flush=True)
-
-        watcher_thread, stop_event = start_watcher(watcher_config)
-        try:
-            start_server(server_config)  # blocks until Ctrl+C / process exit
-        finally:
-            stop_event.set()
-            watcher_thread.join(timeout=5)
         sys.exit(0)
 
     if args.command == "export-contribution":
@@ -568,6 +784,10 @@ def main() -> None:
     # --- score command ---
     import os as _os  # noqa: PLC0415
 
+    # Contradictory judge flags — fail fast and clearly (never a cryptic argparse error).
+    if getattr(args, "no_judge", False) and getattr(args, "judge", False):
+        print("[ERROR] --judge and --no-judge are mutually exclusive.", file=sys.stderr)
+        sys.exit(1)
     if getattr(args, "api_judge", False) and getattr(args, "no_judge", False):
         print("[ERROR] --api-judge and --no-judge are mutually exclusive.", file=sys.stderr)
         sys.exit(1)
@@ -579,11 +799,48 @@ def main() -> None:
         endpoint=args.judge_endpoint,
     )
 
-    # Resolve API judge config when --api-judge is set.
+    # ----- Resolve which session(s) to score (explicit PATH > --pick > newest). -----
+    session_paths = _resolve_score_targets(args)
+    if not session_paths:
+        # _resolve_score_targets already printed why (no sessions, bad path, or aborted pick).
+        sys.exit(0 if getattr(args, "pick", False) else 1)
+
+    # ----- Resolve the judge plan: auto-detect + guide. Consent stays the egress gate. -----
+    # Detecting an API key NEVER sends data: any API-judge call still passes the
+    # unconditional per-session consent prompt below.
+    use_local_judge = False
+    want_api = getattr(args, "api_judge", False)
+
+    if getattr(args, "no_judge", False):
+        pass  # judge explicitly skipped — token + waste still run
+    elif want_api:
+        pass  # explicit API path — handled by want_api below
+    elif getattr(args, "judge", False):
+        # Explicit --judge: auto-detect the best available judge.
+        if is_judge_available(judge_config):
+            use_local_judge = True
+        elif detect_env_api_key() is not None:
+            # An API key is present. OFFER the API judge (still consent-gated below).
+            # We do NOT send anything here — we route to the consent screen.
+            print(
+                "\nNo local judge detected — but ANTHROPIC_API_KEY is set in your environment.\n"
+                "The API judge can run instead (your key; sends trajectory data to Anthropic).\n"
+                "Review the consent notice below — NOTHING is sent until you confirm.\n",
+                file=sys.stderr,
+            )
+            want_api = True
+        else:
+            # Neither available: the single simplest next step, never a cryptic fail.
+            print(f"\n{JUDGE_SETUP_HINT_FULL}\n", file=sys.stderr)
+    else:
+        # Default (no judge flag): attempt the local judge if present — behavior preserved.
+        use_local_judge = True
+
+    # Build the API judge config when the API path is in play (explicit or offered).
     api_judge_config: ApiJudgeConfig | None = None
     api_judge_consent: bool = False
-
-    if getattr(args, "api_judge", False):
+    api_key_source = ""
+    if want_api:
         api_key = getattr(args, "api_judge_key", None) or _os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
             print(
@@ -595,34 +852,19 @@ def main() -> None:
             api_key=api_key,
             model=getattr(args, "api_judge_model", "claude-haiku-4-5-20251001"),
         )
-        # Show consent notice for first/only session.
-        # For multi-session scoring, consent is per-run (obtained once before the loop).
         api_key_source = (
             "--api-judge-key argument"
             if getattr(args, "api_judge_key", None)
             else "ANTHROPIC_API_KEY env var"
         )
 
-    use_local_judge = not getattr(args, "no_judge", False) and not getattr(args, "api_judge", False)
-
-    target = Path(args.path).expanduser().resolve()
-    if not target.exists():
-        print(f"[ERROR] Path not found: {target}", file=sys.stderr)
-        sys.exit(1)
-
-    session_paths = _discover_sessions(target)
-    if not session_paths:
-        print(f"[ERROR] No .jsonl files found in {target}", file=sys.stderr)
-        sys.exit(1)
-
-    # API judge consent: obtained once before scoring any sessions.
+    # API judge consent: obtained once before scoring any sessions. UNCONDITIONAL egress gate.
+    # Declining does not abort the run — token + waste axes still score (a complete result).
     if api_judge_config is not None:
-        # Show notice for the first session's identity (or generic if multiple).
         notice_session_id = "this session" if len(session_paths) > 1 else session_paths[0].stem
-        notice_task_type = "auto-detected" if len(session_paths) > 1 else "auto-detected"
         notice = build_api_judge_consent_notice(
             session_id=notice_session_id,
-            task_type=notice_task_type,
+            task_type="auto-detected",
             model=api_judge_config.model,
             api_key_source=api_key_source,
         )
@@ -632,9 +874,11 @@ def main() -> None:
         except (EOFError, KeyboardInterrupt):
             answer = ""
         if answer != "y":
-            print("Aborted — no data sent.")
-            sys.exit(0)
-        api_judge_consent = True
+            print("Aborted — no data sent. Scoring token + waste axes only.")
+            api_judge_config = None  # no egress
+            api_judge_consent = False
+        else:
+            api_judge_consent = True
 
     # Print judge on-ramp hint when local judge would be used but is unavailable.
     if use_local_judge and not is_judge_available(judge_config):
