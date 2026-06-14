@@ -203,7 +203,7 @@ def get_or_compute_intelligence(
             "domain_of_validity": "n/a — minimum corpus size not reached",
         }
         save_cache(cache_dict, total_session_count)
-        return cache_dict
+        return load_cache() or cache_dict  # reload so caller sees stamps too
 
     result = run_clustering(features, X, verbose=verbose)
     anomalies = detect_anomalies(features, X, result)
@@ -215,7 +215,7 @@ def get_or_compute_intelligence(
         print(f"[intelligence] k={result.k}, silhouette={result.silhouette:.4f}, "
               f"anomalies={len(anomalies)}")
 
-    return cache_dict
+    return load_cache() or cache_dict  # reload so caller sees stamps too
 
 
 # Convenience: build a text summary of the intelligence results for the chat context
