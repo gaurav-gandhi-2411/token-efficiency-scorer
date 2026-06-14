@@ -26,6 +26,18 @@ from tes.intelligence.anomaly import (
     AnomalyResult,
     detect_anomalies,
 )
+from tes.intelligence.cache import (
+    get_or_compute_intelligence,
+    format_intelligence_summary,
+)
+from tes.intelligence.chat import (
+    ChatConfig,
+    ChatApiConfig,
+    CHAT_EGRESS_NOTICE,
+    build_chat_context,
+    ask_local,
+    ask_api,
+)
 
 __all__ = [
     "FEATURE_NAMES",
@@ -37,4 +49,12 @@ __all__ = [
     "run_clustering",
     "AnomalyResult",
     "detect_anomalies",
+    "get_or_compute_intelligence",
+    "format_intelligence_summary",
+    "ChatConfig",
+    "ChatApiConfig",
+    "CHAT_EGRESS_NOTICE",
+    "build_chat_context",
+    "ask_local",
+    "ask_api",
 ]
