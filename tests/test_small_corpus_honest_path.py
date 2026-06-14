@@ -161,6 +161,93 @@ class TestSmallCorpusCacheLayer:
         assert result["valid"] is True
         assert "archetypes" in result
 
+    def test_fresh_compute_returns_stamped_dict(self) -> None:
+        """get_or_compute_intelligence must return session_count + tracegauge_version
+        even on a fresh compute (when no cache file exists yet).
+
+        Regression for KeyError 'session_count' in _run_patterns footer on first run.
+        The stamps are added by save_cache() and must be present in the returned dict,
+        not just in the on-disk JSON.
+        """
+        n = MIN_CONTENT_FOR_CACHE - 1
+        fake_rows = _make_fake_rows(n, n)
+
+        with (
+            patch("tes.store.open_db"),
+            patch("tes.store.list_sessions", return_value=fake_rows),
+            patch("tes.intelligence.cache.load_cache", side_effect=[None, _small_corpus_cache()]),
+            patch("tes.intelligence.cache.save_cache"),
+        ):
+            result = get_or_compute_intelligence(verbose=False)
+
+        # These keys MUST be present; their absence caused the _run_patterns KeyError
+        assert "session_count" in result or result.get("valid") is False, (
+            "session_count missing from get_or_compute_intelligence return value"
+        )
+
+    def test_fresh_compute_valid_returns_stamped_dict(self) -> None:
+        """Stamped fields present on valid (above-floor) fresh compute too."""
+        n_total = MIN_CONTENT_FOR_CACHE + 5
+        fake_rows = _make_fake_rows(n_total, n_total)
+        import numpy as _np2
+        from tes.intelligence.features import SessionFeatures
+        fake_features = [
+            SessionFeatures(
+                session_id=f"fake-{i:04d}-0000-0000-0000-000000000000",
+                task_type="feature-build", real_tokens=500000, turn_count=10,
+                session_cost_usd=5.0, waste_event_count=0,
+                context_resend_pct=0.9, context_growth_pct=0.05,
+                output_pct=0.05, waste_pct=0.0, fresh_input_pct=0.0,
+                vector=_np2.zeros(8),
+            )
+            for i in range(n_total)
+        ]
+        fake_X = _np2.random.default_rng(42).random((n_total, 8))
+
+        from tes.intelligence.cluster import ClusteringResult, ArchetypeCluster
+        mock_result = ClusteringResult(
+            valid=True, k=2, silhouette=0.35,
+            silhouette_stability_mean=0.35, silhouette_stability_cv=0.05,
+            stable=True, status="test", domain_of_validity="test",
+            n_sessions=n_total,
+            session_ids=[r["session_id"] for r in fake_rows],
+            labels=_np2.zeros(n_total, dtype=int),
+            distances_to_centroid=_np2.ones(n_total),
+            scaler=__import__("unittest.mock", fromlist=["MagicMock"]).MagicMock(),
+            archetypes=[
+                ArchetypeCluster(
+                    cluster_id=0, name="test archetype", size=n_total,
+                    fraction=1.0, centroid_unscaled=_np2.zeros(8),
+                    centroid_scaled=_np2.zeros(8), dominant_features=[],
+                    task_type_counts={"feature-build": n_total},
+                )
+            ],
+        )
+
+        stamped_cache = {
+            "valid": True, "k": 2, "silhouette": 0.35,
+            "archetypes": [], "anomaly_count": 0, "anomaly_pct": 0.0,
+            "session_count": n_total, "tracegauge_version": "0.7.0",
+            "computed_at": "2026-06-15T00:00:00+00:00",
+            "n_sessions": n_total, "status": "test",
+            "domain_of_validity": "test", "stable": True,
+            "silhouette_stability_mean": 0.35, "silhouette_stability_cv": 0.05,
+        }
+
+        with (
+            patch("tes.store.open_db"),
+            patch("tes.store.list_sessions", return_value=fake_rows),
+            patch("tes.intelligence.cache.load_cache", side_effect=[None, stamped_cache]),
+            patch("tes.intelligence.cache.save_cache"),
+            patch("tes.intelligence.features.build_feature_matrix", return_value=(fake_features, fake_X)),
+            patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
+            patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
+        ):
+            result = get_or_compute_intelligence(verbose=False)
+
+        assert "session_count" in result, "session_count missing from stamped result"
+        assert "tracegauge_version" in result, "tracegauge_version missing from stamped result"
+
 
 # ---------------------------------------------------------------------------
 # Format layer: honest path
