@@ -479,6 +479,140 @@ def _run_serve(
         watcher_thread.join(timeout=5)
 
 
+def _run_patterns(
+    *,
+    db_path: str | None = None,
+    force_recompute: bool = False,
+) -> None:
+    """Show the ML pattern analysis for the session corpus."""
+    from tes.intelligence.cache import get_or_compute_intelligence
+
+    print("Computing session patterns...", flush=True)
+    cache = get_or_compute_intelligence(
+        db_path=db_path,
+        force_recompute=force_recompute,
+        verbose=True,
+    )
+
+    if not cache.get("valid"):
+        print(f"\n{cache.get('status', 'Pattern analysis unavailable.')}")
+        if cache.get("n_sessions") is not None:
+            print(f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)")
+        return
+
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print("SESSION PATTERN ANALYSIS")
+    print(sep)
+    print(f"  {cache['n_sessions']} content sessions  |  k={cache['k']}  |  "
+          f"silhouette={cache['silhouette']:.3f}  |  {'stable' if cache['stable'] else 'variable'}")
+    print(f"  {cache['status']}")
+    print()
+    print("ARCHETYPES (measured behavioral patterns — not quality labels):")
+    for a in cache["archetypes"]:
+        c = a["centroid"]
+        task_str = "  ".join(f"{k}:{v}" for k, v in sorted(a["task_type_counts"].items(), key=lambda x: -x[1]))
+        print(f"\n  [{a['cluster_id']}] {a['name']}")
+        print(f"      {a['size']} sessions ({a['fraction']*100:.1f}%)  "
+              f"context_resend={c.get('context_resend_pct', 0):.1%}  "
+              f"context_growth={c.get('context_growth_pct', 0):.1%}  "
+              f"output={c.get('output_pct', 0):.1%}  "
+              f"waste_flag={'yes' if c.get('has_waste', 0) > 0.5 else 'no'}")
+        print(f"      task mix: {task_str}")
+    print()
+    print(f"ANOMALIES: {cache['anomaly_count']} of {cache['n_sessions']} sessions "
+          f"({cache['anomaly_pct']:.1f}%) are statistical outliers for their cluster.")
+    print()
+    print(f"Domain of validity: {cache['domain_of_validity']}")
+    print(f"Computed from {cache['session_count']} total sessions in store  "
+          f"|  tracegauge {cache['tracegauge_version']}  |  {cache.get('computed_at', '')[:19]}")
+    print(sep)
+    print("\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language.")
+
+
+def _run_ask(
+    question: str,
+    *,
+    db_path: str | None = None,
+    use_api: bool = False,
+    api_model: str = "claude-haiku-4-5-20251001",
+    api_key: str | None = None,
+    force_recompute: bool = False,
+) -> None:
+    """Handle `tes ask "<question>"` — the conversational explainer."""
+    from tes.intelligence.chat import (
+        ChatApiConfig,
+        ChatConfig,
+        CHAT_EGRESS_NOTICE,
+        ask_api,
+        ask_local,
+    )
+
+    print(f"\nLooking up your session data...", flush=True)
+
+    # --- Try local Ollama first (unless --api is specified) ---
+    if not use_api:
+        answer = ask_local(
+            question,
+            db_path=db_path,
+            force_recompute=force_recompute,
+        )
+        if answer:
+            print(f"\n{answer}\n")
+            print("(answered from measured metrics — local Ollama)")
+            return
+
+        # Local unavailable — offer API if key is present
+        if not api_key:
+            api_key = None
+            import os as _os
+            api_key = _os.environ.get("ANTHROPIC_API_KEY")
+
+        if api_key:
+            print(
+                "\nNo local Ollama judge available. "
+                "ANTHROPIC_API_KEY is set — the API can answer instead (metrics only, consent required).\n",
+            )
+            use_api = True
+        else:
+            print(
+                "\nNo LLM available to answer. To enable:\n"
+                "  Option 1 — Local (free): install Ollama + pull any 7B+ model\n"
+                "  Option 2 — API: export ANTHROPIC_API_KEY=<key> then tes ask --api \"<question>\"\n"
+            )
+            return
+
+    # --- API path ---
+    if not api_key:
+        print("[ERROR] --api requires ANTHROPIC_API_KEY env var or --api-key.", file=sys.stderr)
+        return
+
+    # Show consent notice
+    print(CHAT_EGRESS_NOTICE)
+    try:
+        consent = input("\nSend metrics to Anthropic to answer this question? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        consent = ""
+
+    if consent != "y":
+        print("Aborted — nothing sent.")
+        return
+
+    cfg = ChatApiConfig(api_key=api_key, model=api_model)
+    answer = ask_api(
+        question,
+        cfg,
+        consent_given=True,
+        db_path=db_path,
+        force_recompute=force_recompute,
+    )
+    if answer:
+        print(f"\n{answer}\n")
+        print(f"(answered from measured metrics — {api_model})")
+    else:
+        print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
+
+
 def main() -> None:
     """CLI entry point."""
     # Ensure UTF-8 output on Windows (cp1252 console cannot encode ═/─ box-drawing chars)
@@ -677,6 +811,75 @@ def main() -> None:
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
 
+    ask_p = sub.add_parser(
+        "ask",
+        help="Ask a natural-language question about your sessions (conversational explainer).",
+        description=(
+            "Ask questions about your session history in plain language. "
+            "The LLM answers ONLY from already-measured metrics and ML pattern results — "
+            "it never invents analysis, predicts future costs, or judges session quality. "
+            "Tries local Ollama first; with ANTHROPIC_API_KEY set, offers the API path "
+            "(sends metrics only — no session content — with your consent)."
+        ),
+    )
+    ask_p.add_argument(
+        "question",
+        metavar="QUESTION",
+        help='Question about your sessions, e.g. "What kind of sessions do I run?"',
+    )
+    ask_p.add_argument(
+        "--api",
+        action="store_true",
+        help=(
+            "Use the Anthropic API for answering (opt-in). Requires ANTHROPIC_API_KEY. "
+            "Sends corpus metrics only — no session content — with your explicit consent."
+        ),
+    )
+    ask_p.add_argument(
+        "--api-model",
+        default="claude-haiku-4-5-20251001",
+        metavar="MODEL",
+        dest="api_model",
+        help="Anthropic model for the API chat path (default: claude-haiku-4-5-20251001).",
+    )
+    ask_p.add_argument(
+        "--api-key",
+        default=None,
+        metavar="KEY",
+        dest="api_key",
+        help="Anthropic API key (default: ANTHROPIC_API_KEY env var).",
+    )
+    ask_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    ask_p.add_argument(
+        "--recompute",
+        action="store_true",
+        help="Force re-computation of ML patterns instead of using cached results.",
+    )
+
+    patterns_p = sub.add_parser(
+        "patterns",
+        help="Show the session archetypes and anomaly summary (ML pattern analysis).",
+        description=(
+            "Run or display the ML pattern analysis: validated clustering of your session corpus "
+            "into behavioral archetypes, plus statistical anomaly detection. "
+            "Results are cached to ~/.tes/intelligence_cache.json and re-used by 'tes ask'."
+        ),
+    )
+    patterns_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    patterns_p.add_argument(
+        "--recompute",
+        action="store_true",
+        help="Force re-computation even if a fresh cache exists.",
+    )
+
     args = parser.parse_args()
     if args.command is None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
@@ -779,6 +982,25 @@ def main() -> None:
             sys.exit(1)
 
         conn.close()
+        sys.exit(0)
+
+    if args.command == "patterns":
+        _run_patterns(
+            db_path=args.db_path,
+            force_recompute=args.recompute,
+        )
+        sys.exit(0)
+
+    if args.command == "ask":
+        import os as _os
+        _run_ask(
+            question=args.question,
+            db_path=args.db_path,
+            use_api=args.api,
+            api_model=args.api_model,
+            api_key=getattr(args, "api_key", None) or _os.environ.get("ANTHROPIC_API_KEY"),
+            force_recompute=args.recompute,
+        )
         sys.exit(0)
 
     # --- score command ---

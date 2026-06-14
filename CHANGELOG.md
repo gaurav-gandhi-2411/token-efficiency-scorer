@@ -9,6 +9,95 @@ A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, an
 published to PyPI. `0.6.0` is the **current release** — the complete `0.5.0`
 toolchain with a frictionless front door.
 
+## [0.7.0] — 2026-06-15 — Session Intelligence
+
+Two composing features that do work the deterministic engine cannot: unsupervised
+ML finding recurring patterns across the whole corpus, and a conversational layer
+to ask about sessions in plain language. The engine, attribution math, detectors,
+and reports are **byte-for-byte unchanged** — this adds analytics on top of what's
+already measured.
+
+### Added
+
+#### ML Foundation (`tes/intelligence/`)
+
+- **Validated KMeans clustering** over the session corpus (k=2..8, n_init=30).
+  k selected by silhouette score; stability checked across 10 seeds (CV < 0.15
+  required). Silhouette thresholds: ≥ 0.20 meaningful, 0.10–0.20 weak, < 0.10
+  no structure. Live corpus: k=3, silhouette=0.466, stability CV=0.000.
+- **Feature engineering** — 8 features: 4 attribution percentages
+  (context_resend_pct, context_growth_pct, output_pct, waste_pct), 3 log-scale
+  size features (log_real_tokens, log_turn_count, log_cost), 1 binary (has_waste).
+  `task_type` deliberately **excluded** from the feature vector: including it
+  produced k=7 where 5/7 clusters re-discovered known folder labels (silhouette
+  0.37); excluding it gives k=3, silhouette 0.466 with genuinely cross-type
+  behavioral archetypes — structure not already present in the folder names.
+- **Named archetypes** from centroid dominant features, with evaluative terms
+  forbidden. Live archetypes: `medium high context re-send sessions` (64.7%),
+  `small active context-building sessions` (24.3%),
+  `medium with detected waste sessions` (11.1%).
+- **Per-cluster Tukey outer fence anomaly detection** (Q3 + 1.5×IQR on centroid
+  distance). Top-3 deviating features reported per anomaly. Live: 10 anomalies /
+  235 sessions (4.3%).
+- **Persistent ML cache** at `~/.tes/intelligence_cache.json` — stamped with
+  `tracegauge_version + session_count + computed_at`. Invalidated on version
+  bump or when session count changes by > 5. Minimum corpus floor: 30 content
+  sessions; below it, an honest "not enough sessions for stable patterns yet"
+  message is returned instead of clustering noise.
+- **`tes patterns`** — CLI command showing archetypes, cluster validity metrics,
+  and anomaly summary for the whole corpus.
+
+#### Conversational Layer
+
+- **`tes ask "<question>"`** — plain-language Q&A about sessions. Local Ollama
+  first (auto-picks best available model); falls back to offering the Anthropic
+  API behind the existing consent gate. Default local model: `qwen3:8b`.
+- **Metrics-only egress** — the chat context contains ONLY computed numbers
+  (corpus stats, cluster centroids, anomaly counts). Raw session content, code,
+  tool inputs/outputs, and file paths are never sent to any model.
+- **Constrained system prompt** (7 rules): answer only from context; "I don't
+  have that measured" for absent facts; "I don't predict future behavior" for
+  forecasting questions; cite the metric source for every number; do not
+  dramatize archetypes into personalities.
+- **Unambiguous context labels** — all binary flags use YES/NO (never 0/1);
+  all attribution percentages name the denominator ("of billed tokens"); all
+  session fractions name the reference ("of corpus"). The Q2 regression: `waste=1`
+  misread as "1.0% waste rate" is guarded by `TestContextFormatUnambiguous`.
+- **Honest small-corpus path** — `tes ask` and `tes patterns` both gate on the
+  minimum corpus floor; a new user sees "not enough sessions yet" rather than
+  archetypes that don't statistically exist.
+
+### Tests (470 total, up from 377)
+
+- `tests/test_cluster_validity.py` (31) — feature extraction, clustering validity,
+  no-stable-clusters path, evaluative terms not in archetype names.
+- `tests/test_anomaly_threshold.py` (12) — Tukey threshold is per-cluster, every
+  anomaly exceeds threshold, top-3 deviating features valid and sorted.
+- `tests/test_chat_grounding.py` (31) — system prompt constraints, context
+  structure, no-code egress, API consent gate; **+ 5 context-format regression
+  tests** (`TestContextFormatUnambiguous`).
+- `tests/test_chat_no_code_egress.py` (19) — user message builder, API payload
+  inspection, egress notice accuracy.
+- `tests/test_small_corpus_honest_path.py` (12) — cache layer, format layer, and
+  chat layer all return honest "not enough sessions" messages below the clustering
+  floor; above the floor, valid clustering is produced.
+
+### Methodology
+
+`research/12_session_intelligence.md` — feature choices, task_type-exclusion
+reasoning, cluster-validity results, anomaly-threshold rationale. The portfolio
+artifact documenting what the ML actually found and why the method is sound.
+
+### Unchanged (non-negotiable)
+
+- `tes/_waste_detectors.py` is **byte-frozen** (confirmed: `git diff` empty).
+- Reports 01–11 immutable. Attribution engine, cost math, judge path, consent
+  gate — all unchanged.
+- API consent gate is **unconditional** on all paths, including the new chat API
+  path. `consent_given=False` → `None` + zero network calls.
+
+---
+
 ## [0.6.0] — 2026-06-13 — Frictionless UX
 
 Ergonomics only. The scoring engine, numbers, attribution, cost math, detectors,
