@@ -9,6 +9,80 @@ A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, an
 published to PyPI. `0.6.0` is the **current release** — the complete `0.5.0`
 toolchain with a frictionless front door.
 
+## [0.8.0] — 2026-06-15 — Dashboard Intelligence + Sortable Session List
+
+Brings the Session Intelligence features (ML archetypes, natural-language Q&A) from the CLI
+into the browser dashboard, and makes the session list sortable. **Surfacing + sorting only —
+the engine, ML, chat grounding, cost math, and detectors are byte-for-byte unchanged.**
+
+### Added
+
+#### Part B — Sortable session list
+
+- **Clickable column headers** on the session list: sort by **Cost**, **Date**, **Tokens**,
+  **Waste**, or **Token verdict** via server-side `?sort=&dir=` query params. No SPA, no
+  browser storage — pure server-rendered Jinja2 and `ORDER BY` on query params.
+- **Active-column sort arrow** (↑/↓) rendered in the header that reflects the current sort key
+  and direction. Default sort: date descending (most recent first, matching the pre-0.8.0 order).
+- **New Cost and Tokens columns** in the session list table, surfacing what was previously only
+  visible inside session detail.
+- **`list_sessions()` sort params:** `order_by` and `direction` added with a strict 5-key
+  whitelist (`date/cost/waste/tokens/verdict` → actual DB column names). Unknown keys fall
+  back to `scored_at DESC`. SQL injection surface: zero — the column name never comes from
+  user input; only the whitelisted value reaches the query.
+- **Honesty elements all survive sorting:** the domain-of-validity caveat, UNAVAILABLE-neutral
+  trajectory badge, "not a score" price provenance, baseline-source badge — all verified by
+  test assertions on every sort permutation.
+
+#### Part A — Dashboard Intelligence
+
+- **`/patterns` page (nav item):** Session archetypes as visual cards (bar charts for context
+  re-send, context growth, output, has-waste; dominant-feature labels; task-type mix). Validity
+  header (k, silhouette, session count, computed timestamp). Anomaly count and pct. Domain-of-
+  validity caveat. "Descriptive only — not predictive, not quality labels" framing — identical
+  to `tes patterns` CLI. Small-corpus floor honored by construction: below 30 content sessions,
+  shows "Not enough sessions yet" message and no archetype cards.
+- **LLM / judge status chips** in the Patterns page header: green "Ollama running — local
+  inference, no egress" / grey "Ollama not detected" / amber "ANTHROPIC_API_KEY set — consent
+  required before use". Read-only status indicators only — no one-click API-judge enable.
+- **Web Ask panel** on the Patterns page: text input → POST `/ask` → grounded answer rendered
+  in the browser. Carries **identical guards to `tes ask`**, enforced by construction:
+  - Same `ask_local()` / `ask_api()` functions as the CLI (not a copy — the same code path).
+  - Same `CHAT_SYSTEM_PROMPT` object: "I don't predict future behavior" fires in-browser.
+  - Same `build_chat_context()`: metrics-only, no raw session content/code/paths structurally.
+  - API consent: checkbox shown in UI (only when Ollama absent + API key detected); route
+    returns `{needs_consent: true}` error without calling `ask_api` unless `api_consent=True`.
+  - Question length capped at 500 chars server-side before any LLM call.
+  - Small-corpus floor: below-floor Ask works (corpus stats provided); no invented archetypes.
+  - Local-first routing: Ollama answer used; `ask_api` never called when local succeeds.
+
+### Fixed
+
+- **Route-registration gap (closes "tests-pass-but-real-server-fails" class):**
+  `test_route_registration.py` imports `create_app` / `start_server` via the same path `tes serve`
+  uses, inspects `url_map` directly, and asserts `/patterns` + `/ask` are registered. The
+  previous test gap: a fixture-level GET test passes even when the installed artifact lacks the
+  route (analogous to the numpy gap caught by `test_dep_closure.py` in 0.7.1).
+
+### Tests
+
+543 green (+70 new across four files):
+- `tests/test_session_sort.py` (23): whitelist unit tests, sort-key ordering, Flask route with
+  honesty-element assertions on every sort permutation.
+- `tests/test_web_patterns.py` (17): floor honored (no archetype grid below 30), validity stats
+  shown, DOV + descriptive caveat, judge status chips, Ask panel rendered.
+- `tests/test_web_ask_guards.py` (21): G1 metrics-only egress, G2 identical backend (same
+  functions as CLI), G3 "I don't predict" pass-through, G4 "not measured" pass-through, G5
+  floor no-crash, G6 consent gate (no network without `api_consent=True`), G7 `ask_api` gate
+  inherited, G8 question length cap, G9 local-first routing.
+- `tests/test_route_registration.py` (9): url_map assertions via same path as `tes serve`,
+  GET /patterns → 200, POST /ask empty → 400, GET /ask → 405 not 404.
+
+Detectors frozen. Import closure green (no new Python deps — Ask-panel JS is vanilla inline
+script, no framework, no CDN).
+
+---
+
 ## [0.7.1] — 2026-06-15 — Hotfix: missing ML dependencies
 
 `tes patterns` and `tes ask` crashed with `ModuleNotFoundError: No module named 'numpy'`
