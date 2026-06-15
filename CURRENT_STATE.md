@@ -1,7 +1,48 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-15 (0.7.1 DONE — Session Intelligence hotfix LIVE on PyPI). Read this
-BEFORE planning. This supersedes the prior snapshot (0.7.0 — broken on clean install).
+Snapshot as of 2026-06-15 (0.8.0 READY TO PUBLISH — Dashboard Intelligence + Sortable List).
+Read this BEFORE planning. This supersedes the 0.7.1 snapshot.
+
+---
+
+## Iteration status: 0.8.0 — Dashboard Intelligence + Sortable Session List (PENDING PUBLISH)
+
+**Built:** wheel at `dist/tracegauge-0.8.0-py3-none-any.whl`. Awaiting PyPI publish.
+**Clean-room gate:** PASSED (2026-06-15). Installed from wheel in `conda create
+--no-default-packages` env (`tes-cleanroom-080`). All 8 checks passed:
+- `tes.__file__` from site-packages (NOT repo)
+- `tes.__version__ == "0.8.0"`
+- `/patterns` and `/ask` in `url_map` from installed wheel
+- `GET /patterns` → 200, floor message + Ask panel rendered from bundled templates
+- `POST /ask` empty → 400; `GET /ask` → 405 (not 404)
+- `tes --version` → `tes 0.8.0` from installed entry point
+- `tes.intelligence` imports OK (numpy/sklearn available as declared deps)
+- `CHAT_SYSTEM_PROMPT` contains "I don't predict" guard
+
+**Browser verified (from `python -m tes serve`, repo):**
+(a) /patterns renders archetypes + validity + "Descriptive only" caveat
+(b) Ask panel: grounded answer to "which task type costs the most?"
+(c) Ask panel: "I don't predict" fires in-browser for future-cost question
+(d) Session list sort headers re-sort by cost/date/waste/tokens/verdict
+
+**What 0.8.0 delivers (surfacing + sorting only — engine/ML/chat/detectors unchanged):**
+- Part B: Sortable session list — clickable headers, `?sort=&dir=` server-side, whitelist-safe
+  SQL (no injection surface), Cost + Tokens columns added, honesty elements all survive sorting.
+- Part A1: `/patterns` page — archetypes with bar charts, validity (silhouette/N), DOV caveat,
+  "descriptive not predictive" framing, anomaly count/pct, small-corpus floor by construction.
+- Part A2: Web Ask panel — POST `/ask` → `ask_local()`/`ask_api()` (identical CLI functions,
+  same `CHAT_SYSTEM_PROMPT`, same `build_chat_context()` metrics-only). API consent checkbox
+  shown in UI; route enforces `api_consent=True` gate. Question capped at 500 chars.
+- A3: Judge status chips (Ollama running/not detected/API key set) — read-only, no one-click
+  API-judge enable (status + instructions scope, not full in-browser enablement).
+- Route-registration test (`test_route_registration.py`): url_map assertion via same path as
+  `tes serve` — closes "tests-pass-but-real-server-fails" class (as `test_dep_closure.py`
+  closed the numpy class in 0.7.1).
+
+**Tests:** 543 green (+70 new: 23 sort, 17 patterns, 21 ask-guards, 9 route-registration).
+Detectors frozen. Import closure green. No new Python or JS deps (vanilla inline script).
+
+**Tag discipline:** tag `v0.8.0` AFTER PyPI publish confirms, not before.
 
 ---
 
