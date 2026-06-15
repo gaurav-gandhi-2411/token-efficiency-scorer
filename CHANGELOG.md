@@ -9,6 +9,42 @@ A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, an
 published to PyPI. `0.6.0` is the **current release** — the complete `0.5.0`
 toolchain with a frictionless front door.
 
+## [0.7.1] — 2026-06-15 — Hotfix: missing ML dependencies
+
+`tes patterns` and `tes ask` crashed with `ModuleNotFoundError: No module named 'numpy'`
+on every clean install of 0.7.0. The Session Intelligence code (tes/intelligence/) imports
+`numpy` and `scikit-learn` but those packages were never declared in `pyproject.toml`.
+They were present in the development environment, so the pre-publish gate missed the gap.
+
+### Fixed
+
+- **Missing ML dependencies declared:** `numpy>=1.24,<3` and `scikit-learn>=1.3,<2` added
+  to `[project.dependencies]` in `pyproject.toml`. A clean `pip install tracegauge` now
+  installs everything `tes patterns` and `tes ask` need. No pandas is imported — only
+  numpy and scikit-learn were missing.
+- **Judge HTTP 500 graceful handling:** Ollama returning HTTP 500 (model OOM or inference
+  failure) now prints `Judge unavailable: Ollama returned HTTP 500 (model error or OOM) —
+  trajectory UNAVAILABLE` instead of a raw exception message. `httpx.HTTPStatusError` is
+  now caught explicitly before the broader `httpx.HTTPError` catch.
+- **Dashboard judge model name corrected:** `session_detail.html` suggested `qwen3:8b` for
+  the trajectory judge setup — wrong model. Fixed to `qwen3:30b-a3b` (~18 GB VRAM), matching
+  `judge.py`'s `JudgeConfig` default and `report.py`'s setup hint.
+
+### Tests
+
+- `tests/test_dep_closure.py` (1 test): walks `tes/intelligence/*.py` via AST, extracts
+  all absolute top-level imports, and asserts every external import is either stdlib or
+  in `DECLARED_IMPORT_NAMES`. Fails immediately if a new undeclared import slips in —
+  guards against the 0.7.0 clean-install regression.
+
+### Gate lesson
+
+The 0.7.0 clean-room gate ran in conda base (numpy pre-installed). The gate must use a
+truly isolated environment with only declared deps. Starting with 0.7.1, the gate uses
+`conda create --no-default-packages` so only `pip install tracegauge` deps are present.
+
+---
+
 ## [0.7.0] — 2026-06-15 — Session Intelligence
 
 Two composing features that do work the deterministic engine cannot: unsupervised

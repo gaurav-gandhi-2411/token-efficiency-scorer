@@ -349,11 +349,19 @@ def _call_judge_api(record: dict[str, Any], config: JudgeConfig) -> dict[str, An
             file=sys.stderr,
         )
         return None
-    except httpx.HTTPError as exc:
-        print(f"  Judge HTTP error: {exc}", file=sys.stderr)
+    except httpx.HTTPStatusError as exc:
+        # e.g. Ollama returns 500 when the model OOMs or fails mid-inference
+        print(
+            f"  Judge unavailable: Ollama returned HTTP {exc.response.status_code} "
+            f"(model error or OOM) — trajectory UNAVAILABLE",
+            file=sys.stderr,
+        )
         return None
-    except Exception as exc:
-        print(f"  Judge error: {exc}", file=sys.stderr)
+    except httpx.HTTPError:
+        print("  Judge unavailable: network error — trajectory UNAVAILABLE", file=sys.stderr)
+        return None
+    except Exception:
+        print("  Judge error — trajectory UNAVAILABLE", file=sys.stderr)
         return None
 
     verdict = str(raw.get("verdict", "")).upper().strip()
