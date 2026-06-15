@@ -10,7 +10,9 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from flask import Flask, abort, g, render_template
+import os
+
+from flask import Flask, abort, g, jsonify, render_template, request
 
 from tes.adapt import adapt_session
 from tes.attribution import AttributionResult, compute_attribution
@@ -18,8 +20,11 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes._digest import reconstruct_digest
 from tes.cost import load_price_table
 from tes.self_baseline import compute_baseline_cost_band, load_or_compute
+from tes.intelligence.cache import get_or_compute_intelligence
+from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
 from tes.store import (
     TrajectoryRenderState,
+    _SORT_COLUMN_WHITELIST,
     get_session,
     list_sessions,
     open_db,
@@ -228,6 +233,16 @@ _B2_ERA_CONTENT_SCORED_PCT: float = 82.9
 _B2_ERA_CONTENT_TOTAL: int = 210
 
 
+def _check_ollama(endpoint: str = "http://localhost:11434") -> bool:
+    """Probe Ollama health endpoint; returns True if reachable. Non-blocking (3 s cap)."""
+    try:
+        import httpx as _httpx
+        resp = _httpx.get(f"{endpoint}/api/tags", timeout=3.0)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
 @dataclass
 class ServerConfig:
     host: str = "127.0.0.1"   # NEVER change to 0.0.0.0 — moat discipline
@@ -337,7 +352,12 @@ def create_app(config: ServerConfig) -> Flask:
     @app.route("/")
     def session_list() -> str:
         conn = get_db()
-        sessions = list_sessions(conn, limit=100)
+        sort_key = request.args.get("sort", "date")
+        if sort_key not in _SORT_COLUMN_WHITELIST:
+            sort_key = "date"
+        raw_dir = request.args.get("dir", "desc").upper()
+        sort_dir = "ASC" if raw_dir == "ASC" else "DESC"
+        sessions = list_sessions(conn, limit=500, order_by=sort_key, direction=sort_dir)
 
         total_scored = len(sessions)
         task_type_counts: dict[str, int] = {}
@@ -382,6 +402,8 @@ def create_app(config: ServerConfig) -> Flask:
             headline=headline,
             TrajectoryRenderState=TrajectoryRenderState,
             price_provenance=_price_provenance,
+            sort_key=sort_key,
+            sort_dir=sort_dir,
         )
 
     @app.route("/session/<session_id>")
@@ -483,6 +505,56 @@ def create_app(config: ServerConfig) -> Flask:
             headline=headline,
             waste_by_type=waste_by_type,
         )
+
+    @app.route("/patterns")
+    def patterns() -> str:
+        db_path_str = str(config.db_path) if config.db_path else None
+        cache = get_or_compute_intelligence(db_path=db_path_str)
+        ollama_available = _check_ollama()
+        api_key_available = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
+        return render_template(
+            "patterns.html",
+            cache=cache,
+            ollama_available=ollama_available,
+            api_key_available=api_key_available,
+        )
+
+    @app.route("/ask", methods=["POST"])
+    def ask() -> str:
+        payload = request.get_json(force=True) or {}
+        question = (payload.get("question") or "").strip()
+        if not question:
+            return jsonify({"error": "No question provided."}), 400
+        question = question[:500]  # length cap — no runaway prompts
+
+        db_path_str = str(config.db_path) if config.db_path else None
+
+        # Local first — no egress
+        answer = ask_local(question, db_path=db_path_str)
+        if answer:
+            return jsonify({"answer": answer, "source": "local"})
+
+        # API path: requires explicit consent from the UI
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        api_consent = bool(payload.get("api_consent"))
+        if api_key and api_consent:
+            cfg = ChatApiConfig(api_key=api_key)
+            answer = ask_api(question, cfg, consent_given=True, db_path=db_path_str)
+            if answer:
+                return jsonify({"answer": answer, "source": "api"})
+
+        if api_key and not api_consent:
+            return jsonify({
+                "error": "Ollama unavailable. API path available — check the consent box to proceed.",
+                "needs_consent": True,
+            })
+
+        return jsonify({
+            "error": (
+                "No LLM available. Run Ollama locally (ollama run qwen3:8b) "
+                "or set ANTHROPIC_API_KEY."
+            )
+        })
 
     return app
 

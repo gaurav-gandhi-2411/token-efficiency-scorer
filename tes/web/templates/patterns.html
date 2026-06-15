@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Patterns{% endblock %}
+{% block content %}
+
+<h1>Session Patterns</h1>
+
+{# ── Judge / LLM status strip ─────────────────────────────────────────────── #}
+<div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:center;">
+  <span style="font-size:0.78rem; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">LLM status:</span>
+  {% if ollama_available %}
+    <span class="status-chip ok"><span class="status-dot ok"></span>Ollama running — local inference, no egress</span>
+  {% else %}
+    <span class="status-chip off"><span class="status-dot off"></span>Ollama not detected</span>
+  {% endif %}
+  {% if api_key_available %}
+    <span class="status-chip warn"><span class="status-dot warn"></span>ANTHROPIC_API_KEY set — consent required before use</span>
+  {% endif %}
+  <span style="margin-left:auto; font-size:0.78rem; color:#9ca3af;">
+    CLI: <code>tes patterns</code> &middot; <code>tes ask "…"</code>
+  </span>
+</div>
+
+{% if not cache.get('valid') %}
+{# ── Below-floor / not enough sessions ────────────────────────────────────── #}
+<div class="caveat" style="margin-bottom:1.5rem;">
+  <strong>Not enough sessions for pattern analysis yet.</strong><br>
+  {{ cache.get('status', 'Pattern analysis requires at least 30 content sessions.') }}
+  <br><br>
+  <span style="color:#9ca3af;">
+    Current: {{ cache.get('n_sessions', 0) }} content sessions &mdash;
+    need {{ cache.get('n_content_sessions_needed', 30) }} to activate clustering.
+  </span>
+</div>
+
+{% else %}
+{# ── Validity header ───────────────────────────────────────────────────────── #}
+<div class="metric-box" style="margin-bottom:1.25rem;">
+  <strong>k={{ cache.k }} archetypes</strong> over {{ cache.n_sessions }} content sessions
+  &nbsp;&middot;&nbsp;
+  silhouette = <strong>{{ "%.3f"|format(cache.silhouette) }}</strong>
+  {% if cache.silhouette >= 0.20 %}
+    <span style="color:#166534;">(meaningful structure)</span>
+  {% else %}
+    <span style="color:#92400e;">(weak structure — treat archetypes as coarse summaries)</span>
+  {% endif %}
+  &nbsp;&middot;&nbsp;
+  {{ cache.anomaly_count }} anomalies ({{ "%.1f"|format(cache.anomaly_pct) }}% of corpus)
+  <br>
+  <span style="font-size:0.8em; color:#6b7280; margin-top:2px; display:inline-block;">
+    Computed {{ cache.get('computed_at', '')[:19] }} &middot; tracegauge {{ cache.get('tracegauge_version', '') }}
+    &middot; session store count {{ cache.get('session_count', '?') }}
+  </span>
+</div>
+
+<div class="caveat">
+  <strong>Descriptive only &mdash; not predictive, not quality labels.</strong>
+  {{ cache.get('domain_of_validity', '') }}
+  Archetypes reflect measured differences in session size, context-building stage, and waste presence
+  &mdash; they do not rate whether sessions were efficient or "good."
+</div>
+
+{# ── Archetypes ────────────────────────────────────────────────────────────── #}
+<h2 style="margin-top:1.5rem;">Archetypes</h2>
+<div class="archetype-grid">
+  {% for a in cache.archetypes %}
+  {% set c = a.centroid %}
+  <div class="archetype-card">
+    <div class="archetype-name">{{ a.name }}</div>
+    <div class="archetype-meta">
+      {{ a.size }} sessions ({{ "%.1f"|format(a.fraction * 100) }}% of corpus)
+      &nbsp;&middot;&nbsp;
+      {% set task_items = a.task_type_counts.items() | list | sort(attribute='1', reverse=True) %}
+      {{ task_items | map(attribute=0) | join(', ') }}
+    </div>
+
+    {# Context re-send bar #}
+    <div class="archetype-bar-row">
+      <span class="archetype-bar-label">Context re-send</span>
+      <span class="archetype-bar-track">
+        <span class="archetype-bar-fill" style="width:{{ [c.get('context_resend_pct', 0) * 100, 100] | min }}%;"></span>
+      </span>
+      <span class="archetype-bar-value">{{ "%.0f"|format(c.get('context_resend_pct', 0) * 100) }}%</span>
+    </div>
+
+    {# Context growth bar #}
+    <div class="archetype-bar-row">
+      <span class="archetype-bar-label">Context growth</span>
+      <span class="archetype-bar-track">
+        <span class="archetype-bar-fill" style="width:{{ [c.get('context_growth_pct', 0) * 100, 100] | min }}%;"></span>
+      </span>
+      <span class="archetype-bar-value">{{ "%.0f"|format(c.get('context_growth_pct', 0) * 100) }}%</span>
+    </div>
+
+    {# Output bar #}
+    <div class="archetype-bar-row">
+      <span class="archetype-bar-label">Output</span>
+      <span class="archetype-bar-track">
+        <span class="archetype-bar-fill" style="width:{{ [c.get('output_pct', 0) * 100, 100] | min }}%;"></span>
+      </span>
+      <span class="archetype-bar-value">{{ "%.0f"|format(c.get('output_pct', 0) * 100) }}%</span>
+    </div>
+
+    {# Waste indicator #}
+    <div class="archetype-bar-row">
+      <span class="archetype-bar-label">Has waste</span>
+      <span class="archetype-bar-track">
+        <span class="archetype-bar-fill waste" style="width:{{ [c.get('has_waste', 0) * 100, 100] | min }}%;"></span>
+      </span>
+      <span class="archetype-bar-value">
+        {% if c.get('has_waste', 0) >= 0.5 %}YES{% else %}NO{% endif %}
+      </span>
+    </div>
+
+    {# Dominant features #}
+    {% if a.dominant_features %}
+    <div style="margin-top:0.65rem; font-size:0.75rem; color:#6b7280;">
+      Standout:
+      {% for df in a.dominant_features[:2] %}
+        <span title="{{ df.name }}: {{ df.value_unscaled }} (z={{ df.z_from_global }})">{{ df.label }}</span>{% if not loop.last %}, {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{# ── Anomalies ─────────────────────────────────────────────────────────────── #}
+<h2 style="margin-top:1.75rem;">Anomalies</h2>
+<div class="caveat">
+  <strong>{{ cache.anomaly_count }} of {{ cache.n_sessions }} sessions ({{ "%.1f"|format(cache.anomaly_pct) }}%)
+  are statistical outliers</strong> for their cluster (Tukey outer fence on centroid distance).
+  Anomalies are sessions unusually far from their archetype centroid &mdash;
+  not failures, just statistically atypical. Run <code>tes patterns</code> in the CLI for per-session details.
+</div>
+
+{% endif %}{# end valid #}
+
+{# ── Ask panel (shown in both valid and invalid states; floor enforced in backend) ── #}
+<div class="ask-panel" id="ask-panel">
+  <h2 style="margin-top:0;">Ask about your sessions</h2>
+  <div class="caveat" style="margin-bottom:0.85rem;">
+    Answers are grounded in your measured metrics only.
+    {% if not cache.get('valid') %}
+      Pattern analysis not available yet (below 30-session floor) — corpus stats are still provided.
+    {% endif %}
+    {% if ollama_available %}
+      Using local Ollama — <strong>no data leaves your machine.</strong>
+    {% elif api_key_available %}
+      Ollama not detected. API path available below (sends metrics only &mdash; no session content).
+    {% else %}
+      No LLM detected. Start Ollama or set ANTHROPIC_API_KEY.
+    {% endif %}
+  </div>
+
+  <div class="ask-input-row">
+    <input type="text" id="ask-input" class="ask-input"
+           placeholder="e.g. Which task type costs the most? What do the archetypes mean?"
+           autocomplete="off">
+    <button id="ask-btn" class="ask-btn" onclick="doAsk()">Ask</button>
+  </div>
+
+  {# API consent — only shown when Ollama is absent and an API key is available #}
+  {% if not ollama_available and api_key_available %}
+  <div class="ask-consent-row">
+    <label>
+      <input type="checkbox" id="api-consent">
+      I consent to sending my session <strong>metrics</strong> (numbers/statistics only, no code or content)
+      to Anthropic to answer this question.
+    </label>
+    <br>
+    <span style="color:#9ca3af; font-size:0.75rem;">
+      What will be sent: corpus stats, cluster descriptions, anomaly counts.
+      What will NOT be sent: session content, code, tool outputs, file paths.
+    </span>
+  </div>
+  {% endif %}
+
+  <div id="ask-answer" class="ask-answer" style="display:none;"></div>
+</div>
+
+<script>
+(function () {
+  var inputEl = document.getElementById('ask-input');
+  var btnEl   = document.getElementById('ask-btn');
+  var answerEl = document.getElementById('ask-answer');
+
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') doAsk();
+  });
+
+  window.doAsk = function () {
+    var q = inputEl.value.trim();
+    if (!q) return;
+
+    var consentEl = document.getElementById('api-consent');
+    var apiConsent = consentEl ? consentEl.checked : false;
+
+    btnEl.disabled = true;
+    answerEl.className = 'ask-answer thinking';
+    answerEl.textContent = 'Thinking…';
+    answerEl.style.display = '';
+
+    fetch('/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, api_consent: apiConsent }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btnEl.disabled = false;
+        if (data.answer) {
+          answerEl.className = 'ask-answer';
+          answerEl.textContent = data.answer;
+        } else if (data.needs_consent) {
+          answerEl.className = 'ask-answer error';
+          answerEl.textContent = data.error + ' (Check the consent box above and try again.)';
+        } else {
+          answerEl.className = 'ask-answer error';
+          answerEl.textContent = data.error || 'No response.';
+        }
+      })
+      .catch(function (err) {
+        btnEl.disabled = false;
+        answerEl.className = 'ask-answer error';
+        answerEl.textContent = 'Request failed: ' + err;
+      });
+  };
+})();
+</script>
+
+{% endblock %}

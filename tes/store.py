@@ -602,14 +602,33 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> dict | None:
     return _deserialize_row(row)
 
 
+# Mapping from public sort-key names (used in ?sort= query params) to DB column names.
+# ONLY these columns are allowed — prevents SQL injection via user-controlled sort params.
+_SORT_COLUMN_WHITELIST: dict[str, str] = {
+    "date": "scored_at",
+    "cost": "session_cost_usd",
+    "waste": "waste_event_count",
+    "tokens": "real_tokens",
+    "verdict": "band_verdict",
+}
+
+
 def list_sessions(
     conn: sqlite3.Connection,
     limit: int = 100,
     offset: int = 0,
+    order_by: str = "date",
+    direction: str = "DESC",
 ) -> list[dict]:
-    """Return sessions ordered by scored_at DESC."""
+    """Return sessions ordered by the requested column.
+
+    order_by must be a key in _SORT_COLUMN_WHITELIST; unknown keys fall back to 'date'.
+    direction must be 'ASC' or 'DESC'; anything else falls back to 'DESC'.
+    """
+    col = _SORT_COLUMN_WHITELIST.get(order_by, "scored_at")
+    dir_safe = "ASC" if direction.upper() == "ASC" else "DESC"
     rows = conn.execute(
-        "SELECT * FROM sessions ORDER BY scored_at DESC LIMIT ? OFFSET ?",
+        f"SELECT * FROM sessions ORDER BY {col} {dir_safe} NULLS LAST LIMIT ? OFFSET ?",  # noqa: S608
         (limit, offset),
     ).fetchall()
     return [_deserialize_row(r) for r in rows]
