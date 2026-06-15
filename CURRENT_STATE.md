@@ -1,25 +1,29 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-15 (0.8.0 READY TO PUBLISH — Dashboard Intelligence + Sortable List).
+Snapshot as of 2026-06-15 (0.8.0 LIVE on PyPI — Dashboard Intelligence + Sortable List).
 Read this BEFORE planning. This supersedes the 0.7.1 snapshot.
 
 ---
 
-## Iteration status: 0.8.0 — Dashboard Intelligence + Sortable Session List (PENDING PUBLISH)
+## Iteration status: 0.8.0 DONE — Dashboard Intelligence + Sortable Session List; LIVE on PyPI
 
-**Built:** wheel at `dist/tracegauge-0.8.0-py3-none-any.whl`. Awaiting PyPI publish.
-**Clean-room gate:** PASSED (2026-06-15). Installed from wheel in `conda create
---no-default-packages` env (`tes-cleanroom-080`). All 8 checks passed:
-- `tes.__file__` from site-packages (NOT repo)
-- `tes.__version__ == "0.8.0"`
-- `/patterns` and `/ask` in `url_map` from installed wheel
-- `GET /patterns` → 200, floor message + Ask panel rendered from bundled templates
-- `POST /ask` empty → 400; `GET /ask` → 405 (not 404)
-- `tes --version` → `tes 0.8.0` from installed entry point
-- `tes.intelligence` imports OK (numpy/sklearn available as declared deps)
-- `CHAT_SYSTEM_PROMPT` contains "I don't predict" guard
+**Published:** https://pypi.org/project/tracegauge/0.8.0/ — `pip install tracegauge` → 0.8.0.
+**Git tag:** `v0.8.0` pushed to origin AFTER PyPI post-publish verify confirmed (tag discipline correct).
 
-**Browser verified (from `python -m tes serve`, repo):**
+**Post-publish verification (real PyPI, 2026-06-15 — `tes-verify-080`, --no-default-packages):**
+All 8 checks passed from `scripts/_postpublish_verify_080.py`:
+- `tes.__file__` from site-packages (NOT repo) — PEP 610 index install confirmed
+- `tes.__version__ == "0.8.0"` ✓
+- numpy 2.4.6 + scikit-learn 1.9.0 auto-installed as declared deps ✓
+- `/patterns` and `/ask` in `url_map` from installed wheel ✓
+- `GET /patterns` → 200, floor message + Ask panel rendered from bundled templates ✓
+- `CHAT_SYSTEM_PROMPT` "I don't predict" guard intact in published wheel ✓
+- `/ask` passes prediction refusal through unchanged ✓
+- `ask_api(consent_given=False)` → `None` (consent gate intact) ✓
+- Sort whitelist (`cost/date/tokens/verdict/waste`) present; `cost DESC` ordering correct ✓
+- `tes --version` → `tes 0.8.0` from installed entry point ✓
+
+**Browser verified (from `python -m tes serve`, repo, 2026-06-15):**
 (a) /patterns renders archetypes + validity + "Descriptive only" caveat
 (b) Ask panel: grounded answer to "which task type costs the most?"
 (c) Ask panel: "I don't predict" fires in-browser for future-cost question
@@ -41,8 +45,6 @@ Read this BEFORE planning. This supersedes the 0.7.1 snapshot.
 
 **Tests:** 543 green (+70 new: 23 sort, 17 patterns, 21 ask-guards, 9 route-registration).
 Detectors frozen. Import closure green. No new Python or JS deps (vanilla inline script).
-
-**Tag discipline:** tag `v0.8.0` AFTER PyPI publish confirms, not before.
 
 ---
 
