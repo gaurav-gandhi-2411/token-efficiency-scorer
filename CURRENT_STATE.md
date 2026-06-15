@@ -1,16 +1,54 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-15 (0.7.0 DONE — Session Intelligence LIVE on PyPI). Read this
-BEFORE planning. This supersedes the prior snapshot (0.6.0 DONE — Frictionless UX LIVE).
+Snapshot as of 2026-06-15 (0.7.1 DONE — Session Intelligence hotfix LIVE on PyPI). Read this
+BEFORE planning. This supersedes the prior snapshot (0.7.0 — broken on clean install).
 
 ---
 
-## Iteration status: 0.7.0 DONE — Session Intelligence; LIVE on PyPI
+## Iteration status: 0.7.1 DONE — Session Intelligence hotfix; LIVE on PyPI
 
-**Published:** https://pypi.org/project/tracegauge/0.7.0/ — `pip install tracegauge` → 0.7.0.
-**Git tag:** `v0.7.0` at commit `da54116` (pushed to origin before publish — tag discipline:
-tag AFTER publish in future so it never points at an unpublished version; minor, noted for next
-time).
+**Published:** https://pypi.org/project/tracegauge/0.7.1/ — `pip install tracegauge` → 0.7.1.
+**Git tag:** `v0.7.1` at commit `07b2b86` (pushed to origin AFTER PyPI confirm — tag discipline
+correct this time).
+
+**What 0.7.1 fixed (hotfix over 0.7.0):**
+- `numpy>=1.24,<3` and `scikit-learn>=1.3,<2` added to `pyproject.toml` core deps. 0.7.0 shipped
+  these imported but undeclared — clean installs got `ModuleNotFoundError: No module named 'numpy'`
+  on both `tes patterns` and `tes ask`. The gate missed it because conda base had numpy pre-installed.
+- `test_dep_closure.py` (1 test): AST-walks ALL of `tes/**/*.py` (27 files), asserts every external
+  import is stdlib or in DECLARED_IMPORT_NAMES. Fails immediately if any undeclared import lands
+  anywhere in the package — guards project-wide, not just intelligence/.
+- `judge.py`: `httpx.HTTPStatusError` caught explicitly before `httpx.HTTPError`; Ollama HTTP 500
+  now prints `"Ollama returned HTTP 500 (model error or OOM) — trajectory UNAVAILABLE"` instead of
+  a raw exception message.
+- `session_detail.html`: judge model name `qwen3:8b` → `qwen3:30b-a3b` (~18 GB VRAM), matching
+  `JudgeConfig.model` default and `report.py` setup hint.
+- **Gate lesson applied:** clean-room now uses `conda create --no-default-packages` so only
+  `pip install tracegauge` deps are present. Numpy confirmed absent before install, then verified
+  auto-installed as a declared dep.
+
+**Post-publish verification (real PyPI, 2026-06-15 — --no-default-packages clean env):**
+- `conda create -n tes-verify-071 python=3.12 --no-default-packages -y`
+- `numpy` and `sklearn` confirmed absent before install.
+- `pip install --no-cache-dir tracegauge==0.7.1` → resolved numpy-2.4.6 (in [1.24,3)) and
+  scikit-learn-1.9.0 (in [1.3,2)) from declared deps in the wheel metadata. No resolver conflicts.
+  Install completed cleanly (~60MB total including scipy transitive dep).
+- `tes --version` → `tes 0.7.1` ✓
+- `tes patterns` → **exit 0, k=3, silhouette=0.453, `tracegauge 0.7.1` footer stamp** ✓
+  (the headline crash is fixed for real users on a clean install)
+- `tes ask "What will my next session cost?"` → "I don't predict future behavior..." ✓
+
+**Tests:** 473 green (472 + 1 dep-closure test covering all of tes/).
+
+---
+
+## Iteration status: 0.7.0 — Session Intelligence (SUPERSEDED by 0.7.1 hotfix)
+
+**Was broken:** `tes patterns` / `tes ask` crashed with `ModuleNotFoundError: No module named 'numpy'`
+on clean install. Superseded; do not install 0.7.0.
+
+**Published:** https://pypi.org/project/tracegauge/0.7.0/ — superseded.
+**Git tag:** `v0.7.0` at commit `da54116` (pushed before publish — tag discipline error, noted).
 
 **Two composing features on top of the unchanged 0.5.0/0.6.0 engine:**
 - **`tes patterns`** — unsupervised KMeans clustering (k=2..8, n_init=30, silhouette k-select,
