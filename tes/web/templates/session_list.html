@@ -30,14 +30,31 @@
   Baseline source shown per session. See session detail for full domain of validity.
 </div>
 
+{# Sort helpers: build href and arrow for a column header #}
+{%- macro sort_arrow(key) -%}
+  {%- if sort_key == key -%}
+    {%- if sort_dir == 'DESC' -%}↓{%- else -%}↑{%- endif -%}
+  {%- else -%}&nbsp;{%- endif -%}
+{%- endmacro -%}
+{%- macro sort_href(key) -%}
+  /?sort={{ key }}&dir={% if sort_key == key and sort_dir == 'DESC' %}asc{% else %}desc{% endif %}
+{%- endmacro -%}
+{%- macro th_sort(key, label) -%}
+  <th class="sortable{% if sort_key == key %} sort-active{% endif %}">
+    <a href="{{ sort_href(key) }}">{{ label }} <span class="sort-arrow">{{ sort_arrow(key) }}</span></a>
+  </th>
+{%- endmacro -%}
+
 {% if pairs %}
 <table>
   <thead>
     <tr>
-      <th>Session</th>
-      <th>Token verdict</th>
+      {{ th_sort('date', 'Session') }}
+      {{ th_sort('verdict', 'Token verdict') }}
       <th>Trajectory</th>
-      <th>Waste</th>
+      {{ th_sort('waste', 'Waste') }}
+      {{ th_sort('cost', 'Cost') }}
+      {{ th_sort('tokens', 'Tokens') }}
     </tr>
   </thead>
   <tbody>
@@ -93,6 +110,20 @@
           <span class="waste-indicator">{{ session.waste_event_count }}</span>
         {% else %}
           <span class="text-faint">0</span>
+        {% endif %}
+      </td>
+      <td style="white-space:nowrap; font-variant-numeric:tabular-nums;">
+        {% if session.get('session_cost_usd') is not none %}
+          <span class="cost-amount">${{ "%.3f"|format(session.session_cost_usd) }}</span>
+        {% else %}
+          <span class="text-faint">—</span>
+        {% endif %}
+      </td>
+      <td style="font-variant-numeric:tabular-nums;">
+        {% if session.get('real_tokens') %}
+          {{ "{:,}".format(session.real_tokens) }}
+        {% else %}
+          <span class="text-faint">—</span>
         {% endif %}
       </td>
     </tr>

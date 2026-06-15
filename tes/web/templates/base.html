@@ -255,6 +255,136 @@
     details summary::before { content: '▶ '; font-size: 0.7em; color: #9ca3af; }
     details[open] summary::before { content: '▼ '; }
     details[open] summary { margin-bottom: 0.75rem; }
+
+    /* ── sortable table headers ──────────────────────────────────── */
+    th.sortable a {
+      color: #6b7280;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    th.sortable a:hover { color: #111827; }
+    th.sortable.sort-active a { color: #111827; }
+    .sort-arrow { font-size: 0.65rem; color: #9ca3af; }
+    th.sortable.sort-active .sort-arrow { color: #111827; }
+
+    /* ── Ask panel ───────────────────────────────────────────────── */
+    .ask-panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .ask-panel h2 { margin-top: 0; }
+    .ask-input-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .ask-input {
+      flex: 1;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-family: inherit;
+      outline: none;
+    }
+    .ask-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px #dbeafe; }
+    .ask-btn {
+      padding: 0.45rem 1.1rem;
+      background: #111827;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ask-btn:hover { background: #1f2937; }
+    .ask-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+    .ask-answer {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      min-height: 3rem;
+    }
+    .ask-answer.error { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+    .ask-answer.thinking { color: #9ca3af; font-style: italic; }
+    .ask-consent-row {
+      margin-top: 0.6rem;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    /* ── archetype cards ─────────────────────────────────────────── */
+    .archetype-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+    .archetype-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+    }
+    .archetype-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #111827;
+      margin-bottom: 0.3rem;
+    }
+    .archetype-meta {
+      font-size: 0.78rem;
+      color: #6b7280;
+      margin-bottom: 0.65rem;
+    }
+    .archetype-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.2rem;
+      font-size: 0.78rem;
+    }
+    .archetype-bar-label { width: 130px; flex-shrink: 0; color: #374151; }
+    .archetype-bar-track {
+      flex: 1;
+      height: 8px;
+      background: #f3f4f6;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .archetype-bar-fill { height: 100%; background: #3b82f6; border-radius: 4px; }
+    .archetype-bar-fill.waste { background: #f59e0b; }
+    .archetype-bar-value { width: 40px; text-align: right; color: #6b7280; }
+
+    /* ── status chips ────────────────────────────────────────────── */
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2em 0.65em;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-chip.ok    { background: #dcfce7; color: #166534; }
+    .status-chip.warn  { background: #fef3c7; color: #92400e; }
+    .status-chip.off   { background: #f3f4f6; color: #9ca3af; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .status-dot.ok  { background: #16a34a; }
+    .status-dot.warn { background: #d97706; }
+    .status-dot.off  { background: #d1d5db; }
   </style>
 </head>
 <body>
@@ -262,6 +392,7 @@
     <a href="/" class="nav-brand">tracegauge <span>dashboard</span></a>
     <div class="nav-links">
       <a href="/" {% if request.endpoint in ('session_list', 'session_detail') %}class="active"{% endif %}>Sessions</a>
+      <a href="/patterns" {% if request.endpoint == 'patterns' %}class="active"{% endif %}>Patterns</a>
       <a href="/trends" {% if request.endpoint == 'trends' %}class="active"{% endif %}>Trends</a>
       <a href="/baseline-status" {% if request.endpoint == 'baseline_status' %}class="active"{% endif %}>Baseline Status</a>
     </div>
