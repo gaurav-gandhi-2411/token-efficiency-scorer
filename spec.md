@@ -1,88 +1,101 @@
-# Project Spec: tracegauge — Dashboard Intelligence + Sorting (Iteration 0.8.0)
+# Project Spec: tracegauge — Community Corpus (Iteration 0.9.0)
 
 ## Goal
 
-Bring the best features into the dashboard so users don't have to drop to the CLI for them, and make the session list sortable so users can find what they need at a glance. Two parts:
+Turn tracegauge's single-developer baseline into a real CROSS-DEVELOPER baseline by letting developers OPT IN to contribute content-free session aggregates to a shared corpus, and get back community percentile baselines ("your context efficiency is in the 60th percentile for infra-deploy across N developers"). This is the multi-developer niche move (buyer class b: community-benchmarking individuals), built at $0 on Supabase free tier, on top of the ALREADY-BUILT content-free export (P7).
 
-- **A — Session Intelligence in the dashboard:** a Patterns/Intelligence page (the ML archetypes + anomalies, visually) and an "Ask" chat panel (natural-language questions answered in the browser, grounded in real metrics). Today these are CLI-only (`tes patterns`, `tes ask`); surface them in the UI.
-- **B — Sortable session list:** let users sort the session list by cost, date, waste, tokens, band verdict — so they can find the expensive ones, the wasteful ones, the recent ones, instantly. Today the order is fixed.
+It simultaneously: (1) fixes the product's deepest limitation (single-developer calibration), (2) unlocks the research (multi-developer data), (3) builds the strategic moat (coding-session corpus the production-observability incumbents structurally don't have).
 
-This is a presentation/surfacing phase — it exposes EXISTING engine + intelligence capabilities in the UI and adds sorting. It does NOT change scoring, attribution, the ML, the chat grounding, or any measurement. Same numbers, same honesty, more accessible.
+## THE CENTRAL RISK — this is the first time data leaves the machine
 
-## The non-negotiable constraint (the web "Ask" panel is the risk)
+Every prior version was local-by-default, moat-by-construction, zero egress. THIS version transmits — for the first time. That is the most consequential change in the project's history. A privacy mistake here is not a patchable bug; it is a breach of the trust the product is built on. So:
 
-The web Ask panel runs the SAME conversational AI as the CLI `tes ask` — so it MUST carry the IDENTICAL honesty + privacy guards the CLI already proved out. No relaxation for being in a browser:
-1. **Metrics-only egress** — the context sent to the LLM contains computed metrics + ML outputs, NEVER raw session content/code/prompts. (Same as CLI; tested.)
-2. **Grounding** — answers ONLY from provided real metrics; "not measured" for out-of-scope; "I don't predict" for forecasts; no hallucinated numbers. (Same constrained prompt + the same grounding behavior.)
-3. **API-judge / API-chat consent** — if the web Ask uses the API path, the per-session consent ("sends session data, may contain... actually METRICS not code, but data leaves") is shown in the UI before any send. Local (Ollama) path = no egress. Default = no silent send.
-4. **Small-corpus floor** — the web Patterns view and Ask panel honor the same <30-content-session floor: "not enough sessions for stable patterns yet," NOT confidently-described noise clusters. (Same by-construction enforcement — archetypes absent from context below the floor.)
-5. **Descriptive not predictive, validity reported** — the web Patterns view shows the archetypes with their validity (silhouette, N, the "descriptive only" DOV), the same honest framing as `tes patterns`. No quality labels, no prediction.
+**Transmission is the escalation-heavy, test-heavy core of this phase, not a detail.** Hard requirements, non-negotiable:
 
-If the web surfacing weakens ANY of these (sends code, drops the floor, lets the chat predict, hides the consent): STOP, escalate. Surfacing must not erode the guards the CLI established.
+1. **OPT-IN, never default.** Default install transmits NOTHING (unchanged from today). Contribution requires an explicit, informed opt-in action by the user. No silent enrollment, no opt-out-buried-in-settings. The user must DO something deliberate.
+2. **CONTENT-FREE, proven at the moment of transmission.** Reuse the P7 content-free export (allow-listed field-by-field construction, byte-grep tests proving no planted secret survives). Before ANY network send, the EXACT payload is shown to the user (the real row, P7's preview) AND re-verified content-free by the byte-grep guard AT SEND TIME — not just at export time. Transmission of anything not in the allow-list is impossible by construction + tested.
+3. **CONSENT shows what's sent AND where it goes.** The consent screen states: the exact content-free fields, that it's transmitted to the tracegauge community corpus (Supabase), what it's used for (pooled baselines), that NO code/prompts/paths/content are included, and how to withdraw. Mirror P7's consent honesty, extended to "this now actually transmits to <destination>."
+4. **WITHDRAWAL / DELETE.** The user can delete their contributed data (a delete path keyed on their random contributor_id). A privacy policy that promises deletion must deliver it.
+5. **NO IDENTITY.** contributor_id is the existing random per-install UUID (not derived from anything identifying). No email, no account, no auth in Phase 1 (that's Phase 2 / team product). Anonymous content-free aggregates only.
+6. **PRIVACY POLICY** written plainly: what's collected (the 14 content-free fields), where stored (Supabase region), retention, how to delete, that it's anonymous + content-free. This is the "lawyer eventually" item; for content-free anonymous numeric aggregates at dev-stage a clear honest plain-language policy is the reasonable starting point — but it must be HONEST and COMPLETE about exactly what the data is.
+
+If any design path could transmit content, transmit without consent, enroll by default, or make withdrawal impossible: STOP, escalate. This is the one boundary that does not bend.
+
+## $0 architecture (Supabase free tier)
+- **Client (tracegauge, local):** computes the content-free aggregate (P7 export, already built), shows the user the exact payload + consent, and ONLY on explicit opt-in POSTs it to the corpus endpoint. The contribution is a one-shot content-free row per session (or a batch), keyed on the random contributor_id.
+- **Store (Supabase free tier):** a single table of content-free rows. Aggregates are tiny (numbers + categoricals + week-bucket + UUID), so the free tier (500MB) holds an enormous number of rows — never near the limit at this scale. RLS configured so a contributor can only write their own rows + delete their own rows (keyed on contributor_id); reads for baseline computation are aggregate-only.
+- **Baseline computation:** periodically (or on demand), compute cross-developer percentile baselines per task_type from the pooled content-free rows, and publish them as a DATA FILE the client fetches (exactly like cc_baselines.json ships today). The client then scores the user against the COMMUNITY baseline as an option alongside their self-baseline.
+- **$0 confirmed:** Supabase free tier (Postgres, 500MB, generous row limits) + content-free tiny rows + batch baseline computation = no per-user server, no egress bills, no scaling cost at dev/early scale. When it grows enough to matter, THAT's the invest-later moment.
+
+## What the user GETS (the value)
+- **Community percentile baseline:** "your context-resend efficiency for infra-deploy is in the Nth percentile across M contributing developers" — alongside (not replacing) the self-baseline. Honest framing: it's a community comparison, with its own domain-of-validity (who contributed, N, the self-selection caveat).
+- The self-baseline stays the primary, honest, no-network default. The community baseline is an OPT-IN enhancement.
 
 ## Current state
-tracegauge 0.7.1 LIVE on PyPI — Session Intelligence (tes patterns / tes ask) works on clean install (numpy/sklearn now declared core deps; project-wide import-closure test guards recurrence). The ML (k=3, silhouette ~0.45, validated), the chat (grounded, metrics-only, honesty guards), the engine, the dashboard (session list + detail + baseline-status), the frictionless UX — all live. Intelligence is CLI-only; the session list is fixed-order. Detectors frozen, reports immutable.
+tracegauge 0.8.0 LIVE — local-by-default, content-free export built (P7, send-disabled), self-baseline, attribution, Session Intelligence, dashboard. The corpus TRANSMISSION was always the deferred, walled-off, "needs consent + lawyer" boundary. This phase crosses it — carefully — for content-free anonymous aggregates only.
 
 ## Scope
 ### In scope
-A. **Dashboard Intelligence:**
-   1. A **Patterns page** (nav item) showing the ML archetypes (names, sizes, dominant features), the anomalies (which sessions deviate + why), the validity (silhouette/N), and the "descriptive only" DOV. Honest framing identical to `tes patterns`. Reuses the existing intelligence cache.
-   2. An **Ask panel** (on the Patterns page or its own) — a text input where the user types a question, it calls the SAME chat backend (metrics-only context, constrained prompt, local-or-API), and shows the grounded answer in the browser. Carries ALL the CLI guards.
-   3. **Judge enablement from the UI** — the trajectory UNAVAILABLE card already explains the on-ramps; make it actionable where feasible (e.g. clear instructions / a "judge status" indicator showing whether Ollama is detected). Do NOT auto-send to an API judge without consent. (If full in-UI enablement is complex, a clear status + instructions is acceptable — escalate the scope call.)
-B. **Sortable session list:**
-   4. Make the session list sortable by: cost, date (scored_at), waste event count, real_tokens, band verdict. Clickable column headers (server-side sort via a query param, e.g. ?sort=cost&dir=desc — keeps it server-rendered, no SPA). Default sort = date desc (most recent first) or cost desc (most expensive first) — pick the most useful default.
-   5. Sort must be honest: sorting by "band verdict" orders by the verdict, not by a quality judgment; sorting by cost is the annotation, still not a score. Labels unchanged.
+1. **Contribution transmission (opt-in):** extend the P7 export to actually POST (on explicit consent) to the Supabase corpus endpoint. The send-time content-free re-verification. The exact-payload preview + consent + destination. Withdrawal/delete path.
+2. **Supabase corpus:** the content-free table, RLS (write/delete own rows, aggregate reads), the schema = the P7 14 fields. Setup documented + reproducible.
+3. **Baseline computation + redistribution:** compute community percentile baselines per task_type from the pooled rows; publish as a fetchable data file; client scores against community baseline as an OPT-IN comparison alongside self-baseline.
+4. **Privacy policy + consent UX:** the plain-language PRIVACY policy (what/where/retention/delete/anonymous/content-free); the consent screen (fields + destination + use + withdrawal).
+5. **Honest framing of the community baseline:** its DOV (N contributors, self-selection bias, content-free-so-coarse), shown wherever the community percentile appears. Never overstated.
+6. Tests: content-free-at-send-time (byte-grep the actual POST payload), opt-in-required (no send without explicit consent), withdrawal-works, RLS-enforces-own-rows-only, community-baseline-carries-DOV, default-install-still-transmits-nothing.
 
-### Out of scope
-- Any change to scoring / attribution / the ML / chat grounding / cost / detectors (surfacing + sorting only; same numbers).
-- A SPA / heavy JS framework (stay server-rendered Jinja2; sorting via query param; the Ask panel can use minimal JS for the input→fetch→render, but no framework).
-- New egress beyond the already-consented API chat/judge. Weakening any CLI-established guard.
-- Trends (still parked). Reports 01-11 immutable.
+### Out of scope (Phase 2 / later / invest-later)
+- Team accounts, auth, per-developer identity, team dashboards (buyer a — the invest-later product).
+- Any NON-content-free transmission (no code, prompts, paths, content — ever).
+- General token observability (routing/caching/production attribution — the THIRD horizon).
+- Live/real-time backend (batch baseline computation is fine + free).
+- Reports 01-11, detectors, the scoring engine — unchanged.
 
 ### Hard rules
-- The web Ask carries IDENTICAL guards to CLI tes ask: metrics-only egress, grounding, "not measured"/"I don't predict", small-corpus floor, consent for API. Tested.
-- Patterns view: descriptive not predictive, validity shown, honest DOV, no quality labels.
-- Surfacing/sorting only — engine + ML + chat logic unchanged. Detectors frozen (git diff empty).
-- Server-rendered; sorting server-side via query param; no SPA; no browser storage.
-- Same honesty elements on session list survive (the existing 10 — baseline-source, UNAVAILABLE-neutral, etc.); sorting must not drop them.
+- TRANSMISSION IS OPT-IN + CONTENT-FREE + CONSENTED + WITHDRAWABLE + ANONYMOUS. The default install transmits nothing (tested). Content-free re-verified at SEND time (tested on the actual payload). No identity. These do not bend.
+- Self-baseline + local scoring UNCHANGED — community baseline is an additive opt-in, never replaces the honest local default.
+- Engine/detectors/reports frozen (presentation + a new opt-in data path; no scoring-math change). git diff _waste_detectors.py empty.
+- Community baseline carries its DOV (N, self-selection, content-free-coarseness) wherever shown.
+- $0: Supabase free tier, content-free tiny rows, batch computation. No design that incurs cost at dev scale.
 
 ## Tech stack
-- Jinja2 templates + the existing Flask server (add routes/params; reuse tes/intelligence/ for the Patterns data + chat). Sorting = server-side sort on the query param. Ask panel = a small JS fetch to a new endpoint that calls the chat backend, renders the answer. Minimal JS, no framework, no browser storage.
-- Reuse: tes/intelligence/cache (archetypes), tes/intelligence/chat (the grounded explainer — SAME code path as CLI), the existing session-list query (add ORDER BY on the sort param).
-- pytest: web-Ask-carries-guards (metrics-only, grounding, floor, consent), sort-correctness, sort-preserves-honesty-elements.
+- Client: reuse tes/contribution.py (P7 content-free builder), add an opt-in POST (httpx, already a dep) with send-time content-free re-verification. Consent/preview reuse P7's preview.
+- Store: Supabase (Postgres + RLS). Content-free table. Setup script/doc (reproducible, like the cc_baselines provenance).
+- Baseline computation: a script that reads pooled rows, computes per-task percentiles, emits the community baseline data file. Runs free (locally or a free scheduled job).
+- pytest: the transmission guards (content-free-at-send, opt-in, withdrawal, RLS, DOV, default-silent).
 
 ## Architecture
 ```
-tes/web/
-├── server.py            # + /patterns route (archetypes+anomalies+validity), + /ask endpoint
-│                        #   (calls tes/intelligence/chat — SAME backend as CLI), + sort param on session list
-├── templates/
-│   ├── patterns.html    # NEW: archetypes, anomalies, validity, DOV, the Ask panel
-│   ├── session_list.html# + sortable column headers (query-param links), default sort
-│   └── base.html        # + Patterns nav item
-└── static/              # minimal JS for the Ask panel (input -> fetch /ask -> render)
+tes/
+├── contribution.py     # P7 content-free builder (REUSE) + opt-in POST + send-time re-verify
+├── corpus_client.py    # NEW: the consented POST, the withdrawal/delete, fetch community baseline
+├── community_baseline.py # NEW: score against community percentile (opt-in, alongside self)
+├── cli.py / web/       # opt-in contribution flow + consent + the community-percentile display (DOV-carried)
+corpus/                 # NEW: Supabase schema + RLS + the baseline-computation script + setup doc
+PRIVACY.md              # UPDATED: the transmission section — what/where/retention/delete/anonymous
 tests/
-├── test_web_ask_guards.py     # web Ask: metrics-only, grounded, not-measured/predict, floor, consent
-├── test_web_patterns.py       # patterns page renders archetypes+validity+DOV, honest framing, floor honored
-└── test_session_sort.py       # each sort key orders correctly; honesty elements survive sorting
+├── test_send_content_free.py    # byte-grep the ACTUAL POST payload — no planted secret survives
+├── test_transmit_optin.py       # no send without explicit consent; default install transmits nothing
+├── test_withdrawal.py           # delete path removes the contributor's rows
+├── test_corpus_rls.py           # contributor writes/deletes only own rows; reads aggregate-only
+└── test_community_baseline_dov.py # community percentile always carries its DOV
 ```
 
 ## Verification commands
 ```yaml
-- name: web-ask-guards
-  cmd: python -m pytest tests/test_web_ask_guards.py -v   # identical guards to CLI tes ask
+- name: send-content-free
+  cmd: python -m pytest tests/test_send_content_free.py -v   # the ACTUAL payload is content-free (byte-grep)
   required: true
-- name: web-patterns-honest
-  cmd: python -m pytest tests/test_web_patterns.py -v     # descriptive, validity shown, floor honored
+- name: transmit-optin
+  cmd: python -m pytest tests/test_transmit_optin.py -v       # opt-in required; default transmits nothing
   required: true
-- name: session-sort
-  cmd: python -m pytest tests/test_session_sort.py -v     # sorts correct + honesty survives
-  required: true
-- name: import-closure
-  cmd: python -m pytest tests/test_all_tes_imports_are_declared.py -v   # the 0.7.1 guard — any new dep declared
+- name: withdrawal
+  cmd: python -m pytest tests/test_withdrawal.py -v
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
+  required: true
+- name: import-closure
+  cmd: python -m pytest tests/test_all_tes_imports_are_declared.py -v   # any new dep (supabase client?) declared
   required: true
 - name: full-suite
   cmd: python -m pytest -q
@@ -90,28 +103,30 @@ tests/
 ```
 
 ## Escalation rules (autonomous mode — escalate ONLY these)
-- PUBLISHING 0.8.0 to PyPI (irreversible; user's token).
-- If the web Ask could send CODE (not metrics), drop the small-corpus floor, let the chat predict/invent, or auto-send to API without consent — STOP, escalate (the guards must not erode in the web surface).
-- If judge in-UI enablement turns out complex/risky — escalate the scope call (status+instructions is an acceptable fallback).
-- New dependency for the Ask-panel JS or anything — declare it AND it must pass the import-closure test (the 0.7.1 lesson); if it's a JS/CDN dep, escalate (prefer none).
-- Touching frozen detectors / engine / ML / chat-grounding logic — out of scope, escalate.
-- Otherwise DECIDE AND ACT: UI layout, sort default, Ask-panel UX, page structure — your call; report.
+- PUBLISHING 0.9.0 to PyPI (irreversible; user's token).
+- ANYTHING touching the transmission boundary: the consent wording, the content-free-at-send guarantee, the default-silent guarantee, the withdrawal path, the privacy policy text — escalate ALL of these for consultant review BEFORE they ship. This is the one boundary where autonomy is suspended: the transmission design + consent + privacy text get human review, every time.
+- If any path could transmit content / transmit without consent / enroll by default / make withdrawal impossible — STOP, escalate.
+- A new dependency (the Supabase client lib?) — declare + import-closure; escalate the choice.
+- Touching frozen detectors/engine/reports — out of scope, escalate.
+- Otherwise (the baseline math, the percentile display UX, the Supabase table mechanics): decide and act, report.
 
 ## Budget
-- Soft: 3-5 CC sessions. Local/$0 (web Ask testing uses local Ollama or minimal API with the user's key — confirm before real API calls).
+- $0. Supabase free tier. Content-free tiny rows. Batch (not live) baseline computation. No paid infra. If any step would incur cost, STOP and escalate (the $0 constraint is firm at this stage).
 
 ## Success criteria (verify ALL)
-- Dashboard has a Patterns page: archetypes + anomalies + validity + honest DOV, descriptive-not-predictive, small-corpus floor honored.
-- Dashboard has an Ask panel: grounded answers in the browser via the SAME chat backend, carrying ALL CLI guards (metrics-only egress, grounding, not-measured/predict, floor, API consent) — tested identical to CLI.
-- Judge status/enablement surfaced in the UI (full enablement or clear status+instructions — whichever scope lands).
-- Session list sortable by cost / date / waste / tokens / verdict (server-side, query param); honest labels + the existing honesty elements survive sorting.
-- Surfacing/sorting only — engine + ML + chat unchanged (same numbers); detectors frozen; import-closure test green (any new dep declared); reports 01-11 untouched; full suite green.
-- 0.8.0 built, clean-roomed (--no-default-packages env: patterns page, Ask panel, sorting all work from the installed wheel), PUBLISHED, fresh-install confirmed.
+- Default install transmits NOTHING (tested). Contribution is explicit opt-in only.
+- The transmitted payload is content-free, RE-VERIFIED at send time on the actual payload (byte-grep, tested). Consent shows the exact fields + destination + use + withdrawal. The user sees their real row before sending.
+- Withdrawal/delete works (the contributor's rows removed, tested). contributor_id anonymous (random UUID, no identity).
+- Supabase corpus: content-free table, RLS (own-rows write/delete, aggregate reads), $0 free tier, documented + reproducible.
+- Community percentile baseline computed + redistributed as a data file; client scores against it as an OPT-IN comparison ALONGSIDE the unchanged self-baseline; the community baseline carries its DOV (N, self-selection, coarseness) wherever shown.
+- PRIVACY.md honestly + completely describes the transmission (what/where/retention/delete/anonymous/content-free).
+- Self-baseline + local default UNCHANGED; engine/detectors/reports frozen; import-closure green (new deps declared); full suite green.
+- 0.9.0 built, clean-roomed (--no-default-packages: opt-in contribution + community baseline work from the installed wheel; default still transmits nothing), PUBLISHED, fresh-install confirmed.
 
-## Build order (orchestrator decides details autonomously)
-1. Read CURRENT_STATE.md + spec.md + tes/web/server.py + templates + tes/intelligence/chat + cache. Confirm context + the web-Ask-carries-identical-guards constraint in 4-6 lines.
-2. Sortable session list (B) — server-side sort param, clickable headers, default, honesty elements + labels preserved. Tests. (Do this first — lower risk, immediately useful.)
-3. Patterns page (A1) — archetypes/anomalies/validity/DOV, honest framing, floor honored. Tests.
-4. Ask panel (A2) — new /ask endpoint calling the SAME chat backend; minimal JS input→fetch→render; ALL guards carried. The guard tests (metrics-only, grounded, floor, consent) are the gate here — HOLD and show me the web-Ask guard test results + a real browser Q&A (incl. an out-of-scope "I don't predict") before proceeding.
-5. Judge status/enablement in UI (A3) — or status+instructions fallback; escalate if complex.
-6. Full suite + import-closure + detectors frozen + clean-room (--no-default-packages). Bump 0.7.1 -> 0.8.0, CHANGELOG. ESCALATE the publish.
+## Build order (orchestrator decides reversible details; transmission boundary is escalation-gated)
+1. Read CURRENT_STATE.md + spec.md + tes/contribution.py (the P7 content-free builder + its tests) + the P7 PRIVACY section. Confirm context + the transmission-is-the-central-risk boundary in 5-7 lines.
+2. DESIGN the transmission: the consent screen wording, the send-time content-free re-verification mechanism, the withdrawal path, the PRIVACY policy text, and the contributor_id anonymity. HOLD — escalate ALL of this for consultant review BEFORE building. (Autonomy suspended on the transmission boundary — the consent + privacy + content-free-at-send design gets reviewed before code.)
+3. Build the Supabase corpus (schema + RLS + setup doc) + corpus_client.py (consented POST + withdrawal) + the send-content-free / opt-in / withdrawal / RLS tests. HOLD — show consultant the RLS proof + the byte-grep-the-actual-payload test result + a real (test-account) round-trip (contribute → appears as content-free row → withdraw → gone).
+4. Build community_baseline.py (compute percentiles, redistribute, score-against-as-opt-in) + the DOV-carried display. Tests.
+5. PRIVACY.md update + consent UX. HOLD — consultant reviews the final privacy + consent text (the public promise about transmission).
+6. Full suite + import-closure + detectors frozen + clean-room (--no-default-packages: opt-in contribution + community baseline from the wheel; default transmits nothing). Bump 0.8.0 -> 0.9.0, CHANGELOG. ESCALATE the publish.
