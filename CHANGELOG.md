@@ -4,10 +4,106 @@ All notable changes to **tracegauge** are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/)
 conventions.
 
-A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, and
-`0.6.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally but never
-published to PyPI. `0.6.0` is the **current release** — the complete `0.5.0`
-toolchain with a frictionless front door.
+A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
+`0.7.1`, and `0.8.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally but
+never published to PyPI. `0.8.0` is the **current published release**. `0.9.0` (below) is
+built, tested, and committed, but **deliberately not published** — see its entry for why.
+
+## [0.9.0] — Community Corpus (built and tested; NOT published — corpus stays dormant)
+
+**Decision (2026-07-02):** this release's headline feature — the opt-in community corpus —
+is fully built, tested (601/601 passing), and proven (RLS proof, send-time byte-grep proof,
+clean-room install proof — see below), but the Supabase corpus itself has deliberately **not
+been provisioned**. With zero contributors, a live corpus of one delivers no user value, and
+crossing the transmission boundary before there's anyone to receive value from it is
+premature. `pyproject.toml` carries `version = "0.9.0"` and this code is committed to the
+repository, but **it is not published to PyPI** — publishing a release whose headline
+feature is inert adds nothing for users and would make PRIVACY.md describe infrastructure
+that doesn't exist yet. The next publish happens when either (a) a corpus is provisioned and
+activated (see `CURRENT_STATE.md` and `corpus/setup.md` for the exact activation steps —
+Supabase project → schema.sql → Edge Function → three env vars → round-trip proof → publish),
+or (b) a different user-facing improvement justifies a release on its own.
+
+Everything below is real, tested code sitting dormant behind an unconfigured destination —
+not a description of something currently happening to any user's data.
+**Engine, detectors, reports, and self-baseline scoring are byte-for-byte unchanged; this
+release is a new opt-in data path plus its presentation, not a change to how anything is
+scored.**
+
+### Added
+
+- **`tes corpus contribute`** — builds the same 14-field content-free payload as
+  `export-contribution` (0.8.0's P7 builder, reused unchanged), shows the exact real row
+  plus full consent screen (fields sent, what's never sent, destination named as a third
+  party, use, contributor_id, withdrawal warning), and on explicit `y` would send it to the
+  tracegauge community corpus (Supabase, `eu-west-1`) — **once one is provisioned**. Today,
+  with no corpus configured, it prints `[NOT SENT] the community corpus is not configured on
+  this install` and makes no network call, regardless of consent.
+- **Send-time content-free re-verification (`tes/corpus_client.py`)** — the ACTUAL
+  serialized POST body (not the in-memory payload) is independently re-checked immediately
+  before the network call: every row's keys must be exactly the 14 allowed fields, and every
+  value is checked against what's legitimate for its field (known-value sets, format
+  patterns, numeric-type checks, a 30-character cap on any other string). A failure raises
+  `ContentLeakGuardError`, aborts the send before any network call, and writes a local-only
+  `~/.tes/contribution_blocked.log` entry — the guard runs whether or not the payload came
+  from the already-tested builder, so a future bug elsewhere cannot silently reach the wire.
+- **`tes corpus withdraw`** — deletes every row tied to your `contributor_id` via a
+  service-role Edge Function (the only path that can delete anything — the client's `anon`
+  role has insert-only RLS access, no select/update/delete). Also deletes the local
+  `~/.tes/contributor_id.txt` on confirmed success, so a future contribution starts under a
+  fresh, unlinked ID.
+- **`tes corpus reset-id`** — generates a new `contributor_id` locally (no network); prior
+  rows become unlinked from future contributions.
+- **`corpus/schema.sql` + `corpus/edge_functions/withdraw-contributor/`** — the Supabase
+  table (columns exactly matching the 14-field allow-list) and RLS policy (anon: insert
+  only, no select/update/delete — enforced independently of the client's own content-free
+  guarantee), and the withdrawal Edge Function (validates `contributor_id` as UUIDv4 before
+  the service-role-authenticated delete). `corpus/setup.md` documents reproducible setup.
+- **`tes/community_baseline.py`** — offline batch computation of per-task-type percentile
+  statistics from pooled contributed rows (published as a data file, fetched the same way
+  the bundled self-baseline ships today), and client-side scoring against it. A task_type
+  below a minimum-contributor floor (5 distinct contributors) is reported but marked
+  unscoreable rather than shown as a misleadingly precise percentile. Every scored result
+  carries a domain-of-validity string: contributor/session counts, self-selection bias, and
+  content-free coarseness — there is no path that shows a community percentile without it.
+- **`PRIVACY.md`** — replaced the "nothing is transmitted" contribution section with the
+  full transmission disclosure: what/where (Supabase, `eu-west-1`, GDPR)/retention (until
+  withdrawn)/deletion path/anonymity and its limits (a linkability caveat is disclosed, not
+  hidden)/the corrected content-free mechanism description (allow-list + length checks, not
+  pattern-matching — described as what the code does, not a stronger claim)/hosting-chain
+  disclosure naming Supabase's technical access alongside a link to Supabase's own privacy
+  policy.
+
+### Non-negotiables held (verified by tests)
+
+- Default install transmits nothing — `tes corpus contribute`/`withdraw` are the only code
+  paths that call `tes.corpus_client`, and both are unconditionally gated on explicit
+  consent/confirmation, checked before any network call (`test_transmit_optin.py`).
+- Content-free payload re-verified on the actual POST bytes at send time, proven by
+  byte-grepping the real payload and by planting a secret in every field type — a string
+  field, the `waste_detectors_fired` list, and a numeric-as-string attempt — and confirming
+  the guard catches each (`test_send_content_free.py`).
+- Withdrawal works and is honest when it can't: missing/malformed `contributor_id.txt`
+  refuses rather than guessing (`test_withdrawal.py`).
+- RLS proof: `corpus/schema.sql` has exactly one policy (anon insert-only), no
+  select/update/delete policy for anon anywhere in the file, and its columns match
+  `ALLOWED_FIELDS` exactly (`test_corpus_rls.py`).
+- `git diff tes/_waste_detectors.py` empty; self-baseline scoring path untouched by this
+  release; import-closure green (no new dependency — `httpx` was already declared).
+- Clean-room proof: built the `0.9.0` wheel, installed into a fresh `--no-default-packages`
+  conda env, ran from a neutral cwd (outside the repo, so the installed wheel was actually
+  exercised, not the local source tree). `tes corpus contribute` with explicit `y` and no
+  `TES_CORPUS_*` env vars set → `[NOT SENT] the community corpus is not configured on this
+  install` — a fresh install cannot transmit even under forced consent.
+
+### Deliberately not done
+
+- **No Supabase project provisioned; not published to PyPI.** See the decision note at the
+  top of this entry. The RLS proof above is static (schema-text assertions against
+  `corpus/schema.sql`) — there is no live Supabase project to test against, by choice, not
+  by omission. The end-to-end round-trip (contribute → row appears → withdraw → gone) against
+  a real project is the last proof before activation, and it happens when a corpus is
+  actually provisioned — see `corpus/setup.md` for the exact steps.
 
 ## [0.8.0] — 2026-06-15 — Dashboard Intelligence + Sortable Session List
 

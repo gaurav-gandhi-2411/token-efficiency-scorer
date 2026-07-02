@@ -479,6 +479,123 @@ def _run_serve(
         watcher_thread.join(timeout=5)
 
 
+def _run_corpus(args: "argparse.Namespace") -> None:
+    """Handle `tes corpus contribute|withdraw|reset-id`.
+
+    This is the ONLY code path that transmits session-derived data. Every
+    branch goes through tes.corpus_client, which enforces (unconditionally,
+    regardless of how this function is called): no network call without
+    consent_given=True, and no send without passing the content-free guard
+    on the ACTUAL bytes about to be POSTed.
+    """
+    from tes.corpus_client import (
+        CorpusConfig,
+        build_corpus_consent_notice,
+        contribute,
+        reset_contributor_id,
+        withdraw,
+    )
+    from tes.contribution import get_or_create_contributor_id
+
+    corpus_command = getattr(args, "corpus_command", None)
+
+    if corpus_command is None:
+        print("Usage: tes corpus {contribute|withdraw|reset-id}")
+        return
+
+    if corpus_command == "reset-id":
+        new_id = reset_contributor_id()
+        print(f"New contributor_id generated: {new_id}")
+        print("Prior rows under your old ID are now unlinked from future contributions.")
+        return
+
+    if corpus_command == "withdraw":
+        print("This will permanently delete every row tied to your contributor_id")
+        print("from the tracegauge community corpus. This cannot be undone.")
+        try:
+            answer = input("Continue? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+        if answer != "y":
+            print("Aborted — nothing withdrawn.")
+            return
+        result = withdraw(confirmed=True, config=CorpusConfig.from_env())
+        if result.deleted:
+            print(f"Withdrawn: {result.deleted_count} row(s) deleted from the community corpus.")
+        else:
+            print(f"[NOT WITHDRAWN] {result.reason}", file=sys.stderr)
+        return
+
+    if corpus_command == "contribute":
+        from tes.store import open_db as _open_db
+
+        db_path = Path(args.db_path).expanduser() if getattr(args, "db_path", None) else None
+        try:
+            conn = _open_db(db_path)
+        except Exception as exc:
+            print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        anonymous = getattr(args, "anonymous", False)
+        contributor_id: str | None = None if anonymous else get_or_create_contributor_id()
+
+        from tes.contribution import build_contribution_payload
+
+        try:
+            payload = build_contribution_payload(
+                conn, contributor_id=contributor_id, include_source_components=True
+            )
+        except Exception as exc:
+            print(f"[ERROR] Failed to build contribution payload: {exc}", file=sys.stderr)
+            conn.close()
+            sys.exit(1)
+
+        if payload.manifest.row_count == 0:
+            print("No sessions found in store. Run `tes score` or `tes serve` first.")
+            conn.close()
+            return
+
+        print(build_corpus_consent_notice(payload.rows[0], contributor_id))
+
+        try:
+            answer = input("\nSend to the community corpus? [y/N]: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            answer = ""
+
+        consent_given = answer == "y"
+        if not consent_given:
+            print("Aborted — nothing sent.")
+            conn.close()
+            return
+
+        config = CorpusConfig.from_env()
+        if config is None:
+            print(
+                "[NOT SENT] The community corpus is not configured on this install "
+                "(TES_CORPUS_URL / TES_CORPUS_ANON_KEY / TES_CORPUS_WITHDRAW_URL not set).",
+                file=sys.stderr,
+            )
+            conn.close()
+            return
+
+        result = contribute(
+            conn,
+            consent_given=consent_given,
+            contributor_id=contributor_id,
+            config=config,
+        )
+        conn.close()
+
+        if result.sent:
+            print(f"Sent {result.row_count} row(s) to the community corpus. Thank you.")
+            print("Withdraw at any time with `tes corpus withdraw`.")
+        else:
+            print(f"[NOT SENT] {result.reason}", file=sys.stderr)
+        return
+
+    print(f"Unknown corpus subcommand: {corpus_command!r}")
+
+
 def _run_patterns(
     *,
     db_path: str | None = None,
@@ -880,6 +997,41 @@ def main() -> None:
         help="Force re-computation even if a fresh cache exists.",
     )
 
+    corpus_p = sub.add_parser(
+        "corpus",
+        help="Community corpus: opt-in contribution and withdrawal (content-free, transmits).",
+        description=(
+            "Opt-in transmission of content-free session aggregates to the tracegauge "
+            "community corpus (Supabase), and withdrawal of your contributed rows. "
+            "This is the ONLY tracegauge command that sends session-derived data "
+            "off-machine without a per-call API key you typed in yourself."
+        ),
+    )
+    corpus_sub = corpus_p.add_subparsers(dest="corpus_command")
+
+    corpus_contribute_p = corpus_sub.add_parser(
+        "contribute",
+        help="Preview + consent + send content-free session aggregates to the community corpus.",
+    )
+    corpus_contribute_p.add_argument(
+        "--anonymous", action="store_true",
+        help="Omit contributor_id from all rows (rows cannot be individually withdrawn later).",
+    )
+    corpus_contribute_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+
+    corpus_sub.add_parser(
+        "withdraw",
+        help="Delete every row tied to your contributor_id from the community corpus.",
+    )
+    corpus_sub.add_parser(
+        "reset-id",
+        help="Generate a new contributor_id (local only, no network). Prior rows become unlinked.",
+    )
+
     args = parser.parse_args()
     if args.command is None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
@@ -982,6 +1134,10 @@ def main() -> None:
             sys.exit(1)
 
         conn.close()
+        sys.exit(0)
+
+    if args.command == "corpus":
+        _run_corpus(args)
         sys.exit(0)
 
     if args.command == "patterns":
