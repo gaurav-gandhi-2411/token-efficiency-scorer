@@ -1,7 +1,76 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-06-15 (0.8.0 LIVE on PyPI — Dashboard Intelligence + Sortable List).
-Read this BEFORE planning. This supersedes the 0.7.1 snapshot.
+Snapshot as of 2026-07-02 (0.9.0 built + committed, DORMANT-BY-CHOICE, NOT published —
+0.8.0 remains the live PyPI release). Read this BEFORE planning. This supersedes the
+0.8.0-only snapshot below (kept for the 0.8.0 publish record).
+
+---
+
+## Iteration status: 0.9.0 BUILT, NOT PUBLISHED — Community Corpus, dormant by choice
+
+**PyPI: still 0.8.0.** `pyproject.toml` carries `version = "0.9.0"` and all 0.9.0 code is
+built, tested, and committed to the repo — but it has **not** been published to PyPI, and no
+Supabase corpus has been provisioned. This is a deliberate decision
+(2026-07-02), not an unfinished state: see the CHANGELOG `[0.9.0]` entry for the full
+reasoning. Short version — a community corpus with zero contributors delivers no user value,
+and provisioning live transmission infrastructure before anyone can use it is premature. The
+code is the future-ready asset; activation is a ~20-minute checklist away, not a rebuild.
+
+**What's built (601/601 tests green):**
+- `tes/corpus_client.py` — send-time content-free guard (two-pass: key-space allow-list +
+  per-field value validation), `contribute()`/`withdraw()`/`reset_contributor_id()`, all
+  unconditionally gated on consent/confirmation before any network call.
+- `tes corpus contribute|withdraw|reset-id` — CLI wiring, full consent screen.
+- `corpus/schema.sql` + `corpus/edge_functions/withdraw-contributor/` + `corpus/setup.md` —
+  Supabase table, RLS (anon: insert-only, no select/update/delete), deletion Edge Function,
+  reproducible setup doc (region: `eu-west-1`, chosen for GDPR).
+- `tes/community_baseline.py` — percentile computation + DOV-carrying display, additive-only
+  (self-baseline scoring untouched — `git diff tes/score.py tes/baselines.py` empty).
+- `PRIVACY.md` + `README.md` — updated to state plainly that the corpus capability is **not
+  active**: no public corpus is operated, `tes corpus contribute` sends nothing regardless of
+  consent, because nothing is configured to send to.
+
+**Proofs already done (do NOT need to be redone at activation):**
+- RLS proof (`tests/test_corpus_rls.py`, 8/8): parses the actual `corpus/schema.sql` —
+  exactly one policy (`anon`, insert-only), no select/update/delete policy for `anon`
+  anywhere in the file, columns match `tes.contribution.ALLOWED_FIELDS` exactly.
+- Send-time content-free proof (`tests/test_send_content_free.py`, 15/15): byte-greps the
+  literal bytes handed to `httpx.post`; separately proves the guard catches a secret planted
+  in a string field, in the `waste_detectors_fired` list, and via a numeric-as-string
+  attempt, and that `httpx.post` is never called when any of those trip the guard.
+- Opt-in / default-silent proof (`tests/test_transmit_optin.py`, 10/10) and withdrawal proof
+  (`tests/test_withdrawal.py`, 9/9).
+- Clean-room proof: built the `0.9.0` wheel, installed into a fresh `--no-default-packages`
+  conda env, ran from a neutral cwd (outside the repo — confirmed `tes.__file__` resolved to
+  site-packages, not the local source tree). No new dependency (httpx already declared).
+  `tes corpus contribute` with explicit `y` and no `TES_CORPUS_*` env vars set →
+  `[NOT SENT] the community corpus is not configured on this install` — a fresh install
+  cannot transmit even under forced consent.
+
+**NOT done, by choice:** no live Supabase project provisioned; no real round-trip proof
+(contribute → row appears → withdraw → gone) against an actual test project; no PyPI publish.
+
+### Activation checklist (when contributors exist / a corpus is worth standing up)
+
+This is the only work remaining before 0.9.0 can ship. It does not require rebuilding
+anything — the code is done and tested.
+
+1. Provision a Supabase project, region **`eu-west-1`** (see `corpus/setup.md`).
+2. Run `corpus/schema.sql` in the Supabase SQL editor.
+3. Deploy the Edge Function: `supabase functions deploy withdraw-contributor`
+   (`corpus/edge_functions/withdraw-contributor/index.ts`).
+4. Set three env vars: `TES_CORPUS_URL`, `TES_CORPUS_ANON_KEY` (safe to be public — scoped by
+   RLS, not secrecy), `TES_CORPUS_WITHDRAW_URL`. Never hand the service-role key to the
+   client — it belongs only in the Edge Function's own runtime.
+5. **Run the real round-trip proof**: `tes corpus contribute` against a real test session,
+   confirm the row appears in the Supabase table editor, `tes corpus withdraw`, confirm it's
+   gone. This is the one proof that can't be done without a live project — everything else is
+   already proven (see above).
+6. Update `PRIVACY.md` and `README.md` to remove the dormancy notices (they're written to be
+   easy to find and replace — search for "NOT currently active" / "not currently provisioned").
+7. Re-run the full suite + `git diff --exit-code tes/_waste_detectors.py` one more time,
+   confirm still green, then the publish itself can proceed (still escalation-gated per the
+   project's standing rule on the transmission boundary).
 
 ---
 

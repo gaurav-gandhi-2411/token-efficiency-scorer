@@ -1,5 +1,13 @@
 # Community Corpus Setup
 
+> **Status as of 2026-07-02: NOT DONE.** No Supabase project has been
+> provisioned for tracegauge's community corpus. `tes corpus contribute`
+> ships built and tested but dormant — see `CURRENT_STATE.md`'s "Activation
+> checklist" section. This file is the detailed how-to for that checklist;
+> follow it in full (through step 6 below) when the decision is made to
+> activate. Until then, running any command in this doc is optional and has
+> not been done — it does not describe tracegauge's current live state.
+
 This is the one-time setup for standing up the tracegauge community corpus:
 a Supabase (hosted Postgres + Edge Functions) project that receives the
 content-free session-aggregate rows built by `tes.contribution` and sent by
@@ -113,6 +121,24 @@ Confirm the row(s) tied to that contributor_id have disappeared from the
 Table Editor, and that the local `~/.tes/contributor_id.txt` has been
 removed (a future `tes corpus contribute` will generate a fresh,
 unlinked ID).
+
+## 6. Close out the dormancy notices, then publish
+
+Once step 5's round-trip is confirmed:
+
+1. In `PRIVACY.md`, remove the "NOT currently active" callout in the
+   "Community corpus contribution" section and change the conditional
+   language ("would be sent" / "would be stored") back to present tense.
+2. In `README.md`, remove the "not currently active" / "not currently
+   provisioned" phrasing in the three places it appears (top summary,
+   Features list, Scope & Limitations).
+3. Update `CURRENT_STATE.md`: replace the "0.9.0 BUILT, NOT PUBLISHED —
+   dormant by choice" section with the live status, recording which Supabase
+   project and region were used and the date the round-trip was confirmed.
+4. Re-run the full suite (`python -m pytest -q`) and
+   `git diff --exit-code tes/_waste_detectors.py` one more time.
+5. The PyPI publish itself remains escalation-gated per the project's
+   standing rule on the transmission boundary — get sign-off before running it.
 
 ## Cost
 

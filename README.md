@@ -1,6 +1,6 @@
 # tracegauge
 
-Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted by default. Two opt-in paths, very different: a local contribution export (content-free, never transmitted by tracegauge); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. See [PRIVACY.md](PRIVACY.md).
+Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tes corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](PRIVACY.md).
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
@@ -17,8 +17,9 @@ tracegauge is feature-complete — the current release bundles the full validate
 - **Deterministic waste detection** — frozen, observable-invariant detectors (repeated-failed-retry, redundant-read) with proof turns and per-event wasted cost. No LLM judgment, no false-positive guessing.
 - **Trajectory judge** — purposefulness verdict from a local Ollama model ($0, GPU) *or* an opt-in API judge that sends snippets to your model provider only on explicit per-session consent. Renders UNAVAILABLE as a complete, expected state when no judge is configured.
 - **Diagnostic dashboard** — `tes serve` runs a localhost-only (`127.0.0.1`) web dashboard that auto-scores finished sessions and shows the three axes, attribution, and waste with every domain-of-validity caveat carried to the surface. No composite/blended score — each axis stands on its own.
+- **Community baseline (built, not yet active)** — `tes corpus contribute` would send content-free session aggregates (numbers and categories only — see [PRIVACY.md](PRIVACY.md)) to a tracegauge-operated community corpus, and in return `tes corpus` would show your context-efficiency percentile against other opted-in developers, alongside — never replacing — your own self-baseline. The code, the content-free guard, the consent flow, and `tes corpus withdraw` are all built and tested (601 tests green), but **no corpus is currently provisioned** — until one is, `tes corpus contribute` sends nothing, by construction (see PRIVACY.md).
 
-Local by default: scoring and the dashboard make zero external network calls. The only egress is the opt-in API judge (your key, your consent).
+Local by default: scoring and the dashboard make zero external network calls. The only working egress today is the opt-in API judge (your key, your consent, per session). The community corpus contribution above would be a second opt-in egress path once activated — see PRIVACY.md.
 
 ---
 
@@ -69,9 +70,9 @@ Read this before installing. These are not caveats to hide — they're the hones
 
 **What waste detection covers.** The two waste detectors catch observable-invariant patterns only: exact-match retry loops with no state change, and redundant file reads where the content was unchanged. Judgment-of-progress waste (was this cycle productive? was this approach the right one?) is not covered — that requires human labeling and is out of scope.
 
-**Local by default.** All scoring is local. No telemetry, no phone-home, no external network calls (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration.
+**Local by default.** All scoring is local. No telemetry, no phone-home, no external network calls from scoring or the dashboard (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration. The only thing that currently leaves your machine is opt-in and separate from scoring: the API judge (your key, your consent). A second opt-in path, community corpus contribution, is built but not active — see below.
 
-**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. Nothing is transmitted anywhere — tracegauge has no server. The file is yours; the tool never reads it back or uploads it. See [PRIVACY.md](PRIVACY.md) for the complete field list and schema.
+**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. This command itself never transmits anything — the file is yours; the tool never reads it back or uploads it. A separate, further opt-in command, `tes corpus contribute`, is built to send that same content-free data to a tracegauge community corpus in exchange for a cross-developer baseline — but **no corpus is currently provisioned**, so that command sends nothing regardless of consent. See [PRIVACY.md](PRIVACY.md) for the complete field list, the send-time re-verification, the withdrawal path, and the dormancy notice.
 
 ---
 
@@ -166,7 +167,7 @@ tes serve --background-judge
 - No composite efficiency score. The three axes are independent by design — a single number would hide the axis-specific domain limitations.
 - No "catches all inefficiency." The waste detectors fire on observable-invariant patterns only.
 - No accuracy guarantee on the trajectory axis. It's an LLM judge, coherence-validated, not human-calibrated.
-- No cloud scoring. The scoring pipeline is fully local. `tracegauge export-contribution` (P7) provides a local-file-only contribution export: opt-in, content-free, nothing transmitted. Server-side aggregation is not built.
+- No cloud scoring. The scoring pipeline is fully local. `tracegauge export-contribution` (P7) provides a local-file-only contribution export: opt-in, content-free, nothing transmitted. Server-side aggregation of that data (`tes corpus contribute`) is built and tested but **not currently active** — no corpus is provisioned, so it sends nothing regardless of consent — and would never be a substitute for the local self-baseline even once activated.
 - No cross-agent support yet. The CC adapter is Claude Code–specific; OpenCode/Codex/Aider would need their own adapters and re-validation.
 
 ---
