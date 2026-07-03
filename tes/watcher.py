@@ -17,6 +17,7 @@ be user-initiated, not automatic.
 """
 
 import logging
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -25,8 +26,10 @@ from typing import Any
 
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
+from tes.alarm import AlarmConfig, check_alarm
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
+from tes.live_monitor import find_active_session, score_live_session
 from tes.score import ThreeAxisResult, score_session
 from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import file_hash, needs_scoring, open_db, resolve_db_path, upsert_session
@@ -46,6 +49,8 @@ class WatcherConfig:
     stability_window: int = DEFAULT_STABILITY_WINDOW
     db_path: Path | None = None
     background_judge: bool = False  # OFF by default — opt-in only, see spec discipline 3
+    alarm_enabled: bool = False     # OFF by default — opt-in live cost/context alarm (0.10.0)
+    plan_type: str = "usage_based"  # "usage_based" | "max" — alarm display emphasis only
 
 
 def score_session_file(
@@ -178,6 +183,35 @@ def _scan_once(
     return scored
 
 
+def _check_live_alarm(
+    config: WatcherConfig,
+    self_baseline,
+    prices: dict,
+) -> None:
+    """One-shot live-monitor + alarm check for the currently active session.
+
+    No-op when config.alarm_enabled is False (default). Any failure (unreadable
+    active session, mid-write partial JSONL, etc.) is swallowed — the alarm is
+    a best-effort convenience, never allowed to break the scan loop.
+    """
+    if not config.alarm_enabled:
+        return
+    try:
+        active_path = find_active_session(config.cc_path, config.stability_window)
+        if active_path is None:
+            return
+        live = score_live_session(active_path, prices)
+        if live is None:
+            return
+        alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
+        result = check_alarm(live, self_baseline, alarm_cfg)
+        if result is not None:
+            logger.warning("[ALARM] %s", result.message)
+            print(f"[ALARM] {result.message}", file=sys.stderr)
+    except Exception:
+        logger.exception("Live alarm check failed — continuing")
+
+
 def run_watcher(
     config: WatcherConfig,
     stop_event: threading.Event | None = None,
@@ -209,6 +243,7 @@ def run_watcher(
             count = _scan_once(config, conn, baselines, self_baseline=self_bl, prices=prices)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)
+            _check_live_alarm(config, self_bl, prices)
         except Exception:
             logger.exception("Scan cycle error — continuing")
 

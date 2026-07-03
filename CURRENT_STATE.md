@@ -1,8 +1,29 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-07-02 (0.9.0 built + committed, DORMANT-BY-CHOICE, NOT published —
+Snapshot as of 2026-07-04 (0.10.0 built + tested + committed, PUBLISH ESCALATED —
 0.8.0 remains the live PyPI release). Read this BEFORE planning. This supersedes the
-0.8.0-only snapshot below (kept for the 0.8.0 publish record).
+0.9.0-only snapshot below (kept for its own record; 0.9.0's corpus stays dormant,
+untouched by this phase).
+
+---
+
+## Iteration status: 0.10.0 BUILT, NOT PUBLISHED — Live Monitor, Cost Alarm & Habit Coach
+
+**PyPI: still 0.8.0.** `pyproject.toml` carries `version = "0.10.0"`; all code is built,
+tested (643/643 green), and clean-room verified — but publishing is escalated per the
+project's standing rule (see spec.md's escalation rules). Design doc reviewed and approved
+BEFORE any code: `research/13_coach_alarm_honesty_design.md`.
+
+**What's built:** `tes/live_monitor.py`, `tes/alarm.py`, `tes/coach.py`, `tes/budget.py`;
+`tes coach`/`tes budget`/`tes monitor` CLI commands; `tes serve --alarm --plan`; dashboard
+`/coach`, `/budget`, `/monitor` views. Full detail in `CHANGELOG.md`'s `[0.10.0]` entry —
+including the two scope changes found while designing (no compaction-event marker exists in
+CC transcripts; no rate-limit signal exists locally), the live-fire proof against a real
+active session, and the clean-room verification (`tes-verify-0100`, `--no-default-packages`).
+
+**Next step:** publish decision — same escalation gate as every prior release with a
+non-trivial risk surface (this phase's central risk, the coach/alarm honesty design, was
+already reviewed and approved before code was written; the PyPI publish itself is separate).
 
 ---
 

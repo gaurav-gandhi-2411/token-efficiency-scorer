@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Budget{% endblock %}
+{% block content %}
+
+<h1>Budget / Pace</h1>
+
+<div class="caveat">
+  This is YOUR OWN trend over a rolling window, linearly extrapolated &mdash; never a
+  forecast of future work. Work volume varies; treat this as a pace check, not a promise.
+</div>
+
+{% if projection %}
+<div class="section">
+  <div class="metric-box">
+    <span class="metric-highlight">${{ "%.2f"|format(projection.total_usd_so_far) }}</span>
+    so far across {{ projection.session_count }} session{{ "s" if projection.session_count != 1 }}
+    ({{ "%.1f"|format(projection.days_observed) }} of {{ projection.window_days }} days observed)
+  </div>
+  <p style="margin-top:0.75rem;">{{ projection.message }}</p>
+</div>
+{% else %}
+<p class="empty">No sessions with cost data in the last {{ window_days }} days &mdash; nothing to project yet.</p>
+{% endif %}
+
+<div class="section">
+  <div class="section-label">Window</div>
+  <p class="text-muted" style="font-size:0.85rem;">
+    Change the window with <code>?window_days=N</code> in the URL (default 7).
+  </p>
+</div>
+
+{% endblock %}

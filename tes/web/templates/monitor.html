@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Live Monitor{% endblock %}
+{% block content %}
+
+<h1>Live Monitor</h1>
+
+<div class="caveat">
+  Figures below are for the session currently being written &mdash; always an ESTIMATE,
+  in progress, never a final or billed number. Refresh this page to update.
+</div>
+
+{% if live %}
+<div class="section">
+  <div class="card">
+    <div class="card-title">{{ live.session_id }} &middot; {{ live.task_type }}</div>
+    <div class="metric-box">
+      <span class="metric-highlight">~${{ "%.2f"|format(live.live_cost_usd) }}</span> (estimated, in progress)
+      &nbsp;&middot;&nbsp;
+      <strong>~{{ "{:,}".format(live.live_context_tokens) }}</strong> context tokens (estimated, in progress)
+      &nbsp;&middot;&nbsp;
+      {{ "%.0f"|format(live.live_resend_ratio * 100) }}% context re-send (measured)
+    </div>
+  </div>
+
+  {% if alarm %}
+  <div class="takeaway" style="border-left-color:#d97706;">
+    [ALARM] {{ alarm.message }}
+  </div>
+  {% else %}
+  <p class="text-muted" style="font-size:0.85rem;">
+    No alarm &mdash; measured thresholds not tripped, or your self-baseline for this
+    task type is still building. Silence here means nothing unusual is measured, not
+    that the alarm feature is disabled (unless you never passed <code>--alarm</code>
+    to <code>tes serve</code>).
+  </p>
+  {% endif %}
+
+  <div class="caveat" style="margin-top:1rem;">{{ live.domain_of_validity }}</div>
+</div>
+{% else %}
+<p class="empty">No active session detected right now. This page refreshes each time you load it.</p>
+{% endif %}
+
+{% endblock %}
