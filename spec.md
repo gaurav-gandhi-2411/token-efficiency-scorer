@@ -1,101 +1,99 @@
-# Project Spec: tracegauge — Community Corpus (Iteration 0.9.0)
+# Project Spec: tracegauge — Live Monitor, Cost Alarm & Habit Coach (Iteration 0.10.0)
 
 ## Goal
 
-Turn tracegauge's single-developer baseline into a real CROSS-DEVELOPER baseline by letting developers OPT IN to contribute content-free session aggregates to a shared corpus, and get back community percentile baselines ("your context efficiency is in the 60th percentile for infra-deploy across N developers"). This is the multi-developer niche move (buyer class b: community-benchmarking individuals), built at $0 on Supabase free tier, on top of the ALREADY-BUILT content-free export (P7).
+Expand tracegauge from a post-hoc DIAGNOSTIC into a diagnostic + COACH + ALARM — without losing anything. Everything built stays (honest measurement engine, attribution, self/community baseline, Session Intelligence, the dormant corpus). This phase ADDS the last mile from measurement to action, attacking the pain the market actually screams about:
 
-It simultaneously: (1) fixes the product's deepest limitation (single-developer calibration), (2) unlocks the research (multi-developer data), (3) builds the strategic moat (coding-session corpus the production-observability incumbents structurally don't have).
+- **Live monitoring + cost alarm** — watch the ACTIVE session as it runs and warn BEFORE the bill: "you're at $8 / 300K context, mostly re-send — consider /compact." Attacks the "surprise bill / no predictability" pain.
+- **Habit coach** — from the attribution + patterns already computed, surface the developer's top FIXABLE habits ranked by $ saved, with the specific action. Attacks the "what do I actually change" pain.
+- **Budget / pace tracking** — "at this week's pace you're on track for $X, Y% over your usual." Honest self-trend, not fabricated forecast.
 
-## THE CENTRAL RISK — this is the first time data leaves the machine
+The market pain (grounded in research): the "tokenpocalypse" (June 2026 usage-based billing shift), surprise bills, cost unpredictability, and the finding that the gap between a $20 and $200 month is habits, not work difficulty. tracegauge already MEASURES the root cause (context re-send). This phase turns measurement into PREVENTION + BEHAVIOR CHANGE.
 
-Every prior version was local-by-default, moat-by-construction, zero egress. THIS version transmits — for the first time. That is the most consequential change in the project's history. A privacy mistake here is not a patchable bug; it is a breach of the trust the product is built on. So:
+## The central risk — the coach and alarm must be as HONEST as the diagnostic
 
-**Transmission is the escalation-heavy, test-heavy core of this phase, not a detail.** Hard requirements, non-negotiable:
+This is the phase where tracegauge's entire credibility is most at risk, because coaching and alerting are where tools LIE — they over-claim savings, invent recommendations, fabricate predictions, and cry wolf. If the coach says "do X to save $Y" and it's not true, every honest number underneath is now suspect. So the hard rule, non-negotiable:
 
-1. **OPT-IN, never default.** Default install transmits NOTHING (unchanged from today). Contribution requires an explicit, informed opt-in action by the user. No silent enrollment, no opt-out-buried-in-settings. The user must DO something deliberate.
-2. **CONTENT-FREE, proven at the moment of transmission.** Reuse the P7 content-free export (allow-listed field-by-field construction, byte-grep tests proving no planted secret survives). Before ANY network send, the EXACT payload is shown to the user (the real row, P7's preview) AND re-verified content-free by the byte-grep guard AT SEND TIME — not just at export time. Transmission of anything not in the allow-list is impossible by construction + tested.
-3. **CONSENT shows what's sent AND where it goes.** The consent screen states: the exact content-free fields, that it's transmitted to the tracegauge community corpus (Supabase), what it's used for (pooled baselines), that NO code/prompts/paths/content are included, and how to withdraw. Mirror P7's consent honesty, extended to "this now actually transmits to <destination>."
-4. **WITHDRAWAL / DELETE.** The user can delete their contributed data (a delete path keyed on their random contributor_id). A privacy policy that promises deletion must deliver it.
-5. **NO IDENTITY.** contributor_id is the existing random per-install UUID (not derived from anything identifying). No email, no account, no auth in Phase 1 (that's Phase 2 / team product). Anonymous content-free aggregates only.
-6. **PRIVACY POLICY** written plainly: what's collected (the 14 content-free fields), where stored (Supabase region), retention, how to delete, that it's anonymous + content-free. This is the "lawyer eventually" item; for content-free anonymous numeric aggregates at dev-stage a clear honest plain-language policy is the reasonable starting point — but it must be HONEST and COMPLETE about exactly what the data is.
+**Every recommendation, alert, and projection must be grounded in MEASURED data and carry its uncertainty. The coach RECOMMENDS from measured patterns; it never fabricates a saving it can't substantiate. The alarm fires on MEASURED thresholds; it never cries wolf. The projection is the user's OWN measured trend, labeled as a trend not a promise.**
 
-If any design path could transmit content, transmit without consent, enroll by default, or make withdrawal impossible: STOP, escalate. This is the one boundary that does not bend.
+Concretely:
+1. **Coach recommendations are grounded + quantified honestly.** "Your context grew to ~400K before compaction in N of your last M sessions; sessions where you compacted earlier cost ~X% less (measured across YOUR sessions)." NOT "compact to save 40%!" (a fabricated universal number). Every recommendation traces to the user's OWN measured data, states N, and carries the "based on your sessions, not a guarantee" caveat. If the data doesn't support a recommendation, the coach says nothing — silence over a made-up tip.
+2. **The alarm fires on MEASURED live thresholds, honestly framed.** "This session is at $8.00 and 320K context (92% re-send)" is a MEASURED fact. The suggestion ("consider /compact") is framed as a suggestion, not a command, and only fires when the measured pattern actually warrants it (data-gated, like the P8 hints — silent when there's no real signal). No crying wolf on a normal session.
+3. **Projections are the user's OWN trend, labeled.** "At this week's pace ($X so far, N sessions) you're trending toward ~$Y by week's end — based on your last N days, not a forecast of future work." Honest self-extrapolation with its DOV. NOT "you will spend $Y" (a false certainty).
+4. **Live cost is ESTIMATED and labeled.** Real-time cost during an active session is an estimate (the session isn't done, prices are as-of-date). Label it "~$X (estimated, in progress)". Never present a live number as final/billed.
+5. **The alarm respects the flat-plan reality.** Max-plan users pay a flat fee — marginal token cost is $0 to them. The alarm must know this: for flat-plan users, frame in TOKENS/context (the honest metric) and rate-limit-proximity, not dollars-you-arent-paying. Cost-dollar alarms are for API/usage-based users. This distinction already exists in the cost annotation — carry it into the alarm.
 
-## $0 architecture (Supabase free tier)
-- **Client (tracegauge, local):** computes the content-free aggregate (P7 export, already built), shows the user the exact payload + consent, and ONLY on explicit opt-in POSTs it to the corpus endpoint. The contribution is a one-shot content-free row per session (or a batch), keyed on the random contributor_id.
-- **Store (Supabase free tier):** a single table of content-free rows. Aggregates are tiny (numbers + categoricals + week-bucket + UUID), so the free tier (500MB) holds an enormous number of rows — never near the limit at this scale. RLS configured so a contributor can only write their own rows + delete their own rows (keyed on contributor_id); reads for baseline computation are aggregate-only.
-- **Baseline computation:** periodically (or on demand), compute cross-developer percentile baselines per task_type from the pooled content-free rows, and publish them as a DATA FILE the client fetches (exactly like cc_baselines.json ships today). The client then scores the user against the COMMUNITY baseline as an option alongside their self-baseline.
-- **$0 confirmed:** Supabase free tier (Postgres, 500MB, generous row limits) + content-free tiny rows + batch baseline computation = no per-user server, no egress bills, no scaling cost at dev/early scale. When it grows enough to matter, THAT's the invest-later moment.
-
-## What the user GETS (the value)
-- **Community percentile baseline:** "your context-resend efficiency for infra-deploy is in the Nth percentile across M contributing developers" — alongside (not replacing) the self-baseline. Honest framing: it's a community comparison, with its own domain-of-validity (who contributed, N, the self-selection caveat).
-- The self-baseline stays the primary, honest, no-network default. The community baseline is an OPT-IN enhancement.
+If any recommendation/alert/projection could over-claim a saving, fire without measured basis, present a projection as certainty, or show live cost as final: STOP, escalate. The coach's credibility IS the product's credibility.
 
 ## Current state
-tracegauge 0.8.0 LIVE — local-by-default, content-free export built (P7, send-disabled), self-baseline, attribution, Session Intelligence, dashboard. The corpus TRANSMISSION was always the deferred, walled-off, "needs consent + lawyer" boundary. This phase crosses it — carefully — for content-free anonymous aggregates only.
+tracegauge 0.8.0 LIVE (diagnostic engine, attribution, Session Intelligence, dashboard, frictionless UX). 0.9.0 corpus built-but-dormant in repo. The engine measures where tokens go (attribution: context re-send / growth / output / waste / fresh), scores vs self-baseline, clusters sessions, and has a grounded chat that refuses to invent. All of that STAYS. This phase adds the action layer on top.
 
 ## Scope
 ### In scope
-1. **Contribution transmission (opt-in):** extend the P7 export to actually POST (on explicit consent) to the Supabase corpus endpoint. The send-time content-free re-verification. The exact-payload preview + consent + destination. Withdrawal/delete path.
-2. **Supabase corpus:** the content-free table, RLS (write/delete own rows, aggregate reads), the schema = the P7 14 fields. Setup documented + reproducible.
-3. **Baseline computation + redistribution:** compute community percentile baselines per task_type from the pooled rows; publish as a fetchable data file; client scores against community baseline as an OPT-IN comparison alongside self-baseline.
-4. **Privacy policy + consent UX:** the plain-language PRIVACY policy (what/where/retention/delete/anonymous/content-free); the consent screen (fields + destination + use + withdrawal).
-5. **Honest framing of the community baseline:** its DOV (N contributors, self-selection bias, content-free-so-coarse), shown wherever the community percentile appears. Never overstated.
-6. Tests: content-free-at-send-time (byte-grep the actual POST payload), opt-in-required (no send without explicit consent), withdrawal-works, RLS-enforces-own-rows-only, community-baseline-carries-DOV, default-install-still-transmits-nothing.
+1. **Live session monitor** — watch the ACTIVE session file as it grows (the watcher already tails ~/.claude/projects; extend it to score the in-progress session incrementally, not just completed ones). Compute live estimated cost + context size + re-send ratio as the session runs.
+2. **Cost/context alarm** — configurable thresholds (cost $, context tokens, re-send ratio); when a live session crosses one AND the pattern warrants it, surface a MEASURED alert with an honest suggestion. Flat-plan-aware (tokens/rate-limit framing vs dollars). Data-gated (no crying wolf). Delivery: terminal notification and/or the dashboard live view; user-configurable, off or on by choice.
+3. **Habit coach** — from the existing attribution + Session Intelligence, compute the user's top N FIXABLE habits ranked by measured $ (or token) impact, each with: the measured basis (N sessions, the pattern), the specific action, and the honest "based on your data" caveat. Surface via `tes coach` (CLI) + a dashboard Coach panel. Silent on habits the data doesn't support.
+4. **Budget / pace tracking** — track spend/tokens over a rolling window; project the user's OWN trend to period-end with its DOV. `tes budget` + dashboard. Honest self-extrapolation, labeled.
+5. **Keep everything** — diagnostic, attribution, self/community baseline, Session Intelligence, chat, dashboard, corpus (dormant), frictionless UX — all unchanged and intact. This is additive.
+6. Tests: coach-recommendations-grounded-in-measured-data (no fabricated savings), alarm-fires-only-on-measured-threshold + data-gated + flat-plan-aware, projection-is-labeled-trend-not-forecast, live-cost-labeled-estimated, everything-prior-still-works (regression).
 
-### Out of scope (Phase 2 / later / invest-later)
-- Team accounts, auth, per-developer identity, team dashboards (buyer a — the invest-later product).
-- Any NON-content-free transmission (no code, prompts, paths, content — ever).
-- General token observability (routing/caching/production attribution — the THIRD horizon).
-- Live/real-time backend (batch baseline computation is fine + free).
-- Reports 01-11, detectors, the scoring engine — unchanged.
+### Out of scope
+- Model routing RECOMMENDATIONS that require external model benchmarks (a later horizon — the "general observability" phase; this phase coaches on the user's OWN measured habits, not model-choice advice needing external data).
+- Fabricated/universal savings numbers ("save 40%") — only measured-from-your-own-data figures.
+- Predicting future WORK or costs beyond honest self-trend extrapolation.
+- Activating the corpus (still dormant, separate gated decision).
+- Any change to the frozen engine (attribution/cost/detectors/self-baseline math) — the action layer CONSUMES measured data, never alters it.
+- Reports 01-11.
 
 ### Hard rules
-- TRANSMISSION IS OPT-IN + CONTENT-FREE + CONSENTED + WITHDRAWABLE + ANONYMOUS. The default install transmits nothing (tested). Content-free re-verified at SEND time (tested on the actual payload). No identity. These do not bend.
-- Self-baseline + local scoring UNCHANGED — community baseline is an additive opt-in, never replaces the honest local default.
-- Engine/detectors/reports frozen (presentation + a new opt-in data path; no scoring-math change). git diff _waste_detectors.py empty.
-- Community baseline carries its DOV (N, self-selection, content-free-coarseness) wherever shown.
-- $0: Supabase free tier, content-free tiny rows, batch computation. No design that incurs cost at dev scale.
+- COACH/ALARM/PROJECTION grounded in MEASURED data + carry uncertainty; no fabricated savings, no crying wolf, no false-certainty forecasts, live cost labeled estimated. Silence over a made-up tip.
+- FLAT-PLAN AWARE: token/rate-limit framing for flat-plan users, dollars for usage-based. Never alarm a Max user about marginal dollars they don't pay.
+- ADDITIVE: everything prior stays intact + working (tested). Engine/detectors/reports frozen (git diff _waste_detectors.py empty).
+- Live monitoring is LOCAL (reuse the watcher; no new egress). Alerts are local. No corpus activation.
+- import-closure green (any new dep declared); publish-immediately.
 
 ## Tech stack
-- Client: reuse tes/contribution.py (P7 content-free builder), add an opt-in POST (httpx, already a dep) with send-time content-free re-verification. Consent/preview reuse P7's preview.
-- Store: Supabase (Postgres + RLS). Content-free table. Setup script/doc (reproducible, like the cc_baselines provenance).
-- Baseline computation: a script that reads pooled rows, computes per-task percentiles, emits the community baseline data file. Runs free (locally or a free scheduled job).
-- pytest: the transmission guards (content-free-at-send, opt-in, withdrawal, RLS, DOV, default-silent).
+- Python, tes/. Live monitor extends tes/watcher.py (already tails the session dir + has incremental scoring) to score the IN-PROGRESS session. Cost/attribution reuse the frozen engine on the partial session. Coach reuses attribution + tes/intelligence. Alerts: terminal (stderr/notification) + dashboard live view (SSE or poll — server-rendered, no SPA). Budget: rolling window over the store.
+- No heavy new deps expected (reuse httpx/flask/the engine). A desktop-notification lib MIGHT be proposed for the alarm — escalate before adding; a terminal print + dashboard indicator is the zero-dep default.
+- pytest: grounding/honesty guards for coach+alarm+projection, flat-plan-awareness, regression on all prior features.
 
 ## Architecture
 ```
 tes/
-├── contribution.py     # P7 content-free builder (REUSE) + opt-in POST + send-time re-verify
-├── corpus_client.py    # NEW: the consented POST, the withdrawal/delete, fetch community baseline
-├── community_baseline.py # NEW: score against community percentile (opt-in, alongside self)
-├── cli.py / web/       # opt-in contribution flow + consent + the community-percentile display (DOV-carried)
-corpus/                 # NEW: Supabase schema + RLS + the baseline-computation script + setup doc
-PRIVACY.md              # UPDATED: the transmission section — what/where/retention/delete/anonymous
+├── watcher.py          # EXTEND: score the in-progress session incrementally (live)
+├── live_monitor.py     # NEW: live estimated cost/context/re-send for the active session
+├── alarm.py            # NEW: threshold config + data-gated, flat-plan-aware, measured alerts
+├── coach.py            # NEW: top fixable habits ranked by measured $ impact, grounded + caveated
+├── budget.py           # NEW: rolling-window spend/token tracking + honest self-trend projection
+├── cli.py              # + tes coach, tes budget, tes monitor (live), alarm config
+├── web/                # + a live monitor view + Coach panel + budget/pace view (honest labels)
 tests/
-├── test_send_content_free.py    # byte-grep the ACTUAL POST payload — no planted secret survives
-├── test_transmit_optin.py       # no send without explicit consent; default install transmits nothing
-├── test_withdrawal.py           # delete path removes the contributor's rows
-├── test_corpus_rls.py           # contributor writes/deletes only own rows; reads aggregate-only
-└── test_community_baseline_dov.py # community percentile always carries its DOV
+├── test_coach_grounded.py       # every recommendation traces to measured data; no fabricated savings; silent when unsupported
+├── test_alarm_measured.py       # fires only on measured threshold; data-gated (no cry-wolf); flat-plan-aware
+├── test_projection_labeled.py   # projection is labeled self-trend + DOV, never false certainty
+├── test_live_cost_estimated.py  # live cost labeled estimated/in-progress, never final
+└── test_prior_features_intact.py# diagnostic/attribution/intelligence/dashboard all still work (regression)
 ```
 
 ## Verification commands
 ```yaml
-- name: send-content-free
-  cmd: python -m pytest tests/test_send_content_free.py -v   # the ACTUAL payload is content-free (byte-grep)
+- name: coach-grounded
+  cmd: python -m pytest tests/test_coach_grounded.py -v      # no fabricated savings; measured basis; silent when unsupported
   required: true
-- name: transmit-optin
-  cmd: python -m pytest tests/test_transmit_optin.py -v       # opt-in required; default transmits nothing
+- name: alarm-measured
+  cmd: python -m pytest tests/test_alarm_measured.py -v      # measured threshold, data-gated, flat-plan-aware
   required: true
-- name: withdrawal
-  cmd: python -m pytest tests/test_withdrawal.py -v
+- name: projection-labeled
+  cmd: python -m pytest tests/test_projection_labeled.py -v  # self-trend labeled, not forecast
+  required: true
+- name: prior-intact
+  cmd: python -m pytest tests/test_prior_features_intact.py -v  # everything before still works
   required: true
 - name: detectors-frozen
   cmd: git diff --exit-code tes/_waste_detectors.py && echo frozen
   required: true
 - name: import-closure
-  cmd: python -m pytest tests/test_all_tes_imports_are_declared.py -v   # any new dep (supabase client?) declared
+  cmd: python -m pytest tests/test_all_tes_imports_are_declared.py -v
   required: true
 - name: full-suite
   cmd: python -m pytest -q
@@ -103,30 +101,28 @@ tests/
 ```
 
 ## Escalation rules (autonomous mode — escalate ONLY these)
-- PUBLISHING 0.9.0 to PyPI (irreversible; user's token).
-- ANYTHING touching the transmission boundary: the consent wording, the content-free-at-send guarantee, the default-silent guarantee, the withdrawal path, the privacy policy text — escalate ALL of these for consultant review BEFORE they ship. This is the one boundary where autonomy is suspended: the transmission design + consent + privacy text get human review, every time.
-- If any path could transmit content / transmit without consent / enroll by default / make withdrawal impossible — STOP, escalate.
-- A new dependency (the Supabase client lib?) — declare + import-closure; escalate the choice.
-- Touching frozen detectors/engine/reports — out of scope, escalate.
-- Otherwise (the baseline math, the percentile display UX, the Supabase table mechanics): decide and act, report.
+- PUBLISHING to PyPI (irreversible; user's token).
+- Any coach recommendation / alarm / projection that could OVER-CLAIM a saving, fire without measured basis, or present a forecast as certainty — escalate the honesty design BEFORE it ships (this is the phase's central risk; the grounding design for coach+alarm gets consultant review).
+- A new dependency (desktop-notification lib, etc.) — declare + import-closure; escalate the choice (prefer zero-dep terminal+dashboard).
+- Touching the frozen engine/detectors/reports, or activating the dormant corpus — out of scope, escalate.
+- Otherwise DECIDE AND ACT: thresholds defaults, alert UX, coach phrasing, dashboard layout, budget window — your call; report.
 
 ## Budget
-- $0. Supabase free tier. Content-free tiny rows. Batch (not live) baseline computation. No paid infra. If any step would incur cost, STOP and escalate (the $0 constraint is firm at this stage).
+- $0 (all local — live monitor reuses the watcher, alerts local, coach/budget over the local store). No corpus, no backend.
 
 ## Success criteria (verify ALL)
-- Default install transmits NOTHING (tested). Contribution is explicit opt-in only.
-- The transmitted payload is content-free, RE-VERIFIED at send time on the actual payload (byte-grep, tested). Consent shows the exact fields + destination + use + withdrawal. The user sees their real row before sending.
-- Withdrawal/delete works (the contributor's rows removed, tested). contributor_id anonymous (random UUID, no identity).
-- Supabase corpus: content-free table, RLS (own-rows write/delete, aggregate reads), $0 free tier, documented + reproducible.
-- Community percentile baseline computed + redistributed as a data file; client scores against it as an OPT-IN comparison ALONGSIDE the unchanged self-baseline; the community baseline carries its DOV (N, self-selection, coarseness) wherever shown.
-- PRIVACY.md honestly + completely describes the transmission (what/where/retention/delete/anonymous/content-free).
-- Self-baseline + local default UNCHANGED; engine/detectors/reports frozen; import-closure green (new deps declared); full suite green.
-- 0.9.0 built, clean-roomed (--no-default-packages: opt-in contribution + community baseline work from the installed wheel; default still transmits nothing), PUBLISHED, fresh-install confirmed.
+- Live monitor: the active session is scored incrementally; live estimated cost + context size + re-send ratio available while it runs, labeled "estimated / in progress."
+- Alarm: fires on measured thresholds, data-gated (silent on normal sessions), flat-plan-aware (tokens/rate-limit for flat-plan, dollars for usage-based), honest suggestion framing. User-configurable, off by default or opt-in.
+- Coach: `tes coach` + dashboard panel surface top fixable habits ranked by MEASURED impact, each with its basis (N, pattern), specific action, and "based on your data" caveat; silent on unsupported habits. NO fabricated/universal savings.
+- Budget/pace: rolling-window tracking + honest self-trend projection labeled with its DOV; never false certainty.
+- EVERYTHING PRIOR intact + working (diagnostic, attribution, self/community baseline, Session Intelligence, chat, dashboard, corpus-dormant, frictionless UX) — regression tested.
+- Engine/detectors/reports frozen; import-closure green; local-only (no egress, no corpus activation); full suite green.
+- Built, clean-roomed (--no-default-packages: coach/alarm/live-monitor/budget work from the wheel; prior features intact), PUBLISHED, fresh-install confirmed.
 
-## Build order (orchestrator decides reversible details; transmission boundary is escalation-gated)
-1. Read CURRENT_STATE.md + spec.md + tes/contribution.py (the P7 content-free builder + its tests) + the P7 PRIVACY section. Confirm context + the transmission-is-the-central-risk boundary in 5-7 lines.
-2. DESIGN the transmission: the consent screen wording, the send-time content-free re-verification mechanism, the withdrawal path, the PRIVACY policy text, and the contributor_id anonymity. HOLD — escalate ALL of this for consultant review BEFORE building. (Autonomy suspended on the transmission boundary — the consent + privacy + content-free-at-send design gets reviewed before code.)
-3. Build the Supabase corpus (schema + RLS + setup doc) + corpus_client.py (consented POST + withdrawal) + the send-content-free / opt-in / withdrawal / RLS tests. HOLD — show consultant the RLS proof + the byte-grep-the-actual-payload test result + a real (test-account) round-trip (contribute → appears as content-free row → withdraw → gone).
-4. Build community_baseline.py (compute percentiles, redistribute, score-against-as-opt-in) + the DOV-carried display. Tests.
-5. PRIVACY.md update + consent UX. HOLD — consultant reviews the final privacy + consent text (the public promise about transmission).
-6. Full suite + import-closure + detectors frozen + clean-room (--no-default-packages: opt-in contribution + community baseline from the wheel; default transmits nothing). Bump 0.8.0 -> 0.9.0, CHANGELOG. ESCALATE the publish.
+## Build order (orchestrator decides reversible details; the coach/alarm honesty design is escalation-gated)
+1. Read CURRENT_STATE.md + spec.md + tes/watcher.py + the attribution/cost engine + tes/intelligence. Confirm context + the coach/alarm-must-be-as-honest-as-the-diagnostic boundary in 5-7 lines.
+2. DESIGN the coach + alarm + projection honesty: exactly how each recommendation is grounded in measured data, how savings are quantified (measured-from-own-data only), the data-gating for the alarm (no cry-wolf), the flat-plan-awareness, the projection labeling. HOLD — escalate this design for consultant review BEFORE building (the honesty of the action layer is the central risk; the grounding gets reviewed before code).
+3. Build the live monitor + alarm (measured, data-gated, flat-plan-aware) + tests. HOLD — show consultant: a real live-session monitor run (estimated cost labeled, alarm firing on a genuinely heavy session AND staying SILENT on a normal one — the no-cry-wolf proof).
+4. Build the coach + budget (grounded recommendations, honest projection) + tests. HOLD — show consultant: `tes coach` on the real store (real habits, measured basis, caveats, silent-when-unsupported) + a projection labeled as trend.
+5. Dashboard: live monitor view + Coach panel + budget/pace view (honest labels throughout). Regression-confirm all prior views intact.
+6. Full suite + prior-intact regression + import-closure + detectors frozen + clean-room. Bump 0.8.0 -> 0.10.0, CHANGELOG. ESCALATE the publish.
