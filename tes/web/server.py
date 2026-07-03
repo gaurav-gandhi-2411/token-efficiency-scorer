@@ -249,6 +249,9 @@ class ServerConfig:
     port: int = 4747
     db_path: Path | None = None
     cc_baselines_path: Path | None = None
+    cc_path: Path | None = None          # for the /monitor live view; defaults to DEFAULT_CC_PATH
+    stability_window: int = 300          # a session modified more recently than this is "active"
+    plan_type: str = "usage_based"       # "usage_based" | "max" — alarm display emphasis only
 
 
 def _projected_metrics(conn: sqlite3.Connection, self_bl_state) -> dict:
@@ -517,6 +520,56 @@ def create_app(config: ServerConfig) -> Flask:
             cache=cache,
             ollama_available=ollama_available,
             api_key_available=api_key_available,
+        )
+
+    @app.route("/coach")
+    def coach() -> str:
+        """Top fixable habits ranked by measured $ impact. Silent (empty list) when
+        no habit clears the N-gate — never a fabricated recommendation."""
+        from tes.coach import get_habits
+
+        conn = get_db()
+        self_bl = get_self_bl()
+        habits = get_habits(conn, self_bl, _prices) if self_bl is not None else []
+        return render_template("coach.html", habits=habits)
+
+    @app.route("/budget")
+    def budget() -> str:
+        """Rolling-window pace + honest self-trend projection, always labeled."""
+        from tes.budget import DEFAULT_WINDOW_DAYS, compute_budget_projection
+
+        conn = get_db()
+        window_days = request.args.get("window_days", DEFAULT_WINDOW_DAYS, type=int)
+        projection = compute_budget_projection(conn, window_days=window_days)
+        return render_template("budget.html", projection=projection, window_days=window_days)
+
+    @app.route("/monitor")
+    def monitor() -> str:
+        """Live view of the currently active (in-progress) CC session + the alarm.
+
+        Read-only, best-effort — the active session may not exist right now,
+        in which case this shows an honest 'no active session' state, not an error.
+        """
+        from tes.alarm import AlarmConfig, check_alarm
+        from tes.live_monitor import find_active_session, score_live_session
+        from tes.watcher import DEFAULT_CC_PATH
+
+        cc_path = config.cc_path or DEFAULT_CC_PATH
+        self_bl = get_self_bl()
+
+        active_path = find_active_session(cc_path, config.stability_window)
+        live = score_live_session(active_path, _prices) if active_path is not None else None
+
+        alarm_result = None
+        if live is not None and self_bl is not None:
+            alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
+            alarm_result = check_alarm(live, self_bl, alarm_cfg)
+
+        return render_template(
+            "monitor.html",
+            live=live,
+            alarm=alarm_result,
+            plan_type=config.plan_type,
         )
 
     @app.route("/ask", methods=["POST"])

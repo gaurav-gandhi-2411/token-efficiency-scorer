@@ -428,6 +428,8 @@ def _run_serve(
     cc_path_arg: str | None = None,
     db_path_arg: str | None = None,
     background_judge: bool = False,
+    alarm_enabled: bool = False,
+    plan_type: str = "usage_based",
 ) -> None:
     """Launch the watcher + localhost dashboard. Shared by `tes serve` and bare `tes`.
 
@@ -454,8 +456,13 @@ def _run_serve(
         stability_window=stability_window,
         db_path=db_path,
         background_judge=background_judge,
+        alarm_enabled=alarm_enabled,
+        plan_type=plan_type,
     )
-    server_config = ServerConfig(host="127.0.0.1", port=port, db_path=db_path)
+    server_config = ServerConfig(
+        host="127.0.0.1", port=port, db_path=db_path,
+        cc_path=cc_path, stability_window=stability_window, plan_type=plan_type,
+    )
 
     # First-run orientation — the tool tells you what it found and where to look.
     found = len(_recent_sessions(cc_path))
@@ -468,6 +475,7 @@ def _run_serve(
     print(f"  Scan interval:    {scan_interval}s")
     print(f"  Stability window: {stability_window}s")
     print(f"  Judge:            {'ON (--background-judge)' if background_judge else 'OFF (token+waste only)'}")
+    print(f"  Alarm:            {'ON — plan=' + plan_type if alarm_enabled else 'OFF (--alarm to enable)'}")
     print(f"  Database:         {db_path or '~/.tes/tes.db'}")
     print("  Press Ctrl+C to stop.", flush=True)
 
@@ -730,6 +738,128 @@ def _run_ask(
         print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
 
 
+def _run_coach(
+    *,
+    db_path: str | None = None,
+    top_n: int = 3,
+) -> None:
+    """Handle `tes coach` — surface top fixable habits ranked by measured $ impact.
+
+    Silent (not a fabricated recommendation) when no habit clears the N-gate —
+    see tes.coach.MIN_N_FOR_HABIT and research/13_coach_alarm_honesty_design.md.
+    """
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.coach import MIN_N_FOR_HABIT, get_habits
+    from tes.self_baseline import load_or_compute
+    from tes.store import open_db, resolve_db_path
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    try:
+        conn = open_db(resolved_db)
+    except Exception as exc:
+        print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+        return
+
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    self_bl = load_or_compute(resolved_db, baselines)
+
+    print("Computing your top fixable habits (measured from your own sessions)...", flush=True)
+    habits = get_habits(conn, self_bl, _PRICES, top_n=top_n)
+    conn.close()
+
+    if not habits:
+        print(
+            "\nNot enough measured data yet for a confident habit recommendation "
+            f"(a pattern needs to repeat in >= {MIN_N_FOR_HABIT} of your sessions before "
+            "the coach will speak about it). Keep using tracegauge."
+        )
+        return
+
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print("HABIT COACH — top fixable habits, ranked by measured $ impact")
+    print(sep)
+    for i, h in enumerate(habits, 1):
+        scope = f" [{h.task_type}]" if h.task_type else ""
+        print(f"\n[{i}] {h.habit_id}{scope}  (~${h.impact_usd:.2f} measured impact, N={h.measured_n})")
+        print(f"    {h.message}")
+    print(f"\n{sep}")
+
+
+def _run_budget(
+    *,
+    db_path: str | None = None,
+    window_days: int = 7,
+) -> None:
+    """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
+    from tes.budget import compute_budget_projection
+    from tes.store import open_db, resolve_db_path
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    try:
+        conn = open_db(resolved_db)
+    except Exception as exc:
+        print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+        return
+
+    projection = compute_budget_projection(conn, window_days=window_days)
+    conn.close()
+
+    if projection is None:
+        print(f"No sessions with cost data in the last {window_days} days — nothing to project yet.")
+        return
+
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print("BUDGET / PACE")
+    print(sep)
+    print(f"\n{projection.message}\n")
+    print(sep)
+
+
+def _run_monitor(
+    *,
+    cc_path_arg: str | None = None,
+    db_path: str | None = None,
+    stability_window: int = 300,
+    plan_type: str = "usage_based",
+) -> None:
+    """Handle `tes monitor` — one-shot live check of the currently active session."""
+    from tes.alarm import AlarmConfig, check_alarm
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.live_monitor import find_active_session, score_live_session
+    from tes.self_baseline import load_or_compute
+    from tes.store import resolve_db_path
+
+    cc_path = _resolve_cc_path(cc_path_arg)
+    active = find_active_session(cc_path, stability_window)
+    if active is None:
+        print(f"No active session detected under {cc_path} "
+              f"(nothing modified in the last {stability_window}s).")
+        return
+
+    live = score_live_session(active, _PRICES)
+    if live is None:
+        print(f"Active session found ({active.name}) but not enough data to score yet.")
+        return
+
+    print(f"Session: {live.session_id}  ({live.task_type})")
+    print(f"  ~${live.live_cost_usd:.2f} (estimated, in progress)")
+    print(f"  ~{live.live_context_tokens:,} context tokens (estimated, in progress)")
+    print(f"  {live.live_resend_ratio * 100:.0f}% context re-send (measured)")
+    print(f"\n{live.domain_of_validity}")
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    self_bl = load_or_compute(resolved_db, baselines)
+    config = AlarmConfig(enabled=True, plan_type=plan_type)
+    alarm = check_alarm(live, self_bl, config)
+    if alarm is not None:
+        print(f"\n[ALARM] {alarm.message}")
+    else:
+        print("\nNo alarm (measured thresholds not tripped, or baseline still building for this type).")
+
+
 def main() -> None:
     """CLI entry point."""
     # Ensure UTF-8 output on Windows (cp1252 console cannot encode ═/─ box-drawing chars)
@@ -899,6 +1029,23 @@ def main() -> None:
             "For on-demand judging without a GPU: use 'tes score <path> --api-judge' instead."
         ),
     )
+    serve_p.add_argument(
+        "--alarm", action="store_true", dest="alarm",
+        help=(
+            "Enable the live cost/context alarm (OFF by default). Data-gated: only fires when "
+            "the active session's context already exceeds your own p75 for that task_type AND "
+            "context re-send is the dominant cost driver. Never fires on a normal session."
+        ),
+    )
+    serve_p.add_argument(
+        "--plan", default="usage_based", dest="plan_type",
+        choices=["usage_based", "max"],
+        help=(
+            "Billing plan, for alarm display emphasis only (default: usage_based). "
+            "'max' leads with tokens/context and demotes the dollar figure to a parenthetical "
+            "API-equivalent note; the dollar figure is never hidden outright."
+        ),
+    )
 
     export_p = sub.add_parser(
         "export-contribution",
@@ -1032,6 +1179,74 @@ def main() -> None:
         help="Generate a new contributor_id (local only, no network). Prior rows become unlinked.",
     )
 
+    coach_p = sub.add_parser(
+        "coach",
+        help="Show your top fixable habits, ranked by measured $ impact (silent if data is thin).",
+        description=(
+            "Surface the top habits from your OWN measured session data — each grounded in a "
+            "sample size (N), a specific action, and a 'measured, not a guarantee' caveat. "
+            "Silent (no fabricated tip) when a pattern hasn't repeated enough times to be honest."
+        ),
+    )
+    coach_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    coach_p.add_argument(
+        "--top-n", type=int, default=3, dest="top_n",
+        metavar="N",
+        help="Maximum number of habits to show (default: 3).",
+    )
+
+    budget_p = sub.add_parser(
+        "budget",
+        help="Show your rolling-window spend pace and an honest self-trend projection.",
+        description=(
+            "Rolling-window spend/token pace tracking. The projection is YOUR OWN trend, "
+            "labeled with its sample size and window — never a forecast of future work."
+        ),
+    )
+    budget_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    budget_p.add_argument(
+        "--window-days", type=int, default=7, dest="window_days",
+        metavar="N",
+        help="Rolling window size in days (default: 7).",
+    )
+
+    monitor_p = sub.add_parser(
+        "monitor",
+        help="One-shot live check of the currently active (in-progress) CC session.",
+        description=(
+            "Score the session currently being written, print its estimated cost/context "
+            "(labeled 'in progress'), and check the data-gated cost/context alarm once."
+        ),
+    )
+    monitor_p.add_argument(
+        "--cc-path", default=None, dest="cc_path",
+        metavar="PATH",
+        help="Claude Code projects directory to search (default: ~/.claude/projects).",
+    )
+    monitor_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    monitor_p.add_argument(
+        "--stability-window", type=int, default=300, dest="stability_window",
+        metavar="SECONDS",
+        help="A session modified more recently than this is considered 'active' (default: 300).",
+    )
+    monitor_p.add_argument(
+        "--plan", default="usage_based", dest="plan_type",
+        choices=["usage_based", "max"],
+        help="Billing plan, for alarm display emphasis only (default: usage_based).",
+    )
+
     args = parser.parse_args()
     if args.command is None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
@@ -1062,6 +1277,25 @@ def main() -> None:
             cc_path_arg=args.cc_path,
             db_path_arg=args.db_path,
             background_judge=args.background_judge,
+            alarm_enabled=args.alarm,
+            plan_type=args.plan_type,
+        )
+        sys.exit(0)
+
+    if args.command == "coach":
+        _run_coach(db_path=args.db_path, top_n=args.top_n)
+        sys.exit(0)
+
+    if args.command == "budget":
+        _run_budget(db_path=args.db_path, window_days=args.window_days)
+        sys.exit(0)
+
+    if args.command == "monitor":
+        _run_monitor(
+            cc_path_arg=args.cc_path,
+            db_path=args.db_path,
+            stability_window=args.stability_window,
+            plan_type=args.plan_type,
         )
         sys.exit(0)
 

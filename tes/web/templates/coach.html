@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title_suffix %} — Coach{% endblock %}
+{% block content %}
+
+<h1>Habit Coach</h1>
+
+<div class="caveat">
+  Every habit below is grounded in YOUR OWN measured session data — a sample size,
+  a specific action, and a "not a guarantee" caveat. When a pattern hasn't repeated
+  enough times to be honest about, the coach says nothing rather than guess.
+</div>
+
+{% if habits %}
+<div class="section">
+  <div class="section-label">Top Fixable Habits (ranked by measured $ impact)</div>
+  {% for h in habits %}
+  <div class="card">
+    <div class="card-title">
+      {{ h.habit_id }}{% if h.task_type %} &middot; {{ h.task_type }}{% endif %}
+      &mdash; ~${{ "%.2f"|format(h.impact_usd) }} measured impact &middot; N={{ h.measured_n }}
+    </div>
+    <div>{{ h.message }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="empty">
+  Not enough measured data yet for a confident habit recommendation &mdash; a pattern needs
+  to repeat across several of your sessions before the coach will speak about it.
+  Keep using tracegauge; this fills in as your session history grows.
+</p>
+{% endif %}
+
+{% endblock %}

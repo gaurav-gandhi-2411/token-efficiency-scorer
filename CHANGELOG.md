@@ -6,8 +6,82 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
 `0.7.1`, and `0.8.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally but
-never published to PyPI. `0.8.0` is the **current published release**. `0.9.0` (below) is
-built, tested, and committed, but **deliberately not published** — see its entry for why.
+never published to PyPI. `0.8.0` is the **current published release**. `0.9.0` and
+`0.10.0` (below) are built, tested, and committed, but **deliberately not published**
+pending a publish decision — see each entry for why.
+
+## [0.10.0] — Live Monitor, Cost Alarm & Habit Coach (built and tested; publish escalated)
+
+**Design reviewed before code** (research/13_coach_alarm_honesty_design.md): coaching and
+alerting are where tools most often over-claim, so the grounding/data-gating/flat-plan
+design was written up and approved before `coach.py`/`alarm.py` existed. Two findings
+changed scope from the original spec wording — both documented in that file:
+
+- No confirmed compaction-event marker exists in Claude Code's local transcript format
+  (checked real session JSONLs on this machine — every "compact" hit was a false positive).
+  The spec's flagship habit example ("sessions where you compacted earlier cost less") is
+  **deferred** — shipping 3 other fully-grounded habits instead rather than fabricate detection.
+- No rate-limit signal exists locally either (same check, same result). The "rate-limit-
+  proximity" framing for flat-plan users is replaced with context-size-relative-to-your-
+  own-history, which is honestly buildable from data already computed.
+
+**What's built (643/643 tests green, up from 601 in 0.9.0):**
+- `tes/live_monitor.py` — scores the ACTIVE (in-progress) CC session incrementally, reusing
+  the frozen attribution/cost engine against whatever the file currently contains. Every
+  figure is labeled "estimated, in progress" — never presented as final/billed.
+- `tes/alarm.py` — fires ONLY on a two-part measured AND gate (same shape as
+  `intelligence/anomaly.py`'s per-cluster Tukey fence): (1) the live session's token count
+  already exceeds the user's OWN self-baseline p75 for that task_type, AND (2) context
+  re-send is the dominant cost driver (so `/compact` is actually relevant). Silent whenever
+  the self-baseline for that type is still "building" — no cry-wolf, no arbitrary global
+  threshold. `AlarmConfig` is OFF by default (opt-in, `--alarm` on `tes serve`). Flat-plan
+  aware: the message ALWAYS shows both $ and token framings; `plan=max` reorders emphasis
+  (tokens lead, dollar figure becomes a labeled "API-equivalent" parenthetical) but never
+  hides the dollar figure outright.
+- `tes/coach.py` — `tes coach` + dashboard Coach panel surface the top fixable habits ranked
+  by measured $ impact: H1 (high context re-send ratio costs more, per task_type), H2
+  (recurring RR/RFR waste, using already-persisted waste_events), H3 (sessions scored above
+  the user's own baseline band cost more). Every habit states its N, its measured basis, and
+  a "measured across your own sessions — not a guarantee" caveat. `MIN_N_FOR_HABIT = 5`:
+  silent (no entry at all) below the gate, never a fabricated tip. H4 (compaction timing)
+  deferred per the design-doc gap above.
+- `tes/budget.py` — `tes budget` + dashboard Budget view: rolling-window (default 7 days)
+  spend tracking with an honest self-trend projection, always labeled "based on your last N
+  days, not a forecast of future work." Silent (returns `None`) when there's nothing in the
+  window to project, rather than fabricating a $0 projection.
+- `tes/watcher.py` — extended (additively) with `alarm_enabled`/`plan_type` fields; checks
+  the live monitor + alarm once per scan cycle when enabled, printing to stderr on fire.
+- Dashboard: `/coach`, `/budget`, `/monitor` routes + templates, honest labels throughout;
+  all prior routes (`/`, `/session/<id>`, `/trends`, `/baseline-status`, `/patterns`, `/ask`)
+  regression-confirmed unchanged.
+- `tests/test_alarm_measured.py`, `test_coach_grounded.py`, `test_projection_labeled.py`,
+  `test_live_cost_estimated.py`, `test_prior_features_intact.py` (42 new tests) — cover the
+  no-cry-wolf proof (silent on a normal/building/non-resend-dominant session), the N-gate
+  silence property, flat-plan-safe message construction, and full regression.
+
+**Live proof (this machine, real active session, 2026-07-04):** `tes monitor` against a
+genuinely heavy real session correctly fired — "~$7.67 (estimated, in progress) and
+~801,271 context tokens (estimated, in progress), 94% of which is re-sent context (measured)
+— well above your own typical ml-eval session (p75: 626,012 tokens). Consider `/compact`."
+The synthetic no-cry-wolf tests cover the silent-on-normal-session proof (a live real
+session below any user's own p75 doesn't currently exist in the corpus to demo directly).
+
+**Non-negotiables held:** `git diff --exit-code tes/_waste_detectors.py` empty throughout;
+self-baseline/attribution/cost math untouched (consumed, not altered); import-closure green
+(zero new dependencies — coach/alarm/budget/live_monitor use stdlib + existing tes internals
+only, per the approved zero-dep default); local-only (live monitor reuses the watcher's file
+tail, no new egress); dormant 0.9.0 corpus untouched and still dormant.
+
+**Clean-room verified (2026-07-04, `tes-verify-0100`, `--no-default-packages`):** built the
+`0.10.0` wheel, confirmed numpy/tracegauge absent before install, installed from the wheel,
+confirmed `tes.__file__` resolves to site-packages (not repo) from a neutral cwd. `tes
+--version` → `tes 0.10.0`. All new subcommands (`tes coach --help`, `tes budget --help`,
+`tes monitor --help`) present with correct text. All 7 dashboard routes (4 prior + 3 new)
+returned 200 from the installed wheel, not just the repo copy.
+
+**NOT done, by choice:** PyPI publish — escalated per the project's standing rule (this
+phase's central risk was the coach/alarm honesty design, which was reviewed and approved
+BEFORE code; the publish itself is a separate, always-escalated action).
 
 ## [0.9.0] — Community Corpus (built and tested; NOT published — corpus stays dormant)
 
