@@ -1,10 +1,26 @@
 # 13 — Coach, Alarm & Projection Honesty Design (0.10.0)
 
-Status: **DESIGN ONLY — escalated for review, no code written against this doc yet.**
-Build Order step 2 of spec.md (0.10.0). This is the mandatory hold: the action
-layer (coach/alarm/projection) is where tracegauge's credibility is most exposed,
-so the grounding design is reviewed before a line of `coach.py`/`alarm.py`/`budget.py`
-is written.
+Status: **REVIEWED AND APPROVED — cleared to build.** Build Order step 2 of
+spec.md (0.10.0). This is the mandatory hold: the action layer
+(coach/alarm/projection) is where tracegauge's credibility is most exposed, so
+the grounding design was reviewed before a line of `coach.py`/`alarm.py`/
+`budget.py` was written.
+
+## Review decisions (all four recommendations approved as proposed)
+
+1. **H4 (compaction-timing habit) deferred** — ship H1–H3 now; investigate the
+   compaction signal as a fast-follow rather than block or fabricate detection.
+2. **Flat-plan framing: always show both $ and tokens, reorder-only on
+   config** — dollar figure never fully hidden from Max-plan users, just
+   demoted to a parenthetical when `plan=max` is explicitly set.
+3. **"Rate-limit-proximity" dropped**, substituted with
+   context-size-relative-to-the-user's-own-history (already buildable from
+   self-baseline data).
+4. **Alarm magnitude gate: self-baseline p75 only** — no separate user-settable
+   absolute $ ceiling; stays consistent with the existing `self_baseline.py`
+   honesty precedent, no arbitrary invented threshold.
+
+Proceeding to Build Order step 3: live monitor + alarm + tests.
 
 ## 0. What's already there vs. what this phase adds
 
