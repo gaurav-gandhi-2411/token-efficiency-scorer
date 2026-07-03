@@ -17,6 +17,17 @@ arbitrary global threshold):
      the "/compact" suggestion is actually relevant (a large but genuinely
      fresh-work session should not get a compaction nudge that wouldn't help it).
 
+CAVEAT on gate 2, found during real-data verification before publish (2026-07-04):
+on a heavy-usage store (long, iterative sessions where context is resent almost
+every turn), gate 2 can be near-universally true — checked 74 real above-p75
+sessions on the verifying developer's own store and found ZERO that were NOT
+resend-dominant. In that regime, gate 1 (the user's own p75) is doing essentially
+all of the real gating; gate 2 rides along honestly (it is still a real, correct
+check) but currently has little INDEPENDENT discriminating power for that kind of
+user. It still matters for a different usage profile (e.g. a large one-shot
+generation-heavy session, which SHOULD stay silent) — kept for that case, but
+don't assume both gates are equally load-bearing for every user.
+
 Flat-plan awareness: both dollar and token framings are ALWAYS present in the
 fired message (approved option 2.3-c) — the dollar figure is never hidden from
 a Max-plan user, only demoted to a parenthetical "API-equivalent" note when

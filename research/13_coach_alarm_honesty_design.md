@@ -22,6 +22,56 @@ the grounding design was reviewed before a line of `coach.py`/`alarm.py`/
 
 Proceeding to Build Order step 3: live monitor + alarm + tests.
 
+## Addendum (2026-07-04) — pre-publish real-data review: COACH HELD, alarm+budget SHIP
+
+Before publish, ran `tes coach`/`tes monitor`/`tes budget` against the verifying
+developer's real store (not just synthetic tests) specifically to check whether
+the coach's surviving recommendations (H1-H3, after H4 was deferred above) were
+genuinely useful or thin filler that only looked fine because H4 was removed.
+Verdict: **thin. Coach is held from 0.10.0** — `tes coach` and the `/coach`
+dashboard route are NOT wired into this release; `tes/coach.py` and
+`web/templates/coach.html` stay in the repo, unshipped, for a future fix pass.
+
+**What the real-data check found:**
+- **H1 never fires — not a low-N issue, a threshold-calibration issue.** Checked
+  the actual resend-ratio split behind the fixed 60% threshold, per task type, on
+  the real store: every single scoreable session across all 5 task types was
+  above 60% resend (`high=N, other=0` for every type). There is no low-resend
+  comparison group at all for this usage pattern (long iterative sessions, cache-
+  heavy by nature) — the FIXED threshold doesn't discriminate. A threshold
+  relative to the user's OWN resend distribution (e.g. their own top vs. bottom
+  half) might discriminate where a fixed absolute one can't. Parked for the
+  future pass, not solved here.
+- **H3 fires but hides the real finding.** Checked whether "above-band sessions
+  cost more" is near-tautological (bigger sessions naturally cost more). It
+  isn't quite: above-band ml-eval sessions were 5.9x bigger in tokens but 8.6x
+  more expensive; infra-deploy was 8.6x bigger but 10.7x more expensive — above-
+  band sessions are disproportionately LESS $-efficient per token, not just
+  longer. That's real, non-tautological signal. But the shipped message text
+  never says this — it says "cost more... no single action attached" and punts
+  to the session detail pages, which is why it reads as filler even though
+  there's a real finding underneath. Fix: state the disproportionate-$/token
+  finding explicitly, or drop the habit in its current generic form.
+- **The one genuinely actionable habit (H2) gets buried.** H2 (recurring
+  RR/RFR waste, with a specific "stop when a command fails twice" action) is
+  real and specific, but tiny in raw $ terms (~$2.60 total on the real store)
+  and ranks last (6th of 6) under pure-$-impact sorting — invisible under the
+  default `top_n=3`. Fix: ranking must not pure-sort by raw $ impact; an
+  actionable low-$ habit should outrank a repeated generic higher-$ one.
+- **Gate-2 (alarm cause gate) has the same root cause as H1's problem** —
+  checked 74 real above-p75 sessions for one that wasn't resend-dominant and
+  found zero. Doesn't block shipping the alarm (gate 1, the user's own p75, is
+  doing real and correctly-discriminating work, verified silent on real below-
+  p75 sessions even at 96% resend ratio) — but the alarm's own module docstring
+  (`tes/alarm.py`) now carries this caveat so a future reader doesn't assume
+  both gates are equally load-bearing for every usage profile.
+
+**Decision:** ship 0.10.0 as live monitor + alarm + budget only. The coach's
+credibility risk (a thin default view read by a curious user as "the whole tool
+is shallow") outweighs shipping it behind a quiet flag — a curious user finds
+`tes coach` regardless, so "hidden but present" isn't materially safer than
+"present." Cleanest and most honest: don't ship a feature that's being held.
+
 ## 0. What's already there vs. what this phase adds
 
 Reused, unchanged:
