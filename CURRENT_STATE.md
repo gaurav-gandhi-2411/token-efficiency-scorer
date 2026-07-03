@@ -7,23 +7,40 @@ untouched by this phase).
 
 ---
 
-## Iteration status: 0.10.0 BUILT, NOT PUBLISHED — Live Monitor, Cost Alarm & Habit Coach
+## Iteration status: 0.10.0 BUILT, NOT PUBLISHED — Live Monitor & Cost Alarm (coach HELD)
 
 **PyPI: still 0.8.0.** `pyproject.toml` carries `version = "0.10.0"`; all code is built,
 tested (643/643 green), and clean-room verified — but publishing is escalated per the
 project's standing rule (see spec.md's escalation rules). Design doc reviewed and approved
 BEFORE any code: `research/13_coach_alarm_honesty_design.md`.
 
-**What's built:** `tes/live_monitor.py`, `tes/alarm.py`, `tes/coach.py`, `tes/budget.py`;
-`tes coach`/`tes budget`/`tes monitor` CLI commands; `tes serve --alarm --plan`; dashboard
-`/coach`, `/budget`, `/monitor` views. Full detail in `CHANGELOG.md`'s `[0.10.0]` entry —
-including the two scope changes found while designing (no compaction-event marker exists in
-CC transcripts; no rate-limit signal exists locally), the live-fire proof against a real
-active session, and the clean-room verification (`tes-verify-0100`, `--no-default-packages`).
+**Ships: live monitor + cost alarm + budget/pace.** `tes/live_monitor.py`, `tes/alarm.py`,
+`tes/budget.py`; `tes budget`/`tes monitor` CLI commands; `tes serve --alarm --plan`;
+dashboard `/budget`, `/monitor` views.
+
+**HELD, not shipped: the habit coach.** `tes/coach.py` + `web/templates/coach.html` are
+built and tested (`tests/test_coach_grounded.py`) but deliberately unwired — no `tes coach`
+CLI command, no `/coach` dashboard route. Pre-publish review ran the coach against the real
+store and found its surviving habits (after H4 was deferred at design time) were thin: H1
+never fires on real data (fixed 60% resend threshold doesn't discriminate for this usage
+pattern — every session was above it), H3 fires but its message hides the real finding
+(above-band sessions are disproportionately less $/token-efficient, not just bigger — real
+signal, unstated), and the one genuinely actionable habit (H2) is buried at rank 6 by raw-$
+sorting. A thin coach reads as "the whole tool is shallow" to a developer — holding it
+protects the diagnostic + alarm's credibility. Full addendum + the fix needed for a future
+pass: `research/13_coach_alarm_honesty_design.md`.
+
+Full detail in `CHANGELOG.md`'s `[0.10.0]` entry — including the two scope changes found
+while designing (no compaction-event marker exists in CC transcripts; no rate-limit signal
+exists locally), the real-session live-fire + real-session silence proof (not just
+synthetic), the flat-plan text, the budget projection, and the clean-room verification
+(`tes-verify-0100`, `--no-default-packages`) including a self-caught-and-fixed base-env
+contamination incident.
 
 **Next step:** publish decision — same escalation gate as every prior release with a
 non-trivial risk surface (this phase's central risk, the coach/alarm honesty design, was
-already reviewed and approved before code was written; the PyPI publish itself is separate).
+already reviewed and approved before code, and re-verified against real data before publish;
+the PyPI publish itself is separate).
 
 ---
 

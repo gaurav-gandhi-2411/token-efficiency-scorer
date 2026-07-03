@@ -522,16 +522,12 @@ def create_app(config: ServerConfig) -> Flask:
             api_key_available=api_key_available,
         )
 
-    @app.route("/coach")
-    def coach() -> str:
-        """Top fixable habits ranked by measured $ impact. Silent (empty list) when
-        no habit clears the N-gate — never a fabricated recommendation."""
-        from tes.coach import get_habits
-
-        conn = get_db()
-        self_bl = get_self_bl()
-        habits = get_habits(conn, self_bl, _prices) if self_bl is not None else []
-        return render_template("coach.html", habits=habits)
+    # NOTE: no /coach route in this release. tes/coach.py + web/templates/coach.html are
+    # built and tested (see tests/test_coach_grounded.py + CHANGELOG [0.10.0]) but held —
+    # the default output on real data was thin/repetitive, not worth shipping as a headline
+    # capability yet. See research/13_coach_alarm_honesty_design.md's addendum for the fix
+    # needed (message must state the disproportionate-$/token finding; ranking must not
+    # bury the one actionable habit under repeated generic ones) before this route returns.
 
     @app.route("/budget")
     def budget() -> str:

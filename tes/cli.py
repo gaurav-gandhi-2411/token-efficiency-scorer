@@ -738,54 +738,6 @@ def _run_ask(
         print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
 
 
-def _run_coach(
-    *,
-    db_path: str | None = None,
-    top_n: int = 3,
-) -> None:
-    """Handle `tes coach` — surface top fixable habits ranked by measured $ impact.
-
-    Silent (not a fabricated recommendation) when no habit clears the N-gate —
-    see tes.coach.MIN_N_FOR_HABIT and research/13_coach_alarm_honesty_design.md.
-    """
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-    from tes.coach import MIN_N_FOR_HABIT, get_habits
-    from tes.self_baseline import load_or_compute
-    from tes.store import open_db, resolve_db_path
-
-    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
-    try:
-        conn = open_db(resolved_db)
-    except Exception as exc:
-        print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
-
-    baselines = load_baselines(BUNDLED_BASELINES_PATH)
-    self_bl = load_or_compute(resolved_db, baselines)
-
-    print("Computing your top fixable habits (measured from your own sessions)...", flush=True)
-    habits = get_habits(conn, self_bl, _PRICES, top_n=top_n)
-    conn.close()
-
-    if not habits:
-        print(
-            "\nNot enough measured data yet for a confident habit recommendation "
-            f"(a pattern needs to repeat in >= {MIN_N_FOR_HABIT} of your sessions before "
-            "the coach will speak about it). Keep using tracegauge."
-        )
-        return
-
-    sep = "─" * 70
-    print(f"\n{sep}")
-    print("HABIT COACH — top fixable habits, ranked by measured $ impact")
-    print(sep)
-    for i, h in enumerate(habits, 1):
-        scope = f" [{h.task_type}]" if h.task_type else ""
-        print(f"\n[{i}] {h.habit_id}{scope}  (~${h.impact_usd:.2f} measured impact, N={h.measured_n})")
-        print(f"    {h.message}")
-    print(f"\n{sep}")
-
-
 def _run_budget(
     *,
     db_path: str | None = None,
@@ -1179,26 +1131,6 @@ def main() -> None:
         help="Generate a new contributor_id (local only, no network). Prior rows become unlinked.",
     )
 
-    coach_p = sub.add_parser(
-        "coach",
-        help="Show your top fixable habits, ranked by measured $ impact (silent if data is thin).",
-        description=(
-            "Surface the top habits from your OWN measured session data — each grounded in a "
-            "sample size (N), a specific action, and a 'measured, not a guarantee' caveat. "
-            "Silent (no fabricated tip) when a pattern hasn't repeated enough times to be honest."
-        ),
-    )
-    coach_p.add_argument(
-        "--db-path", default=None, dest="db_path",
-        metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
-    )
-    coach_p.add_argument(
-        "--top-n", type=int, default=3, dest="top_n",
-        metavar="N",
-        help="Maximum number of habits to show (default: 3).",
-    )
-
     budget_p = sub.add_parser(
         "budget",
         help="Show your rolling-window spend pace and an honest self-trend projection.",
@@ -1280,10 +1212,6 @@ def main() -> None:
             alarm_enabled=args.alarm,
             plan_type=args.plan_type,
         )
-        sys.exit(0)
-
-    if args.command == "coach":
-        _run_coach(db_path=args.db_path, top_n=args.top_n)
         sys.exit(0)
 
     if args.command == "budget":
