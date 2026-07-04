@@ -1,22 +1,47 @@
 # CURRENT_STATE.md — token-efficiency-scorer
 
-Snapshot as of 2026-07-04 (0.10.0 built + tested + committed, PUBLISH ESCALATED —
-0.8.0 remains the live PyPI release). Read this BEFORE planning. This supersedes the
-0.9.0-only snapshot below (kept for its own record; 0.9.0's corpus stays dormant,
-untouched by this phase).
+Snapshot as of 2026-07-04 (0.10.0 LIVE on PyPI — Live Monitor & Cost Alarm; habit
+coach built, held). Read this BEFORE planning. This supersedes the 0.9.0-only
+snapshot below (kept for its own record; 0.9.0's corpus stays dormant, untouched
+by this phase).
 
 ---
 
-## Iteration status: 0.10.0 BUILT, NOT PUBLISHED — Live Monitor & Cost Alarm (coach HELD)
+## Iteration status: 0.10.0 DONE — Live Monitor & Cost Alarm (coach HELD); LIVE on PyPI
 
-**PyPI: still 0.8.0.** `pyproject.toml` carries `version = "0.10.0"`; all code is built,
-tested (643/643 green), and clean-room verified — but publishing is escalated per the
-project's standing rule (see spec.md's escalation rules). Design doc reviewed and approved
-BEFORE any code: `research/13_coach_alarm_honesty_design.md`.
+**Published:** https://pypi.org/project/tracegauge/0.10.0/ — `pip install tracegauge` →
+0.10.0. **Git tag:** `v0.10.0` at commit `887bb1e` — tagged AFTER PyPI post-publish
+verification confirmed (discipline correct). Design doc reviewed and approved BEFORE any
+code: `research/13_coach_alarm_honesty_design.md`.
 
-**Ships: live monitor + cost alarm + budget/pace.** `tes/live_monitor.py`, `tes/alarm.py`,
-`tes/budget.py`; `tes budget`/`tes monitor` CLI commands; `tes serve --alarm --plan`;
-dashboard `/budget`, `/monitor` views.
+**Post-publish verification (real PyPI, 2026-07-04, `tes-postpublish-0100`,
+`--no-default-packages`, fresh env distinct from the pre-publish `tes-verify-0100`):**
+- numpy/tracegauge confirmed absent before install; `pip install --no-cache-dir
+  tracegauge==0.10.0` resolved all declared deps cleanly from the real index.
+- `tes.__file__` from site-packages (not repo), confirmed from a neutral cwd.
+  `tes.__version__ == "0.10.0"`. `tes --version` → `tes 0.10.0` ✓
+- **Prevention layer, from the installed wheel:** `tes monitor` fired on the actual
+  currently-active session (~$43.93 estimated, ~2.21M context tokens, 98% re-send, above
+  its own p75) with the honest `/compact` suggestion. The SAME real below-p75 session used
+  in the pre-publish proof (247,339 vs. p75 447,157 tokens, 96% resend) ran through the
+  published wheel's `check_alarm` and stayed SILENT — no-cry-wolf confirmed shipped, not
+  just built. `tes budget --window-days 60` → labeled self-trend projection, N and window
+  stated, non-forecast caveat present. `tes serve --alarm --plan max` printed `Alarm: ON —
+  plan=max` on startup; `/budget` and `/monitor` both returned 200 from a live running
+  instance of the published wheel.
+- **Coach absence confirmed on the actual shipped surface:** `tes coach` → `invalid choice`
+  (exit 2); `/coach` → 404 from the live running server. Held feature is genuinely absent
+  from what a user gets, not just from the repo.
+- **Regression, from the published wheel:** `tes patterns` → 3 archetypes, footer stamped
+  `tracegauge 0.10.0` ✓. `tes ask "What kind of sessions do I run?"` → answered from local
+  Ollama, metrics-only, unchanged. `tes score` (no path) → frictionless auto-select still
+  works, honest `UNAVAILABLE`/scope-floor framing intact, judge-500 handled gracefully
+  (unchanged from 0.7.1's fix). Dashboard `/`, `/session/<id>`, `/trends`, `/baseline-status`
+  all 200.
+
+**What 0.10.0 ships (live monitor + cost alarm + budget/pace — habit coach HELD):**
+`tes/live_monitor.py`, `tes/alarm.py`, `tes/budget.py`; `tes budget`/`tes monitor` CLI
+commands; `tes serve --alarm --plan`; dashboard `/budget`, `/monitor` views.
 
 **HELD, not shipped: the habit coach.** `tes/coach.py` + `web/templates/coach.html` are
 built and tested (`tests/test_coach_grounded.py`) but deliberately unwired — no `tes coach`
@@ -32,15 +57,15 @@ pass: `research/13_coach_alarm_honesty_design.md`.
 
 Full detail in `CHANGELOG.md`'s `[0.10.0]` entry — including the two scope changes found
 while designing (no compaction-event marker exists in CC transcripts; no rate-limit signal
-exists locally), the real-session live-fire + real-session silence proof (not just
-synthetic), the flat-plan text, the budget projection, and the clean-room verification
+exists locally), the pre-publish real-session live-fire + real-session silence proof, the
+flat-plan text, the budget projection, the pre-publish clean-room verification
 (`tes-verify-0100`, `--no-default-packages`) including a self-caught-and-fixed base-env
-contamination incident.
+contamination incident, and now the post-publish verification above (`tes-postpublish-0100`,
+a separate fresh env, install from the real PyPI index).
 
-**Next step:** publish decision — same escalation gate as every prior release with a
-non-trivial risk surface (this phase's central risk, the coach/alarm honesty design, was
-already reviewed and approved before code, and re-verified against real data before publish;
-the PyPI publish itself is separate).
+**Base env status:** the developer's daily-driver conda `base` env was reconfirmed at the
+real `tracegauge==0.8.0` before, during, and after this entire 0.10.0 cycle — never left in
+a contaminated state despite the earlier `source activate` incident (see CHANGELOG).
 
 ---
 

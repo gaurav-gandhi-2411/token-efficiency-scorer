@@ -5,12 +5,44 @@ All notable changes to **tracegauge** are documented here. This project follows
 conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
-`0.7.1`, and `0.8.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally but
-never published to PyPI. `0.8.0` is the **current published release**. `0.9.0` and
-`0.10.0` (below) are built, tested, and committed, but **deliberately not published**
-pending a publish decision — see each entry for why.
+`0.7.1`, `0.8.0`, and `0.10.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally
+but never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
+published** — see its entry for why (corpus stays dormant). `0.10.0` is the **current
+published release**.
 
-## [0.10.0] — Live Monitor & Cost Alarm (built, tested, verified on real data; publish escalated)
+## [0.10.0] — Live Monitor & Cost Alarm — LIVE on PyPI (habit coach built, HELD)
+
+**Published:** https://pypi.org/project/tracegauge/0.10.0/ — `pip install tracegauge` →
+0.10.0. **Git tag:** `v0.10.0` at commit `887bb1e` — tagged AFTER PyPI post-publish
+verification confirmed (tag discipline correct).
+
+**Post-publish verification (real PyPI, 2026-07-04, `tes-postpublish-0100`,
+`--no-default-packages`, a fresh env distinct from the pre-publish `tes-verify-0100`):**
+- numpy/tracegauge confirmed absent before install; `pip install --no-cache-dir
+  tracegauge==0.10.0` resolved cleanly from the real index (not a local wheel).
+- `tes.__file__` from site-packages (not repo), confirmed from a neutral cwd.
+  `tes --version` → `tes 0.10.0` ✓
+- `tes monitor` fired on the actual currently-active session from the installed wheel
+  (~$43.93 estimated, ~2.21M context tokens, 98% re-send, above its own p75). The same real
+  below-p75 session used in the pre-publish proof, run through the published wheel's
+  `check_alarm`, stayed SILENT (247,339 vs. p75 447,157 tokens, 96% resend) — no-cry-wolf
+  confirmed SHIPPED, not just built.
+- `tes budget --window-days 60` → labeled self-trend projection from the installed wheel,
+  N/window stated, non-forecast caveat present.
+- `tes serve --alarm --plan max` printed `Alarm: ON — plan=max` on startup; `/budget` and
+  `/monitor` both returned 200 from a live running instance of the published wheel.
+- `tes coach` → `invalid choice` (exit 2); `/coach` → 404 from the live server — the held
+  feature is genuinely absent from what a user gets, confirmed on the actual shipped
+  surface, not just the repo.
+- Regression: `tes patterns` → footer stamped `tracegauge 0.10.0`, 3 archetypes; `tes ask`
+  answered from local Ollama unchanged; `tes score` (no path) frictionless auto-select still
+  works with honest scope-floor framing; `/`, `/session/<id>`, `/trends`, `/baseline-status`
+  all 200.
+- Developer's base conda env reconfirmed at the real `tracegauge==0.8.0` before, during, and
+  after this entire verification pass — the `source activate` incident from pre-publish
+  verification (see below) was fully remediated and did not recur.
+
+## [0.10.0 pre-publish build record]
 
 **This release ships live monitor + cost alarm + budget/pace. The habit coach is BUILT
 but HELD — not shipped this release.** Say what it does, not more: `tes coach` and the
@@ -130,12 +162,10 @@ showing the wrong location, remediated by reinstalling `tracegauge==0.8.0` from 
 base, and reconfirmed clean from a neutral cwd before and after the actual clean-room test
 (done correctly the second time via the verify env's `python.exe` by full path).
 
-**NOT done, by choice:** PyPI publish — escalated per the project's standing rule (this
-phase's central risk was the coach/alarm honesty design, which was reviewed and approved
-BEFORE code, and re-verified against real data before publish; the publish itself is a
-separate, always-escalated action). The habit coach is built and tested but not part of this
-release — see the addendum in `research/13_coach_alarm_honesty_design.md` for what a future
-fix needs before it ships.
+**Published 2026-07-04** — see the post-publish verification entry at the top of this
+`[0.10.0]` section. The habit coach is built and tested but not part of this release — see
+the addendum in `research/13_coach_alarm_honesty_design.md` for what a future fix needs
+before it ships.
 
 ## [0.9.0] — Community Corpus (built and tested; NOT published — corpus stays dormant)
 
