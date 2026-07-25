@@ -57,12 +57,23 @@ jobs:
         continue-on-error: true
         run: uv run mypy src/ tes/
 
-      # test_cluster_validity.py's "real corpus" fixtures read the actual
-      # local ~/.claude/projects session history and need >=30 real
-      # sessions to exercise clustering meaningfully — a machine-state
-      # dependency no CI runner can satisfy. Pre-existing test-portability
-      # gap, not something this workflow can fix without a bundled fixture
-      # corpus; excluded here rather than left to fail non-deterministically
-      # by however much local history the runner happens to have.
+      # test_cluster_validity.py and test_chat_grounding.py's
+      # TestContextFormatUnambiguous class both read the actual local
+      # ~/.claude/projects session history (via _load_real_corpus /
+      # get_or_compute_intelligence) and need >=30 real content sessions to
+      # exercise clustering/pattern-analysis meaningfully — a machine-state
+      # dependency no CI runner can satisfy (verified: they pass on a dev
+      # machine with real session history, fail identically-for-that-reason
+      # on a fresh runner with zero). Pre-existing test-portability gap, not
+      # something this workflow can fix without a bundled fixture corpus;
+      # excluded here rather than left to fail non-deterministically by
+      # however much local history the runner happens to have. Every other
+      # test file that touches this code path (test_anomaly_threshold.py,
+      # test_small_corpus_honest_path.py, test_web_patterns.py,
+      # test_route_registration.py) already handles it correctly via
+      # pytest.skip or a mocked/synthetic corpus and is NOT excluded.
       - name: Unit tests
-        run: uv run pytest --ignore=tests/test_cluster_validity.py
+        run: |
+          uv run pytest \
+            --ignore=tests/test_cluster_validity.py \
+            --deselect=tests/test_chat_grounding.py::TestContextFormatUnambiguous
