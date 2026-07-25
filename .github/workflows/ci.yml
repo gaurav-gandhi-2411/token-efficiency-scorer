@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Non-blocking: this repo never had ruff enforced before this workflow
+      # (608 pre-existing findings as of 2026-07-26, none introduced by this
+      # change). Kept visible rather than silently passing; tightening to
+      # blocking is a follow-up once the backlog is triaged, not a
+      # prerequisite for CI existing at all.
+      - name: Lint (ruff check, informational)
+        continue-on-error: true
+        run: uv run ruff check .
+
+      # Non-blocking, same reason as lint above: 134 pre-existing files don't
+      # match ruff's format yet. Reformatting them is a legitimate, safe,
+      # mechanical follow-up (verified: ruff format . + a full test run is
+      # clean) but it's a 134-file diff unrelated to this change, so it's
+      # left for its own separate PR rather than bundled here.
+      - name: Format check (ruff format, informational)
+        continue-on-error: true
+        run: uv run ruff format --check .
+
+      # Non-blocking: [tool.mypy] has declared strict=true since before this
+      # workflow existed, but mypy was never actually runnable (numpy's
+      # stubs need python_version >= 3.12, this project's config said 3.11 —
+      # fixed here) and surfaces 125 pre-existing findings once it can run.
+      # None introduced by this change; same tightening note as lint above.
+      - name: Type check (mypy, informational)
+        continue-on-error: true
+        run: uv run mypy src/ tes/
+
+      # test_cluster_validity.py's "real corpus" fixtures read the actual
+      # local ~/.claude/projects session history and need >=30 real
+      # sessions to exercise clustering meaningfully — a machine-state
+      # dependency no CI runner can satisfy. Pre-existing test-portability
+      # gap, not something this workflow can fix without a bundled fixture
+      # corpus; excluded here rather than left to fail non-deterministically
+      # by however much local history the runner happens to have.
+      - name: Unit tests
+        run: uv run pytest --ignore=tests/test_cluster_validity.py

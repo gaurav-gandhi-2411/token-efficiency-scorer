@@ -32,6 +32,22 @@ dependencies = [
     "scikit-learn>=1.3,<2",
 ]
 
+[dependency-groups]
+# Wave 15 (gg-portfolio) — this repo had no declared dev dependencies at all;
+# lint/type-check/test were only ever run against a global/conda environment,
+# never reproducibly. Needed to make CI (added this same change) actually work.
+dev = [
+    "ruff>=0.15,<1",
+    "mypy>=1.14,<2",
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.25,<1",
+    "pytest-cov>=6.0,<7",
+    # tests/test_public_adapter.py + scripts/public_trace_adapter.py (the
+    # opt-in community-corpus feature) read/write parquet via pandas.
+    "pandas>=2.0,<3",
+    "pyarrow>=15,<21",
+]
+
 [project.urls]
 Repository = "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer"
 
@@ -57,7 +73,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 warn_unused_ignores = true
