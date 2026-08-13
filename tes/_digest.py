@@ -1,3 +1,15 @@
+# Copyright 2026 Gaurav Gandhi
+#
+# Dual-licensed. You may use this file under the terms of either:
+#   - the GNU Affero General Public License v3.0 only (AGPL-3.0-only), or
+#   - the Apache License, Version 2.0 (Apache-2.0),
+# at your option.
+#
+# SPDX-License-Identifier: AGPL-3.0-only OR Apache-2.0
+#
+# AGPL-3.0-only text: see LICENSE in the repository root.
+# Apache-2.0 text: see LICENSE-APACHE in the repository root.
+
 from __future__ import annotations
 
 """tes/_digest.py — Shared digest dataclasses used by tes.adapt and tes.judge.

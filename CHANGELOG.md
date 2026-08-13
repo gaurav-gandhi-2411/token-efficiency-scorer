@@ -7,8 +7,44 @@ conventions.
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
 `0.7.1`, `0.8.0`, and `0.10.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally
 but never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
-published** — see its entry for why (corpus stays dormant). `0.10.0` is the **current
-published release**.
+published** — see its entry for why (corpus stays dormant). `0.10.1` is built, tested, and
+committed — **not yet published**; see its entry below for exact publish/verify/tag commands.
+`0.10.0` is the **current published release** until `0.10.1` ships.
+
+## [0.10.1] — Apache-2.0 dual-license the cost module — BUILT, NOT YET PUBLISHED
+
+**Published:** _pending — this entry documents what ships when it does; fill in the actual
+PyPI URL, publish date, and tag commit once the commands below have been run._
+
+**What changed, and why:** `tes/cost.py` and `tes/_digest.py` are now additionally available
+under Apache-2.0 (see [LICENSE-APACHE](LICENSE-APACHE)), on top of this project's
+AGPL-3.0-only license — everything else in the repo stays AGPL-3.0-only. Standard SPDX
+dual-license header (`AGPL-3.0-only OR Apache-2.0`) on both files, no bespoke terms. This
+exists so a downstream package —
+[adk-tracegauge](https://github.com/gaurav-gandhi-2411/adk-tracegauge), a per-invocation
+cost evaluator for Google's Agent Development Kit built on this module — can depend on the
+cost-computation code as a library without inheriting AGPL's copyleft. Scope of the grant
+confirmed via a dependency-graph check: `cost.py` imports only `tes._digest` (plus stdlib);
+`_digest.py` imports nothing from this package at all — nothing else is pulled into the
+permissive grant.
+
+**Packaging fix bundled with the same change:** `pyproject.toml`'s `license-files` only
+listed `LICENSE` (the AGPL text) — the built wheel/sdist would have shipped without
+`LICENSE-APACHE` in its own `dist-info/licenses/`, leaving the dual-license disclosure only
+in the two source files' header comments, not in the distribution's license metadata. Fixed
+by adding `LICENSE-APACHE` to `license-files`. Verified twice via a fresh `uv build`:
+`tracegauge-0.10.0.dist-info/licenses/` (pre-bump) contains both `LICENSE` and
+`LICENSE-APACHE`.
+
+**No functional/behavioral changes.** `tes/cost.py`'s and `tes/_digest.py`'s actual code is
+byte-for-byte unchanged except for the added header comments — every existing cost
+computation produces identical output. Patch version bump reflects that.
+
+**Publish checklist (see commands below):** build → publish → post-publish verify (fresh
+env, real PyPI index, confirm `tes --version` reports `0.10.1` and
+`tracegauge-0.10.1.dist-info/licenses/LICENSE-APACHE` is present in the installed package) →
+tag `v0.10.1` only after verification passes, per this project's established discipline of
+tagging after publish confirms, not before.
 
 ## [0.10.0] — Live Monitor & Cost Alarm — LIVE on PyPI (habit coach built, HELD)
 

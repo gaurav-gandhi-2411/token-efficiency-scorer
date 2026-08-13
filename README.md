@@ -213,7 +213,7 @@ The scoring components were validated through a five-phase credibility arc (B1�
 
 ## License
 
-[AGPL-3.0](LICENSE) — free to use and self-host; any modified version distributed as a network service must publish its source under the same license.
+[AGPL-3.0-only](LICENSE) — free to use and self-host; any modified version distributed as a network service must publish its source under the same license. Exception: `tes/cost.py` and `tes/_digest.py` are additionally available under [Apache-2.0](LICENSE-APACHE). This lets downstream packages — e.g. [adk-tracegauge](https://github.com/gaurav-gandhi-2411/adk-tracegauge) — depend on the cost-computation module without inheriting AGPL's copyleft terms. Every other file in this repository remains AGPL-3.0-only.
 
 ---
 
