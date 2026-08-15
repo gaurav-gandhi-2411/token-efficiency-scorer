@@ -1,6 +1,6 @@
 #!/bin/bash
 # provision_gpu_vm_b2.sh — Run LOCALLY to provision the B2 pool scoring VM.
-# Creates tes-pool-scoring-b2-tmp spot VM in aetherart-497918.
+# Creates tes-pool-scoring-b2-tmp spot VM in aetherart-prod-260814.
 #
 # Primary zone: asia-east1-a (confirmed available in B1 reports 06/07)
 # Fallback zone: asia-east1-b
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PROJECT="aetherart-497918"
+PROJECT="aetherart-prod-260814"
 VM_NAME="tes-pool-scoring-b2-tmp"
 ZONE="${1:-asia-east1-a}"
 FALLBACK_ZONE="asia-east1-b"
@@ -35,7 +35,7 @@ print(int(q['limit']) if q else 0)
 ")
 if [[ "$GLOBAL_LIMIT" -eq 0 ]]; then
   echo "ERROR: GPUS_ALL_REGIONS limit is still 0. Wait for quota approval."
-  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=aetherart-497918"
+  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=aetherart-prod-260814"
   exit 1
 fi
 echo "[$(date)] GPUS_ALL_REGIONS limit = $GLOBAL_LIMIT — quota approved."
