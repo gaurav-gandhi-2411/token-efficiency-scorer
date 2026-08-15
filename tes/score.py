@@ -162,6 +162,10 @@ class ThreeAxisResult:
     session_cost_usd: float | None = None
     cost_approximate: bool = False
     cost_domain_of_validity: str = ""
+    # Added 0.10.2 (S1 fix): distinct warnings for server-side tool usage
+    # (e.g. web search) detected but not reflected in session_cost_usd. Empty
+    # list when none detected. See tes.cost.SessionCost.server_tool_warnings.
+    cost_server_tool_warnings: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +438,7 @@ def score_session(
     cost_usd = session_cost.total_usd if session_cost else None
     cost_approx = session_cost.approximate if session_cost else False
     cost_dov = session_cost.domain_of_validity if session_cost else ""
+    cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
 
     # Use API-specific DOV when the judge_entry came from the API path.
     # The API judge uses the validated rubric but on a model NOT validated in B3.
@@ -473,6 +478,7 @@ def score_session(
         session_cost_usd=cost_usd,
         cost_approximate=cost_approx,
         cost_domain_of_validity=cost_dov,
+        cost_server_tool_warnings=cost_server_tool_warnings,
     )
 
 
