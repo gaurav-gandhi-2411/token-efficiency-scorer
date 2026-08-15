@@ -162,7 +162,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN not set."
     echo "  Retrieve manually:"
-    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/cc_judge_scores.jsonl data/cc_judge_scores.jsonl --zone=asia-east1-a --project=example-project-000002"
+    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/cc_judge_scores.jsonl data/cc_judge_scores.jsonl --zone=asia-east1-a --project=example-project-000001"
 else
     git config user.email "gaurav.gandhi2411@gmail.com"
     git config user.name "gaurav-gandhi-2411"
