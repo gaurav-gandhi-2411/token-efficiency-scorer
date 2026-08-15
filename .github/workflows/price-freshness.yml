@@ -1,0 +1,50 @@
+name: Price table freshness
+
+# Fails when any non-retired entry in tes/data/prices.json is older than
+# tes.cost.STALE_THRESHOLD_DAYS (90 days). Pure date arithmetic against the
+# bundled JSON file -- no network calls, no paid API calls, zero cost. A red
+# run here means an entry needs re-verifying against its own source_url (see
+# the script's output for which one), not that anything in this repo is
+# broken.
+#
+# Added 0.10.2 (S1 audit fix, adapted from adk-tracegauge's own
+# price-freshness.yml): before this workflow existed, prices.json had zero
+# CI staleness signal of any kind and went 67 days stale with nobody
+# noticing -- this is exactly the gap that let the missing
+# claude-opus-5/claude-sonnet-5 entries (S1's mainline finding) go
+# undetected for as long as they did.
+#
+# Weekly cadence, not daily: the threshold is measured in months (90 days),
+# so a week's detection lag is negligible against that window, and running
+# daily would just add 7x the CI noise for zero earlier warning in practice.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # every Monday 08:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  price-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Check price table freshness
+        run: uv run python scripts/check_price_freshness.py

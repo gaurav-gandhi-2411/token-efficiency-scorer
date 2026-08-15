@@ -6,6 +6,13 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
 [![PyPI](https://img.shields.io/pypi/v/tracegauge.svg)](https://pypi.org/project/tracegauge/)
 
+> **Note — 0.10.2 (built, not yet published) is a BREAKING bug-fix release for SDK users.**
+> Unknown/unresolvable models used to silently return a guessed price (defaulting to
+> `claude-sonnet-4-6`'s rate); they now return an explicit unpriced result instead
+> (`priced=False`, `total_usd=0.0`). If you call `tes.cost.compute_turn_cost`/
+> `compute_session_cost` directly and read `total_usd`, see the `[0.10.2]` entry in
+> [CHANGELOG.md](CHANGELOG.md) for the exact migration path before upgrading.
+
 ---
 
 ## Features

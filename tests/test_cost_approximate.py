@@ -70,6 +70,11 @@ def test_unknown_model_is_approximate() -> None:
     tc = compute_turn_cost(turn, PRICES)
     assert tc.is_approximate is True
     assert "unknown model" in tc.approximate_reason
+    # 0.10.2 (S1 fix): an unresolved model must NEVER be priced at the
+    # default_model's rate -- total_usd is 0.0, not a guessed dollar figure.
+    assert tc.priced is False
+    assert tc.total_usd == 0.0
+    assert tc.model_key == "claude-unknown-99"
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +85,8 @@ def test_empty_model_is_approximate() -> None:
     turn = _ai_turn(0, "")
     tc = compute_turn_cost(turn, PRICES)
     assert tc.is_approximate is True
+    assert tc.priced is False
+    assert tc.total_usd == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -135,3 +142,24 @@ def test_session_at_threshold_8_turns_not_approximate() -> None:
     ]
     sc = compute_session_cost(_session(turns), PRICES)
     assert sc.approximate is False
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — 0.10.2 (S1 fix): session total_usd excludes unresolved-model
+# turns entirely -- it must equal exactly the sum of the KNOWN turns' costs,
+# never a total that silently includes a guessed/default-rate dollar amount
+# for the unresolved ones.
+# ---------------------------------------------------------------------------
+
+def test_session_total_excludes_unpriced_turns_not_guesses_them() -> None:
+    known_turn = _ai_turn(0, "claude-sonnet-4-6")
+    unknown_turn = _ai_turn(1, "totally-unrecognized-model-xyz")
+
+    known_only_cost = compute_session_cost(_session([known_turn]), PRICES).total_usd
+    mixed_cost = compute_session_cost(_session([known_turn, unknown_turn]), PRICES).total_usd
+
+    # Adding an unresolved-model turn must not change the total at all --
+    # if it silently priced at a default rate, mixed_cost would be strictly
+    # greater than known_only_cost.
+    assert mixed_cost == known_only_cost
+    assert mixed_cost > 0.0
