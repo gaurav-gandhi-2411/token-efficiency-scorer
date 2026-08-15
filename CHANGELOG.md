@@ -14,6 +14,36 @@ publish/verify/tag commands. `0.10.0` is the **current published release** until
 
 ## [0.10.2] — Pricing-defect bug-fix release — BUILT, NOT YET PUBLISHED
 
+### BREAKING: unresolved models no longer return a guessed price
+
+**Unknown/unresolvable models previously returned a guessed rate — silently defaulting to
+`claude-sonnet-4-6`'s pricing. They now return an explicit unpriced result instead.** If your
+code calls `tes.cost.compute_turn_cost`/`compute_session_cost` and reads `total_usd` off the
+result, it can no longer assume that number is always a real, usable dollar figure — for a
+model `tes` doesn't recognize, `total_usd` is now `0.0` by construction, not a wrong-but-
+plausible guess. Read "Migration" immediately below before relying on this release.
+
+**Migration — if you call `tes.cost.compute_turn_cost`/`compute_session_cost` directly:**
+
+- `TurnCost` gained a `priced: bool` field (default `True`). Check `turn_cost.priced` before
+  trusting `turn_cost.total_usd`. `priced=False` means `total_usd == 0.0` by construction
+  (never a guessed/default-rate figure), and `turn_cost.approximate_reason` names the
+  unresolved model plus the exact remedy (set `TES_PRICE_TABLE`, add an entry to
+  `~/.tes/prices.json`, or file an issue).
+- `SessionCost.approximate` (existing field, now correctly populated) is `True` whenever any
+  turn in the session was unresolved; `SessionCost.approximate_reasons` (existing field) lists
+  the distinct reasons; `SessionCost.approximate_turn_count` gives the count of affected turns.
+  `SessionCost.total_usd` already excludes unpriced turns (they contribute `$0.00`, not a wrong
+  dollar amount), so a session with unresolved-model turns reports a lower, honest total rather
+  than a wrong-but-confident one.
+- What to do with a `priced=False`/`approximate=True` result depends on the caller — there is
+  no single correct answer, which is exactly why `tes` no longer picks one silently on your
+  behalf. Sensible patterns: skip the unpriced turn/session from any aggregate spend total
+  instead of silently counting it as `$0` of real cost; surface `approximate_reason`/
+  `approximate_reasons` to the end user so they know the total is a floor, not the true cost;
+  or, if a caller needs a number regardless, apply its own explicit fallback rate rather than
+  relying on `tes` to have guessed one for it.
+
 **This is a bug-fix release correcting real mispricing in a published, actively-installed
 package — not a routine update.** `tracegauge==0.10.1` is live on PyPI today (169
 downloads/week per pypistats, an upper bound; 10 releases since 2026-06-07 — actively
