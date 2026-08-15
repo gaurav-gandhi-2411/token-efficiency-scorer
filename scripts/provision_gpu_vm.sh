@@ -1,6 +1,6 @@
 #!/bin/bash
 # provision_gpu_vm.sh — Run LOCALLY after GPUS_ALL_REGIONS quota is approved.
-# Creates tes-judge-scoring-tmp spot VM in aetherart-497918.
+# Creates tes-judge-scoring-tmp spot VM in aetherart-prod-260814.
 #
 # Usage: bash scripts/provision_gpu_vm.sh [ZONE]
 #   ZONE defaults to us-central1-a; pass us-central1-b as $1 if -a is out of spot capacity.
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-PROJECT="aetherart-497918"
+PROJECT="aetherart-prod-260814"
 VM_NAME="tes-judge-scoring-tmp"
 ZONE="${1:-us-central1-a}"
 FALLBACK_ZONE="us-central1-b"
@@ -32,7 +32,7 @@ print(int(q['limit']) if q else 0)
 ")
 if [[ "$GLOBAL_LIMIT" -eq 0 ]]; then
   echo "ERROR: GPUS_ALL_REGIONS limit is still 0. Wait for quota approval."
-  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=aetherart-497918"
+  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=aetherart-prod-260814"
   exit 1
 fi
 echo "[$(date)] GPUS_ALL_REGIONS limit = $GLOBAL_LIMIT — quota approved."
