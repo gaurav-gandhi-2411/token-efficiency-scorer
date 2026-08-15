@@ -90,7 +90,7 @@ def test_bundled_table_loads_when_no_override(monkeypatch: pytest.MonkeyPatch) -
     with patch("tes.cost.Path.home", return_value=Path("/nonexistent_temp_home_xyz")):
         table = load_price_table()
 
-    assert table["as_of"] == "2026-06-09"
+    assert table["as_of"] == "2026-08-15"
     assert "claude-sonnet-4-6" in table["models"]
 
 

@@ -7,9 +7,121 @@ conventions.
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
 `0.7.1`, `0.8.0`, and `0.10.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally
 but never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
-published** — see its entry for why (corpus stays dormant). `0.10.1` is built, tested, and
-committed — **not yet published**; see its entry below for exact publish/verify/tag commands.
-`0.10.0` is the **current published release** until `0.10.1` ships.
+published** — see its entry for why (corpus stays dormant). `0.10.1` and `0.10.2` are built,
+tested, and committed — **not yet published**; see their entries below for exact
+publish/verify/tag commands. `0.10.0` is the **current published release** until `0.10.1`/
+`0.10.2` ship.
+
+## [0.10.2] — Pricing-defect bug-fix release — BUILT, NOT YET PUBLISHED
+
+**This is a bug-fix release correcting real mispricing in a published, actively-installed
+package — not a routine update.** `tracegauge==0.10.1` is live on PyPI today (169
+downloads/week per pypistats, an upper bound; 10 releases since 2026-06-07 — actively
+maintained and installed, not dormant) and, until this release, silently mispriced every
+real `claude-opus-5`/`claude-sonnet-5` Claude Code session — the current Claude flagship
+models, and very likely the *mainline* real-world case, since this package's whole purpose
+is scoring Claude Code sessions. Found and reported (not fixed) in a prior read-only audit
+(see `adk-tracegauge`'s Phase 5 S1 report, a sibling package by the same author); this
+release is that audit's recommended `0.10.2` patch, implemented.
+
+**1. Fixed: `claude-opus-5`/`claude-sonnet-5` were missing from the price table and
+silently fell through to a stale default-model rate (root cause).** `tes/cost.py`'s
+`_resolve_model` had no entry for either model, so both fell through to
+`prices["default_model"]` (`claude-sonnet-4-6`, $3/$15 per Mtok) with only a buried
+`is_approximate` flag — no direction, no magnitude, and (in `tes/cli.py`, the primary CLI
+surface) no visible indication at all beyond raw JSON fields. Concretely, for a realistic
+single call (10,000 input tokens, 2,000 output tokens, no cache):
+  - **claude-sonnet-5**: pre-fix charged **$0.06** (wrong default rate) vs. the real
+    **$0.04** — a **50% overcharge** (+$0.02).
+  - **claude-opus-5**: pre-fix charged **$0.06** (wrong default rate) vs. the real
+    **$0.10** — a **40% undercharge** (−$0.04, i.e. only 60% of true cost reported).
+
+  Added both models to `tes/data/prices.json` with real rates fetched live from
+  `platform.claude.com/docs/en/about-claude/pricing` on 2026-08-15 (`claude-opus-5`:
+  $5.00/$25.00 per Mtok; `claude-sonnet-5`: $2.00/$10.00 per Mtok — confirmed the
+  previously-introductory $2/$10 rate is now the permanent standard rate, not a promo
+  scheduled to expire 2026-08-31). Also added `claude-fable-5` and `claude-mythos-5`
+  ($10/$50 per Mtok each), the two other current Claude models missing from the table.
+
+**2. Fixed: unresolved models are never priced at a guessed/default rate again (the actual
+S1 root-cause fix, not just a data patch).** `_resolve_model` now returns `None` (never a
+default key) for a model string that doesn't match any table entry or pattern —
+`compute_turn_cost` returns an explicit unpriced result (`priced=False`, `total_usd=0.0`,
+`approximate_reason` naming the model and the exact remedy: set `TES_PRICE_TABLE`, add an
+entry to `~/.tes/prices.json`, or file an issue) instead of silently substituting
+`default_model`'s rate. This is the general fix behind items above and behind any future
+new model that ships without a price-table entry — mirrors `adk-tracegauge`'s own B1 fix
+(fail closed, never guess). **Behavior change:** `SessionCost.total_usd` now excludes
+unresolved-model turns entirely (contributes $0.00, not a wrong dollar figure) — a session
+with unresolved-model turns reports a lower, honest total rather than a wrong-but-confident
+one; `SessionCost.approximate`/`approximate_reasons` (unchanged fields, now correctly
+populated) is the loud, always-checked signal that the total is a floor, not the true cost.
+Any external caller of `tes.cost.compute_turn_cost`/`compute_session_cost` relying on
+always getting a nonzero dollar figure for an unresolved model will now see `$0.00` +
+`is_approximate=True`/`priced=False` instead — this is the correction, not a regression;
+see `tests/test_cost_unpriced.py` for the structural guard that no code path can return a
+confidently-priced result for a model absent from the table. `TurnCost` gains a new
+`priced: bool` field (defaults `True`) alongside the existing `is_approximate`/
+`approximate_reason` fields.
+
+**3. Fixed: server-side tool billing (e.g. web search) is now flagged instead of silently
+dropped.** `tes/adapt.py`'s usage parser previously read only 4 token-count fields from a
+turn's raw `usage` dict and never looked at `usage.server_tool_use` (e.g.
+`{"web_search_requests": N}`, billed at $10/1,000 searches on top of token costs) — a
+session with 20 web-search calls silently dropped $0.20 of real cost with zero warning of
+any kind, worse than the unresolved-model case (which at least set a flag). `TurnDigest`
+gains a `server_tool_use: dict[str, int] | None` field (populated by
+`tes.adapt._parse_server_tool_use`); `TurnCost`/`SessionCost` gain `server_tool_warning`/
+`server_tool_warnings` fields that name the detected-but-unpriced usage; `tes/report.py`
+prints a `[NOT PRICED: ...]` line whenever any turn triggers this. **This does not attempt
+to price server-tool usage** — that would require confirming which token fields (if any)
+already reflect search-generated content, a larger change than this minimal fix — the
+honest minimum is a loud warning rather than a silent gap. `ThreeAxisResult` gains a
+`cost_server_tool_warnings: list[str]` field (default `[]`).
+
+**4. Added: a 90-day staleness guard + weekly CI job, ported from `adk-tracegauge`'s own
+`price-freshness.yml`.** Before this, `tes/data/prices.json` had zero staleness signal of
+any kind and had gone 67 days stale with nobody noticing before the S1 audit caught it —
+this is the gap that let the missing flagship-model entries above go undetected for as
+long as they did. Every price-table entry now carries its own `as_of`/`source_url`
+(falling back to the table-level `as_of` when absent); `tes.cost.check_price_table_staleness`
+flags any non-retired entry older than `STALE_THRESHOLD_DAYS` (90); retired legacy models
+(`claude-3-opus`, `claude-3-5-sonnet`, etc. — kept only to price historical sessions) are
+marked `"retired": true` and exempt, since Anthropic doesn't change pricing for a retired
+model. `.github/workflows/price-freshness.yml` (new) runs
+`scripts/check_price_freshness.py` every Monday — pure date arithmetic, no network calls,
+no paid API calls. Deliberately minimum-viable: does **not** port promo-expiry handling,
+tiering, multi-provider support, or the regression gate — that is Phase 7's larger,
+full-engine-move scope (see `adk-tracegauge`'s Phase 5 S2 recommendation), out of bounds
+for this bug-fix release.
+
+**Downstream-dependent check (done, per the audit mandate):** `tracegauge`'s own test suite
+(`tests/test_cost_approximate.py`) previously asserted `compute_turn_cost`/
+`compute_session_cost` return a numeric result for an unknown model without checking
+whether that number was *correct* — those tests are updated in this release to assert the
+new fail-closed behavior explicitly (`priced=False`, `total_usd == 0.0`), which is itself
+the signal that a real external caller relying on the old default-rate behavior would break
+in the same way. No public "used by" listing exists on PyPI or GitHub for `tracegauge`
+beyond `adk-tracegauge` (which already removed its dependency, per its own Phase 4 R5, and
+is unaffected by this release either way); a GitHub code search for `from tes` / `import
+tes` outside these two repos found no other real consumer as of this release. This does not
+rule out unlisted private/internal users — the pypistats download count (169/week) is
+consistent with real usage the two known repos don't account for — which is exactly why
+this ships as a `0.10.2` patch with the fix fully backward-compatible in the success case
+(every model that resolved correctly before still resolves identically) rather than a
+breaking major-version change.
+
+**Tests:** `tests/test_cost_unpriced.py` (new) — structural guard mirroring
+`adk-tracegauge`'s own B1 test pattern (direct assertion + a parametrized property sweep
+over a dozen synthetic unresolvable model strings, asserting `priced=False`/`total_usd ==
+0.0` for every one, and the inverse for every active bundled model), plus the exact
+live-verified new-model rates and the realistic-call dollar-magnitude regression above.
+`tests/test_price_freshness.py` (new) — `check_price_table_staleness` boundary/retired/
+inheritance/fail-closed behavior, plus a regression test that the actual bundled table is
+fresh as of its own `as_of`. `tests/test_server_tool_warning.py` (new) — detection,
+propagation through `TurnCost`/`SessionCost`/`ThreeAxisResult`, and the `[NOT PRICED: ...]`
+report line. `tests/test_cost_approximate.py`, `tests/test_price_override.py` updated for
+the new fail-closed behavior and the bumped `as_of`.
 
 ## [0.10.1] — Apache-2.0 dual-license the cost module — BUILT, NOT YET PUBLISHED
 

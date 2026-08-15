@@ -153,9 +153,12 @@ def format_human(
         lines.append(f"         {provenance_line}")
         if result.cost_approximate:
             lines.append(
-                "         [APPROXIMATE: some turns priced at default rate — "
+                "         [APPROXIMATE: some turns had an unresolvable model and are "
+                "EXCLUDED from this total (never priced at a guessed/default rate) — "
                 "see cost_domain_of_validity]"
             )
+        for warning in result.cost_server_tool_warnings:
+            lines.append(f"         [NOT PRICED: {warning}]")
 
     lines.append("")
     lines.append(_wrap(
