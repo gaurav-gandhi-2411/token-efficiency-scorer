@@ -38,6 +38,14 @@ class TurnDigest:
     h2_duplicate: bool          # True if annotation flagged this turn as llm_h2_duplicate_message
     cache_creation: int = 0    # cache_creation_input_tokens for this turn (cost use only)
     model: str = ""            # model string for this turn, e.g. "claude-sonnet-4-6"
+    # Added 0.10.2 (S1 fix): raw usage.server_tool_use counts from the Claude
+    # API response (e.g. {"web_search_requests": 2}), when present and
+    # non-empty. None when the field was absent/empty on this turn's raw
+    # usage dict -- distinct from an empty dict, though tes.adapt never
+    # actually produces an empty dict (see adapt.py's _parse_usage). Cost
+    # computation (tes.cost) reads this to warn that server-side tool
+    # billing is not reflected in total_usd, never to price it.
+    server_tool_use: dict[str, int] | None = None
 
 
 @dataclass

@@ -145,6 +145,31 @@ def _parse_usage(usage: dict[str, Any]) -> tuple[int, int, int, int]:
     )
 
 
+def _parse_server_tool_use(usage: dict[str, Any]) -> dict[str, int] | None:
+    """Extract ``usage.server_tool_use`` counts (e.g. ``{"web_search_requests": 2}``)
+    from a raw Claude API usage dict, when present and non-empty.
+
+    Added 0.10.2 (S1 fix): before this, these counts were silently dropped —
+    ``_parse_usage`` above reads only 4 token-count fields, and nothing in
+    this module looked at ``server_tool_use`` at all, so a session with
+    server-side tool calls (e.g. web search, billed at $10/1,000 searches on
+    top of token costs) was priced as if those calls never happened, with
+    zero warning. This function only detects and surfaces the counts —
+    tes.cost uses them to emit an explicit warning (never to compute a
+    price; see tes/cost.py's _server_tool_warning docstring for why not).
+
+    Returns None when the field is absent, not a dict, or every count in it
+    is zero/falsy -- distinguishing "no server-side tool usage" from "usage
+    present but nothing billable" isn't needed downstream, so both collapse
+    to None (nothing to warn about).
+    """
+    raw = usage.get("server_tool_use")
+    if not isinstance(raw, dict):
+        return None
+    counts = {str(k): int(v) for k, v in raw.items() if isinstance(v, int | float) and v}
+    return counts or None
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -207,6 +232,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             usage: dict[str, Any] = message.get("usage", {})
             inp, cache_cr, cache_rd, out = _parse_usage(usage)
+            server_tool_use = _parse_server_tool_use(usage)
             model_str: str = message.get("model", "")
 
             sum_input += inp
@@ -233,6 +259,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                     h2_duplicate=False,
                     cache_creation=cache_cr,
                     model=model_str,
+                    server_tool_use=server_tool_use,
                 )
             )
             turn_index += 1
