@@ -30,6 +30,15 @@ Local by default: scoring and the dashboard make zero external network calls. Th
 
 ---
 
+## Try it right now — no local judge, no API key, no network call
+
+```bash
+pip install tracegauge
+tracegauge quickstart
+```
+
+Two commands. Scores a bundled sample Claude Code session (token economy, deterministic waste detection, cost annotation) and prints a real three-axis report — nothing read from your machine, no local Ollama probe, no consent prompt. **Measured live, not estimated: 1.2s wall-clock from a genuine fresh `pip install --user` on Windows to the printed report.**
+
 ## Quick start
 
 The tool already knows where your sessions live (`~/.claude/projects`). You don't type paths or memorize flags — **just run `tes`**.

@@ -921,6 +921,14 @@ def main() -> None:
         help="Anthropic API key (default: ANTHROPIC_API_KEY env var).",
     )
 
+    sub.add_parser(
+        "quickstart",
+        help=(
+            "Score a bundled sample Claude Code session -- no files to create, no local judge, "
+            "no network call. Prints a real three-axis report immediately after install."
+        ),
+    )
+
     backfill_p = sub.add_parser(
         "backfill-waste",
         help="Re-run frozen detectors on all stored sessions; fix stale waste counts.",
@@ -1184,6 +1192,24 @@ def main() -> None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
         # (`tes --help` still shows help; `tes <unknown>` still errors via argparse.)
         _run_serve()
+        sys.exit(0)
+
+    if args.command == "quickstart":
+        from importlib import resources
+
+        print(
+            "tracegauge quickstart -- no local judge, no network call, no files of yours read.\n"
+            "Scoring a bundled sample Claude Code session (token economy, deterministic waste "
+            "detection, cost annotation -- the trajectory-quality axis is skipped, since that "
+            "needs a local Ollama judge or an API key, neither required for this demo).\n"
+        )
+        sample_path = resources.files("tes.data") / "quickstart_sample_session.jsonl"
+        with resources.as_file(sample_path) as concrete_path:
+            score_path(concrete_path, load_baselines(), JudgeConfig(), use_judge=False, json_mode=False)
+        print(
+            "This ran entirely from what shipped in the installed package. Next: `tes score` "
+            "(no path) scores your own most recent real Claude Code session."
+        )
         sys.exit(0)
 
     if args.command == "backfill-waste":
