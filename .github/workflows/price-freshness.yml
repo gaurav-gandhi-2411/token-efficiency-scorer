@@ -17,6 +17,17 @@ name: Price table freshness
 # Weekly cadence, not daily: the threshold is measured in months (90 days),
 # so a week's detection lag is negligible against that window, and running
 # daily would just add 7x the CI noise for zero earlier warning in practice.
+#
+# GG1 (Phase 8): a second, independent step below fetches Anthropic's own
+# published pricing page and compares it directly against every non-retired
+# entry this table claims -- replaces the FF4.3 cross-repo-comparison plan
+# (never implemented), which would have compared this table against
+# adk-tracegauge's SIBLING table instead of against the vendor. Two tables
+# compared only to each other stay green even while both drift into
+# staleness together -- the exact failure noted above (this table went 67
+# days stale with zero CI signal). A vendor page fetch failure or
+# structural change fails this step loudly, distinct from a genuine price
+# mismatch -- see scripts/check_price_table_vs_vendor.py's own docstring.
 
 on:
   schedule:
@@ -48,3 +59,6 @@ jobs:
 
       - name: Check price table freshness
         run: uv run python scripts/check_price_freshness.py
+
+      - name: Check price table against Anthropic's own published page
+        run: uv run python scripts/check_price_table_vs_vendor.py
