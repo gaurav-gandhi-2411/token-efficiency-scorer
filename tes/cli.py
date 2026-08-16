@@ -769,6 +769,64 @@ def _run_budget(
     print(sep)
 
 
+def _run_cost(
+    *,
+    db_path: str | None = None,
+    week: bool = False,
+    month: bool = False,
+    since: str | None = None,
+) -> None:
+    """Handle `tes cost` -- a period-scoped spend REPORT (total, session
+    count, per-project breakdown), distinct from `tes budget`'s rolling
+    self-trend PROJECTION. See tes/cost_period.py's module docstring for why
+    this filters on source_mtime, not scored_at.
+    """
+    from tes.cost_period import compute_period_cost, resolve_period
+    from tes.store import open_db, resolve_db_path
+
+    try:
+        period_start, period_end, period_label = resolve_period(week=week, month=month, since=since)
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    try:
+        conn = open_db(resolved_db)
+    except Exception as exc:
+        print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+        return
+
+    report = compute_period_cost(conn, period_start, period_end, period_label=period_label)
+    conn.close()
+
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print(f"COST -- {report.period_label}")
+    print(sep)
+
+    if report.session_count == 0 and report.sessions_missing_cost == 0:
+        print(f"\nNo sessions found in this period ({report.period_start.date()} "
+              f"to {report.period_end.date()}).")
+        print(sep)
+        return
+
+    print(f"\nTotal: ${report.total_usd:.2f}  ({report.session_count} session"
+          f"{'s' if report.session_count != 1 else ''})")
+    if report.sessions_missing_cost:
+        print(f"  ({report.sessions_missing_cost} additional session"
+              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period have no cost "
+              "data yet -- excluded from the total above, not counted as $0)")
+
+    if report.by_project:
+        print("\nBy project:")
+        for b in report.by_project:
+            print(f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
+                  f"{'s' if b.session_count != 1 else ''})")
+
+    print(sep)
+
+
 def _run_monitor(
     *,
     cc_path_arg: str | None = None,
@@ -1158,6 +1216,34 @@ def main() -> None:
         help="Rolling window size in days (default: 7).",
     )
 
+    cost_p = sub.add_parser(
+        "cost",
+        help="Spend report for a period: total, session count, per-project breakdown.",
+        description=(
+            "A period-scoped spend REPORT (what you actually spent), distinct from "
+            "`tes budget`'s rolling self-trend PROJECTION (where your pace is heading). "
+            "--week/--month are rolling N-day windows ending now, not calendar-aligned."
+        ),
+    )
+    cost_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    cost_period_group = cost_p.add_mutually_exclusive_group(required=True)
+    cost_period_group.add_argument(
+        "--week", action="store_true",
+        help="Rolling last 7 days.",
+    )
+    cost_period_group.add_argument(
+        "--month", action="store_true",
+        help="Rolling last 30 days.",
+    )
+    cost_period_group.add_argument(
+        "--since", default=None, metavar="YYYY-MM-DD",
+        help="From this date (inclusive) through now.",
+    )
+
     monitor_p = sub.add_parser(
         "monitor",
         help="One-shot live check of the currently active (in-progress) CC session.",
@@ -1242,6 +1328,10 @@ def main() -> None:
 
     if args.command == "budget":
         _run_budget(db_path=args.db_path, window_days=args.window_days)
+        sys.exit(0)
+
+    if args.command == "cost":
+        _run_cost(db_path=args.db_path, week=args.week, month=args.month, since=args.since)
         sys.exit(0)
 
     if args.command == "monitor":
