@@ -4,15 +4,50 @@ All notable changes to **tracegauge** are documented here. This project follows
 [Semantic Versioning](https://semver.org/) and [Keep a Changelog](https://keepachangelog.com/)
 conventions.
 
-A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.5.0`, `0.6.0`,
-`0.7.1`, `0.8.0`, and `0.10.0`. Versions `0.2.0` and `0.4.0` were built and tagged internally
-but never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
-published** — see its entry for why (corpus stays dormant). `0.10.1` and `0.10.2` are built,
-tested, and committed — **not yet published**; see their entries below for exact
-publish/verify/tag commands. `0.10.0` is the **current published release** until `0.10.1`/
-`0.10.2` ship.
+A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
+`0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, and `0.10.2` (confirmed live against
+PyPI's own JSON API — `0.10.1` uploaded 2026-08-13, `0.10.2` uploaded 2026-08-15; this note
+previously said both were still pending, which was stale by the time this correction was
+made — corrected here rather than left standing). Versions `0.2.0` and `0.4.0` were built and
+tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
+**deliberately not published** — see its entry for why (corpus stays dormant). `0.10.2` was
+the **current published release** until `0.11.0` shipped.
 
-## [0.10.2] — Pricing-defect bug-fix release — BUILT, NOT YET PUBLISHED
+## [0.11.0] — Period cost report (`tes cost`)
+
+### Added
+- **`tes cost --week` / `--month` / `--since <date>`**: total spend, session count, and a
+  per-project breakdown for a period. Distinct from `tes budget`'s rolling self-trend
+  projection (`tes budget` answers "where is my pace heading"; `tes cost` answers "what did
+  I actually spend"). `--week`/`--month` are rolling N-day windows ending now (7/30 days,
+  matching `tes budget`'s own rolling-window convention) — not calendar-aligned, since a
+  calendar week/month needs a user timezone and first-day-of-week convention this tool has
+  no basis to guess. `--since YYYY-MM-DD` is an explicit lower bound through now.
+- **Filters on `source_mtime`, not `scored_at`** (deliberate design decision, not the default
+  `tes budget` uses): the session file's own real last-write time, i.e. when the usage
+  actually happened, not when `tes score`/`tes scan` happened to run. Under a batch-scoring
+  workflow (scoring a week's sessions in one sitting) these diverge — a `scored_at`-based
+  filter would cluster a week of real spend onto one scoring-run instant, or drop it outside
+  the requested window, silently misattributing spend across period boundaries.
+  `tes/budget.py`'s existing projection has this same divergence (found, not fixed here —
+  tracked as [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)).
+- Sessions with no cost data yet are counted separately (`sessions_missing_cost`) and
+  reported, never silently treated as `$0` or dropped from the total without a trace.
+- **Known gap, not built:** no per-model breakdown. Would need a new schema column and
+  adapter change, and nobody in the originating GitHub issue
+  ([#78148](https://github.com/anthropics/claude-code/issues/78148)) asked for it — left
+  explicit rather than silently omitted.
+
+### Fixed (documentation)
+- Corrected two stale "not yet published" claims for `0.10.1`/`0.10.2` (see their entries
+  below) — both were, in fact, already live on PyPI by the time this release shipped.
+
+## [0.10.2] — Pricing-defect bug-fix release — LIVE on PyPI
+
+**Published:** https://pypi.org/project/tracegauge/0.10.2/ — uploaded 2026-08-15
+(confirmed via PyPI's JSON API). **Git tag:** `v0.10.2` at commit `a3a0863`. This entry
+originally said "BUILT, NOT YET PUBLISHED" — stale by the time of the 0.11.0 release;
+corrected here.
 
 ### BREAKING: unresolved models no longer return a guessed price
 
@@ -153,10 +188,11 @@ propagation through `TurnCost`/`SessionCost`/`ThreeAxisResult`, and the `[NOT PR
 report line. `tests/test_cost_approximate.py`, `tests/test_price_override.py` updated for
 the new fail-closed behavior and the bumped `as_of`.
 
-## [0.10.1] — Apache-2.0 dual-license the cost module — BUILT, NOT YET PUBLISHED
+## [0.10.1] — Apache-2.0 dual-license the cost module — LIVE on PyPI
 
-**Published:** _pending — this entry documents what ships when it does; fill in the actual
-PyPI URL, publish date, and tag commit once the commands below have been run._
+**Published:** https://pypi.org/project/tracegauge/0.10.1/ — uploaded 2026-08-13
+(confirmed via PyPI's JSON API). **Git tag:** `v0.10.1` at commit `659c00d`. This entry
+originally said "_pending_" — stale by the time of the 0.11.0 release; corrected here.
 
 **What changed, and why:** `tes/cost.py` and `tes/_digest.py` are now additionally available
 under Apache-2.0 (see [LICENSE-APACHE](LICENSE-APACHE)), on top of this project's
