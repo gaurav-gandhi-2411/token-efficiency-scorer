@@ -219,11 +219,12 @@ def get_or_compute_intelligence(
             status = (
                 f"Not enough content sessions for pattern analysis yet "
                 f"({n_content} < {MIN_CONTENT_FOR_CACHE} needed) -- "
-                f"source transcripts no longer on disk for {n_no_source} of "
-                f"{n_no_source + n_content} session(s) that would otherwise "
-                "count (scored before this version persisted attribution at "
-                "score time; re-scoring is not required, but the original "
-                "file must still exist for those specific rows)."
+                f"{n_no_source} previously-scored session(s) can't count because "
+                "their original transcript file no longer exists on disk (scored "
+                "before this version started saving what it needs at score time; "
+                "those specific sessions can't be recovered -- re-scoring requires "
+                "the same file, which is gone). Your pattern corpus rebuilds from "
+                "sessions scored from now on; nothing else to do."
             )
         else:
             status = (

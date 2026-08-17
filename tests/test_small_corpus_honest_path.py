@@ -84,6 +84,75 @@ class TestSmallCorpusCacheLayer:
         assert result["reason"] == "not_enough_sessions"
         assert result["n_sessions"] < MIN_CONTENT_FOR_CACHE
 
+    def test_legacy_rows_with_missing_source_get_the_specific_message(self) -> None:
+        """SS1.3: 'not enough sessions' must distinguish legacy rows blocked by
+        a missing source file from a genuinely thin corpus -- not the same
+        generic message either way. Real (unmocked) store/features pipeline:
+        rows have a source_path pointing at a file that definitely does not
+        exist, exercising the real n_no_source counting path.
+        """
+        n_total = MIN_CONTENT_FOR_CACHE + 5
+        fake_rows = [
+            {
+                "session_id": f"legacy-{i:04d}",
+                "task_type": "feature-build",
+                "source_path": f"/definitely/does/not/exist/legacy-{i:04d}.jsonl",
+                "real_tokens": 500000,
+                "turn_count": 10,
+                "session_cost_usd": 5.0,
+                "waste_event_count": 0,
+                "waste_events": [],
+                # No persisted attribution columns -- these are legacy rows,
+                # scored before RR1's score-time persistence existed.
+                "context_resend_pct": None,
+                "context_growth_pct": None,
+                "output_pct": None,
+                "waste_pct": None,
+            }
+            for i in range(n_total)
+        ]
+
+        with (
+            patch("tes.store.open_db"),
+            patch("tes.store.list_sessions", return_value=fake_rows),
+            patch("tes.intelligence.cache.load_cache", return_value=None),
+            patch("tes.intelligence.cache.save_cache"),
+        ):
+            result = get_or_compute_intelligence(verbose=False)
+
+        assert result["valid"] is False
+        status = result["status"].lower()
+        # Must name the real cause -- not just "not enough sessions."
+        assert "no longer exist" in status or "can't be recovered" in status
+        assert str(n_total) in result["status"]
+        # Must NOT tell the user the file must still exist -- these rows were
+        # just confirmed to have no existing file; that phrasing would
+        # directly contradict the fact just established.
+        assert "must still exist" not in status
+
+    def test_genuinely_thin_corpus_gets_the_generic_message_not_the_legacy_one(
+        self,
+    ) -> None:
+        """The inverse of the above: a corpus that's just genuinely small (no
+        source-file issue at all) must NOT claim files are missing -- that
+        would misdiagnose a normal new-user cold-start as a data-loss event.
+        """
+        n_total = MIN_CONTENT_FOR_CACHE - 1
+        fake_rows = _make_fake_rows(n_total, n_total)  # no source_path key at all
+
+        with (
+            patch("tes.store.open_db"),
+            patch("tes.store.list_sessions", return_value=fake_rows),
+            patch("tes.intelligence.cache.load_cache", return_value=None),
+            patch("tes.intelligence.cache.save_cache"),
+        ):
+            result = get_or_compute_intelligence(verbose=False)
+
+        assert result["valid"] is False
+        status = result["status"].lower()
+        assert "no longer exist" not in status
+        assert "grow" in status
+
     def test_small_corpus_result_has_human_readable_status(self) -> None:
         """The status message must be plain English, not a stack trace or empty string."""
         cache = _small_corpus_cache()
