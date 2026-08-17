@@ -22,15 +22,40 @@ This document describes the actual flow, written after running it for real for `
    - Add a `CHANGELOG.md` entry documenting what shipped and why, following the existing
      format (a note at the top of the file tracks which versions were actually published to
      PyPI vs. built-but-held).
-2. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
+2. **README must document any user-facing command or flag this release adds.** The
+   CHANGELOG alone is not sufficient — it tells *existing* users what changed since their
+   last install; the README is what a *prospective* user (or PyPI's own rendered project
+   page) reads to learn the tool exists at all. A feature with a CHANGELOG entry but no
+   README section is invisible to anyone who hasn't already installed the package.
+
+   **Real incident, not hypothetical:** `0.11.0` (`tes cost --week/--month/--since`) shipped
+   to PyPI with a correct, detailed CHANGELOG entry and zero mentions of `tes cost` anywhere
+   in the README — caught only after the release was already published and permanently
+   locked into that version's PyPI page (PyPI does not allow re-uploading a version's
+   metadata). Fixed in the next release, `0.11.1`, but the gap in `0.11.0`'s own published
+   page is permanent. The same sweep also found the README's top-of-file version banner
+   still claimed `0.10.2` was "not yet published" a full two releases after it actually
+   shipped — a stale claim, not a new one, but the same root cause: nothing in the release
+   process re-checks the README against reality. Checklist for every release:
+   - Every new subcommand and flag has a README section with **real captured output from
+     the published artifact**, not an invented example.
+   - Any documented behavioral rationale (a filtering-column choice, a known gap) is stated
+     plainly, not left to the CHANGELOG alone.
+   - Any "not yet published" / "pending" language anywhere in the README is re-checked
+     against the real PyPI state before this release ships — it goes stale the moment the
+     thing it's describing actually publishes, and nothing else catches that.
+   - Verify the *published* README (`curl -s https://pypi.org/pypi/tracegauge/<version>/json`,
+     string-search the `description` field) contains the new command/flag names — not just
+     that the local `README.md` file does; a build/publish step could in principle diverge.
+3. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
    version-bumped code. Merge once green.
-3. **Tag the merged commit and push the tag:**
+4. **Tag the merged commit and push the tag:**
    ```bash
    git checkout master && git pull
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-4. **`release.yml` takes it from there** — triggered by the `v*` tag push, it checks out
+5. **`release.yml` takes it from there** — triggered by the `v*` tag push, it checks out
    that exact tag (never a branch head), builds with `uv build`, sanity-checks the artifact
    with `twine check`, and publishes via `pypa/gh-action-pypi-publish@release/v1` using the
    `pypi` GitHub Environment's OIDC token. Confirm it actually succeeded — don't just trust
@@ -43,8 +68,10 @@ This document describes the actual flow, written after running it for real for `
    `View at: https://pypi.org/project/tracegauge/X.Y.Z/` — that URL is the actual proof, not
    the workflow's green checkmark alone (a green run that never reached the upload step
    would look identical in the checks UI).
-5. **Post-publish verify from a fresh environment against the real index** — see below.
-6. **Do not yank or delete a published version**, ever, including a superseded one. Deletion
+6. **Post-publish verify from a fresh environment against the real index** — see below.
+   Also confirm (step 2's checklist) that the published README actually rendered the new
+   commands/flags, via PyPI's JSON API — not just that CI succeeded.
+7. **Do not yank or delete a published version**, ever, including a superseded one. Deletion
    burns the version number permanently and breaks every pinned install of it. If a release
    has a real problem, ship a new version that supersedes it — that's what versioning is for.
 
@@ -54,8 +81,8 @@ This document describes the actual flow, written after running it for real for `
 published version comes entirely from `[project].version`, not from the git tag name.
 **The tag is a trigger, not a version source.** If you push `vX.Y.Z` while
 `pyproject.toml` still says the previous version, `release.yml` builds and publishes the
-*previous* version under the *new* tag — a real, permanent mismatch, since step 6 above
-means it can't be un-published. Always confirm the version landed on `master` and merged
+*previous* version under the *new* tag — a real, permanent mismatch, since "do not yank"
+above means it can't be un-published. Always confirm the version landed on `master` and merged
 *before* tagging:
 
 ```bash
