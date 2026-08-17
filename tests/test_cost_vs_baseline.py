@@ -195,3 +195,93 @@ def test_no_session_cost_defaults() -> None:
     assert result.session_cost_usd is None
     assert result.cost_approximate is False
     assert result.cost_domain_of_validity == ""
+    assert result.cost_unpriced_models is None
+
+
+def test_cost_unpriced_models_extracted_from_approximate_reasons() -> None:
+    """XX1.3: the raw unresolved model name is pulled out of
+    approximate_reasons and persisted -- not just the boolean flag."""
+    baselines = load_baselines()
+    record = {
+        "session_id": "test-unpriced-001",
+        "turn_count": 50,
+        "total_tokens": 90_000,
+        "h2_duplicate_count": 0,
+        "cache_hit_rate": 0.2,
+        "p25_token_ratio": 1.0,
+        "output_tokens_available": True,
+        "domain_id": "infra",
+        "domain_inferred": "infra",
+        "test_outcome": False,
+        "task_description": "refactor script",
+        "digest": {
+            "session_id": "test-unpriced-001",
+            "domain": "infra",
+            "resolved": True,
+            "total_tokens": 90_000,
+            "turn_count": 50,
+            "h2_duplicate_count": 0,
+            "cache_hit_rate": 0.2,
+            "p25_token_ratio": 1.0,
+            "output_tokens_available": True,
+            "task_description": "refactor script",
+            "turns": [],
+        },
+    }
+    cost = SessionCost(
+        session_id="test-unpriced-001",
+        total_usd=0.0,
+        turn_costs=[],
+        approximate=True,
+        approximate_reasons=[
+            "unknown model 'claude-future-9' — cost unknown, not priced at a guessed/"
+            "default rate (known models: claude-sonnet-5, claude-opus-5)",
+        ],
+        domain_of_validity="test domain",
+        ai_turn_count=5,
+        approximate_turn_count=5,
+    )
+    result = score_session(record, baselines, session_cost=cost)
+    assert result.cost_unpriced_models == "claude-future-9"
+
+
+def test_cost_unpriced_models_handles_empty_model_string() -> None:
+    baselines = load_baselines()
+    record = {
+        "session_id": "test-unpriced-002",
+        "turn_count": 50,
+        "total_tokens": 90_000,
+        "h2_duplicate_count": 0,
+        "cache_hit_rate": 0.2,
+        "p25_token_ratio": 1.0,
+        "output_tokens_available": True,
+        "domain_id": "infra",
+        "domain_inferred": "infra",
+        "test_outcome": False,
+        "task_description": "refactor script",
+        "digest": {
+            "session_id": "test-unpriced-002",
+            "domain": "infra",
+            "resolved": True,
+            "total_tokens": 90_000,
+            "turn_count": 50,
+            "h2_duplicate_count": 0,
+            "cache_hit_rate": 0.2,
+            "p25_token_ratio": 1.0,
+            "output_tokens_available": True,
+            "task_description": "refactor script",
+            "turns": [],
+        },
+    }
+    cost = SessionCost(
+        session_id="test-unpriced-002",
+        total_usd=0.0,
+        turn_costs=[],
+        approximate=True,
+        approximate_reasons=["empty model string — cost unknown, not priced at a guessed/default rate"],
+        domain_of_validity="test domain",
+        ai_turn_count=5,
+        approximate_turn_count=5,
+    )
+    result = score_session(record, baselines, session_cost=cost)
+    assert result.cost_unpriced_models == "(empty)"

@@ -18,6 +18,7 @@ Each axis carries its domain_of_validity in the result object so both SDK and CL
 consumers receive the honesty — not bolted on in CLI formatting only (spec decision 1).
 """
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -175,6 +176,13 @@ class ThreeAxisResult:
     context_growth_pct: float | None = None
     output_pct: float | None = None
     waste_pct: float | None = None
+
+    # --- unpriced model names (XX1.3: persisted at score time, same RR1
+    # lesson -- tes.cost.SessionCost.approximate_reasons is only available
+    # while the source file is still readable). Comma-joined raw model
+    # strings that failed to resolve against the price table; None if the
+    # session priced cleanly or cost wasn't computed at all. ---
+    cost_unpriced_models: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +465,20 @@ def score_session(
     cost_dov = session_cost.domain_of_validity if session_cost else ""
     cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
 
+    # XX1.3: pull the raw unresolved model name(s) out of
+    # approximate_reasons (e.g. "unknown model 'foo-bar-2026' — cost
+    # unknown, ..." or "empty model string — cost unknown, ...") -- a
+    # regex over an already-computed, in-memory list, not a new lookup.
+    _unpriced_models: list[str] = []
+    if session_cost is not None:
+        for reason in session_cost.approximate_reasons:
+            m = re.search(r"unknown model '([^']*)'", reason)
+            if m:
+                _unpriced_models.append(m.group(1))
+            elif "empty model string" in reason:
+                _unpriced_models.append("(empty)")
+    cost_unpriced_models = ",".join(sorted(set(_unpriced_models))) or None
+
     _resend_pct: float | None
     _growth_pct: float | None
     _out_pct: float | None
@@ -507,6 +529,7 @@ def score_session(
         cost_approximate=cost_approx,
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
+        cost_unpriced_models=cost_unpriced_models,
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,
