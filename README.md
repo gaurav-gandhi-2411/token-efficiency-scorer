@@ -278,6 +278,38 @@ ROI: $496.29 API-equivalent / $46.67 plan cost = 10.6x
 
 ---
 
+## `tes impact` — code-impact reconstruction
+
+```bash
+tes impact
+tes impact --top 20
+```
+
+Corpus-wide, from `Edit`/`Write`/`MultiEdit`/`NotebookEdit` tool-call payloads reconstructed and persisted at score time — additions/deletions per file, and a plain, transparent churn ranking (most-edited files and directories). **Deliberately no composite "risk score"**: a hand-weighted blend of signals presented as one number is exactly the kind of invented-precision this project avoids elsewhere (see the CHANGELOG's `[0.12.0]` entry for the reasoning) — every figure here is a direct count or a plainly-labeled fraction.
+
+Real output, this session's own transcript:
+
+```
+291 edit operation(s) across 1 session(s) with impact data
+  +14235 / -1994 lines
+  66% of additions are from Write/NotebookEdit calls, whose payload never carries the file's PRIOR content -- additions are exact, but a full-file rewrite looks identical to a brand-new file, so this fraction is inherently uncertain in that specific way.
+
+Most-edited files:
+    20 edits  +494/-188  (1 session(s))  tes/cli.py
+    15 edits  +137/-58  (1 session(s))  tes/score.py
+    15 edits  +193/-127  (1 session(s))  tes/intelligence/cache.py
+```
+
+**Extraction scope, checked against this project's own real corpus** (883 real transcript files, 434,774 lines): `Edit` (10,175 real occurrences) and `Write` (3,059) are fully supported. `MultiEdit`/`NotebookEdit` are real Claude Code tool names with **zero occurrences in that same real-corpus check** — extraction is written (best-effort, defensive) but every operation from either is flagged internally and surfaced in the output's own inline fraction whenever it contributes to a total, never presented with the same confidence as Edit/Write-derived numbers. `apply_patch`/`str_replace_editor` (Codex/computer-use tool names, not Claude Code ones) are out of scope entirely.
+
+**The `Write` ambiguity, stated plainly, not swallowed**: a `Write` call's payload contains the new file content but never the content it replaced — additions are exact, deletions are always 0 for that operation, and the report states what fraction of the total additions figure rests on this assumption (see the real output above: 66% on this real corpus).
+
+**No cost-per-edit or cost-per-100-lines ratio here.** A bootstrap-CI implementation was built and measured (`docs/audit/EDIT_RATIO_BOOTSTRAP_COVERAGE.md`) before being adopted — coverage came in below nominal at every tested sample size, so no ratio statistic ships until a method with verified coverage exists. A number with a measured-wrong confidence interval is worse than no interval at all.
+
+**If you're upgrading**: sessions scored before this feature has no persisted edit data (same `0.11.1` lesson — `old_string`/`new_string`/`file_path` are only readable while the source transcript exists, so this can't be backfilled from already-scored rows). `tes impact` counts these separately and says so plainly rather than silently omitting them from the total.
+
+---
+
 ## `tes budget` — rolling self-trend pace
 
 ```bash

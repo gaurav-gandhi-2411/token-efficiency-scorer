@@ -107,6 +107,41 @@ def _extract_tool_names_from_content(content: list[dict[str, Any]]) -> list[str]
     ]
 
 
+def _extract_edit_operations_from_content(content: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """XX2.2: pull Edit/Write/MultiEdit/NotebookEdit operations out of this
+    assistant message's tool_use blocks -- the ONE place in the adapter that
+    reads tool_use.input, since TurnDigest deliberately never carries it
+    (compact-representation design, see _digest.py). Computed in the SAME
+    single pass over the source JSONL that builds the rest of the record,
+    per RR1's lesson: this is the only opportunity to read it before the
+    file may later disappear. Returns plain dicts (not EditOperation
+    instances) so this module stays free of a tes.impact import cycle risk;
+    tes.impact.extract_edit_operations does the actual parsing.
+    """
+    from tes.impact import extract_edit_operations
+
+    ops: list[dict[str, Any]] = []
+    for block in content:
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        name = block.get("name")
+        tool_input = block.get("input")
+        if not name or not isinstance(tool_input, dict):
+            continue
+        for op in extract_edit_operations(str(name), tool_input):
+            ops.append(
+                {
+                    "path": op.path,
+                    "additions": op.additions,
+                    "deletions": op.deletions,
+                    "tool": op.tool,
+                    "prior_content_unknown": op.prior_content_unknown,
+                    "untested_tool_shape": op.untested_tool_shape,
+                }
+            )
+    return ops
+
+
 def _extract_text_snippet(content: list[dict[str, Any]]) -> str:
     """Concatenate all text blocks (skipping thinking) and truncate to snippet max."""
     parts: list[str] = [
@@ -218,6 +253,11 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     sum_cache_read: int = 0
     sum_output: int = 0
 
+    # XX2.2: edit operations, accumulated across the whole session -- a
+    # sibling to `digest`, not a TurnDigest field (see
+    # _extract_edit_operations_from_content's docstring for why).
+    edit_operations: list[dict[str, Any]] = []
+
     for msg in messages:
         if not _is_main_chain(msg):
             continue
@@ -242,6 +282,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             tool_names: list[str] = _extract_tool_names_from_content(content)
             snippet: str = _redact_secrets(_extract_text_snippet(content))
+            edit_operations.extend(_extract_edit_operations_from_content(content))
 
             # input_tokens in TurnDigest = all tokens billed for this call
             turn_input: int = inp + cache_cr + cache_rd
@@ -360,6 +401,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         "digest": dataclasses.asdict(digest),
         "token_economy_available": False,
         "domain_inferred": "fallback_unknown",
+        "edit_operations": edit_operations,
     }
 
 

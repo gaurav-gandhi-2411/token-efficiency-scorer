@@ -38,6 +38,37 @@ the **current published release** until `0.11.0` shipped.
   be saved then, not re-derived later) — sessions scored before this
   column existed still count toward the coverage gap honestly, flagged as
   unattributable rather than silently omitted from the unpriced-model list.
+- **`tes impact`**: corpus-wide code-impact reconstruction from `Edit`/
+  `Write`/`MultiEdit`/`NotebookEdit` tool-call payloads, persisted at score
+  time (new nullable `edit_operations` column — same score-time-persistence
+  lesson as the two entries above). Additions/deletions per file, and a
+  churn ranking (most-edited files/directories) as **plain transparent
+  counts — deliberately no composite "risk score"**: a hand-weighted blend
+  of signals presented as one number would be exactly the kind of
+  invented-precision this project avoids elsewhere. Extraction scope
+  checked against this project's own real corpus (883 files, 434,774
+  lines): `Edit`/`Write` are fully supported (10,175 / 3,059 real
+  occurrences); `MultiEdit`/`NotebookEdit` extraction is written but has
+  **zero real-corpus verification** and is flagged inline (as a fraction of
+  the total) wherever it contributes, never presented with the same
+  confidence as Edit/Write. The `Write` tool's payload never carries a
+  file's prior content — additions are exact, deletions are always 0 for
+  that operation, and the report states what fraction of the total
+  additions figure rests on this specific assumption rather than treating
+  a full-file rewrite as if it were an exact diff.
+- **No cost-per-edit / cost-per-100-lines ratio ships with this** —
+  measured first, not assumed: a bootstrap-CI implementation was built and
+  its coverage validated against a known-answer simulation
+  (`docs/audit/EDIT_RATIO_BOOTSTRAP_COVERAGE.md`) before being adopted for
+  anything. Both percentile and BCa intervals came in below nominal
+  coverage at every tested sample size (10–250 sessions) — the harness
+  itself was independently audited (a known-answer sanity check, resampling-
+  unit and jackknife-unit verification) before that result was trusted, and
+  the true mechanism (skewness in the underlying cost distribution, not
+  anything specific to the ratio structure) was confirmed by direct
+  experiment, not assumed. No interval ships until a method with verified
+  coverage exists — a number with a measured-wrong confidence interval is
+  worse than no interval at all.
 
 ### Fixed (found during this release's own verification)
 - The plan-cost proration was originally implemented as day-by-day

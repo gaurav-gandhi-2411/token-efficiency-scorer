@@ -185,6 +185,18 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
         conn.commit()
 
+    # XX2.2: reconstructed code-impact per session (Edit/Write/MultiEdit/
+    # NotebookEdit operations), persisted at score time -- same RR1 lesson,
+    # tool_use.input.old_string/new_string/file_path are only available
+    # while the source transcript is still readable. JSON-encoded list of
+    # {path, additions, deletions, tool, prior_content_unknown,
+    # untested_tool_shape} dicts (see tes.impact.EditOperation). NULL for
+    # every row scored before this migration -- tes impact's own report
+    # names this as a legacy-row gap, same pattern as SS1.
+    if "edit_operations" not in existing_cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
+        conn.commit()
+
     return conn
 
 
@@ -258,7 +270,7 @@ def upsert_session(
                 turn_count,
                 session_cost_usd, cost_approximate, cost_domain_of_validity,
                 context_resend_pct, context_growth_pct, output_pct, waste_pct,
-                cost_unpriced_models
+                cost_unpriced_models, edit_operations
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -271,7 +283,7 @@ def upsert_session(
                 ?,
                 ?, ?, ?,
                 ?, ?, ?, ?,
-                ?
+                ?, ?
             )
             """,
             (
@@ -291,7 +303,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
-                result.cost_unpriced_models,
+                result.cost_unpriced_models, result.edit_operations,
             ),
         )
 
@@ -313,7 +325,7 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?
+                cost_unpriced_models = ?, edit_operations = ?
             WHERE session_id = ?
             """,
             (
@@ -332,7 +344,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
-                result.cost_unpriced_models,
+                result.cost_unpriced_models, result.edit_operations,
                 result.session_id,
             ),
         )
@@ -353,7 +365,7 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?
+                cost_unpriced_models = ?, edit_operations = ?
             WHERE session_id = ?
             """,
             (
@@ -370,7 +382,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
-                result.cost_unpriced_models,
+                result.cost_unpriced_models, result.edit_operations,
                 result.session_id,
             ),
         )
@@ -393,7 +405,7 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?
+                cost_unpriced_models = ?, edit_operations = ?
             WHERE session_id = ?
             """,
             (
@@ -412,7 +424,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
-                result.cost_unpriced_models,
+                result.cost_unpriced_models, result.edit_operations,
                 result.session_id,
             ),
         )
