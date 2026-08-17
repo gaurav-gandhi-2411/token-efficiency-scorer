@@ -174,6 +174,17 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
             conn.execute(alter_sql)
             conn.commit()
 
+    # XX1.3: raw unresolved model string(s) for a session whose cost is NULL
+    # because a model didn't resolve against the price table -- persisted at
+    # score time (same RR1 lesson: source_cost.approximate_reasons is only
+    # available while the source file is still readable) so `tes cost --roi`
+    # can name unpriced models in its coverage report without re-reading
+    # anything. Comma-joined raw model strings, NULL if the session priced
+    # cleanly or was scored before this column existed.
+    if "cost_unpriced_models" not in existing_cols:
+        conn.execute("ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
+        conn.commit()
+
     return conn
 
 
@@ -246,7 +257,8 @@ def upsert_session(
                 waste_event_count, waste_events, waste_domain_of_validity,
                 turn_count,
                 session_cost_usd, cost_approximate, cost_domain_of_validity,
-                context_resend_pct, context_growth_pct, output_pct, waste_pct
+                context_resend_pct, context_growth_pct, output_pct, waste_pct,
+                cost_unpriced_models
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -258,7 +270,8 @@ def upsert_session(
                 ?, ?, ?,
                 ?,
                 ?, ?, ?,
-                ?, ?, ?, ?
+                ?, ?, ?, ?,
+                ?
             )
             """,
             (
@@ -278,6 +291,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
+                result.cost_unpriced_models,
             ),
         )
 
@@ -298,7 +312,8 @@ def upsert_session(
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
-                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
+                cost_unpriced_models = ?
             WHERE session_id = ?
             """,
             (
@@ -317,6 +332,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
+                result.cost_unpriced_models,
                 result.session_id,
             ),
         )
@@ -336,7 +352,8 @@ def upsert_session(
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
-                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
+                cost_unpriced_models = ?
             WHERE session_id = ?
             """,
             (
@@ -353,6 +370,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
+                result.cost_unpriced_models,
                 result.session_id,
             ),
         )
@@ -374,7 +392,8 @@ def upsert_session(
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
-                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
+                cost_unpriced_models = ?
             WHERE session_id = ?
             """,
             (
@@ -393,6 +412,7 @@ def upsert_session(
                 result.cost_domain_of_validity or "",
                 result.context_resend_pct, result.context_growth_pct,
                 result.output_pct, result.waste_pct,
+                result.cost_unpriced_models,
                 result.session_id,
             ),
         )

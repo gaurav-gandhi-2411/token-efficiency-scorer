@@ -35,7 +35,7 @@ follow-up, not silently patched alongside an unrelated feature.
 """
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -59,6 +59,28 @@ class PeriodCostReport:
     session_count: int
     sessions_missing_cost: int
     by_project: list[ProjectCostBreakdown]
+    # XX1.3: unpriced coverage -- what fraction of this period's sessions
+    # and tokens are priced, and which models caused the gap. token_total
+    # includes ALL sessions in the window regardless of pricing (a
+    # denominator that only counted priced sessions would make 100%
+    # coverage trivially true by construction). unpriced_models is
+    # aggregated only from rows that persisted it at score time (XX1.3 /
+    # RR1 lesson) -- legacy rows scored before that column existed
+    # contribute to the coverage gap but can't name their own model;
+    # unpriced_models_incomplete flags that distinction.
+    token_total: int = 0
+    token_priced: int = 0
+    unpriced_models: list[str] = field(default_factory=list)
+    unpriced_models_incomplete: bool = False
+
+    @property
+    def session_coverage_pct(self) -> float | None:
+        total = self.session_count + self.sessions_missing_cost
+        return 100.0 * self.session_count / total if total else None
+
+    @property
+    def token_coverage_pct(self) -> float | None:
+        return 100.0 * self.token_priced / self.token_total if self.token_total else None
 
 
 def _project_label_from_source_path(source_path: str) -> str:
@@ -104,13 +126,30 @@ def compute_period_cost(
     all -- ``by_project`` just has one entry with ``session_count=1``.
     """
     rows = conn.execute(
-        "SELECT source_path, session_cost_usd FROM sessions "
-        "WHERE source_mtime >= ? AND source_mtime < ?",
+        "SELECT source_path, session_cost_usd, real_tokens, cost_unpriced_models "
+        "FROM sessions WHERE source_mtime >= ? AND source_mtime < ?",
         (period_start.timestamp(), period_end.timestamp()),
     ).fetchall()
 
     priced = [r for r in rows if r["session_cost_usd"] is not None]
     missing = len(rows) - len(priced)
+
+    token_total = sum(r["real_tokens"] or 0 for r in rows)
+    token_priced = sum(r["real_tokens"] or 0 for r in priced)
+
+    missing_rows = [r for r in rows if r["session_cost_usd"] is None]
+    named_models: set[str] = set()
+    for r in missing_rows:
+        raw = r["cost_unpriced_models"]
+        if raw:
+            named_models.update(raw.split(","))
+    # A missing-cost row with no cost_unpriced_models value is either a
+    # legacy row (scored before that column existed) or a session where
+    # cost was never computed at all (e.g. --no-judge scoring that also
+    # skipped cost) -- either way, its model can't be named, and that
+    # matters: silently showing a "complete" unpriced_models list when some
+    # of the gap has no attributable model would misstate coverage.
+    unpriced_models_incomplete = any(not r["cost_unpriced_models"] for r in missing_rows)
 
     totals_by_project: dict[str, list[float]] = {}
     for r in priced:
@@ -134,6 +173,10 @@ def compute_period_cost(
         session_count=len(priced),
         sessions_missing_cost=missing,
         by_project=by_project,
+        token_total=token_total,
+        token_priced=token_priced,
+        unpriced_models=sorted(named_models),
+        unpriced_models_incomplete=unpriced_models_incomplete,
     )
 
 

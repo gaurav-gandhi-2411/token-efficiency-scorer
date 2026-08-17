@@ -230,6 +230,52 @@ Total: $2.50  (1 session)
 
 **Known gap, not built:** no per-model breakdown. Would need a new schema column and adapter change, and nobody in the originating GitHub issue ([#78148](https://github.com/anthropics/claude-code/issues/78148)) asked for it — left explicit rather than silently omitted.
 
+### Unpriced coverage
+
+Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known:
+
+```
+Priced coverage: 50% of sessions, 100% of tokens
+  Unpriced model(s): claude-future-9
+```
+
+A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete:
+
+```
+Priced coverage: 40% of sessions, 85% of tokens
+  Unpriced model(s): gpt-6-preview
+  (some unpriced sessions predate model tracking -- can't name their model)
+```
+
+### `tes cost --roi` — plan-cost ROI
+
+```bash
+tes cost --week --roi
+tes cost --week --roi --plan-config /path/to/plan.json   # override the default location
+```
+
+"Is my subscription worth it at API-equivalent prices?" Requires a plan config at `~/.tes/plan.json` (or `TES_PLAN_PATH`/`--plan-config`) — a **history**, not a single static cost, since a plan can change mid-window and each day should price at whichever plan was actually active that day, prorated by exact elapsed time (not calendar-day counting, which would inflate a rolling window that doesn't start/end at midnight — every real invocation):
+
+```json
+{"plans": [
+  {"name": "Claude Pro", "monthly_cost_usd": 20, "effective_from": "2026-01-01"},
+  {"name": "Claude Max", "monthly_cost_usd": 200, "effective_from": "2026-07-01"}
+]}
+```
+
+Real output, this session's own transcript scored fresh and compared against a real 7-day-window `plan.json`:
+
+```
+Plan: Claude Max ($46.67 for this window)
+ROI: $496.29 API-equivalent / $46.67 plan cost = 10.6x
+  (API-equivalent value at measured token rates, not a bill you'd actually pay under a flat plan.)
+```
+
+**Refuses to print a ratio the data can't support** — never a misleading number:
+- No `plan.json` configured: prints setup instructions instead of a ratio.
+- Zero priced sessions in the window: "no priced sessions in this period — nothing to compare against plan cost."
+- The window falls entirely before your first `plan.json` entry (prorated plan cost is $0): same refusal — a `$X / $0` ratio isn't a real number either.
+
 ---
 
 ## `tes budget` — rolling self-trend pace

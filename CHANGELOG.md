@@ -13,6 +13,46 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 **deliberately not published** — see its entry for why (corpus stays dormant). `0.10.2` was
 the **current published release** until `0.11.0` shipped.
 
+## [0.12.0] — Plan-cost ROI, unpriced coverage reporting
+
+### Added
+- **`tes cost --roi`**: "is my subscription worth it at API-equivalent prices?"
+  Compares the period's API-equivalent spend against a configured plan cost
+  (`~/.tes/plan.json`, or `TES_PLAN_PATH`/`--plan-config`). The config is a
+  plan **history** (`{"plans": [{"name", "monthly_cost_usd",
+  "effective_from"}, ...]}`), not a single static cost — a plan change
+  landing inside the reporting window is priced day-by-day at whichever plan
+  was actually active, prorated by exact elapsed time (not calendar-date
+  counting, which would silently inflate a rolling window that doesn't start
+  and end at midnight — every real invocation). Refuses to print a ratio the
+  data can't support: no plan configured, zero priced sessions in the
+  window, or a window entirely predating the plan history all print an
+  honest explanation instead of a misleading number.
+- **Unpriced coverage reporting** on `tes cost` (always shown when coverage
+  is below 100%, not gated behind a flag): the fraction of the period's
+  *sessions* and *tokens* that are actually priced, and the specific
+  unresolved model string(s) causing the gap. A new nullable
+  `cost_unpriced_models` column persists the raw model name(s) at score
+  time (same lesson `0.11.1`'s attribution-persistence fix established:
+  information only available while the source transcript is readable must
+  be saved then, not re-derived later) — sessions scored before this
+  column existed still count toward the coverage gap honestly, flagged as
+  unattributable rather than silently omitted from the unpriced-model list.
+
+### Fixed (found during this release's own verification)
+- The plan-cost proration was originally implemented as day-by-day
+  calendar-date iteration, which inflated a `--week` (7.0 elapsed days)
+  window to 8 calendar dates' worth of cost whenever the window's start/end
+  timestamps didn't both land on midnight — true for every real invocation,
+  since `--week`/`--month` are rolling windows ending at `datetime.now()`.
+  Replaced with exact interval-overlap arithmetic (each plan period treated
+  as a segment, priced by its precise overlap with the window in elapsed
+  days) before this ever shipped; caught by manual verification against a
+  real 7-day window, not by the original unit tests (which happened to use
+  midnight-aligned test fixtures and couldn't have caught it) — a dedicated
+  regression test using a non-midnight-aligned window was added alongside
+  the fix.
+
 ## [0.11.1] — Score-time attribution persistence, cache scoping fix
 
 ### Fixed

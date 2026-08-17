@@ -33,6 +33,8 @@ def _insert_session(
     source_mtime: float,
     scored_at: str,
     cost_usd: float | None,
+    real_tokens: int = 1000,
+    unpriced_models: str | None = None,
 ) -> None:
     """Insert a minimal-but-valid session row -- mirrors
     tests/test_projection_labeled.py's helper, but exposes source_mtime as a
@@ -49,18 +51,20 @@ def _insert_session(
             baseline_source, judge_verdict, judge_score, judge_reasoning,
             trajectory_domain_of_validity, judge_source_hash,
             waste_event_count, waste_events, waste_domain_of_validity,
-            turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity
+            turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity,
+            cost_unpriced_models
         ) VALUES (
             ?, 'infra-deploy', ?, ?, 'hash', ?,
-            '["token"]', 1000, 'in_scope', 1,
+            '["token"]', ?, 'in_scope', 1,
             NULL, NULL, NULL, 'within_band', '', '',
             'self', NULL, NULL, NULL,
             '', NULL,
             0, '[]', '',
-            30, ?, 0, ''
+            30, ?, 0, '',
+            ?
         )
         """,
-        (session_id, source_path, source_mtime, scored_at, cost_usd),
+        (session_id, source_path, source_mtime, scored_at, real_tokens, cost_usd, unpriced_models),
     )
     conn.commit()
 
@@ -246,3 +250,79 @@ def test_resolve_period_requires_exactly_one_of_week_month_since():
 def test_project_label_derivation_matches_cli_module():
     path = "/fake/C--Users-gaura-ml-projects-token-efficiency-scorer/abc123.jsonl"
     assert _project_label_from_source_path(path) == _project_label(Path(path))
+
+
+# ---------------------------------------------------------------------------
+# XX1.3: unpriced coverage -- sessions AND tokens, unpriced model names
+# ---------------------------------------------------------------------------
+
+
+def test_full_coverage_when_everything_priced(tmp_path: Path):
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
+    _insert_session(conn, "a", source_mtime=ts, scored_at=iso, cost_usd=3.0, real_tokens=500)
+
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.session_coverage_pct == pytest.approx(100.0)
+    assert report.token_coverage_pct == pytest.approx(100.0)
+    assert report.unpriced_models == []
+    assert report.unpriced_models_incomplete is False
+
+
+def test_coverage_fractions_reflect_missing_sessions_and_tokens(tmp_path: Path):
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
+    _insert_session(conn, "priced", source_mtime=ts, scored_at=iso, cost_usd=3.0, real_tokens=300)
+    _insert_session(
+        conn, "unpriced", source_mtime=ts, scored_at=iso, cost_usd=None, real_tokens=700,
+        unpriced_models="claude-future-9",
+    )
+
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.session_coverage_pct == pytest.approx(50.0)  # 1 of 2 sessions
+    assert report.token_coverage_pct == pytest.approx(30.0)    # 300 of 1000 tokens
+    assert report.unpriced_models == ["claude-future-9"]
+    assert report.unpriced_models_incomplete is False
+
+
+def test_unpriced_models_deduplicated_and_sorted(tmp_path: Path):
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
+    _insert_session(conn, "a", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model")
+    _insert_session(conn, "b", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="alpha-model")
+    _insert_session(conn, "c", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model")
+
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.unpriced_models == ["alpha-model", "zeta-model"]
+
+
+def test_legacy_unpriced_session_with_no_model_name_flags_incomplete(tmp_path: Path):
+    """A missing-cost row scored before cost_unpriced_models existed (or
+    where cost was never computed) has unpriced_models=NULL -- the coverage
+    gap is real but the model can't be named. Must be flagged, not silently
+    absorbed into an unpriced_models list that would then look complete."""
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
+    _insert_session(conn, "legacy", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models=None)
+    _insert_session(conn, "named", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="some-model")
+
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.unpriced_models == ["some-model"]
+    assert report.unpriced_models_incomplete is True
+
+
+def test_empty_period_has_no_coverage_percentage_not_a_zero_division(tmp_path: Path):
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.session_coverage_pct is None
+    assert report.token_coverage_pct is None
