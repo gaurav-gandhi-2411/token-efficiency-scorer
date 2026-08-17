@@ -18,6 +18,7 @@ Each axis carries its domain_of_validity in the result object so both SDK and CL
 consumers receive the honesty — not bolted on in CLI formatting only (spec decision 1).
 """
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -183,6 +184,17 @@ class ThreeAxisResult:
     # strings that failed to resolve against the price table; None if the
     # session priced cleanly or cost wasn't computed at all. ---
     cost_unpriced_models: str | None = None
+
+    # --- code impact (XX2.2: persisted at score time, same RR1 lesson --
+    # tool_use.input.old_string/new_string/file_path are only readable
+    # while the source transcript still exists). JSON-encoded list of
+    # {path, additions, deletions, tool, prior_content_unknown,
+    # untested_tool_shape} dicts, or None when the session had no edit
+    # operations at all (e.g. a read-only/research session) -- distinct
+    # from "[]" (has edit_operations support but genuinely made none) vs.
+    # a legacy row (column NULL because scored before this existed);
+    # tes.impact's report distinguishes these at read time. ---
+    edit_operations: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +491,16 @@ def score_session(
                 _unpriced_models.append("(empty)")
     cost_unpriced_models = ",".join(sorted(set(_unpriced_models))) or None
 
+    # XX2.2: persist whatever tes.adapt already extracted from tool_use
+    # blocks in its single pass over the source JSONL -- "edit_operations"
+    # is always present (possibly []) on a record from a current
+    # adapt_session(); a record missing the key entirely (records loaded
+    # from an old pool_adapted.jsonl fixture predating this feature) is
+    # treated the same as "no data available" (None), not "[]" (which
+    # would falsely claim zero edits when it's really unknown).
+    _edit_ops = record.get("edit_operations")
+    edit_operations_json: str | None = json.dumps(_edit_ops) if _edit_ops is not None else None
+
     _resend_pct: float | None
     _growth_pct: float | None
     _out_pct: float | None
@@ -530,6 +552,7 @@ def score_session(
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
         cost_unpriced_models=cost_unpriced_models,
+        edit_operations=edit_operations_json,
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,
