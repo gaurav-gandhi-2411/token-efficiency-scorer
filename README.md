@@ -6,12 +6,13 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
 [![PyPI](https://img.shields.io/pypi/v/tracegauge.svg)](https://pypi.org/project/tracegauge/)
 
-> **Note — 0.10.2 (built, not yet published) is a BREAKING bug-fix release for SDK users.**
+> **Note — 0.10.2 (live on PyPI since 2026-08-15) was a BREAKING bug-fix release for SDK users.**
 > Unknown/unresolvable models used to silently return a guessed price (defaulting to
 > `claude-sonnet-4-6`'s rate); they now return an explicit unpriced result instead
 > (`priced=False`, `total_usd=0.0`). If you call `tes.cost.compute_turn_cost`/
 > `compute_session_cost` directly and read `total_usd`, see the `[0.10.2]` entry in
-> [CHANGELOG.md](CHANGELOG.md) for the exact migration path before upgrading.
+> [CHANGELOG.md](CHANGELOG.md) for the exact migration path if you're upgrading from
+> `0.10.1` or earlier.
 
 ---
 
@@ -175,6 +176,59 @@ To enable the trajectory judge in the background watcher:
 tes serve --background-judge
 # WARNING: runs qwen3:30b-a3b (~18 GB VRAM) on your GPU for every new session continuously.
 ```
+
+---
+
+## `tes cost` — period spend report
+
+```bash
+tes cost --week                 # rolling last 7 days
+tes cost --month                # rolling last 30 days
+tes cost --since YYYY-MM-DD      # from this date through now
+```
+
+Total spend, session count, and a per-project breakdown for a period — distinct from `tes budget`'s rolling self-trend *projection* (where your pace is heading); `tes cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
+
+Real output, from the published `tracegauge==0.11.0` artifact, four real seeded sessions across two projects (one older than the 7-day window):
+
+```
+──────────────────────────────────────────────────────────────────────
+COST -- last 7 days
+──────────────────────────────────────────────────────────────────────
+
+Total: $6.17  (3 sessions)
+
+By project:
+  aura-ml-projects-token-efficiency-scorer  $    3.40  (1 session)
+  --Users-gaura-ml-projects-adk-tracegauge  $    2.77  (2 sessions)
+──────────────────────────────────────────────────────────────────────
+```
+
+`tes cost --month` against the same data correctly picks up the older session too:
+
+```
+──────────────────────────────────────────────────────────────────────
+COST -- last 30 days
+──────────────────────────────────────────────────────────────────────
+
+Total: $12.27  (4 sessions)
+
+By project:
+  aura-ml-projects-token-efficiency-scorer  $    9.50  (2 sessions)
+  --Users-gaura-ml-projects-adk-tracegauge  $    2.77  (2 sessions)
+──────────────────────────────────────────────────────────────────────
+```
+
+**Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tes score`/`tes scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tes budget`'s existing rolling-window projection has this same divergence — tracked, not fixed, as [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
+
+Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output, published `0.11.0`:
+
+```
+Total: $2.50  (1 session)
+  (1 additional session in this period have no cost data yet -- excluded from the total above, not counted as $0)
+```
+
+**Known gap, not built:** no per-model breakdown. Would need a new schema column and adapter change, and nobody in the originating GitHub issue ([#78148](https://github.com/anthropics/claude-code/issues/78148)) asked for it — left explicit rather than silently omitted.
 
 ---
 
