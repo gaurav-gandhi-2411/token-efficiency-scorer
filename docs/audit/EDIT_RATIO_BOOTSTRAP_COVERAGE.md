@@ -1,4 +1,113 @@
-# Edit-ratio bootstrap CI: coverage measurement (ZZ1)
+# Edit-ratio bootstrap CI: coverage measurement (ZZ1, audited under AB1)
+
+**AB1 correction, read this first:** the original version of this document
+attributed the undercoverage below to Cov(edits, cost) / Var(edits) — the
+classic finite-sample ratio-of-sums bias. That specific mechanism is
+**refuted by direct experiment** (AB1.4's known-answer check, below): a
+constant-edits generator, which eliminates that bias entirely by
+construction, produces statistically indistinguishable undercoverage from
+the original correlated generator. The real mechanism is the percentile
+bootstrap's well-documented weak spot for the MEAN of a **right-skewed
+distribution** at small-to-moderate n (the lognormal cost-noise itself) —
+not anything specific to the ratio-of-sums structure. This also means the
+gap **does eventually close**: a supplementary check at n=500/1,000 found
+coverage back within its nominal CI. See "AB1 audit" section below for the
+full evidence chain. The bottom-line recommendation is unchanged — the
+gap has not closed anywhere in the range a real `tes cost --roi`-style
+window would realistically hold (10s–low-100s of sessions) — but the
+mechanism, and the harness's correctness, are now verified rather than
+assumed.
+
+## AB1 audit: was the harness measuring the right thing?
+
+**AB1.1 — the TRUE target, exact quote** (`scripts/measure_edit_ratio_bootstrap_coverage.py:62`):
+```python
+TRUE_RATIO = 2.50  # arbitrary but fixed -- $2.50/edit, a plausible real figure
+```
+used to generate data at line 98: `cost = TRUE_RATIO * edits * noise`. Coverage
+is checked as `lo <= TRUE_RATIO <= hi` on each trial's interval.
+
+**AB1.2 — the estimator, exact quote** (line 179):
+```python
+point_estimate = cost.sum() / edits.sum()
+```
+A ratio of sums, exactly as designed.
+
+**AB1.3 — are they the same quantity?** `noise_i` is drawn independently of
+`edits_i` (separate `rng.normal` calls, no functional dependence) with
+`E[noise_i]=1` (mean-corrected lognormal location). Asymptotically,
+`Σcost/Σedits → E[cost_i]/E[edits_i] = TRUE_RATIO * E[edits_i] * E[noise_i]
+/ E[edits_i] = TRUE_RATIO` — no asymptotic bias. At finite n, the classical
+ratio-estimator bias (a real, textbook effect, order ~1/n, driven by
+`Cov(edits,cost)` and `Var(edits)`) DOES apply, and AB1.3 correctly
+predicted this would produce a bias not fully accounted for by the
+interval — but AB1.4 below shows this specific mechanism is not what's
+actually driving the measured undercoverage.
+
+**AB1.4 — known-answer sanity check.** Generated data with `edits_i` held
+**constant** (`edits_value=5.0` for every session — `Var(edits)=0`,
+eliminating the ratio-of-sums bias term identically, since
+`Σcost/Σedits = Σcost/(n·5) = mean(cost)/5` becomes a pure linear rescaling
+of the sample mean of `cost_i`, unbiased for `TRUE_RATIO` at ANY n):
+
+| n\confidence | 0.95 | 0.98 |
+|---|---|---|
+| 10  | 0.8650 [0.8493,0.8793] | 0.9000 [0.8861,0.9124] |
+| 30  | 0.9035 [0.8898,0.9157] | 0.9420 [0.9309,0.9514] |
+| 50  | 0.9230 [0.9105,0.9339] | 0.9585 [0.9488,0.9664] |
+| 100 | 0.9320 [0.9201,0.9422] | 0.9615 [0.9521,0.9691] |
+| 250 | 0.9330 [0.9212,0.9431] | 0.9680 [0.9593,0.9749] |
+
+**Statistically indistinguishable from the original correlated-generator
+result at every matching cell** (e.g. n=250, confidence=0.95: 0.9330 here
+vs. 0.9340 originally — well within each other's CIs). **This directly
+refutes AB1.3's specific hypothesis**: removing the ratio-of-sums bias
+mechanism entirely does not fix coverage, so that mechanism was never the
+actual driver. With `edits` constant, the estimator is literally
+`mean(cost_i)/5` — a rescaled sample mean of a right-skewed (lognormal)
+variable — and percentile-bootstrap undercoverage for the mean of a skewed
+distribution at small-to-moderate n is the textbook effect (Efron &
+Tibshirani 1993) actually responsible, not anything specific to dividing
+by a second random quantity.
+
+**Does the gap close eventually?** A supplementary check (same
+constant-edits generator, confidence=0.95, 1,000 trials): n=500 → coverage
+0.9510 [0.9358,0.9627] (nominal now inside the CI); n=1,000 → 0.9430
+[0.9269,0.9557] (also inside). **Yes — it closes somewhere between n=250
+and n=500** for this skew level, consistent with ordinary bootstrap
+convergence, not a permanently broken method. The practical conclusion is
+unchanged only because a real `tes cost --roi`-style rolling window
+realistically holds far fewer sessions than 500 for the overwhelming
+majority of users.
+
+**AB1.5 — resampling unit vs. generator's exchangeable unit.** The
+generator produces n independent `(cost_i, edits_i)` PAIRS (sessions are
+the i.i.d. unit). `bootstrap_replicates` resamples via a single index array
+applied to BOTH arrays: `idx = rng.integers(0, n, size=(n_boot, n));
+boot_cost = cost[idx].sum(axis=1); boot_edits = edits[idx].sum(axis=1)` —
+the same `idx` indexes both, so whole sessions are resampled as units,
+preserving the cost/edits pairing. Verified correct.
+
+**AB1.6 — BCa jackknife unit.** `jk = (total_cost - cost) / (total_edits -
+edits)` — vectorized leave-one-SESSION-out (each `jk[i]` removes session
+i's own `(cost_i, edits_i)` pair), matching the resampling unit exactly.
+The full BCa formula (bias-correction `z0` from
+`mean(replicates < point_estimate)`, acceleration `a` from the jackknife
+skewness, adjusted percentiles via the standard Efron 1987 formula) was
+checked line-by-line against the textbook definition and matches. **BCa
+measuring worse than percentile here is not traced to an implementation
+bug** — both the resampling unit and the jackknife unit are correct. Left
+as a genuine, measured, not-fully-explained property of this estimator/
+generator combination (plausible mechanism: the jackknife-based
+acceleration estimate is itself a noisy statistic at these n, compounding
+rather than correcting the skew-driven error — not confirmed further).
+
+**AB1.8 verdict: harness is correct.** All checks pass; the coverage
+problem is real, general (driven by cost-distribution skewness, not
+ratio structure), and does not affect the recommendation. Studentized/
+bootstrap-t is the next candidate, as originally proposed.
+
+---
 
 **Status: MEASURED, XX2's ratio-CI feature BLOCKED pending a different
 interval method.** Per ZZ1.7's own explicit instruction ("if coverage is
