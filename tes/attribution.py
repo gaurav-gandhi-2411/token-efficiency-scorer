@@ -271,4 +271,28 @@ def compute_attribution(
     )
 
 
-__all__ = ["AttributionResult", "compute_attribution"]
+def attribution_fractions(attr: AttributionResult) -> tuple[float, float, float, float]:
+    """Returns (context_resend_pct, context_growth_pct, output_pct, waste_pct).
+
+    The single source of truth for the 4 attribution fractions
+    tes.intelligence.features derives for ML clustering (RR1) -- factored
+    out here so both score-time persistence (tes.store.upsert_session, via
+    tes.cli/tes.watcher) and any legacy on-demand extraction from a source
+    JSONL (tes.intelligence.features.extract_features, for rows scored
+    before this existed) compute these identically, never two slightly
+    different formulas that could silently disagree.
+
+    Returns all-zero for a session with total_billed_tokens == 0 (no
+    billed tokens at all) rather than dividing by zero.
+    """
+    total = attr.total_billed_tokens
+    if total == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    context_resend_pct = attr.context_resend_tokens / total
+    context_growth_pct = attr.context_growth_tokens / total
+    output_pct = attr.output_tokens / total
+    waste_pct = (attr.rr_waste_tokens + attr.rfr_waste_tokens) / total
+    return context_resend_pct, context_growth_pct, output_pct, waste_pct
+
+
+__all__ = ["AttributionResult", "attribution_fractions", "compute_attribution"]

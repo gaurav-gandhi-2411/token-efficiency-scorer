@@ -37,8 +37,23 @@ MIN_CONTENT_FOR_CACHE: int = 30     # below this: don't attempt clustering
 INVALIDATION_DELTA: int = 5         # re-compute if session_count changed by more than this
 
 
-def _cache_path() -> Path:
-    return Path.home() / ".tes" / "intelligence_cache.json"
+def _cache_path(db_path: Path | str | None = None) -> Path:
+    """RR2: co-located with, and named after, the resolved TES database --
+    NOT a fixed ~/.tes/intelligence_cache.json regardless of which DB is in
+    use. Before this fix, every caller shared one global cache file even
+    when TES_DB_PATH pointed somewhere else entirely (e.g. an isolated test
+    DB), so computing patterns against a scratch/test database silently
+    overwrote the real cache the next real `tes ask`/`tes patterns` call
+    would read -- confirmed live during RR1 verification, which is what
+    surfaced this. Mirrors tes.store.resolve_db_path's own resolution order
+    (explicit arg -> TES_DB_PATH env var -> ~/.tes/tes.db) so a given DB
+    always maps to the same cache file, and a different DB always maps to
+    a different one.
+    """
+    from tes.store import resolve_db_path
+
+    resolved_db = resolve_db_path(db_path)
+    return resolved_db.parent / f"{resolved_db.stem}.intelligence_cache.json"
 
 
 def _tracegauge_version() -> str:
@@ -49,9 +64,10 @@ def _tracegauge_version() -> str:
         return "unknown"
 
 
-def load_cache() -> dict[str, Any] | None:
-    """Return the parsed cache dict, or None if not found / invalid JSON."""
-    p = _cache_path()
+def load_cache(db_path: Path | str | None = None) -> dict[str, Any] | None:
+    """Return the parsed cache dict for db_path's DB, or None if not found /
+    invalid JSON. See _cache_path (RR2) for why this is DB-scoped."""
+    p = _cache_path(db_path)
     if not p.exists():
         return None
     try:
@@ -78,9 +94,13 @@ def is_cache_fresh(cache: dict[str, Any], current_session_count: int) -> bool:
 def save_cache(
     cache_dict: dict[str, Any],
     session_count: int,
+    db_path: Path | str | None = None,
 ) -> None:
-    """Write cache_dict to disk, stamped with version + session_count + timestamp."""
-    p = _cache_path()
+    """Write cache_dict to disk, stamped with version + session_count + timestamp.
+
+    Written to db_path's own cache file (RR2) -- see _cache_path.
+    """
+    p = _cache_path(db_path)
     p.parent.mkdir(parents=True, exist_ok=True)
 
     payload = {
@@ -175,7 +195,7 @@ def get_or_compute_intelligence(
 
     # Check cache validity
     if not force_recompute:
-        cached = load_cache()
+        cached = load_cache(db_path)
         if cached and is_cache_fresh(cached, total_session_count):
             if verbose:
                 print(f"[intelligence] Using cached results ({cached.get('n_sessions')} sessions, "
@@ -186,36 +206,53 @@ def get_or_compute_intelligence(
     if verbose:
         print("[intelligence] Computing ML patterns...")
 
-    features, X = build_feature_matrix(rows, verbose=verbose)
+    features, X, diagnostics = build_feature_matrix(rows, verbose=verbose)
     n_content = len(features)
 
     if n_content < MIN_CONTENT_FOR_CACHE:
+        # RR1.4: name the real cause rather than the generic "not enough
+        # sessions" whenever unreachable source files (legacy rows scored
+        # before attribution fractions were persisted at score time) are
+        # what's actually blocking the count, not a genuinely thin corpus.
+        n_no_source = diagnostics["n_no_source"]
+        if n_no_source > 0:
+            status = (
+                f"Not enough content sessions for pattern analysis yet "
+                f"({n_content} < {MIN_CONTENT_FOR_CACHE} needed) -- "
+                f"source transcripts no longer on disk for {n_no_source} of "
+                f"{n_no_source + n_content} session(s) that would otherwise "
+                "count (scored before this version persisted attribution at "
+                "score time; re-scoring is not required, but the original "
+                "file must still exist for those specific rows)."
+            )
+        else:
+            status = (
+                f"Not enough content sessions for pattern analysis yet "
+                f"({n_content} < {MIN_CONTENT_FOR_CACHE} needed). "
+                "Patterns will be available as your session corpus grows."
+            )
         cache_dict: dict[str, Any] = {
             "valid": False,
             "reason": "not_enough_sessions",
             "n_sessions": n_content,
             "n_content_sessions_needed": MIN_CONTENT_FOR_CACHE,
-            "status": (
-                f"Not enough content sessions for pattern analysis yet "
-                f"({n_content} < {MIN_CONTENT_FOR_CACHE} needed). "
-                "Patterns will be available as your session corpus grows."
-            ),
+            "status": status,
             "domain_of_validity": "n/a — minimum corpus size not reached",
         }
-        save_cache(cache_dict, total_session_count)
-        return load_cache() or cache_dict  # reload so caller sees stamps too
+        save_cache(cache_dict, total_session_count, db_path)
+        return load_cache(db_path) or cache_dict  # reload so caller sees stamps too
 
     result = run_clustering(features, X, verbose=verbose)
     anomalies = detect_anomalies(features, X, result)
 
     cache_dict = build_cache_from_results(result, anomalies)
-    save_cache(cache_dict, total_session_count)
+    save_cache(cache_dict, total_session_count, db_path)
 
     if verbose:
         print(f"[intelligence] k={result.k}, silhouette={result.silhouette:.4f}, "
               f"anomalies={len(anomalies)}")
 
-    return load_cache() or cache_dict  # reload so caller sees stamps too
+    return load_cache(db_path) or cache_dict  # reload so caller sees stamps too
 
 
 # Convenience: build a text summary of the intelligence results for the chat context

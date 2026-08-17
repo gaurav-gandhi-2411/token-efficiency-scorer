@@ -131,57 +131,79 @@ def extract_features(
 ) -> SessionFeatures | None:
     """Extract a 13-feature vector from a session store row.
 
+    RR1: prefers attribution fractions already PERSISTED on the row (from
+    tes.store, written at score time by tes.cli/tes.watcher via
+    tes.attribution.attribution_fractions) — this is the common, fast path
+    for anything scored since that fix landed, and needs no source JSONL at
+    all. Falls back to on-demand computation from the source JSONL only for
+    legacy rows scored before persistence existed (context_resend_pct etc.
+    are NULL on the row) — this fallback is what fails when the source file
+    has since moved or been deleted, which the persisted path above no
+    longer depends on.
+
     Returns None if:
     - real_tokens == 0 (stub session — no work product to cluster)
-    - source JSONL not accessible (can't compute attribution)
+    - no persisted fractions AND source JSONL not accessible (legacy row,
+      can't compute attribution without re-reading the transcript)
     - attribution computation fails for any reason
 
-    This function is the only place in intelligence/ that touches source JSONL;
-    everything downstream (cluster.py, anomaly.py, chat.py) works from the
-    extracted SessionFeatures objects.
+    This function is the only place in intelligence/ that may touch source
+    JSONL (only on the legacy fallback path); everything downstream
+    (cluster.py, anomaly.py, chat.py) works from the extracted
+    SessionFeatures objects.
     """
     if row.get("real_tokens", 0) == 0:
         return None
 
     source_path = row.get("source_path")
-    if not source_path or not Path(source_path).exists():
-        return None
 
-    # --- Compute attribution from source JSONL ---
-    try:
-        from tes.adapt import adapt_session
-        from tes.attribution import compute_attribution
-        from tes._digest import reconstruct_digest
-        from tes.waste import build_waste_entry
-        from tes.cost import load_price_table
-
-        if prices is None:
-            prices = load_price_table()
-
-        record = adapt_session(Path(source_path))
-        waste_entry = build_waste_entry(row["session_id"], record["digest"]["turns"])
-        digest = reconstruct_digest(record["digest"])
-        attr = compute_attribution(digest, waste_entry, prices)
-
-        total_billed = (
-            attr.rr_waste_tokens
-            + attr.rfr_waste_tokens
-            + attr.context_resend_tokens
-            + attr.output_tokens
-            + attr.fresh_input_tokens
-            + attr.context_growth_tokens
+    # --- Fast path: fractions already persisted at score time (RR1) ---
+    persisted = (
+        row.get("context_resend_pct"),
+        row.get("context_growth_pct"),
+        row.get("output_pct"),
+        row.get("waste_pct"),
+    )
+    fresh_input_pct: float | None = None
+    if all(v is not None for v in persisted):
+        context_resend_pct, context_growth_pct, output_pct, waste_pct = (
+            float(v) for v in persisted  # type: ignore[arg-type]
         )
-    except Exception:
-        return None
+        # fresh_input_pct is not persisted (dropped from the feature vector
+        # anyway, kept only for provenance on legacy rows) -- the remainder
+        # after the 4 persisted buckets, since all 5 non-waste-detail
+        # buckets should sum to ~1.0. Approximate, not re-derived exactly;
+        # provenance-only, never fed into the feature vector.
+        fresh_input_pct = max(0.0, 1.0 - context_resend_pct - context_growth_pct - output_pct)
+    else:
+        # --- Legacy fallback: compute attribution from source JSONL ---
+        if not source_path or not Path(source_path).exists():
+            return None
 
-    if total_billed == 0:
-        return None
+        try:
+            from tes.adapt import adapt_session
+            from tes.attribution import attribution_fractions, compute_attribution
+            from tes._digest import reconstruct_digest
+            from tes.waste import build_waste_entry
+            from tes.cost import load_price_table
 
-    context_resend_pct = attr.context_resend_tokens / total_billed
-    context_growth_pct = attr.context_growth_tokens / total_billed
-    output_pct = attr.output_tokens / total_billed
-    waste_pct = (attr.rr_waste_tokens + attr.rfr_waste_tokens) / total_billed
-    fresh_input_pct = attr.fresh_input_tokens / total_billed
+            if prices is None:
+                prices = load_price_table()
+
+            record = adapt_session(Path(source_path))
+            waste_entry = build_waste_entry(row["session_id"], record["digest"]["turns"])
+            digest = reconstruct_digest(record["digest"])
+            attr = compute_attribution(digest, waste_entry, prices)
+
+            if attr.total_billed_tokens == 0:
+                return None
+
+            context_resend_pct, context_growth_pct, output_pct, waste_pct = (
+                attribution_fractions(attr)
+            )
+            fresh_input_pct = attr.fresh_input_tokens / attr.total_billed_tokens
+        except Exception:
+            return None
 
     # --- Size features ---
     real_tokens = row.get("real_tokens", 0)
@@ -244,7 +266,7 @@ def build_feature_matrix(
     prices: dict | None = None,
     *,
     verbose: bool = False,
-) -> tuple[list[SessionFeatures], np.ndarray]:
+) -> tuple[list[SessionFeatures], np.ndarray, dict[str, int]]:
     """Extract features for all valid content sessions and stack into a matrix.
 
     Parameters
@@ -262,6 +284,13 @@ def build_feature_matrix(
         List of SessionFeatures for sessions where extraction succeeded.
     X:
         (N, 13) float64 array, one row per SessionFeatures, same order.
+    diagnostics:
+        {"n_persisted", "n_stub", "n_no_source", "n_failed"} -- RR1: lets a
+        caller (tes.intelligence.cache) distinguish "genuinely too few
+        sessions scored yet" from "N sessions exist but their source JSONL
+        is unreachable" (legacy rows, scored before attribution fractions
+        were persisted at score time) when reporting why patterns can't run,
+        rather than the generic "not enough sessions" either way.
     """
     from tes.cost import load_price_table as _lpt
 
@@ -272,11 +301,17 @@ def build_feature_matrix(
     n_stub = 0
     n_no_source = 0
     n_failed = 0
+    n_persisted = 0  # RR1: served from score-time-persisted fractions, no source JSONL touched
 
     for row in rows:
         if row.get("real_tokens", 0) == 0:
             n_stub += 1
             continue
+        if all(
+            row.get(k) is not None
+            for k in ("context_resend_pct", "context_growth_pct", "output_pct", "waste_pct")
+        ):
+            n_persisted += 1
         sf = extract_features(row, prices=prices)
         if sf is None:
             p = row.get("source_path")
@@ -290,14 +325,21 @@ def build_feature_matrix(
     if verbose:
         print(
             f"[features] extracted {len(features)} / {len(rows)} sessions "
-            f"(stubs={n_stub}, no_source={n_no_source}, failed={n_failed})"
+            f"(persisted={n_persisted}, stubs={n_stub}, no_source={n_no_source}, failed={n_failed})"
         )
 
+    diagnostics = {
+        "n_persisted": n_persisted,
+        "n_stub": n_stub,
+        "n_no_source": n_no_source,
+        "n_failed": n_failed,
+    }
+
     if not features:
-        return [], np.empty((0, _N_FEATURES), dtype=np.float64)
+        return [], np.empty((0, _N_FEATURES), dtype=np.float64), diagnostics
 
     X = np.vstack([sf.vector for sf in features])
-    return features, X
+    return features, X, diagnostics
 
 
 __all__ = [

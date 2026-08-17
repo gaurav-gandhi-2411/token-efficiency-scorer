@@ -158,6 +158,22 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
             conn.execute(alter_sql)
             conn.commit()
 
+    # RR1: attribution fractions, persisted at score time so tes.intelligence
+    # can cluster ANY scored session without re-reading its source JSONL --
+    # see tes.attribution.attribution_fractions. NULL for every row scored
+    # before this migration (additive, same pattern as the cost columns above);
+    # tes.intelligence.features falls back to on-demand extraction for those.
+    attribution_cols = {
+        "context_resend_pct": "ALTER TABLE sessions ADD COLUMN context_resend_pct REAL",
+        "context_growth_pct": "ALTER TABLE sessions ADD COLUMN context_growth_pct REAL",
+        "output_pct": "ALTER TABLE sessions ADD COLUMN output_pct REAL",
+        "waste_pct": "ALTER TABLE sessions ADD COLUMN waste_pct REAL",
+    }
+    for col_name, alter_sql in attribution_cols.items():
+        if col_name not in existing_cols:
+            conn.execute(alter_sql)
+            conn.commit()
+
     return conn
 
 
@@ -229,7 +245,8 @@ def upsert_session(
                 trajectory_domain_of_validity, judge_source_hash,
                 waste_event_count, waste_events, waste_domain_of_validity,
                 turn_count,
-                session_cost_usd, cost_approximate, cost_domain_of_validity
+                session_cost_usd, cost_approximate, cost_domain_of_validity,
+                context_resend_pct, context_growth_pct, output_pct, waste_pct
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -240,7 +257,8 @@ def upsert_session(
                 ?, ?,
                 ?, ?, ?,
                 ?,
-                ?, ?, ?
+                ?, ?, ?,
+                ?, ?, ?, ?
             )
             """,
             (
@@ -258,6 +276,8 @@ def upsert_session(
                 turn_count,
                 result.session_cost_usd, int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
+                result.context_resend_pct, result.context_growth_pct,
+                result.output_pct, result.waste_pct,
             ),
         )
 
@@ -277,7 +297,8 @@ def upsert_session(
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
-                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
             WHERE session_id = ?
             """,
             (
@@ -294,6 +315,8 @@ def upsert_session(
                 turn_count,
                 result.session_cost_usd, int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
+                result.context_resend_pct, result.context_growth_pct,
+                result.output_pct, result.waste_pct,
                 result.session_id,
             ),
         )
@@ -312,7 +335,8 @@ def upsert_session(
                 baseline_source = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
-                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
             WHERE session_id = ?
             """,
             (
@@ -327,6 +351,8 @@ def upsert_session(
                 turn_count,
                 result.session_cost_usd, int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
+                result.context_resend_pct, result.context_growth_pct,
+                result.output_pct, result.waste_pct,
                 result.session_id,
             ),
         )
@@ -347,7 +373,8 @@ def upsert_session(
                 trajectory_domain_of_validity = ?, judge_source_hash = ?,
                 waste_event_count = ?, waste_events = ?, waste_domain_of_validity = ?,
                 turn_count = ?,
-                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?
+                session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
+                context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?
             WHERE session_id = ?
             """,
             (
@@ -364,6 +391,8 @@ def upsert_session(
                 turn_count,
                 result.session_cost_usd, int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
+                result.context_resend_pct, result.context_growth_pct,
+                result.output_pct, result.waste_pct,
                 result.session_id,
             ),
         )
