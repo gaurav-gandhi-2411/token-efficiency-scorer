@@ -13,6 +13,61 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 **deliberately not published** — see its entry for why (corpus stays dormant). `0.10.2` was
 the **current published release** until `0.11.0` shipped.
 
+## [0.11.1] — Score-time attribution persistence, cache scoping fix
+
+### Fixed
+- **`tes patterns` clustered 0 sessions against a real corpus even when 30+ content
+  sessions existed in the database.** Root cause: feature extraction re-read each
+  session's original source JSONL transcript at cluster time to compute attribution
+  fractions — if that file had since moved, been deleted, or been cleaned up (the
+  normal lifecycle for a session transcript once it's been scored), the session
+  silently couldn't be clustered, with no visible reason why. Fixed by persisting the
+  4 attribution fractions (`context_resend_pct`, `context_growth_pct`, `output_pct`,
+  `waste_pct`) directly to the database at score time (`tes score`, `tes serve`, and
+  the background watcher all covered) via a new `attribution_fractions()` helper in
+  `tes/attribution.py` — the single source of truth used by both the score-time
+  persist path and the legacy on-demand fallback, so the two paths can't drift.
+  `tes.intelligence.features.extract_features()` now prefers the persisted columns
+  and only falls back to re-reading source JSONL for rows scored before this fix
+  existed. **Schema migration:** 4 new nullable `REAL` columns, added via the
+  existing additive-only `ALTER TABLE` guard — no action needed on upgrade.
+- **The ML intelligence cache (`intelligence_cache.json`) was a single fixed global
+  path**, shared across every database in use. Running `tes patterns`/`tes ask`
+  against an isolated or scratch database (e.g. via `TES_DB_PATH`) silently
+  overwrote the real cache the next real invocation would read — found live while
+  verifying the fix above. `_cache_path()` now resolves the same way
+  `tes.store.resolve_db_path()` does (explicit arg → `TES_DB_PATH` → `~/.tes/tes.db`
+  default) and is co-located with, and named after, its own database
+  (`<db-name>.intelligence_cache.json`), so a given database always maps to the same
+  cache file and a different one never collides with it.
+- The "not enough sessions" message now distinguishes a genuinely thin corpus from
+  one blocked by unreachable source files on rows scored before this fix — naming
+  the real cause (count of affected sessions, why, and that nothing further is
+  needed going forward) instead of a generic "your corpus will grow" message that
+  didn't apply.
+- `tes cost`'s missing-cost-data message no longer hardcodes "have" for every count
+  (`"1 session have no cost data"` → `"1 session has no cost data"`).
+
+### If you're upgrading from `0.11.0` or earlier
+Every content session scored before this fix has the source-file problem above, not
+just some of them — clustering doesn't pick up where it left off. On the real corpus
+this was verified against, all 321 of 321 previously-scored content sessions (100%)
+had unreachable source files. **Nothing is lost or corrupted** — no row is deleted,
+no score is wrong — clustering (`tes patterns`, `tes ask`) simply restarts from zero
+and rebuilds as you keep scoring sessions going forward; the tool says so plainly
+when it happens rather than showing an empty or misleading result. There is no
+database-only backfill path: the closest candidate, `waste_events.wasted_cost_usd`,
+covers only 1 of the 4 attribution fractions clustering needs, and as dollar cost
+rather than raw tokens — recovering a legacy row genuinely requires its original
+transcript file, so this release does not attempt one.
+
+Consequence for this repo's own test suite: 8 pre-existing tests that read the real,
+local `~/.tes/tes.db` directly (5 in `tests/test_cluster_validity.py`,
+3 in `tests/test_chat_grounding.py`) now fail against this machine's real corpus,
+since it currently has 0 rows with persisted attribution. This is the direct,
+expected consequence of the finding above, not a regression — those tests pass
+again once 30+ sessions have been scored under this version.
+
 ## [0.11.0] — Period cost report (`tes cost`)
 
 ### Added
