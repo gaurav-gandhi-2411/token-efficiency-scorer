@@ -17,7 +17,42 @@ unrelated test corpus into the real ~/.tes/intelligence_cache.json.
 
 from pathlib import Path
 
-from tes.intelligence.cache import _cache_path, load_cache, save_cache
+import pytest
+
+from tes.intelligence.cache import (
+    _cache_path,
+    get_or_compute_intelligence,
+    load_cache,
+    save_cache,
+)
+
+
+# ---------------------------------------------------------------------------
+# UU2: db_path is a required parameter, not a defaultable one, on every
+# function in this module that can write. This is what actually closes the
+# hole RR2 found and UU2 found again: a caller that omits db_path entirely
+# now gets a loud TypeError at the call site, not a silent write to
+# ~/.tes/intelligence_cache.json. Verified structurally (the call itself
+# fails) rather than by convention (a rule the caller has to remember).
+# ---------------------------------------------------------------------------
+
+
+class TestDbPathIsRequiredNotDefaulted:
+    def test_cache_path_requires_db_path(self):
+        with pytest.raises(TypeError):
+            _cache_path()  # type: ignore[call-arg]
+
+    def test_load_cache_requires_db_path(self):
+        with pytest.raises(TypeError):
+            load_cache()  # type: ignore[call-arg]
+
+    def test_save_cache_requires_db_path(self):
+        with pytest.raises(TypeError):
+            save_cache({"valid": False}, session_count=0)  # type: ignore[call-arg]
+
+    def test_get_or_compute_intelligence_requires_db_path(self):
+        with pytest.raises(TypeError):
+            get_or_compute_intelligence()  # type: ignore[call-arg]
 
 
 def test_different_db_paths_resolve_to_different_cache_files(tmp_path: Path):

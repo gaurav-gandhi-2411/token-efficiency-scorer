@@ -57,21 +57,18 @@ jobs:
         continue-on-error: true
         run: uv run mypy src/ tes/
 
-      # test_cluster_validity.py and test_chat_grounding.py's
-      # TestContextFormatUnambiguous class both read the actual local
-      # ~/.claude/projects session history (via _load_real_corpus /
-      # get_or_compute_intelligence) and need >=30 real content sessions to
-      # exercise clustering/pattern-analysis meaningfully — a machine-state
-      # dependency no CI runner can satisfy (verified: they pass on a dev
-      # machine with real session history, fail identically-for-that-reason
-      # on a fresh runner with zero). Pre-existing test-portability gap, not
-      # something this workflow can fix without a bundled fixture corpus;
-      # excluded here rather than left to fail non-deterministically by
-      # however much local history the runner happens to have. Every other
-      # test file that touches this code path (test_anomaly_threshold.py,
-      # test_small_corpus_honest_path.py, test_web_patterns.py,
-      # test_route_registration.py) already handles it correctly via
-      # pytest.skip or a mocked/synthetic corpus and is NOT excluded.
+      # UU1 (0.11.1): test_cluster_validity.py and test_chat_grounding.py's
+      # TestContextFormatUnambiguous class used to be excluded here entirely
+      # -- both read the real local ~/.claude/projects session history via
+      # _load_real_corpus / get_or_compute_intelligence(no db_path), a
+      # machine-state dependency no CI runner could ever satisfy. Fixed at
+      # the test level instead of papering over it here:
+      # test_chat_grounding.py's format-contract tests now use a synthetic,
+      # always-valid cache dict (they test a pure dict -> str function, which
+      # never needed a real DB); test_cluster_validity.py's real-corpus
+      # quality checks now pytest.skip with a stated reason when the corpus
+      # is too thin to evaluate, same pattern test_anomaly_threshold.py
+      # already used correctly. Both files run unrestricted here now.
       # test_failure_isolation_continues_scan fails consistently on this
       # ubuntu runner (2 separate runs, "Expected 2 scored, got 1") but
       # passes consistently in local verification on Windows. Investigated
@@ -88,8 +85,6 @@ jobs:
       - name: Unit tests
         run: |
           uv run pytest \
-            --ignore=tests/test_cluster_validity.py \
-            --deselect=tests/test_chat_grounding.py::TestContextFormatUnambiguous \
             --deselect=tests/test_watcher_incremental.py::test_failure_isolation_continues_scan
 
   manifest-provenance:

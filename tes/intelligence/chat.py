@@ -143,12 +143,15 @@ def build_chat_context(
       "session": specific session data if question mentions a session ID (else None)
       "question": the original question (for prompt construction)
     """
-    from tes.store import open_db, list_sessions
+    from tes.store import open_db, list_sessions, resolve_db_path
     import numpy as np
 
-    intelligence = get_or_compute_intelligence(db_path=db_path, force_recompute=force_recompute)
+    resolved_db_path = resolve_db_path(db_path)
+    intelligence = get_or_compute_intelligence(
+        db_path=resolved_db_path, force_recompute=force_recompute
+    )
 
-    conn = open_db(db_path)
+    conn = open_db(resolved_db_path)
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
 
@@ -191,7 +194,7 @@ def build_chat_context(
     session_ids_in_q = uuid_pattern.findall(question)
     if session_ids_in_q:
         from tes.store import get_session
-        conn = open_db(db_path)
+        conn = open_db(resolved_db_path)
         for sid in session_ids_in_q[:1]:  # max 1 session per query
             row = get_session(conn, sid)
             if row:

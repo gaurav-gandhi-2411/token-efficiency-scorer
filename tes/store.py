@@ -444,12 +444,17 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
         return None
 
 
-def backfill_turn_counts(db_path: Path | str | None = None) -> dict[str, int]:
+def backfill_turn_counts(db_path: Path | str) -> dict[str, int]:
     """Populate turn_count for all sessions where it is currently NULL.
 
     Reads each session's source JSONL file and counts turns using the same
     logic as adapt_session().  Returns a summary dict:
         {"updated": N, "missing_source": M, "errors": E}
+
+    UU2: db_path is required, not defaulted. Currently unreferenced by any
+    caller (found during the UU2 write-path audit) -- hardened for
+    consistency with the rest of that audit rather than left as the one
+    exception, in case a future caller reaches for it.
     """
     conn = open_db(db_path)
     rows = conn.execute(

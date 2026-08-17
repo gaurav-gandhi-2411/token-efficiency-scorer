@@ -277,9 +277,66 @@ class TestContextFormatUnambiguous:
 
     @pytest.fixture(scope="class")
     def intel_summary(self) -> str:
-        from tes.intelligence.cache import get_or_compute_intelligence, format_intelligence_summary
-        cache = get_or_compute_intelligence(verbose=False)
-        return format_intelligence_summary(cache)
+        """UU1: format_intelligence_summary() is a pure dict -> str function --
+        this class is a Q2-regression guard on its FORMATTING contract, which
+        needs no real corpus at all. It used to call get_or_compute_intelligence()
+        against the live default DB (no db_path), which (a) made these tests
+        depend on this machine's real session history -- always failing on a
+        fresh checkout/CI runner with no history, and silently skipped there via
+        ci.yml's --deselect rather than actually exercised -- and (b) is exactly
+        the shape of write-boundary bug UU2 hardens against (a compute call with
+        no explicit db_path). A synthetic, always-valid cache dict (same shape
+        build_cache_from_results() produces) tests the same formatting contract
+        deterministically, everywhere, with no DB access at all.
+        """
+        from tes.intelligence.cache import format_intelligence_summary
+
+        synthetic_cache = {
+            "valid": True,
+            "k": 2,
+            "silhouette": 0.42,
+            "silhouette_stability_mean": 0.42,
+            "silhouette_stability_cv": 0.05,
+            "stable": True,
+            "status": "silhouette=0.420 (meaningful). stable (CV=0.050).",
+            "domain_of_validity": "descriptive of this corpus only, not predictive",
+            "n_sessions": 40,
+            "archetypes": [
+                {
+                    "cluster_id": 0,
+                    "name": "medium high context re-send sessions",
+                    "size": 25,
+                    "fraction": 0.625,
+                    "centroid": {
+                        "context_resend_pct": 0.95,
+                        "context_growth_pct": 0.02,
+                        "output_pct": 0.02,
+                        "waste_pct": 0.01,
+                        "has_waste": 0,
+                    },
+                    "task_type_counts": {"debug-fix": 15, "feature-build": 10},
+                    "dominant_features": [],
+                },
+                {
+                    "cluster_id": 1,
+                    "name": "small waste-flagged sessions",
+                    "size": 15,
+                    "fraction": 0.375,
+                    "centroid": {
+                        "context_resend_pct": 0.90,
+                        "context_growth_pct": 0.03,
+                        "output_pct": 0.03,
+                        "waste_pct": 0.04,
+                        "has_waste": 1,
+                    },
+                    "task_type_counts": {"ml-eval": 15},
+                    "dominant_features": [],
+                },
+            ],
+            "anomaly_count": 2,
+            "anomaly_pct": 5.0,
+        }
+        return format_intelligence_summary(synthetic_cache)
 
     def test_has_waste_is_yes_no_not_numeric(self, intel_summary: str) -> None:
         """has_waste must appear as YES or NO — never as 0, 1, -0, or any digit."""
