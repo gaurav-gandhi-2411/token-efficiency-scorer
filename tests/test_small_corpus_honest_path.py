@@ -78,7 +78,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cache.load_cache", return_value=None),
             patch("tes.intelligence.cache.save_cache"),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         assert result["valid"] is False
         assert result["reason"] == "not_enough_sessions"
@@ -118,7 +118,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cache.load_cache", return_value=None),
             patch("tes.intelligence.cache.save_cache"),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         assert result["valid"] is False
         status = result["status"].lower()
@@ -146,7 +146,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cache.load_cache", return_value=None),
             patch("tes.intelligence.cache.save_cache"),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         assert result["valid"] is False
         status = result["status"].lower()
@@ -232,7 +232,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
             patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         assert result["valid"] is True
         assert "archetypes" in result
@@ -254,7 +254,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cache.load_cache", side_effect=[None, _small_corpus_cache()]),
             patch("tes.intelligence.cache.save_cache"),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         # These keys MUST be present; their absence caused the _run_patterns KeyError
         assert "session_count" in result or result.get("valid") is False, (
@@ -326,7 +326,7 @@ class TestSmallCorpusCacheLayer:
             patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
             patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):
-            result = get_or_compute_intelligence(verbose=False)
+            result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
         assert "session_count" in result, "session_count missing from stamped result"
         assert "tracegauge_version" in result, "tracegauge_version missing from stamped result"
