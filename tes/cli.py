@@ -682,6 +682,76 @@ def _run_patterns(
     print("\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language.")
 
 
+def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
+    """Handle `tes impact` -- corpus-wide code-impact reconstruction from
+    persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
+    counts only; AB3.2: the untested-tool-shape and prior-content-unknown
+    fractions are reported inline, next to the totals they qualify, never
+    buried.
+    """
+    from tes.impact import compute_impact_report
+    from tes.store import list_sessions, open_db, resolve_db_path
+
+    resolved_db = resolve_db_path(db_path)
+    try:
+        conn = open_db(resolved_db)
+    except Exception as exc:
+        print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
+        return
+
+    rows = list_sessions(conn, limit=5000, offset=0)
+    conn.close()
+
+    report = compute_impact_report(rows, top_n=top_n)
+
+    sep = "─" * 70
+    print(f"\n{sep}")
+    print("CODE IMPACT")
+    print(sep)
+
+    if report.sessions_with_data == 0:
+        if report.sessions_legacy > 0:
+            print(
+                f"\n{report.sessions_legacy} session(s) in this store predate edit-operation "
+                "tracking -- nothing to report yet. Your impact data rebuilds from sessions "
+                "scored from now on; nothing else to do."
+            )
+        else:
+            print("\nNo sessions found in this store.")
+        print(sep)
+        return
+
+    print(f"\n{report.total_operations} edit operation(s) across "
+          f"{report.sessions_with_data} session(s) with impact data"
+          + (f" ({report.sessions_legacy} additional session(s) predate this tracking, "
+             "not counted -- see the CHANGELOG)" if report.sessions_legacy else ""))
+    print(f"  +{report.total_additions} / -{report.total_deletions} lines")
+
+    if report.prior_content_unknown_pct is not None:
+        print(f"  {report.prior_content_unknown_pct:.0f}% of additions are from Write/"
+              f"NotebookEdit calls, whose payload never carries the file's PRIOR content "
+              "-- additions are exact, but a full-file rewrite looks identical to a "
+              "brand-new file, so this fraction is inherently uncertain in that specific way.")
+    if report.untested_tool_shape_pct is not None and report.untested_tool_shape_operations:
+        print(f"  {report.untested_tool_shape_pct:.0f}% of operations came from MultiEdit/"
+              "NotebookEdit -- extraction paths with ZERO real-corpus verification "
+              "(see README). Not presented with the same confidence as Edit/Write.")
+
+    if report.top_files:
+        print("\nMost-edited files:")
+        for f in report.top_files:
+            print(f"  {f.edits:>4} edits  +{f.additions}/-{f.deletions}  "
+                  f"({f.sessions_touched} session(s))  {f.path}")
+
+    if report.top_directories:
+        print("\nMost-edited directories:")
+        for d in report.top_directories:
+            print(f"  {d.edits:>4} edits  +{d.additions}/-{d.deletions}  "
+                  f"({d.sessions_touched} session(s))  {d.path}")
+
+    print(sep)
+
+
 def _run_ask(
     question: str,
     *,
@@ -1241,6 +1311,27 @@ def main() -> None:
         help="Force re-computation even if a fresh cache exists.",
     )
 
+    impact_p = sub.add_parser(
+        "impact",
+        help="Code-impact reconstruction: additions/deletions, churn ranking, from Edit/Write payloads.",
+        description=(
+            "Corpus-wide, from Edit/Write/MultiEdit/NotebookEdit tool-call payloads persisted at "
+            "score time. Plain counts only -- no composite risk score, no ranking weight invented. "
+            "MultiEdit/NotebookEdit extraction is written but has zero real-corpus verification "
+            "(see the README) and is flagged inline wherever it contributes to a total."
+        ),
+    )
+    impact_p.add_argument(
+        "--db-path", default=None, dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    impact_p.add_argument(
+        "--top", type=int, default=10, dest="top_n",
+        metavar="N",
+        help="Number of files/directories to show in the churn ranking (default: 10).",
+    )
+
     corpus_p = sub.add_parser(
         "corpus",
         help="Community corpus: opt-in contribution and withdrawal (content-free, transmits).",
@@ -1518,6 +1609,10 @@ def main() -> None:
             db_path=args.db_path,
             force_recompute=args.recompute,
         )
+        sys.exit(0)
+
+    if args.command == "impact":
+        _run_impact(db_path=args.db_path, top_n=args.top_n)
         sys.exit(0)
 
     if args.command == "ask":

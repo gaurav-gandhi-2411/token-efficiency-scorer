@@ -220,6 +220,43 @@ def test_merge_preserve_judge_stale(tmp_path: Path) -> None:
     assert row["axes_scored"] == ["token", "waste"]
 
 
+def test_edit_operations_round_trips_through_json(tmp_path: Path) -> None:
+    """XX2.2: edit_operations persists and reads back as the same list of
+    dicts -- same JSON round-trip discipline as waste_events."""
+    import json
+
+    conn = open_db(tmp_path / "tes.db")
+    result = _make_result(session_id="sess-edit")
+    result.edit_operations = json.dumps([
+        {"path": "foo.py", "additions": 3, "deletions": 1, "tool": "Edit",
+         "prior_content_unknown": False, "untested_tool_shape": False},
+    ])
+
+    upsert_session(conn, result, source_path="/tmp/sess.jsonl", source_mtime=1.0, source_hash="abc")
+    row = get_session(conn, "sess-edit")
+
+    assert row is not None
+    stored = json.loads(row["edit_operations"])
+    assert stored == [
+        {"path": "foo.py", "additions": 3, "deletions": 1, "tool": "Edit",
+         "prior_content_unknown": False, "untested_tool_shape": False},
+    ]
+
+
+def test_edit_operations_null_when_not_provided(tmp_path: Path) -> None:
+    """A result that never set edit_operations persists NULL (legacy-row
+    shape) -- not '[]', not an empty string."""
+    conn = open_db(tmp_path / "tes.db")
+    result = _make_result(session_id="sess-no-edit")
+    assert result.edit_operations is None
+
+    upsert_session(conn, result, source_path="/tmp/sess.jsonl", source_mtime=1.0, source_hash="abc")
+    row = get_session(conn, "sess-no-edit")
+
+    assert row is not None
+    assert row["edit_operations"] is None
+
+
 def test_schema_version(tmp_path: Path) -> None:
     """PRAGMA user_version must equal SCHEMA_VERSION after DB creation."""
     conn = open_db(tmp_path / "tes.db")
