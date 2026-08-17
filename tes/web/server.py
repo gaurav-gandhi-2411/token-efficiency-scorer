@@ -511,8 +511,9 @@ def create_app(config: ServerConfig) -> Flask:
 
     @app.route("/patterns")
     def patterns() -> str:
-        db_path_str = str(config.db_path) if config.db_path else None
-        cache = get_or_compute_intelligence(db_path=db_path_str)
+        from tes.store import resolve_db_path
+
+        cache = get_or_compute_intelligence(db_path=resolve_db_path(config.db_path))
         ollama_available = _check_ollama()
         api_key_available = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
         return render_template(

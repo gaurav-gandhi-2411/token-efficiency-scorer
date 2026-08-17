@@ -61,12 +61,52 @@ covers only 1 of the 4 attribution fractions clustering needs, and as dollar cos
 rather than raw tokens — recovering a legacy row genuinely requires its original
 transcript file, so this release does not attempt one.
 
-Consequence for this repo's own test suite: 8 pre-existing tests that read the real,
-local `~/.tes/tes.db` directly (5 in `tests/test_cluster_validity.py`,
-3 in `tests/test_chat_grounding.py`) now fail against this machine's real corpus,
-since it currently has 0 rows with persisted attribution. This is the direct,
-expected consequence of the finding above, not a regression — those tests pass
-again once 30+ sessions have been scored under this version.
+### Test suite: 0 known-failing tests, corrected boundary enforcement
+The legacy-row finding above initially left 8 pre-existing tests failing against
+this machine's real, thin-again corpus (5 in `tests/test_cluster_validity.py`,
+3 in `tests/test_chat_grounding.py`) — both files read `~/.tes/tes.db` directly.
+Rather than leave a red suite as the accepted state, each was fixed at the root:
+- `test_chat_grounding.py`'s `TestContextFormatUnambiguous` class tests
+  `format_intelligence_summary()`'s formatting contract — a pure `dict -> str`
+  function that never needed a live database at all. It now runs against a
+  synthetic, always-valid cache dict, deterministically, on every machine
+  (including CI, which previously excluded this class entirely — see below).
+- `test_cluster_validity.py`'s real-corpus clustering-quality checks now
+  `pytest.skip()` with a stated, diagnostic reason (distinguishing "too few
+  sessions to evaluate" from "evaluated and it's a real quality regression")
+  when the local corpus can't support them — the same pattern
+  `tests/test_anomaly_threshold.py` already used correctly. Several other
+  tests in the same class had been passing *vacuously* on an empty corpus
+  (looping over zero archetypes proves nothing); those now honestly skip
+  instead of silently reporting a pass that verified nothing.
+- `.github/workflows/ci.yml`'s `--ignore=tests/test_cluster_validity.py` and
+  `--deselect=...TestContextFormatUnambiguous` are removed — both files now
+  run unrestricted in CI, since the fix above makes them either pass
+  deterministically or skip with a reason, on any machine, real corpus or not.
+
+Full suite: `700 passed, 20 skipped, 1 deselected` (the 1 deselection is a
+pre-existing, separately-investigated Ubuntu-runner-specific flake in
+`test_watcher_incremental.py`, unrelated to this release — see `ci.yml`'s own
+comment for the investigation).
+
+### Write-boundary enforcement: `~/.tes/` scoping is now structural, not conventional
+RR2 (above) fixed one instance of a class of bug: a function that computes AND
+WRITES a derived artifact (the ML intelligence cache), with a `db_path` parameter
+that silently defaulted to the real `~/.tes/tes.db` location whenever a caller
+omitted it. RR2's own verification, and separately this release's own verification,
+both re-triggered the same class of mistake via an ad hoc interactive call that
+forgot to pass a path. `db_path` is no longer optional on `tes.intelligence.cache`'s
+`get_or_compute_intelligence()`, `save_cache()`, `load_cache()`, or `_cache_path()`,
+nor on `tes.store.backfill_turn_counts()` (found unreferenced during this audit,
+hardened for consistency) — omitting it is now a `TypeError` at the call site, not a
+silent write to the real cache file. Resolution (explicit arg → `TES_DB_PATH` →
+default) still happens, but now exactly once, at each top-level entry point
+(`tes.cli`'s command handlers, `tes.intelligence.chat.build_chat_context`,
+`tes.web.server`'s routes) — everything below that boundary is handed an
+already-resolved, concrete path and can no longer guess one. Covered by new tests
+in `tests/test_intelligence_cache_scoping.py` proving the omission itself fails
+loudly, alongside the existing test proving a scoped write never touches the real
+default location.
 
 ## [0.11.0] — Period cost report (`tes cost`)
 

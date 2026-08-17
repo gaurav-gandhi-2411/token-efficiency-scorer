@@ -37,7 +37,7 @@ MIN_CONTENT_FOR_CACHE: int = 30     # below this: don't attempt clustering
 INVALIDATION_DELTA: int = 5         # re-compute if session_count changed by more than this
 
 
-def _cache_path(db_path: Path | str | None = None) -> Path:
+def _cache_path(db_path: Path | str) -> Path:
     """RR2: co-located with, and named after, the resolved TES database --
     NOT a fixed ~/.tes/intelligence_cache.json regardless of which DB is in
     use. Before this fix, every caller shared one global cache file even
@@ -45,10 +45,20 @@ def _cache_path(db_path: Path | str | None = None) -> Path:
     DB), so computing patterns against a scratch/test database silently
     overwrote the real cache the next real `tes ask`/`tes patterns` call
     would read -- confirmed live during RR1 verification, which is what
-    surfaced this. Mirrors tes.store.resolve_db_path's own resolution order
-    (explicit arg -> TES_DB_PATH env var -> ~/.tes/tes.db) so a given DB
-    always maps to the same cache file, and a different DB always maps to
-    a different one.
+    surfaced this.
+
+    UU2: `db_path` is REQUIRED, not `| None = None` -- this function used to
+    silently resolve a missing db_path to the real default (~/.tes/tes.db)
+    itself, which is exactly how a caller that only meant to inspect/verify
+    something (no explicit target in mind) ended up writing to the real
+    cache file (found twice: RR2's own discovery, then again during 0.11.1's
+    own release verification). Resolution now happens exactly once, at each
+    top-level entry point (CLI commands, tes.intelligence.chat), via
+    tes.store.resolve_db_path -- everything below that boundary, including
+    this function, only ever sees a concrete path it was explicitly handed.
+    Mirrors tes.store.resolve_db_path's own resolution order (explicit arg
+    -> TES_DB_PATH env var -> ~/.tes/tes.db) so a given DB always maps to
+    the same cache file, and a different DB always maps to a different one.
     """
     from tes.store import resolve_db_path
 
@@ -64,9 +74,10 @@ def _tracegauge_version() -> str:
         return "unknown"
 
 
-def load_cache(db_path: Path | str | None = None) -> dict[str, Any] | None:
+def load_cache(db_path: Path | str) -> dict[str, Any] | None:
     """Return the parsed cache dict for db_path's DB, or None if not found /
-    invalid JSON. See _cache_path (RR2) for why this is DB-scoped."""
+    invalid JSON. See _cache_path (RR2) for why this is DB-scoped, and its
+    UU2 note for why db_path is required rather than defaulted."""
     p = _cache_path(db_path)
     if not p.exists():
         return None
@@ -94,11 +105,13 @@ def is_cache_fresh(cache: dict[str, Any], current_session_count: int) -> bool:
 def save_cache(
     cache_dict: dict[str, Any],
     session_count: int,
-    db_path: Path | str | None = None,
+    db_path: Path | str,
 ) -> None:
     """Write cache_dict to disk, stamped with version + session_count + timestamp.
 
-    Written to db_path's own cache file (RR2) -- see _cache_path.
+    Written to db_path's own cache file (RR2) -- see _cache_path. UU2:
+    db_path is required -- this function writes to disk, and a defaultable
+    path on a write is exactly the shape of bug RR2/UU2 both found.
     """
     p = _cache_path(db_path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +176,7 @@ def build_cache_from_results(
 
 def get_or_compute_intelligence(
     *,
-    db_path: Path | str | None = None,
+    db_path: Path | str,
     force_recompute: bool = False,
     verbose: bool = False,
 ) -> dict[str, Any]:
@@ -171,6 +184,18 @@ def get_or_compute_intelligence(
 
     This is the single entry point for both the chat and the dashboard.
     Returns a dict with the clustering + anomaly results (serialised).
+
+    UU2: `db_path` is required, not `| None = None`. This function computes
+    AND WRITES (via save_cache) when the cache is stale or missing -- a
+    defaultable path on a function with a write side effect is exactly how
+    an interactive/diagnostic call that never meant to touch the real DB
+    ended up writing to the real ~/.tes/intelligence_cache.json (twice: the
+    original RR2 discovery, then again during 0.11.1's own release
+    verification). Resolution (explicit arg -> TES_DB_PATH env var ->
+    ~/.tes/tes.db default) still happens, but now exactly once, at each
+    top-level entry point (tes.cli's command handlers, tes.intelligence.chat's
+    build_chat_context) via tes.store.resolve_db_path -- callers below that
+    boundary must be handed a path, never left to guess one.
 
     The returned dict always has:
       "valid": bool        — False if not enough sessions or clustering failed

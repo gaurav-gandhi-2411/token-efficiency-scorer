@@ -636,10 +636,11 @@ def _run_patterns(
 ) -> None:
     """Show the ML pattern analysis for the session corpus."""
     from tes.intelligence.cache import get_or_compute_intelligence
+    from tes.store import resolve_db_path
 
     print("Computing session patterns...", flush=True)
     cache = get_or_compute_intelligence(
-        db_path=db_path,
+        db_path=resolve_db_path(db_path),
         force_recompute=force_recompute,
         verbose=True,
     )
