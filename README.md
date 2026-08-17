@@ -232,6 +232,116 @@ Total: $2.50  (1 session)
 
 ---
 
+## `tes budget` — rolling self-trend pace
+
+```bash
+tes budget                      # rolling last 7 days (default)
+tes budget --window-days 30
+```
+
+A rolling-window spend PROJECTION — distinct from `tes cost`'s period REPORT above. `tes cost` answers "what did I actually spend"; `tes budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output, published `tracegauge==0.11.0`, a real 365-day window against real session data:
+
+```
+──────────────────────────────────────────────────────────────────────
+BUDGET / PACE
+──────────────────────────────────────────────────────────────────────
+
+At this pace (~$5604.50 so far across 841 sessions, 70.1 of 365 days) you're trending toward ~$29179.77 over a 365-day window -- based on your last 70.1 days, not a forecast of future work; work volume varies.
+
+──────────────────────────────────────────────────────────────────────
+```
+
+At the default 7-day window, with no cost data that recent, `tes budget` says so plainly rather than fabricating a projection from stale data:
+
+```
+No sessions with cost data in the last 7 days -- nothing to project yet.
+```
+
+**Filters on `scored_at`, not `source_mtime`** — when `tes score`/`tes scan` happened to run, not when the session itself happened. This is a real, known divergence from `tes cost`'s design (which deliberately uses `source_mtime` instead — see above): under a batch-scoring workflow, every session scored in one sitting gets the same `scored_at` timestamp, so this projection's trailing window can cluster a batch of real, older spend onto one recent instant, or miss it entirely once it ages out of the window — describing "cost incurred in scoring runs over the last N days," not necessarily "cost incurred by real usage in the last N days." Documented here honestly as this command's current, real behavior, not its intent. Tracked as [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12); not fixed here.
+
+## `tes monitor` — live in-progress check
+
+```bash
+tes monitor [--stability-window SECONDS] [--plan usage_based|max]
+```
+
+A one-shot check of whatever Claude Code session is currently being written under `~/.claude/projects` — scores it as-is (a partial transcript, not a finished session), prints an estimated cost/context figure explicitly labeled "in progress," and checks the same data-gated cost/context alarm the background watcher uses. A session more recently modified than `--stability-window` (default 300s) is considered "active"; if none is, it says so and does nothing further.
+
+Real output, published `tracegauge==0.11.0`, against a genuinely active session on this machine (redaction warnings are the adapter finding and stripping real secret-shaped strings from the transcript before scoring — the tool's own redaction-on-by-default behavior, not an error):
+
+```
+[adapter] WARNING: redacted 1 occurrence(s) of pattern 'anthropic_key'
+[adapter] WARNING: redacted 3 occurrence(s) of pattern 'generic_key_assignment'
+...
+Session: 96fd948b-9197-46b2-9e9f-4dbfd7fc3a88  (infra-deploy)
+  ~$681.70 (estimated, in progress)
+  ~20,400,400 context tokens (estimated, in progress)
+  99% context re-send (measured)
+
+Live estimate of an IN-PROGRESS session -- cost and context size are provisional and will change as the session continues. Computed with the same frozen attribution/cost math used on completed sessions, applied to the partial transcript seen so far. Never a final or billed figure.
+
+[ALARM] This session is at ~$681.70 (estimated, in progress) and ~20,400,400 context tokens (estimated, in progress), 99% of which is re-sent context (measured) -- well above your own typical infra-deploy session (p75: 447,157 tokens). Consider `/compact`.
+```
+
+The alarm compares the live estimate against your own self-baseline (per task type), the same baseline `tes score`'s band verdict uses — it fires only once enough of your own history exists to make that comparison meaningful, never against a fixed universal threshold.
+
+## Session intelligence — `tes patterns` and `tes ask`
+
+The most differentiated thing either package does, and previously the least visible: unsupervised clustering of your own session corpus into behavioral archetypes, plus a constrained conversational explainer over the result.
+
+### `tes patterns`
+
+```bash
+tes patterns [--recompute]
+```
+
+Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to `~/.tes/intelligence_cache.json` and are reused by `tes ask` below. Requires **30+ content sessions** with their original source JSONL files still reachable on disk (feature extraction reads the real transcript, not just the DB row) — below that floor, or if the sources have moved/been deleted since scoring, it says so plainly rather than guessing:
+
+```
+Not enough content sessions for pattern analysis yet (0 < 30 needed). Patterns will be available as your session corpus grows.
+Content sessions: 0 (need 30+)
+```
+(Real output, published `0.11.0`, this machine's current corpus — the DB has 1,450 scored session rows, but their original `source_path` files are no longer reachable at those paths, so 0 could have features extracted. This is itself the honest, correct behavior: a stale or moved source file means the tool cannot re-derive features from it, so it is excluded, not guessed at.)
+
+**How the archetypes are derived** (methodology, not invented): KMeans clustering over a 13-feature vector per session (attribution percentages — context re-send/growth/output — plus log-scaled size features), with `k` chosen by silhouette score over `k ∈ [2, 8]`, validated for stability via 10 reseeded runs (coefficient of variation `< 0.15` required to call the result "stable"). Each archetype's *name* is generated automatically from its centroid's most discriminating features relative to the corpus mean — never hand-labeled, and evaluative words (efficient/wasteful/good/bad) are prohibited by construction; a name describes measured shape, not quality.
+
+**A real, validated result** (from this project's own B-phase clustering validation research, `research/12_session_intelligence.md`, run against 235 real content sessions on 2026-06-15 — cited from that documented run, not a live command on this machine's current corpus, since the current corpus can't extract features right now, per above): `k=3`, silhouette `0.466` (well above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs) —
+
+- **Archetype [1] — medium high context re-send sessions (64.7%)**: 95.7% context re-send, 3.3% growth, 1.0% output, no waste. The majority shape: context carried forward at a high, stable rate.
+- **Archetype [0] — small active context-building sessions (24.3%)**: 87.3% re-send, 10.5% growth (3× the median), 2.2% output. Shorter, earlier-stage sessions still actively building up context.
+- **Archetype [2] — medium with detected waste sessions (11.1%)**: 95.3% re-send, 3.2% growth, waste detected. Behaviorally close to Archetype [1], distinguished specifically by the presence of a waste event.
+
+**What you do with this:** the archetypes are a description of your own measured behavior, not a scorecard — there's no "good" archetype to aim for. The honest finding from that same validation run is that this corpus's three archetypes separate mainly on *size* and *waste presence*, not on dramatically different working styles — useful context before over-reading meaning into which archetype a given session falls into.
+
+### `tes ask`
+
+```bash
+tes ask "What kind of sessions do I run?"
+tes ask "Do I have any waste patterns in my sessions?" --api   # opt-in, consent-gated
+```
+
+A conversational explainer, constrained by construction to answer only from the same measured metrics/pattern output `tes patterns` produces — never invents analysis, predicts future cost, or judges session quality. Tries local Ollama first (`qwen3:8b` by default, or whatever 7B+ model is available); with no local judge but `ANTHROPIC_API_KEY` set, offers the API path with an explicit per-call consent prompt (sends metrics only, never session content/code).
+
+Real output, published `0.11.0`, local Ollama, against real session data:
+
+```
+Looking up your session data...
+
+From your measured data, 12.8% of content sessions (41 out of 321) have detected waste, totaling 74 waste events. However, there is not enough content sessions for detailed pattern analysis yet (less than 30 sessions needed for patterns to emerge). As your session corpus grows, tracegauge will provide more insights into waste patterns.
+
+(answered from measured metrics -- local Ollama)
+```
+
+The constraint is real, not just a system-prompt claim — asking something genuinely unmeasured gets refused rather than answered with a plausible-sounding guess:
+
+```
+$ tes ask "How much of my token spend is context re-send versus actual output?"
+
+I don't have that measured -- tracegauge hasn't collected that metric. The data provided includes total token counts and cost metrics, but not a breakdown between context re-send and actual output tokens. You may need to analyze token usage patterns or use additional tools to differentiate between these categories.
+
+(answered from measured metrics -- local Ollama)
+```
+
 ## What this does NOT do
 
 - No composite efficiency score. The three axes are independent by design — a single number would hide the axis-specific domain limitations.

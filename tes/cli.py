@@ -815,7 +815,8 @@ def _run_cost(
           f"{'s' if report.session_count != 1 else ''})")
     if report.sessions_missing_cost:
         print(f"  ({report.sessions_missing_cost} additional session"
-              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period have no cost "
+              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period "
+              f"{'have' if report.sessions_missing_cost != 1 else 'has'} no cost "
               "data yet -- excluded from the total above, not counted as $0)")
 
     if report.by_project:
