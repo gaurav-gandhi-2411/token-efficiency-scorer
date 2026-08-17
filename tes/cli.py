@@ -29,6 +29,7 @@ from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
+from tes.cost_period import PeriodCostReport
 from tes.judge import (
     ApiJudgeConfig,
     JudgeConfig,
@@ -801,6 +802,8 @@ def _run_cost(
     week: bool = False,
     month: bool = False,
     since: str | None = None,
+    roi: bool = False,
+    plan_config: str | None = None,
 ) -> None:
     """Handle `tes cost` -- a period-scoped spend REPORT (total, session
     count, per-project breakdown), distinct from `tes budget`'s rolling
@@ -851,7 +854,56 @@ def _run_cost(
             print(f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
                   f"{'s' if b.session_count != 1 else ''})")
 
+    # XX1.3: unpriced coverage -- always shown, not gated behind --roi.
+    sess_cov = report.session_coverage_pct
+    tok_cov = report.token_coverage_pct
+    if sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0)):
+        print(f"\nPriced coverage: {sess_cov:.0f}% of sessions"
+              + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else ""))
+        if report.unpriced_models:
+            models_str = ", ".join(report.unpriced_models)
+            print(f"  Unpriced model(s): {models_str}")
+        if report.unpriced_models_incomplete:
+            print("  (some unpriced sessions predate model tracking -- can't name their model)")
+
+    if roi:
+        _print_cost_roi(report, plan_config)
+
     print(sep)
+
+
+def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
+    """XX1: plan-cost ROI -- refuses to print a ratio the data can't
+    support (no plan configured, or zero priced sessions in the window),
+    per XX1.2's explicit honesty requirement."""
+    from tes.plan import compute_roi, load_plan_config, resolve_plan_config_path
+
+    try:
+        plans = load_plan_config(plan_config)
+    except ValueError as exc:
+        print(f"\n[ERROR] Plan config: {exc}")
+        return
+
+    if not plans:
+        cfg_path = resolve_plan_config_path(plan_config)
+        print(f"\nROI: no plan configured. Create {cfg_path} to enable -- e.g.:")
+        print('  {"plans": [{"name": "Claude Max", "monthly_cost_usd": 200, '
+              '"effective_from": "2026-01-01"}]}')
+        return
+
+    result = compute_roi(
+        report.total_usd, report.session_count, plans, report.period_start, report.period_end
+    )
+    if result is None:
+        print("\nROI: no priced sessions in this period -- nothing to compare against plan cost.")
+        return
+
+    plan_label = " + ".join(result.plan_names) if len(result.plan_names) > 1 else result.plan_names[0]
+    print(f"\nPlan: {plan_label} (${result.plan_cost_usd:.2f} for this window)")
+    print(f"ROI: ${result.api_equivalent_usd:.2f} API-equivalent / "
+          f"${result.plan_cost_usd:.2f} plan cost = {result.multiple:.1f}x")
+    print("  (API-equivalent value at measured token rates, not a bill you'd "
+          "actually pay under a flat plan.)")
 
 
 def _run_monitor(
@@ -1270,6 +1322,19 @@ def main() -> None:
         "--since", default=None, metavar="YYYY-MM-DD",
         help="From this date (inclusive) through now.",
     )
+    cost_p.add_argument(
+        "--roi", action="store_true",
+        help=(
+            "Also report plan ROI: API-equivalent spend against your configured plan "
+            "cost for this window. Requires ~/.tes/plan.json (or --plan-config) -- "
+            "prints nothing if no plan is configured or the window has no priced sessions."
+        ),
+    )
+    cost_p.add_argument(
+        "--plan-config", default=None, dest="plan_config",
+        metavar="PATH",
+        help="Path to plan config JSON (default: ~/.tes/plan.json, or TES_PLAN_PATH env var).",
+    )
 
     monitor_p = sub.add_parser(
         "monitor",
@@ -1358,7 +1423,10 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "cost":
-        _run_cost(db_path=args.db_path, week=args.week, month=args.month, since=args.since)
+        _run_cost(
+            db_path=args.db_path, week=args.week, month=args.month, since=args.since,
+            roi=args.roi, plan_config=args.plan_config,
+        )
         sys.exit(0)
 
     if args.command == "monitor":
