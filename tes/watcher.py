@@ -89,6 +89,7 @@ def score_session_file(
         # Cost annotation: compute from measured tokens at per-turn rates.
         # Price table is passed in (loaded once at startup by run_watcher).
         session_cost: SessionCost | None = None
+        digest = None
         try:
             digest_dict = record.get("digest", {})
             if digest_dict and digest_dict.get("turns"):
@@ -102,12 +103,28 @@ def score_session_file(
             per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
             annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
+        # RR1: attribution fractions, persisted at score time -- this is the
+        # background watcher's scoring path, the most common real-world way
+        # sessions get scored at all, so this is the primary place the fix
+        # for tes patterns' file-lifetime dependency needs to land. See the
+        # mirrored comment in tes.cli.score_path.
+        attribution = None
+        if digest is not None:
+            try:
+                from tes.attribution import compute_attribution
+                attribution = compute_attribution(digest, waste_entry, prices)
+            except Exception:
+                logger.debug(
+                    "Attribution computation failed for %s — continuing without it", path.name
+                )
+
         return score_session(
             record, baselines,
             judge_entry=judge_entry,
             waste_entry=waste_entry,
             self_baseline=self_baseline,
             session_cost=session_cost,
+            attribution=attribution,
         )
     except Exception:
         logger.exception("Failed to score %s — skipping", path.name)

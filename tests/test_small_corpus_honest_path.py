@@ -152,7 +152,14 @@ class TestSmallCorpusCacheLayer:
             patch("tes.store.list_sessions", return_value=fake_rows),
             patch("tes.intelligence.cache.load_cache", return_value=None),
             patch("tes.intelligence.cache.save_cache"),
-            patch("tes.intelligence.features.build_feature_matrix", return_value=(fake_features, fake_X)),
+            patch(
+                "tes.intelligence.features.build_feature_matrix",
+                return_value=(
+                    fake_features,
+                    fake_X,
+                    {"n_persisted": 0, "n_stub": 0, "n_no_source": 0, "n_failed": 0},
+                ),
+            ),
             patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
             patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):
@@ -239,7 +246,14 @@ class TestSmallCorpusCacheLayer:
             patch("tes.store.list_sessions", return_value=fake_rows),
             patch("tes.intelligence.cache.load_cache", side_effect=[None, stamped_cache]),
             patch("tes.intelligence.cache.save_cache"),
-            patch("tes.intelligence.features.build_feature_matrix", return_value=(fake_features, fake_X)),
+            patch(
+                "tes.intelligence.features.build_feature_matrix",
+                return_value=(
+                    fake_features,
+                    fake_X,
+                    {"n_persisted": 0, "n_stub": 0, "n_no_source": 0, "n_failed": 0},
+                ),
+            ),
             patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
             patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):

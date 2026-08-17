@@ -295,23 +295,37 @@ The most differentiated thing either package does, and previously the least visi
 tes patterns [--recompute]
 ```
 
-Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to `~/.tes/intelligence_cache.json` and are reused by `tes ask` below. Requires **30+ content sessions** with their original source JSONL files still reachable on disk (feature extraction reads the real transcript, not just the DB row) — below that floor, or if the sources have moved/been deleted since scoring, it says so plainly rather than guessing:
+Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to a file named after and co-located with your TES database (`<db-name>.intelligence_cache.json` — e.g. `~/.tes/tes.intelligence_cache.json` for the default DB) and are reused by `tes ask` below.
+
+Requires **30+ content sessions**. Attribution fractions (the features clustering runs on) are computed once and persisted directly to the database at score time — a session scored by `tes score`/`tes serve` clusters correctly regardless of whether its original source JSONL still exists on disk later. Sessions scored by an older version, before this was persisted, fall back to re-reading their source file; if that file has since moved or been deleted, the tool says so plainly rather than guessing:
 
 ```
-Not enough content sessions for pattern analysis yet (0 < 30 needed). Patterns will be available as your session corpus grows.
-Content sessions: 0 (need 30+)
+Not enough content sessions for pattern analysis yet (12 < 30 needed) -- source transcripts no longer on disk for 8 of 20 session(s) that would otherwise count (scored before this version persisted attribution at score time; re-scoring is not required, but the original file must still exist for those specific rows).
 ```
-(Real output, published `0.11.0`, this machine's current corpus — the DB has 1,450 scored session rows, but their original `source_path` files are no longer reachable at those paths, so 0 could have features extracted. This is itself the honest, correct behavior: a stale or moved source file means the tool cannot re-derive features from it, so it is excluded, not guessed at.)
 
 **How the archetypes are derived** (methodology, not invented): KMeans clustering over a 13-feature vector per session (attribution percentages — context re-send/growth/output — plus log-scaled size features), with `k` chosen by silhouette score over `k ∈ [2, 8]`, validated for stability via 10 reseeded runs (coefficient of variation `< 0.15` required to call the result "stable"). Each archetype's *name* is generated automatically from its centroid's most discriminating features relative to the corpus mean — never hand-labeled, and evaluative words (efficient/wasteful/good/bad) are prohibited by construction; a name describes measured shape, not quality.
 
-**A real, validated result** (from this project's own B-phase clustering validation research, `research/12_session_intelligence.md`, run against 235 real content sessions on 2026-06-15 — cited from that documented run, not a live command on this machine's current corpus, since the current corpus can't extract features right now, per above): `k=3`, silhouette `0.466` (well above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs) —
+**A real, live result** — 38 real Claude Code sessions, scored fresh this session (`tes score --no-judge` against two real project directories, `--recompute`), demonstrating the score-time-persistence fix directly: `[features] extracted 38 / 39 sessions (persisted=38, stubs=1, no_source=0, failed=0)` — every one of those 38 came from the database, zero source-file re-reads. `k=3`, silhouette `0.479` (above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs):
 
-- **Archetype [1] — medium high context re-send sessions (64.7%)**: 95.7% context re-send, 3.3% growth, 1.0% output, no waste. The majority shape: context carried forward at a high, stable rate.
-- **Archetype [0] — small active context-building sessions (24.3%)**: 87.3% re-send, 10.5% growth (3× the median), 2.2% output. Shorter, earlier-stage sessions still actively building up context.
-- **Archetype [2] — medium with detected waste sessions (11.1%)**: 95.3% re-send, 3.2% growth, waste detected. Behaviorally close to Archetype [1], distinguished specifically by the presence of a waste event.
+```
+ARCHETYPES (measured behavioral patterns -- not quality labels):
 
-**What you do with this:** the archetypes are a description of your own measured behavior, not a scorecard — there's no "good" archetype to aim for. The honest finding from that same validation run is that this corpus's three archetypes separate mainly on *size* and *waste presence*, not on dramatically different working styles — useful context before over-reading meaning into which archetype a given session falls into.
+  [0] medium high context re-send sessions
+      22 sessions (57.9%)  context_resend=98.9%  context_growth=0.9%  output=0.2%  waste_flag=no
+      task mix: debug-fix:7  ml-eval:6  feature-build:6  research-recon:3
+
+  [1] small high context re-send sessions
+      14 sessions (36.8%)  context_resend=97.4%  context_growth=2.1%  output=0.5%  waste_flag=no
+      task mix: ml-eval:8  debug-fix:2  feature-build:2  research-recon:2
+
+  [2] medium with detected waste sessions
+      2 sessions (5.3%)  context_resend=98.3%  context_growth=1.1%  output=0.2%  waste_flag=yes
+      task mix: ml-eval:1  debug-fix:1
+
+ANOMALIES: 2 of 38 sessions (5.3%) are statistical outliers for their cluster.
+```
+
+**What you do with this:** the archetypes are a description of your own measured behavior, not a scorecard — there's no "good" archetype to aim for. This particular corpus's three archetypes separate mainly on *size* and *waste presence*, not on dramatically different working styles (consistent with this project's own earlier B-phase clustering research on a larger corpus, `research/12_session_intelligence.md`) — useful context before over-reading meaning into which archetype a given session falls into.
 
 ### `tes ask`
 
