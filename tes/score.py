@@ -26,6 +26,7 @@ from tes.baselines import BUNDLED_BASELINES_PATH, compute_real_tokens, load_base
 from tes.classify import classify_session
 
 if TYPE_CHECKING:
+    from tes.attribution import AttributionResult
     from tes.cost import SessionCost
     from tes.self_baseline import SelfBaselineState
 
@@ -166,6 +167,14 @@ class ThreeAxisResult:
     # (e.g. web search) detected but not reflected in session_cost_usd. Empty
     # list when none detected. See tes.cost.SessionCost.server_tool_warnings.
     cost_server_tool_warnings: list[str] = field(default_factory=list)
+
+    # --- attribution fractions (RR1: persisted at score time so tes.intelligence
+    # can cluster ANY scored session regardless of whether its source JSONL is
+    # still reachable on disk) ---
+    context_resend_pct: float | None = None
+    context_growth_pct: float | None = None
+    output_pct: float | None = None
+    waste_pct: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -311,6 +320,7 @@ def score_session(
     self_baseline: SelfBaselineState | None = None,
     session_cost: SessionCost | None = None,
     baseline_cost_band: tuple[float, float, float] | None = None,
+    attribution: AttributionResult | None = None,
 ) -> ThreeAxisResult:
     """Score a single adapted session record against the three-axis scorer.
 
@@ -342,6 +352,13 @@ def score_session(
     baseline_cost_band:
         Optional (p25_usd, median_usd, p75_usd) from self_baseline.compute_baseline_cost_band.
         Stored for downstream framing; not used in scoring.
+    attribution:
+        Optional pre-computed six-bucket attribution from tes.attribution.compute_attribution
+        (same digest/waste_entry/prices the caller already has for session_cost). When
+        provided, the four clustering-feature fractions (context_resend_pct,
+        context_growth_pct, output_pct, waste_pct) are populated on the result and
+        persisted to the store — see tes.attribution.attribution_fractions. RR1: this is
+        what lets tes.intelligence cluster a session without re-reading its source JSONL.
 
     Returns
     -------
@@ -440,6 +457,17 @@ def score_session(
     cost_dov = session_cost.domain_of_validity if session_cost else ""
     cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
 
+    _resend_pct: float | None
+    _growth_pct: float | None
+    _out_pct: float | None
+    _waste_pct: float | None
+    if attribution is not None:
+        from tes.attribution import attribution_fractions
+
+        _resend_pct, _growth_pct, _out_pct, _waste_pct = attribution_fractions(attribution)
+    else:
+        _resend_pct = _growth_pct = _out_pct = _waste_pct = None
+
     # Use API-specific DOV when the judge_entry came from the API path.
     # The API judge uses the validated rubric but on a model NOT validated in B3.
     _traj_dov: str
@@ -479,6 +507,11 @@ def score_session(
         cost_approximate=cost_approx,
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
+        # --- attribution fractions (RR1) ---
+        context_resend_pct=_resend_pct,
+        context_growth_pct=_growth_pct,
+        output_pct=_out_pct,
+        waste_pct=_waste_pct,
     )
 
 

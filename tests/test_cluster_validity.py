@@ -32,7 +32,8 @@ def _load_real_corpus() -> tuple[list[SessionFeatures], np.ndarray]:
     conn = open_db()
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
-    return build_feature_matrix(rows, verbose=False)
+    features, X, _diagnostics = build_feature_matrix(rows, verbose=False)
+    return features, X
 
 
 def _fake_features(n: int, n_feats: int = len(FEATURE_NAMES)) -> tuple[list[SessionFeatures], np.ndarray]:

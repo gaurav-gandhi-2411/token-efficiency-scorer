@@ -256,6 +256,7 @@ def score_path(
     # Cost annotation: compute from measured tokens at per-turn rates.
     session_cost: SessionCost | None = None
     digest_dict = record.get("digest", {})
+    digest = None
     if digest_dict and digest_dict.get("turns"):
         try:
             digest = reconstruct_digest(digest_dict)
@@ -268,11 +269,24 @@ def score_path(
         per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
         annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
+    # RR1: attribution fractions, computed from the same digest/waste_entry/prices
+    # already in scope for session_cost above, persisted at score time so
+    # tes.intelligence can cluster this session without ever re-reading its
+    # source JSONL — see tes.attribution.attribution_fractions.
+    attribution = None
+    if digest is not None:
+        try:
+            from tes.attribution import compute_attribution
+            attribution = compute_attribution(digest, waste_entry, _PRICES)
+        except Exception:
+            pass  # attribution failure must never break CLI output
+
     result = score_session(
         record, baselines,
         judge_entry=judge_entry,
         waste_entry=waste_entry,
         session_cost=session_cost,
+        attribution=attribution,
     )
 
     # Cost vs baseline framing: look up from the store if available.
@@ -348,6 +362,7 @@ def _score_path_with_api_judge(
 
     session_cost: SessionCost | None = None
     digest_dict = record.get("digest", {})
+    digest = None
     if digest_dict and digest_dict.get("turns"):
         try:
             digest = reconstruct_digest(digest_dict)
@@ -359,11 +374,21 @@ def _score_path_with_api_judge(
         per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
         annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
+    # RR1: see the mirrored comment in score_path (no-API-judge sibling above).
+    attribution = None
+    if digest is not None:
+        try:
+            from tes.attribution import compute_attribution
+            attribution = compute_attribution(digest, waste_entry, _PRICES)
+        except Exception:
+            pass
+
     result = score_session(
         record, baselines,
         judge_entry=judge_entry,
         waste_entry=waste_entry,
         session_cost=session_cost,
+        attribution=attribution,
     )
 
     baseline_cost_band: tuple[float, float, float] | None = None
@@ -815,7 +840,8 @@ def _run_cost(
           f"{'s' if report.session_count != 1 else ''})")
     if report.sessions_missing_cost:
         print(f"  ({report.sessions_missing_cost} additional session"
-              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period have no cost "
+              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period "
+              f"{'have' if report.sessions_missing_cost != 1 else 'has'} no cost "
               "data yet -- excluded from the total above, not counted as $0)")
 
     if report.by_project:
