@@ -6,7 +6,7 @@
 
 {# ── Judge / LLM status strip ─────────────────────────────────────────────── #}
 <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.25rem; align-items:center;">
-  <span style="font-size:0.78rem; color:#6b7280; font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">LLM status:</span>
+  <span style="font-size:0.78rem; color:var(--graphite); font-weight:600; text-transform:uppercase; letter-spacing:0.06em;">LLM status:</span>
   {% if ollama_available %}
     <span class="status-chip ok"><span class="status-dot ok"></span>Ollama running — local inference, no egress</span>
   {% else %}
@@ -15,7 +15,7 @@
   {% if api_key_available %}
     <span class="status-chip warn"><span class="status-dot warn"></span>ANTHROPIC_API_KEY set — consent required before use</span>
   {% endif %}
-  <span style="margin-left:auto; font-size:0.78rem; color:#9ca3af;">
+  <span style="margin-left:auto; font-size:0.78rem; color:var(--tick);">
     CLI: <code>tes patterns</code> &middot; <code>tes ask "…"</code>
   </span>
 </div>
@@ -26,7 +26,7 @@
   <strong>Not enough sessions for pattern analysis yet.</strong><br>
   {{ cache.get('status', 'Pattern analysis requires at least 30 content sessions.') }}
   <br><br>
-  <span style="color:#9ca3af;">
+  <span style="color:var(--tick);">
     Current: {{ cache.get('n_sessions', 0) }} content sessions &mdash;
     need {{ cache.get('n_content_sessions_needed', 30) }} to activate clustering.
   </span>
@@ -39,14 +39,14 @@
   &nbsp;&middot;&nbsp;
   silhouette = <strong>{{ "%.3f"|format(cache.silhouette) }}</strong>
   {% if cache.silhouette >= 0.20 %}
-    <span style="color:#166534;">(meaningful structure)</span>
+    <span style="color:var(--calibrated);">(meaningful structure)</span>
   {% else %}
-    <span style="color:#92400e;">(weak structure — treat archetypes as coarse summaries)</span>
+    <span style="color:var(--needle);">(weak structure — treat archetypes as coarse summaries)</span>
   {% endif %}
   &nbsp;&middot;&nbsp;
   {{ cache.anomaly_count }} anomalies ({{ "%.1f"|format(cache.anomaly_pct) }}% of corpus)
   <br>
-  <span style="font-size:0.8em; color:#6b7280; margin-top:2px; display:inline-block;">
+  <span style="font-size:0.8em; color:var(--graphite); margin-top:2px; display:inline-block;">
     Computed {{ cache.get('computed_at', '')[:19] }} &middot; tracegauge {{ cache.get('tracegauge_version', '') }}
     &middot; session store count {{ cache.get('session_count', '?') }}
   </span>
@@ -113,7 +113,7 @@
 
     {# Dominant features #}
     {% if a.dominant_features %}
-    <div style="margin-top:0.65rem; font-size:0.75rem; color:#6b7280;">
+    <div style="margin-top:0.65rem; font-size:0.75rem; color:var(--graphite);">
       Standout:
       {% for df in a.dominant_features[:2] %}
         <span title="{{ df.name }}: {{ df.value_unscaled }} (z={{ df.z_from_global }})">{{ df.label }}</span>{% if not loop.last %}, {% endif %}
@@ -168,7 +168,7 @@
       to Anthropic to answer this question.
     </label>
     <br>
-    <span style="color:#9ca3af; font-size:0.75rem;">
+    <span style="color:var(--tick); font-size:0.75rem;">
       What will be sent: corpus stats, cluster descriptions, anomaly counts.
       What will NOT be sent: session content, code, tool outputs, file paths.
     </span>

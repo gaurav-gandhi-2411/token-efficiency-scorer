@@ -4,10 +4,10 @@
 
 {# ── Session header ──────────────────────────────────────────────── #}
 <h1><span class="mono">{{ session.session_id }}</span></h1>
-<p style="margin-top:-1rem; margin-bottom:1.5rem; font-size:0.8rem; color:#6b7280;">
+<p style="margin-top:-1rem; margin-bottom:1.5rem; font-size:0.8rem; color:var(--graphite);">
   {{ session.task_type }}
   &middot; {{ session.scored_at[:19] | replace("T", " ") }} UTC
-  &middot; <span style="color:#9ca3af;">{{ session.source_path }}</span>
+  &middot; <span style="color:var(--tick);">{{ session.source_path }}</span>
 </p>
 
 {# ── Takeaway ────────────────────────────────────────────────────── #}
@@ -40,19 +40,25 @@
 
     <!-- Y-axis labels -->
     <text x="{{ label_w - 6 }}" y="{{ (bar_h / 2 + 5) | round(1) }}"
-          text-anchor="end" font-size="11" fill="#9ca3af"
-          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">Cost</text>
+          text-anchor="end" font-size="11" fill="var(--tick)"
+          font-family="var(--font-mono)">Cost</text>
     <text x="{{ label_w - 6 }}" y="{{ (bar_h + gap + bar_h / 2 + 5) | round(1) }}"
-          text-anchor="end" font-size="11" fill="#9ca3af"
-          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">Tokens</text>
+          text-anchor="end" font-size="11" fill="var(--tick)"
+          font-family="var(--font-mono)">Tokens</text>
 
-    <!-- X-axis tick marks -->
+    <!-- X-axis ticks — Calibration gauge motif: short marks at 0/25/50/75/100%, label at each end -->
+    {% set tick_y0 = bar_h * 2 + gap %}
+    {% for tick_pct in [0, 25, 50, 75, 100] %}
+      {% set tick_x = (label_w + bar_w * tick_pct / 100.0) | round(1) %}
+      <line x1="{{ tick_x }}" y1="{{ tick_y0 }}" x2="{{ tick_x }}" y2="{{ tick_y0 + 5 }}"
+            stroke="var(--tick)" stroke-width="1"/>
+    {% endfor %}
     <text x="{{ label_w }}" y="{{ svg_h }}"
-          font-size="9" fill="#9ca3af"
-          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">0%</text>
+          font-size="9" fill="var(--tick)"
+          font-family="var(--font-mono)">0%</text>
     <text x="{{ label_w + bar_w }}" y="{{ svg_h }}"
-          text-anchor="end" font-size="9" fill="#9ca3af"
-          font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">100%</text>
+          text-anchor="end" font-size="9" fill="var(--tick)"
+          font-family="var(--font-mono)">100%</text>
 
     {# ---- Cost bar (top) ---- #}
     {% set ns = namespace(cx=label_w | float) %}
@@ -74,7 +80,7 @@
     {% endfor %}
     <!-- Cost bar border -->
     <rect x="{{ label_w }}" y="0" width="{{ bar_w }}" height="{{ bar_h }}"
-          fill="none" stroke="#e5e7eb" stroke-width="1"/>
+          fill="none" stroke="var(--tick)" stroke-width="1"/>
 
     {# ---- Token bar (bottom) — same bucket order, sized by tok_pct ---- #}
     {% set ns = namespace(cx=label_w | float) %}
@@ -96,7 +102,7 @@
     {% endfor %}
     <!-- Token bar border -->
     <rect x="{{ label_w }}" y="{{ bar_h + gap }}" width="{{ bar_w }}" height="{{ bar_h }}"
-          fill="none" stroke="#e5e7eb" stroke-width="1"/>
+          fill="none" stroke="var(--tick)" stroke-width="1"/>
 
   </svg>
   </div>
@@ -114,31 +120,31 @@
     </thead>
     <tbody>
       {% for row in attribution_rows %}
-      <tr{% if row.is_waste %} style="color:#d97706;"{% endif %}>
+      <tr{% if row.is_waste %} style="color:var(--needle);"{% endif %}>
         <td style="width:16px; padding-right:0;">
           <span style="display:inline-block; width:10px; height:10px; border-radius:2px;
                 background:{{ bcolors.get(row.bucket, '#94a3b8') }}; vertical-align:middle;"></span>
         </td>
         <td style="font-weight:600;">{{ row.bucket }} <span class="text-muted" style="font-weight:400; font-size:0.82em;">{{ row.label }}</span></td>
         <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">{{ row.cost_pct }}%</td>
-        <td style="text-align:right; font-variant-numeric:tabular-nums; color:#6b7280;">{{ row.tok_pct }}%</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--graphite);">{{ row.tok_pct }}%</td>
         <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
       </tr>
       {% endfor %}
     </tbody>
     <tfoot>
-      <tr style="font-weight:600; border-top:2px solid #e5e7eb;">
+      <tr style="font-weight:600; border-top:2px solid var(--tick);">
         <td></td>
         <td>TOTAL (billed)</td>
         <td style="text-align:right;">100%</td>
-        <td style="text-align:right; color:#6b7280;">100%</td>
+        <td style="text-align:right; color:var(--graphite);">100%</td>
         <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
       </tr>
     </tfoot>
   </table>
 
   {# Honesty element 3: billed-basis label + real_tokens != verdict note #}
-  <p style="font-size:0.78rem; color:#9ca3af; margin-top:0.3rem; margin-bottom:0.25rem;">
+  <p style="font-size:0.78rem; color:var(--tick); margin-top:0.3rem; margin-bottom:0.25rem;">
     Basis: {{ "{:,}".format(attribution.total_billed_tokens) }} total billed tokens (includes cached re-reads).
     real_tokens (verdict basis): {{ "{:,}".format(attribution.real_tokens) }}
     &mdash; cached re-reads are excluded from the verdict axis but included in this chart; do not compare attribution cost% directly to the real_tokens verdict.
@@ -149,7 +155,7 @@
   {# Attribution source file not accessible #}
   <div class="card">
     <span class="badge badge-unavailable">UNAVAILABLE</span>
-    <p style="margin-top:0.5rem; font-size:0.875rem; color:#374151;">
+    <p style="margin-top:0.5rem; font-size:0.875rem; color:var(--graphite);">
       Source file not accessible — attribution requires the original JSONL log.
       Ensure <code>source_path</code> is reachable, or re-run <code>tes score &lt;path&gt;</code>.
     </p>
@@ -164,11 +170,11 @@
     <table style="width:auto;">
       <tbody>
         <tr>
-          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Real Tokens</td>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Real Tokens</td>
           <td class="cost-amount">{{ "{:,}".format(session.real_tokens) }}</td>
         </tr>
         <tr>
-          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band Verdict</td>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band Verdict</td>
           <td>
             {% if session.band_verdict == "above_p75" %}
               <span class="badge badge-above">above_p75</span>
@@ -183,7 +189,7 @@
         </tr>
         <tr>
           {# Honesty element 5: "relative to YOUR OWN baseline" + element 6: baseline source #}
-          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Baseline</td>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Baseline</td>
           <td>
             {% set bs = session.get("baseline_source", "b2_corpus") %}
             {% if bs == "self" %}
@@ -208,7 +214,7 @@
         </tr>
         {% if session.baseline_available %}
         <tr>
-          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band</td>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band</td>
           <td class="text-muted" style="font-size:0.82rem;">
             p25 {{ "{:,}".format(session.p25) if session.p25 is not none else "—" }}
             &nbsp;·&nbsp; median {{ "{:,}".format(session.median) if session.median is not none else "—" }}
@@ -217,11 +223,11 @@
         </tr>
         {% endif %}
         <tr>
-          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Scope</td>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Scope</td>
           <td class="text-muted" style="font-size:0.82rem;">{{ session.scope_status }}</td>
         </tr>
         <tr>
-          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Interpretation</td>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Interpretation</td>
           <td style="font-size:0.82rem;">{{ session.interpretation }}</td>
         </tr>
       </tbody>
@@ -241,10 +247,10 @@
       <p style="margin-bottom:0.75rem;">
         <span class="badge badge-unavailable">UNAVAILABLE</span>
       </p>
-      <p style="font-size:0.875rem; color:#374151; margin-bottom:0.6rem;">
+      <p style="font-size:0.875rem; color:var(--graphite); margin-bottom:0.6rem;">
         Token and waste axes ran. Trajectory scoring is optional — enable with one of:
       </p>
-      <ul style="list-style:disc; padding-left:1.25rem; font-size:0.875rem; color:#374151; line-height:1.8; margin-bottom:0.75rem;">
+      <ul style="list-style:disc; padding-left:1.25rem; font-size:0.875rem; color:var(--graphite); line-height:1.8; margin-bottom:0.75rem;">
         <li>
           <strong>Local (free, no data leaves your machine):</strong>
           Install <a href="https://ollama.com">Ollama</a>, pull <code>qwen3:30b-a3b</code>
@@ -256,7 +262,7 @@
         </li>
       </ul>
       {# Honesty element 8: API-judge data-egress warning (ADDED — was absent from old template) #}
-      <p style="font-size:0.8rem; color:#9ca3af;">
+      <p style="font-size:0.8rem; color:var(--tick);">
         API judge note: sends session data &mdash; including 300-char snippets that may contain your code &mdash; to your configured provider. Explicit consent required at the CLI before any data is sent.
       </p>
 
@@ -268,7 +274,7 @@
         {% endif %}
       </p>
       {% if session.judge_reasoning %}
-        <p style="font-size:0.875rem; color:#374151; margin-bottom:0.5rem;">{{ session.judge_reasoning }}</p>
+        <p style="font-size:0.875rem; color:var(--graphite); margin-bottom:0.5rem;">{{ session.judge_reasoning }}</p>
       {% endif %}
       <p class="stale-note">Verdict from an earlier version of this session (session grew after judging). Re-run <code>tes score &lt;path&gt;</code> to update.</p>
 
@@ -281,7 +287,7 @@
         {% endif %}
       </p>
       {% if session.judge_reasoning %}
-        <p style="font-size:0.875rem; color:#374151;">{{ session.judge_reasoning }}</p>
+        <p style="font-size:0.875rem; color:var(--graphite);">{{ session.judge_reasoning }}</p>
       {% endif %}
     {% endif %}
 
@@ -360,7 +366,7 @@
     <table style="width:auto;">
       <tbody>
         <tr>
-          <td style="padding-right:1.5rem; color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
           <td>
             <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
             {% if session.get("cost_approximate") %}
@@ -369,7 +375,7 @@
           </td>
         </tr>
         <tr>
-          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">vs Your Baseline</td>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">vs Your Baseline</td>
           <td>
             {% if cost_vs_baseline_pct is not none %}
               {% if cost_vs_baseline_pct >= 0 %}
@@ -383,7 +389,7 @@
           </td>
         </tr>
         <tr>
-          <td style="color:#6b7280; font-size:0.82rem; white-space:nowrap; vertical-align:top;">Price Basis</td>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Price Basis</td>
           <td class="text-muted" style="font-size:0.82rem;">{{ price_provenance }}</td>
         </tr>
       </tbody>
@@ -394,7 +400,7 @@
     </p>
     {% if session.get("cost_domain_of_validity") %}
     <details style="margin-top:0.5rem;">
-      <summary style="font-size:0.8rem; color:#6b7280;">Cost domain of validity</summary>
+      <summary style="font-size:0.8rem; color:var(--graphite);">Cost domain of validity</summary>
       <div class="caveat" style="margin-top:0.4rem;">{{ session.cost_domain_of_validity }}</div>
     </details>
     {% endif %}
