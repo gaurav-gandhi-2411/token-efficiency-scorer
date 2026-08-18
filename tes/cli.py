@@ -544,6 +544,14 @@ def _run_corpus(args: "argparse.Namespace") -> None:
         return
 
     if corpus_command == "withdraw":
+        if CorpusConfig.from_env() is None:
+            print(
+                "[NOT AVAILABLE] No community corpus is currently operated — "
+                "there is nothing to withdraw from yet. This command will work "
+                "once a corpus is provisioned; see PRIVACY.md.",
+                file=sys.stderr,
+            )
+            return
         print("This will permanently delete every row tied to your contributor_id")
         print("from the tracegauge community corpus. This cannot be undone.")
         try:
@@ -562,6 +570,23 @@ def _run_corpus(args: "argparse.Namespace") -> None:
 
     if corpus_command == "contribute":
         from tes.store import open_db as _open_db
+
+        # Checked FIRST, before opening the store or showing any preview/consent
+        # screen: no community corpus is currently operated (pre-launch — see
+        # PRIVACY.md), so this command cannot send anything today regardless of
+        # what the user does below. Walking someone through a full preview +
+        # "Send to the community corpus? [y/N]" consent prompt only to reveal
+        # [NOT SENT] afterward is worse than telling them up front — it looks
+        # functional right up until the last line.
+        if CorpusConfig.from_env() is None:
+            print(
+                "[NOT AVAILABLE] No community corpus is currently operated — "
+                "`tes corpus contribute` has nowhere to send data yet. The code "
+                "path is built and tested (see PRIVACY.md); it activates once a "
+                "corpus is provisioned. Nothing is sent by this command today.",
+                file=sys.stderr,
+            )
+            return
 
         db_path = Path(args.db_path).expanduser() if getattr(args, "db_path", None) else None
         try:
@@ -603,15 +628,6 @@ def _run_corpus(args: "argparse.Namespace") -> None:
             return
 
         config = CorpusConfig.from_env()
-        if config is None:
-            print(
-                "[NOT SENT] The community corpus is not configured on this install "
-                "(TES_CORPUS_URL / TES_CORPUS_ANON_KEY / TES_CORPUS_WITHDRAW_URL not set).",
-                file=sys.stderr,
-            )
-            conn.close()
-            return
-
         result = contribute(
             conn,
             consent_given=consent_given,
@@ -1334,19 +1350,25 @@ def main() -> None:
 
     corpus_p = sub.add_parser(
         "corpus",
-        help="Community corpus: opt-in contribution and withdrawal (content-free, transmits).",
+        help="Community corpus: opt-in contribution and withdrawal. NOT YET ACTIVE — no corpus is operated.",
         description=(
             "Opt-in transmission of content-free session aggregates to the tracegauge "
             "community corpus (Supabase), and withdrawal of your contributed rows. "
             "This is the ONLY tracegauge command that sends session-derived data "
-            "off-machine without a per-call API key you typed in yourself."
+            "off-machine without a per-call API key you typed in yourself. "
+            "NOT YET ACTIVE: no public corpus is currently operated, so these "
+            "subcommands print [NOT AVAILABLE] and do nothing until one is "
+            "provisioned — see PRIVACY.md."
         ),
     )
     corpus_sub = corpus_p.add_subparsers(dest="corpus_command")
 
     corpus_contribute_p = corpus_sub.add_parser(
         "contribute",
-        help="Preview + consent + send content-free session aggregates to the community corpus.",
+        help=(
+            "Preview + consent + send content-free session aggregates to the "
+            "community corpus. NOT YET ACTIVE — no corpus is operated."
+        ),
     )
     corpus_contribute_p.add_argument(
         "--anonymous", action="store_true",
@@ -1360,7 +1382,10 @@ def main() -> None:
 
     corpus_sub.add_parser(
         "withdraw",
-        help="Delete every row tied to your contributor_id from the community corpus.",
+        help=(
+            "Delete every row tied to your contributor_id from the community "
+            "corpus. NOT YET ACTIVE — no corpus is operated."
+        ),
     )
     corpus_sub.add_parser(
         "reset-id",
