@@ -165,6 +165,54 @@ def test_corpus_config_from_env_requires_all_three_vars(monkeypatch) -> None:
     assert CorpusConfig.from_env() is None
 
 
+def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(
+    monkeypatch, capsys
+) -> None:
+    """`tes corpus contribute` must check corpus availability BEFORE opening
+    the store or showing the preview/consent screen — walking a user through
+    a full "Send to the community corpus? [y/N]" prompt only to reveal
+    [NOT SENT] afterward looks functional right up until the last line."""
+    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+
+    def _fail_if_prompted(*a, **k):
+        raise AssertionError("input() was called -- config check did not fail fast")
+
+    monkeypatch.setattr("builtins.input", _fail_if_prompted)
+
+    import argparse
+
+    import tes.cli as cli_module
+
+    ns = argparse.Namespace(command="corpus", corpus_command="contribute", db_path=None, anonymous=False)
+    cli_module._run_corpus(ns)
+
+    captured = capsys.readouterr()
+    assert "[NOT AVAILABLE]" in captured.err
+
+
+def test_cli_withdraw_fails_fast_when_unconfigured_before_any_prompt(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+
+    def _fail_if_prompted(*a, **k):
+        raise AssertionError("input() was called -- config check did not fail fast")
+
+    monkeypatch.setattr("builtins.input", _fail_if_prompted)
+
+    import argparse
+
+    import tes.cli as cli_module
+
+    ns = argparse.Namespace(command="corpus", corpus_command="withdraw")
+    cli_module._run_corpus(ns)
+
+    captured = capsys.readouterr()
+    assert "[NOT AVAILABLE]" in captured.err
+
+
 def test_no_send_even_with_consent_true_when_unconfigured(monkeypatch) -> None:
     """A fresh install has no TES_CORPUS_* env vars — contribute() must
     refuse to send even if consent_given were somehow True, because there is
