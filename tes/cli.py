@@ -1533,6 +1533,7 @@ def main() -> None:
         from datetime import date as _date
         from tes.contribution import build_contribution_payload, get_or_create_contributor_id
         from tes.store import open_db as _open_db
+        from tes.store import resolve_db_path as _resolve_db_path
 
         db_path = Path(args.db_path).expanduser() if args.db_path else None
 
@@ -1564,7 +1565,12 @@ def main() -> None:
         out_path = (
             Path(args.output).expanduser()
             if args.output
-            else Path.home() / ".tes" / f"contribution-{today_str}.jsonl"
+            # Issue #17: default output derived from the RESOLVED db_path
+            # (same class of fix as intelligence/cache.py's _cache_path,
+            # RR2/UU2) -- not a fixed ~/.tes/ regardless of --db-path/
+            # TES_DB_PATH, which used to drop this file into the real
+            # ~/.tes/ even when running against an isolated/scratch DB.
+            else _resolve_db_path(db_path).parent / f"contribution-{today_str}.jsonl"
         )
 
         _print_contribution_preview(payload, out_path)
