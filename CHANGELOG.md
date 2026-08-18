@@ -38,6 +38,18 @@ the **current published release** until `0.11.0` shipped.
   be saved then, not re-derived later) — sessions scored before this
   column existed still count toward the coverage gap honestly, flagged as
   unattributable rather than silently omitted from the unpriced-model list.
+- **Legacy-row count at release time, measured against the real store, not
+  estimated**: both new nullable columns (`cost_unpriced_models`,
+  `edit_operations`) are additive — every pre-existing row predates them.
+  Queried read-only against the real `~/.tes/tes.db` immediately before
+  tagging this release: **1,450 of 1,450 sessions (100%)** have
+  `edit_operations IS NULL` and `cost_unpriced_models IS NULL` — every
+  session scored before this release. `tes cost --roi`'s coverage
+  reporting and `tes impact`'s `prior_content_unknown`/`untested_tool_shape`
+  fractions both already handle this honestly (a legacy row is counted and
+  flagged, never silently dropped or backfilled with a guess) — this is
+  the number that count applies to on a freshly-upgraded real installation,
+  not a hypothetical.
 - **`tes impact`**: corpus-wide code-impact reconstruction from `Edit`/
   `Write`/`MultiEdit`/`NotebookEdit` tool-call payloads, persisted at score
   time (new nullable `edit_operations` column — same score-time-persistence
