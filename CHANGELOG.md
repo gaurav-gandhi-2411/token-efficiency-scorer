@@ -5,13 +5,40 @@ All notable changes to **tracegauge** are documented here. This project follows
 conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
-`0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, and `0.10.2` (confirmed live against
-PyPI's own JSON API — `0.10.1` uploaded 2026-08-13, `0.10.2` uploaded 2026-08-15; this note
-previously said both were still pending, which was stale by the time this correction was
-made — corrected here rather than left standing). Versions `0.2.0` and `0.4.0` were built and
-tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
-**deliberately not published** — see its entry for why (corpus stays dormant). `0.10.2` was
-the **current published release** until `0.11.0` shipped.
+`0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
+`0.12.1`, and `0.12.2` (confirmed live against PyPI's own JSON API; this note previously stopped
+enumerating at `0.10.2` for four releases running — corrected here rather than left standing, per
+the same "nothing re-checks this note against reality" gap RELEASING.md's own incident section
+already names). Versions `0.2.0` and `0.4.0` were built and tagged internally but never published
+to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not published** — see its
+entry for why (corpus stays dormant). `0.12.2` is the **current published release**.
+
+## [0.12.2] — Calibration brand identity wired into `tes serve`; corpus fail-fast fix
+
+### Added
+- **The Calibration brand identity (`assets/brand/BRAND.md`) is now applied to `tes serve`**,
+  not just held as unused assets: favicon, self-hosted webfonts (Space Grotesk, IBM Plex Sans,
+  IBM Plex Mono — no CDN dependency), the 7-token palette across every dashboard template, the
+  real wordmark in the nav, and a tick-mark motif on the session-detail attribution chart's
+  X-axis. Verified by rendering the live dashboard with headless Chromium and checking the
+  favicon at true 16px/32px sizes, not just reading the CSS.
+- README brand badge.
+
+### Fixed
+- **Packaging gap the brand-wiring work itself surfaced**: `web/static/brand/*.svg` and
+  `web/static/fonts/*.woff2` were never declared in `[tool.setuptools.package-data]` — a real
+  `pip install` (as opposed to the editable checkout used to build the feature) would have
+  shipped a dashboard silently missing its favicon and falling back to system fonts. Verified
+  by building an actual wheel and diffing its contents before/after.
+- **`tes corpus contribute`/`withdraw` walked users through a full preview and a real
+  consent prompt, then revealed `[NOT SENT]`/`[NOT WITHDRAWN]` only on the last line** — always,
+  since no public corpus is provisioned pre-launch. Both commands now check corpus availability
+  *before* prompting for anything, print `[NOT AVAILABLE]` immediately, and `--help` states NOT
+  YET ACTIVE directly rather than only in the README. No change to the underlying
+  `contribute()`/`withdraw()` library functions or their consent/config safety gates — CLI
+  ordering only.
+- `uv.lock`'s self-referential version, twice-drifted from PR merge ordering across `0.12.0`→
+  `0.12.1`, resynced.
 
 ## [0.12.1] — Two source_mtime/db-scoping fixes (issues #12, #17)
 
