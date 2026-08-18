@@ -8,6 +8,18 @@ The projection is the user's OWN trend over the trailing window, linearly
 extrapolated to the window's end, and ALWAYS labeled with its N (sessions,
 days observed) and the non-forecast caveat. Never "you will spend $X" — the
 message is always framed as "trending toward," never a promise.
+
+**source_mtime, not scored_at (issue #12)**: filters on the session FILE's
+own last-write time on disk -- when the real usage happened -- not on
+`scored_at` (when `tes score`/`tes scan` happened to run). These coincide
+under an immediate-scoring workflow but diverge under batch-scoring: every
+session scored in one `tes scan` run gets the SAME `scored_at`, which would
+cluster a week of real spend onto one instant or drop it outside the
+window entirely. Same fix `tes/cost_period.py`'s `compute_period_cost`
+already applies, for the identical reason -- see that module's own
+docstring for the full argument. `source_mtime` is a `REAL` epoch float
+column (unlike `scored_at`'s ISO-string column), so this module compares
+`datetime.timestamp()`, not `.isoformat()`.
 """
 
 import sqlite3
@@ -42,10 +54,10 @@ def compute_budget_projection(
     window_start = now - timedelta(days=window_days)
 
     rows = conn.execute(
-        "SELECT scored_at, session_cost_usd FROM sessions "
-        "WHERE session_cost_usd IS NOT NULL AND scored_at >= ? "
-        "ORDER BY scored_at ASC",
-        (window_start.isoformat(),),
+        "SELECT source_mtime, session_cost_usd FROM sessions "
+        "WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? "
+        "ORDER BY source_mtime ASC",
+        (window_start.timestamp(),),
     ).fetchall()
 
     if not rows:
@@ -54,7 +66,7 @@ def compute_budget_projection(
     total_usd = sum(float(r["session_cost_usd"]) for r in rows)
     session_count = len(rows)
 
-    first_ts = datetime.fromisoformat(str(rows[0]["scored_at"]))
+    first_ts = datetime.fromtimestamp(float(rows[0]["source_mtime"]), tz=timezone.utc)
     days_observed = max((now - first_ts).total_seconds() / 86400.0, _MIN_DAYS_OBSERVED)
 
     daily_rate = total_usd / days_observed

@@ -23,15 +23,13 @@ across period boundaries. `source_mtime` reflects when the money was
 actually spent, independent of when the user got around to running the
 scorer.
 
-**Known, separate, out-of-scope observation:** `tes/budget.py`'s existing
-rolling-window projection filters on `scored_at`, not `source_mtime`, for
-exactly the reason this module avoids it -- under a batch-scoring workflow,
-`compute_budget_projection`'s trend is describing "cost incurred in scoring
-runs over the last N days," not "cost incurred by real usage in the last N
-days." This is a real, pre-existing characteristic of budget.py, found while
-designing this module -- NOT fixed here. LL3 is scoped to the new `tes cost`
-command only (one coherent change per PR); this is flagged for a dedicated
-follow-up, not silently patched alongside an unrelated feature.
+**Historical note, now resolved (issue #12):** `tes/budget.py`'s rolling-
+window projection used to filter on `scored_at`, not `source_mtime`, for
+exactly the reason this module avoids it -- flagged here when this module
+was written (LL3, scoped to the new `tes cost` command only, not fixed
+alongside an unrelated feature) and fixed as its own dedicated follow-up.
+`compute_budget_projection` now filters/orders on `source_mtime`, matching
+this module's own convention.
 """
 
 import sqlite3
