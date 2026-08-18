@@ -13,6 +13,34 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 **deliberately not published** — see its entry for why (corpus stays dormant). `0.10.2` was
 the **current published release** until `0.11.0` shipped.
 
+## [0.12.1] — Two source_mtime/db-scoping fixes (issues #12, #17)
+
+### Fixed
+- **`tes budget`'s rolling-window projection filtered/ordered on `scored_at`
+  (when `tes score`/`tes scan` happened to run) instead of `source_mtime`
+  (when the real usage happened)** — correct under an immediate-scoring
+  workflow, wrong under a batch-scoring workflow: every session scored in
+  one `tes scan` run shares the same `scored_at`, which could cluster a
+  week of real spend onto one instant or drop it outside the window
+  entirely. Same fix `tes cost`'s `compute_period_cost` already applied
+  (`0.11.0`) for the identical reason. New regression test: sessions with
+  real usage spread across days but scored in one batch prove the
+  projection now reflects when the usage happened, not when it was
+  scored. (#12)
+- **`export-contribution`'s default `--output` path was a fixed
+  `~/.tes/contribution-{date}.jsonl` regardless of `--db-path`/
+  `TES_DB_PATH`** — same bug class as the `intelligence_cache.json` fix
+  (`0.11.1`), lower severity (an explicit, user-inspected export with an
+  existing `--output` escape hatch), but still real: running against an
+  isolated/scratch DB dropped the default output file into the real
+  `~/.tes/` regardless of which database was actually in use. Default now
+  derives from the resolved `db_path`'s own directory, matching
+  `intelligence/cache.py`'s established pattern. `--output` still
+  overrides the default exactly as before. (#17)
+
+Both fixes are read/write-path corrections only — no schema change, no
+new columns, no migration needed.
+
 ## [0.12.0] — Plan-cost ROI, unpriced coverage reporting
 
 ### Added
