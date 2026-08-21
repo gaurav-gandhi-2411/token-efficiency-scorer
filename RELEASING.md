@@ -56,6 +56,13 @@ This document describes the actual flow, written after running it for real for `
      (364/377/472/543/601/…) are point-in-time records of that milestone and should NOT be
      changed to the current total — only fix a figure there if it misstates what was true
      *at that milestone*, not because the repo has grown since.
+   - **Every doc code block in `README.md` presented as copy-pasteable actually runs, verbatim,
+     against a real session file** — not just read for syntax correctness. Real incident: the
+     "SDK usage" block called `adapt_session("path/to/session.jsonl")` with a bare string;
+     `adapt_session`'s real signature takes a `Path` and calls `.stem` on it internally, so the
+     block crashed with `AttributeError: 'str' object has no attribute 'stem'` on the very
+     first real line — found via a cross-repo examples/config-block audit, not by anyone
+     actually running the block before it shipped.
 3. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
    version-bumped code. Merge once green.
 4. **Tag the merged commit and push the tag:**
