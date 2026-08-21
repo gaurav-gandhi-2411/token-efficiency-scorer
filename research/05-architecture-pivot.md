@@ -216,6 +216,16 @@ permutation fix from arXiv:2602.02219 is the correct mitigation.
 40-session gold set. This is below the human-human ceiling of 0.79 and achievable by
 Llama-70B-class models on general benchmarks.
 
+**AW3 disambiguation note (added retroactively, this section left otherwise unmodified per
+report immutability):** the "40-session gold set" and "human gold ratings" above were never
+collected (see report 06 §7.4/§8) — this section is a planning-stage target, not a result. The
+`0.79` figures in this section (Fleiss' κ / Krippendorff's α, human-human inter-rater agreement
+from Han et al./NVIDIA) are a **different number, from external literature, measuring a
+different thing** than the `ρ≈0.79` the project's own README and report 06 later report — that
+one is Qwen3-30B-A3B's judge score correlated against Claude Sonnet acting as an LLM reference
+rater (N=53, empty-loop-excluded), not a human-human ceiling and not this section's target. The
+two 0.79s are coincidentally identical values with no causal relationship; don't conflate them.
+
 ---
 
 ## 4. Three-Layer Architecture

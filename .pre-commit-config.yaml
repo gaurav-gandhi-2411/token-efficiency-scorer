@@ -28,7 +28,14 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
+      # AW1/AW3: markdown-linebreak-ext preserves intentional trailing
+      # double-space hard-breaks in .md files (used deliberately in
+      # research/05-architecture-pivot.md's header block) instead of
+      # silently stripping them -- caught when this hook kept re-stripping
+      # an "immutable" research report's formatting on every commit attempt
+      # that merely touched the file elsewhere.
       - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-merge-conflict
