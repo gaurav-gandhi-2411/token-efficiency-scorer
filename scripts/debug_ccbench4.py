@@ -1,10 +1,14 @@
 """Inspect CC-Bench Claude Code session turn structure."""
-from __future__ import annotations
-import json
-from datasets import load_dataset, VerificationMode
 
-ds = load_dataset("zai-org/CC-Bench-trajectories", split="train",
-                  verification_mode=VerificationMode.NO_CHECKS)
+from __future__ import annotations
+
+import json
+
+from datasets import VerificationMode, load_dataset
+
+ds = load_dataset(
+    "zai-org/CC-Bench-trajectories", split="train", verification_mode=VerificationMode.NO_CHECKS
+)
 
 # Find a row with tool calls
 for row in ds:
@@ -26,13 +30,15 @@ for row in ds:
                     if isinstance(blk, dict):
                         btype = blk.get("type", "?")
                         if btype == "text":
-                            print(f"    t{i} [{role}/{msg_role}] text: {blk.get('text','')[:100]}")
+                            print(f"    t{i} [{role}/{msg_role}] text: {blk.get('text', '')[:100]}")
                         elif btype == "tool_use":
-                            print(f"    t{i} [{role}/{msg_role}] tool_use: {blk.get('name')} input_keys={list(blk.get('input',{}).keys())}")
+                            print(
+                                f"    t{i} [{role}/{msg_role}] tool_use: {blk.get('name')} input_keys={list(blk.get('input', {}).keys())}"
+                            )
                         elif btype == "tool_result":
                             rc = blk.get("content", "")
                             if isinstance(rc, list):
-                                rc = " ".join(p.get("text","") for p in rc if isinstance(p,dict))
+                                rc = " ".join(p.get("text", "") for p in rc if isinstance(p, dict))
                             print(f"    t{i} [{role}/{msg_role}] tool_result: {str(rc)[:100]}")
         print()
         break

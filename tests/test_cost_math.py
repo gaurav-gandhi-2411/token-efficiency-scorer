@@ -7,9 +7,8 @@ prices.json. All float comparisons use pytest.approx(rel=1e-9).
 """
 
 import pytest
-
 from tes._digest import SessionDigest, TurnDigest
-from tes.cost import compute_session_cost, compute_turn_cost, load_price_table, _resolve_model
+from tes.cost import _resolve_model, compute_session_cost, compute_turn_cost, load_price_table
 
 PRICES: dict = {
     "as_of": "2026-06-09",
@@ -58,6 +57,7 @@ def _turn(
 # Test 1 — Sonnet, all three token classes, 5-min cache
 # ---------------------------------------------------------------------------
 
+
 def test_sonnet_all_classes_5min() -> None:
     turn = _turn(
         token_count_input=1_000_000,
@@ -79,6 +79,7 @@ def test_sonnet_all_classes_5min() -> None:
 # ---------------------------------------------------------------------------
 # Test 2 — Opus, all three token classes, 5-min cache
 # ---------------------------------------------------------------------------
+
 
 def test_opus_all_classes_5min() -> None:
     turn = _turn(
@@ -102,6 +103,7 @@ def test_opus_all_classes_5min() -> None:
 # Test 3 — Haiku, all three token classes, 5-min cache
 # ---------------------------------------------------------------------------
 
+
 def test_haiku_all_classes_5min() -> None:
     turn = _turn(
         token_count_input=500_000,
@@ -124,6 +126,7 @@ def test_haiku_all_classes_5min() -> None:
 # Test 4 — 1-hr cache creation rate (Sonnet)
 # ---------------------------------------------------------------------------
 
+
 def test_sonnet_1hr_cache_creation() -> None:
     turn = _turn(
         token_count_input=1_000_000,
@@ -142,6 +145,7 @@ def test_sonnet_1hr_cache_creation() -> None:
 # ---------------------------------------------------------------------------
 # Test 5 — Mixed-model session (2 AI turns)
 # ---------------------------------------------------------------------------
+
 
 def test_mixed_model_session() -> None:
     turn1 = _turn(
@@ -183,6 +187,7 @@ def test_mixed_model_session() -> None:
 # Test 6 — Date-suffixed model string resolves correctly
 # ---------------------------------------------------------------------------
 
+
 def test_date_suffixed_model_resolves() -> None:
     turn = _turn(
         token_count_input=1_000_000,
@@ -203,12 +208,13 @@ def test_date_suffixed_model_resolves() -> None:
 # Test 7 — fresh_tokens clamped to 0
 # ---------------------------------------------------------------------------
 
+
 def test_fresh_tokens_clamped_to_zero() -> None:
     turn = _turn(
         token_count_input=100,
         token_count_output=10,
         cache_read=80,
-        cache_creation=30,   # sum > input — impossible in reality, must not go negative
+        cache_creation=30,  # sum > input — impossible in reality, must not go negative
         model="claude-sonnet-4-6",
     )
     tc = compute_turn_cost(turn, PRICES, cache_duration="5min")
@@ -228,19 +234,25 @@ def test_fresh_tokens_clamped_to_zero() -> None:
 # Test 8 — Legacy model: claude-3-5-haiku-20241022 resolves to $0.80/$4
 # ---------------------------------------------------------------------------
 
+
 def test_legacy_haiku_3_5_resolves_correctly() -> None:
     bundled = load_price_table()
     resolved_key, is_approx, reason = _resolve_model("claude-3-5-haiku-20241022", bundled)
     assert resolved_key == "claude-3-5-haiku"
     assert is_approx is False
     assert reason == ""
-    assert bundled["models"]["claude-3-5-haiku"]["input_usd_per_mtok"] == pytest.approx(0.80, rel=1e-9)
-    assert bundled["models"]["claude-3-5-haiku"]["output_usd_per_mtok"] == pytest.approx(4.0, rel=1e-9)
+    assert bundled["models"]["claude-3-5-haiku"]["input_usd_per_mtok"] == pytest.approx(
+        0.80, rel=1e-9
+    )
+    assert bundled["models"]["claude-3-5-haiku"]["output_usd_per_mtok"] == pytest.approx(
+        4.0, rel=1e-9
+    )
 
 
 # ---------------------------------------------------------------------------
 # Test 9 — Legacy model: claude-opus-4-1 resolves to $15/$75
 # ---------------------------------------------------------------------------
+
 
 def test_legacy_opus_4_1_resolves_correctly() -> None:
     bundled = load_price_table()
@@ -248,5 +260,9 @@ def test_legacy_opus_4_1_resolves_correctly() -> None:
     assert resolved_key == "claude-opus-4-1"
     assert is_approx is False
     assert reason == ""
-    assert bundled["models"]["claude-opus-4-1"]["input_usd_per_mtok"] == pytest.approx(15.0, rel=1e-9)
-    assert bundled["models"]["claude-opus-4-1"]["output_usd_per_mtok"] == pytest.approx(75.0, rel=1e-9)
+    assert bundled["models"]["claude-opus-4-1"]["input_usd_per_mtok"] == pytest.approx(
+        15.0, rel=1e-9
+    )
+    assert bundled["models"]["claude-opus-4-1"]["output_usd_per_mtok"] == pytest.approx(
+        75.0, rel=1e-9
+    )

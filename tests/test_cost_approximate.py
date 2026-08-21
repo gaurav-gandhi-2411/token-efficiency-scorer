@@ -54,6 +54,7 @@ def _session(turns: list[TurnDigest]) -> SessionDigest:
 # Test 1 — Known model → NOT approximate
 # ---------------------------------------------------------------------------
 
+
 def test_known_model_not_approximate() -> None:
     turn = _ai_turn(0, "claude-sonnet-4-6")
     tc = compute_turn_cost(turn, PRICES)
@@ -64,6 +65,7 @@ def test_known_model_not_approximate() -> None:
 # ---------------------------------------------------------------------------
 # Test 2 — Unknown model → approximate=True with reason
 # ---------------------------------------------------------------------------
+
 
 def test_unknown_model_is_approximate() -> None:
     turn = _ai_turn(0, "claude-unknown-99")
@@ -81,6 +83,7 @@ def test_unknown_model_is_approximate() -> None:
 # Test 3 — Empty model string → approximate=True
 # ---------------------------------------------------------------------------
 
+
 def test_empty_model_is_approximate() -> None:
     turn = _ai_turn(0, "")
     tc = compute_turn_cost(turn, PRICES)
@@ -93,6 +96,7 @@ def test_empty_model_is_approximate() -> None:
 # Test 4 — Session with all-known models → session approximate=False
 # ---------------------------------------------------------------------------
 
+
 def test_session_all_known_not_approximate() -> None:
     turns = [_ai_turn(i, "claude-sonnet-4-6") for i in range(2)]
     sc = compute_session_cost(_session(turns), PRICES)
@@ -102,6 +106,7 @@ def test_session_all_known_not_approximate() -> None:
 # ---------------------------------------------------------------------------
 # Test 5 — Session with >25% unknown turns → session approximate=True
 # ---------------------------------------------------------------------------
+
 
 def test_session_over_threshold_is_approximate() -> None:
     # 4 AI turns: 2 known, 2 unknown → 50% > 25% → approximate
@@ -119,6 +124,7 @@ def test_session_over_threshold_is_approximate() -> None:
 # Test 6 — Session with exactly 25% unknown turns → session approximate=False
 # ---------------------------------------------------------------------------
 
+
 def test_session_at_threshold_not_approximate() -> None:
     # 4 AI turns: 3 known, 1 unknown → 1/4 = 25.0% — NOT strictly > 25% → False
     turns = [
@@ -135,6 +141,7 @@ def test_session_at_threshold_not_approximate() -> None:
 # Test 7 — 8 turns: 6 known, 2 unknown → 25.0% → False
 # ---------------------------------------------------------------------------
 
+
 def test_session_at_threshold_8_turns_not_approximate() -> None:
     turns = [_ai_turn(i, "claude-sonnet-4-6") for i in range(6)] + [
         _ai_turn(6, ""),
@@ -150,6 +157,7 @@ def test_session_at_threshold_8_turns_not_approximate() -> None:
 # never a total that silently includes a guessed/default-rate dollar amount
 # for the unresolved ones.
 # ---------------------------------------------------------------------------
+
 
 def test_session_total_excludes_unpriced_turns_not_guesses_them() -> None:
     known_turn = _ai_turn(0, "claude-sonnet-4-6")

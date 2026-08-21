@@ -28,13 +28,16 @@ and the chat/dashboard shows an honest "still building your pattern library" mes
 """
 
 import json
-import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-MIN_CONTENT_FOR_CACHE: int = 30     # below this: don't attempt clustering
-INVALIDATION_DELTA: int = 5         # re-compute if session_count changed by more than this
+if TYPE_CHECKING:
+    from tes.intelligence.anomaly import AnomalyResult
+    from tes.intelligence.cluster import ClusteringResult
+
+MIN_CONTENT_FOR_CACHE: int = 30  # below this: don't attempt clustering
+INVALIDATION_DELTA: int = 5  # re-compute if session_count changed by more than this
 
 
 def _cache_path(db_path: Path | str) -> Path:
@@ -69,6 +72,7 @@ def _cache_path(db_path: Path | str) -> Path:
 def _tracegauge_version() -> str:
     try:
         from importlib.metadata import version
+
         return version("tracegauge")
     except Exception:
         return "unknown"
@@ -120,14 +124,14 @@ def save_cache(
         **cache_dict,
         "tracegauge_version": _tracegauge_version(),
         "session_count": session_count,
-        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "computed_at": datetime.now(UTC).isoformat(),
     }
     p.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def build_cache_from_results(
-    result: "ClusteringResult",
-    anomalies: list["AnomalyResult"],
+    result: ClusteringResult,
+    anomalies: list[AnomalyResult],
 ) -> dict[str, Any]:
     """Build the cache dict from clustering + anomaly results.
 
@@ -135,28 +139,32 @@ def build_cache_from_results(
     """
     archetypes_serial = []
     for a in result.archetypes:
-        archetypes_serial.append({
-            "cluster_id": a.cluster_id,
-            "name": a.name,
-            "size": a.size,
-            "fraction": round(a.fraction, 4),
-            "centroid": {
-                name: round(float(a.centroid_unscaled[i]), 6)
-                for i, name in enumerate(
-                    __import__("tes.intelligence.features", fromlist=["FEATURE_NAMES"]).FEATURE_NAMES
-                )
-            },
-            "task_type_counts": a.task_type_counts,
-            "dominant_features": [
-                {
-                    "name": df["name"],
-                    "label": df["label"],
-                    "value_unscaled": round(df["value_unscaled"], 6),
-                    "z_from_global": round(df["z_from_global"], 4),
-                }
-                for df in a.dominant_features[:3]
-            ],
-        })
+        archetypes_serial.append(
+            {
+                "cluster_id": a.cluster_id,
+                "name": a.name,
+                "size": a.size,
+                "fraction": round(a.fraction, 4),
+                "centroid": {
+                    name: round(float(a.centroid_unscaled[i]), 6)
+                    for i, name in enumerate(
+                        __import__(
+                            "tes.intelligence.features", fromlist=["FEATURE_NAMES"]
+                        ).FEATURE_NAMES
+                    )
+                },
+                "task_type_counts": a.task_type_counts,
+                "dominant_features": [
+                    {
+                        "name": df["name"],
+                        "label": df["label"],
+                        "value_unscaled": round(df["value_unscaled"], 6),
+                        "z_from_global": round(df["z_from_global"], 4),
+                    }
+                    for df in a.dominant_features[:3]
+                ],
+            }
+        )
 
     return {
         "valid": result.valid,
@@ -207,10 +215,10 @@ def get_or_compute_intelligence(
       "status", "domain_of_validity", "computed_at", "session_count",
       "tracegauge_version"
     """
-    from tes.store import open_db, list_sessions
-    from tes.intelligence.features import build_feature_matrix
-    from tes.intelligence.cluster import run_clustering
     from tes.intelligence.anomaly import detect_anomalies
+    from tes.intelligence.cluster import run_clustering
+    from tes.intelligence.features import build_feature_matrix
+    from tes.store import list_sessions, open_db
 
     conn = open_db(db_path)
     rows = list_sessions(conn, limit=5000, offset=0)
@@ -223,8 +231,10 @@ def get_or_compute_intelligence(
         cached = load_cache(db_path)
         if cached and is_cache_fresh(cached, total_session_count):
             if verbose:
-                print(f"[intelligence] Using cached results ({cached.get('n_sessions')} sessions, "
-                      f"computed {cached.get('computed_at', 'unknown')})")
+                print(
+                    f"[intelligence] Using cached results ({cached.get('n_sessions')} sessions, "
+                    f"computed {cached.get('computed_at', 'unknown')})"
+                )
             return cached
 
     # Need to re-compute
@@ -275,8 +285,10 @@ def get_or_compute_intelligence(
     save_cache(cache_dict, total_session_count, db_path)
 
     if verbose:
-        print(f"[intelligence] k={result.k}, silhouette={result.silhouette:.4f}, "
-              f"anomalies={len(anomalies)}")
+        print(
+            f"[intelligence] k={result.k}, silhouette={result.silhouette:.4f}, "
+            f"anomalies={len(anomalies)}"
+        )
 
     return load_cache(db_path) or cache_dict  # reload so caller sees stamps too
 
@@ -302,7 +314,7 @@ def format_intelligence_summary(cache: dict[str, Any]) -> str:
         has_waste_label = "YES" if c.get("has_waste", 0) >= 0.5 else "NO"
         lines.append(
             f"  [{a['cluster_id']}] {a['name']!r}: "
-            f"n={a['size']} sessions ({a['fraction']*100:.1f}% of corpus), "
+            f"n={a['size']} sessions ({a['fraction'] * 100:.1f}% of corpus), "
             f"context_resend={c.get('context_resend_pct', 0):.1%} of billed tokens, "
             f"context_growth={c.get('context_growth_pct', 0):.1%} of billed tokens, "
             f"output={c.get('output_pct', 0):.1%} of billed tokens, "

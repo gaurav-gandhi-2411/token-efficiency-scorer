@@ -11,32 +11,32 @@ Public API:
     chat.py       — constrained conversational explainer (metrics-only egress)
 """
 
-from tes.intelligence.features import (
-    FEATURE_NAMES,
-    SessionFeatures,
-    build_feature_matrix,
-    extract_features,
+from tes.intelligence.anomaly import (
+    AnomalyResult,
+    detect_anomalies,
+)
+from tes.intelligence.cache import (
+    format_intelligence_summary,
+    get_or_compute_intelligence,
+)
+from tes.intelligence.chat import (
+    CHAT_EGRESS_NOTICE,
+    ChatApiConfig,
+    ChatConfig,
+    ask_api,
+    ask_local,
+    build_chat_context,
 )
 from tes.intelligence.cluster import (
     ArchetypeCluster,
     ClusteringResult,
     run_clustering,
 )
-from tes.intelligence.anomaly import (
-    AnomalyResult,
-    detect_anomalies,
-)
-from tes.intelligence.cache import (
-    get_or_compute_intelligence,
-    format_intelligence_summary,
-)
-from tes.intelligence.chat import (
-    ChatConfig,
-    ChatApiConfig,
-    CHAT_EGRESS_NOTICE,
-    build_chat_context,
-    ask_local,
-    ask_api,
+from tes.intelligence.features import (
+    FEATURE_NAMES,
+    SessionFeatures,
+    build_feature_matrix,
+    extract_features,
 )
 
 __all__ = [

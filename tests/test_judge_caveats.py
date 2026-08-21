@@ -4,22 +4,18 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tes.judge import (
-    API_JUDGE_CONSENT_NOTICE_TEMPLATE,
-    ApiJudgeConfig,
-    JudgeConfig,
     JUDGE_SETUP_HINT_FULL,
+    ApiJudgeConfig,
     build_api_judge_consent_notice,
     score_trajectory_api,
 )
 from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY
 
-
 # ---------------------------------------------------------------------------
 # The B3 caveats that MUST appear in TRAJECTORY_DOMAIN_OF_VALIDITY
 # ---------------------------------------------------------------------------
+
 
 def test_trajectory_dov_contains_positive_corroborated():
     """DOV states positive signal is corroborated (B3 finding)."""
@@ -39,6 +35,7 @@ def test_trajectory_dov_contains_no_human_calibration():
 # ---------------------------------------------------------------------------
 # API judge consent notice contains B3 caveats
 # ---------------------------------------------------------------------------
+
 
 def test_consent_notice_contains_corroborated():
     """Consent notice includes the B3 positive-corroborated caveat."""
@@ -84,6 +81,7 @@ def test_consent_notice_contains_api_availability_not_validity():
 # JUDGE_SETUP_HINT_FULL contains both setup paths
 # ---------------------------------------------------------------------------
 
+
 def test_setup_hint_full_mentions_ollama():
     """Full setup hint mentions Ollama local option."""
     assert "ollama" in JUDGE_SETUP_HINT_FULL.lower()
@@ -125,13 +123,17 @@ _MINIMAL_RECORD = {
 
 def test_api_judge_verdict_is_compatible_with_score_session():
     """API judge_entry passes through score_session; result has API-specific DOV."""
-    from tes.baselines import load_baselines, BUNDLED_BASELINES_PATH
-    from tes.score import score_session, TRAJECTORY_DOMAIN_OF_VALIDITY
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
 
     config = ApiJudgeConfig(api_key="sk-key")
     mock_resp = MagicMock()
     mock_resp.json.return_value = {
-        "content": [{"text": '{"verdict":"MUCH_BETTER","waste_categories":[],"confidence":0.9,"reasoning":"Good"}'}]
+        "content": [
+            {
+                "text": '{"verdict":"MUCH_BETTER","waste_categories":[],"confidence":0.9,"reasoning":"Good"}'
+            }
+        ]
     }
     mock_resp.raise_for_status = MagicMock()
 
@@ -156,8 +158,8 @@ def test_api_judge_verdict_is_compatible_with_score_session():
 
 def test_local_judge_verdict_uses_standard_dov():
     """Local judge (judge_path absent) still uses TRAJECTORY_DOMAIN_OF_VALIDITY."""
-    from tes.baselines import load_baselines, BUNDLED_BASELINES_PATH
-    from tes.score import score_session, TRAJECTORY_DOMAIN_OF_VALIDITY
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
 
     # A judge_entry without judge_path (local judge format)
     local_judge_entry = {

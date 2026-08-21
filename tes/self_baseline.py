@@ -25,14 +25,14 @@ MIN_MEANINGFUL_TURNS: int = 20
 @dataclass
 class TypeBaseline:
     task_type: str
-    source: str           # 'self' | 'building' | 'corpus'
-    p25: int | None       # None when building
-    median: int | None    # None when building
-    p75: int | None       # None when building
-    lean_n: int           # size of lean subset (0 when building/corpus)
-    waste_free_n: int     # waste-free sessions with real_tokens > 0
+    source: str  # 'self' | 'building' | 'corpus'
+    p25: int | None  # None when building
+    median: int | None  # None when building
+    p75: int | None  # None when building
+    lean_n: int  # size of lean subset (0 when building/corpus)
+    waste_free_n: int  # waste-free sessions with real_tokens > 0
     sessions_needed: int  # how many more lean-subset sessions needed (0 when active)
-    scope_floor: int      # effective turns floor for this type
+    scope_floor: int  # effective turns floor for this type
     domain_of_validity: str
 
 

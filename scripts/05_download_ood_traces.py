@@ -18,14 +18,13 @@ Output schema is identical to traces_normalized/ with one extra field:
 Usage:
     python scripts/05_download_ood_traces.py
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import pathlib
-import re
 import sys
-from typing import Any
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT_DIR = REPO_ROOT / "data" / "ood-corpus" / "traces_normalized"
@@ -34,6 +33,7 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 SEED = 42
 
 # ── Shared normalizer ─────────────────────────────────────────────────────────
+
 
 def _make_session_id(source: str, unique_key: str) -> str:
     return hashlib.sha256(f"{source}:{unique_key}".encode()).hexdigest()[:16]
@@ -45,9 +45,15 @@ def _count_tokens_approx(text: str) -> int:
 
 # ── S1: CC-Bench-trajectories ─────────────────────────────────────────────────
 
+
 def _normalize_ccbench_turn(raw: dict, turn_index: int) -> dict:
-    role_map = {"human": "user", "assistant": "assistant", "system": "system",
-                "tool": "tool", "user": "user"}
+    role_map = {
+        "human": "user",
+        "assistant": "assistant",
+        "system": "system",
+        "tool": "tool",
+        "user": "user",
+    }
     role = role_map.get(raw.get("role", ""), "user")
     content = raw.get("content", "") or ""
     if isinstance(content, list):
@@ -58,11 +64,13 @@ def _normalize_ccbench_turn(raw: dict, turn_index: int) -> dict:
                 if block.get("type") == "text":
                     text_parts.append(block.get("text", ""))
                 elif block.get("type") == "tool_use":
-                    tool_uses.append({
-                        "tool_name": block.get("name", ""),
-                        "tool_input": block.get("input", {}),
-                        "tool_result": None,
-                    })
+                    tool_uses.append(
+                        {
+                            "tool_name": block.get("name", ""),
+                            "tool_input": block.get("input", {}),
+                            "tool_result": None,
+                        }
+                    )
                 elif block.get("type") == "tool_result":
                     result_content = block.get("content", "")
                     if isinstance(result_content, list):
@@ -105,8 +113,12 @@ def _normalize_ccbench_session(row: dict, idx: int) -> dict | None:
         t = _normalize_ccbench_turn(raw_turn, i)
         turns.append(t)
 
-    total_input = sum(_count_tokens_approx(t["content_text"]) for t in turns if t["role"] in ("user", "system"))
-    total_output = sum(_count_tokens_approx(t["content_text"]) for t in turns if t["role"] == "assistant")
+    total_input = sum(
+        _count_tokens_approx(t["content_text"]) for t in turns if t["role"] in ("user", "system")
+    )
+    total_output = sum(
+        _count_tokens_approx(t["content_text"]) for t in turns if t["role"] == "assistant"
+    )
 
     return {
         "session_id": _make_session_id("ccbench", str(task_id)),
@@ -120,14 +132,17 @@ def _normalize_ccbench_session(row: dict, idx: int) -> dict | None:
         "outcome": {"result": result, "patch_diff": None},
         "turns": turns,
         "session_token_totals": {
-            "input": total_input, "output": total_output,
-            "cache_read": 0, "total": total_input + total_output,
+            "input": total_input,
+            "output": total_output,
+            "cache_read": 0,
+            "total": total_input + total_output,
         },
         "turn_count": len(turns),
     }
 
 
 # ── S2: SWE-ZERO (non-Python filter) ─────────────────────────────────────────
+
 
 def _normalize_swezero_session(row: dict, idx: int) -> dict | None:
     """Normalize a SWE-ZERO row to standard schema."""
@@ -147,8 +162,13 @@ def _normalize_swezero_session(row: dict, idx: int) -> dict | None:
     turns = []
     for i, raw in enumerate(messages):
         role_raw = raw.get("role", "user")
-        role = {"human": "user", "gpt": "assistant", "assistant": "assistant",
-                "user": "user", "system": "system"}.get(role_raw, role_raw)
+        role = {
+            "human": "user",
+            "gpt": "assistant",
+            "assistant": "assistant",
+            "user": "user",
+            "system": "system",
+        }.get(role_raw, role_raw)
         content = raw.get("content") or raw.get("value") or ""
         if isinstance(content, list):
             content = " ".join(
@@ -165,17 +185,21 @@ def _normalize_swezero_session(row: dict, idx: int) -> dict | None:
                     args = json.loads(args)
                 except json.JSONDecodeError:
                     args = {"raw": args}
-            tool_uses.append({
-                "tool_name": fn.get("name", ""),
-                "tool_input": args,
-                "tool_result": None,
-            })
-        turns.append({
-            "turn_index": i,
-            "role": role,
-            "content_text": str(content),
-            "tool_uses": tool_uses,
-        })
+            tool_uses.append(
+                {
+                    "tool_name": fn.get("name", ""),
+                    "tool_input": args,
+                    "tool_result": None,
+                }
+            )
+        turns.append(
+            {
+                "turn_index": i,
+                "role": role,
+                "content_text": str(content),
+                "tool_uses": tool_uses,
+            }
+        )
 
     return {
         "session_id": _make_session_id("swezero", str(task_id)),
@@ -194,6 +218,7 @@ def _normalize_swezero_session(row: dict, idx: int) -> dict | None:
 
 
 # ── S3: Toucan-1.5M (MCP tool usage) ─────────────────────────────────────────
+
 
 def _normalize_toucan_session(row: dict, idx: int) -> dict | None:
     """Normalize a Toucan (ShareGPT-style) row to standard schema."""
@@ -214,9 +239,15 @@ def _normalize_toucan_session(row: dict, idx: int) -> dict | None:
     turns = []
     for i, raw in enumerate(convos):
         role_raw = raw.get("from") or raw.get("role") or "user"
-        role = {"human": "user", "gpt": "assistant", "assistant": "assistant",
-                "tool": "tool", "function": "tool", "user": "user",
-                "system": "system"}.get(role_raw, role_raw)
+        role = {
+            "human": "user",
+            "gpt": "assistant",
+            "assistant": "assistant",
+            "tool": "tool",
+            "function": "tool",
+            "user": "user",
+            "system": "system",
+        }.get(role_raw, role_raw)
         content = raw.get("value") or raw.get("content") or ""
         tool_uses: list[dict] = []
         if role == "tool":
@@ -229,20 +260,26 @@ def _normalize_toucan_session(row: dict, idx: int) -> dict | None:
                     maybe_call = json.loads(content)
                     if "name" in maybe_call or "function" in maybe_call:
                         fn_name = maybe_call.get("name") or maybe_call.get("function", "")
-                        tool_uses.append({
-                            "tool_name": fn_name,
-                            "tool_input": maybe_call.get("arguments") or maybe_call.get("input") or {},
-                            "tool_result": None,
-                        })
+                        tool_uses.append(
+                            {
+                                "tool_name": fn_name,
+                                "tool_input": maybe_call.get("arguments")
+                                or maybe_call.get("input")
+                                or {},
+                                "tool_result": None,
+                            }
+                        )
                         content = f"[tool call: {fn_name}]"
                 except json.JSONDecodeError:
                     pass
-        turns.append({
-            "turn_index": i,
-            "role": role,
-            "content_text": str(content),
-            "tool_uses": tool_uses,
-        })
+        turns.append(
+            {
+                "turn_index": i,
+                "role": role,
+                "content_text": str(content),
+                "tool_uses": tool_uses,
+            }
+        )
 
     return {
         "session_id": _make_session_id("toucan", str(task_id)),
@@ -261,6 +298,7 @@ def _normalize_toucan_session(row: dict, idx: int) -> dict | None:
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     try:
@@ -329,7 +367,9 @@ def main() -> None:
             if norm and len(norm["turns"]) >= 4:
                 records.append(norm)
                 s3_count += 1
-                print(f"  S3 [{s3_count}] cat={norm['ood_task_category'][:40]}: {norm['session_id']}")
+                print(
+                    f"  S3 [{s3_count}] cat={norm['ood_task_category'][:40]}: {norm['session_id']}"
+                )
             if i > 500:
                 print("  S3: reached scan limit")
                 break
@@ -341,21 +381,21 @@ def main() -> None:
     for r in records:
         out = OUT_DIR / f"{r['session_id']}.json"
         out.write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
-        manifest.append({
-            "session_id": r["session_id"],
-            "source_dataset": r["source_dataset"],
-            "scaffold": r["scaffold"],
-            "model": r["model"],
-            "ood_task_category": r["ood_task_category"],
-            "turn_count": r["turn_count"],
-            "outcome": r["outcome"]["result"],
-        })
+        manifest.append(
+            {
+                "session_id": r["session_id"],
+                "source_dataset": r["source_dataset"],
+                "scaffold": r["scaffold"],
+                "model": r["model"],
+                "ood_task_category": r["ood_task_category"],
+                "turn_count": r["turn_count"],
+                "outcome": r["outcome"]["result"],
+            }
+        )
 
     manifest_path = REPO_ROOT / "data" / "ood-corpus" / "ood_manifest.jsonl"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(
-        "\n".join(json.dumps(m) for m in manifest), encoding="utf-8"
-    )
+    manifest_path.write_text("\n".join(json.dumps(m) for m in manifest), encoding="utf-8")
 
     print(f"\nOOD corpus: {len(records)} sessions")
     by_source = {}

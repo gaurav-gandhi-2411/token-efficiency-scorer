@@ -8,7 +8,6 @@ Tests the per-event cost annotation with the "redundant turns only" definition:
   - Only AI turns have non-zero per_turn_cost; tool/user turns contribute 0 naturally
 """
 
-import pytest
 
 from tes.waste import annotate_waste_costs
 
@@ -46,6 +45,7 @@ def _rr_a_event(turns: list[int]) -> dict:
 # ---------------------------------------------------------------------------
 # annotate_waste_costs: basic contract
 # ---------------------------------------------------------------------------
+
 
 def test_rfr_two_repeats_cost():
     """RFR with 2 repeats: proof_turns = [c1,r1,c2,r2]. Wasted = [c2,r2]."""
@@ -108,8 +108,7 @@ def test_missing_turns_from_per_turn_cost():
 
 def test_multiple_events_annotated_independently():
     """Multiple events in one list each get their own cost."""
-    per_turn_cost = {10: 0.05, 11: 0.0, 12: 0.04, 13: 0.0,
-                     20: 0.03, 21: 0.0, 24: 0.06, 25: 0.0}
+    per_turn_cost = {10: 0.05, 11: 0.0, 12: 0.04, 13: 0.0, 20: 0.03, 21: 0.0, 24: 0.06, 25: 0.0}
     events = [
         _rfr_event(turns=[10, 11, 12, 13]),
         _rr_b_event(turns=[20, 21, 24, 25]),

@@ -11,11 +11,10 @@ vice versa, must be included/excluded by source_mtime only).
 """
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-
 from tes.cli import _project_label
 from tes.cost_period import (
     _project_label_from_source_path,
@@ -70,7 +69,7 @@ def _insert_session(
 
 
 def _now() -> datetime:
-    return datetime(2026, 8, 17, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 8, 17, 12, 0, 0, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -94,9 +93,12 @@ def test_single_session_in_period_reports_it_correctly(tmp_path: Path):
     now = _now()
     mid = now - timedelta(days=3)
     _insert_session(
-        conn, "s1",
+        conn,
+        "s1",
         source_path="/fake/C--Users-gaura-ml-projects-adk-tracegauge/s1.jsonl",
-        source_mtime=mid.timestamp(), scored_at=mid.isoformat(), cost_usd=1.50,
+        source_mtime=mid.timestamp(),
+        scored_at=mid.isoformat(),
+        cost_usd=1.50,
     )
 
     report = compute_period_cost(conn, now - timedelta(days=7), now)
@@ -137,9 +139,15 @@ def test_per_project_breakdown_groups_and_sums_correctly(tmp_path: Path):
     now = _now()
     ts = (now - timedelta(days=2)).timestamp()
     iso = (now - timedelta(days=2)).isoformat()
-    _insert_session(conn, "a1", source_path="/fake/proj-a/x.jsonl", source_mtime=ts, scored_at=iso, cost_usd=1.0)
-    _insert_session(conn, "a2", source_path="/fake/proj-a/y.jsonl", source_mtime=ts, scored_at=iso, cost_usd=2.0)
-    _insert_session(conn, "b1", source_path="/fake/proj-b/z.jsonl", source_mtime=ts, scored_at=iso, cost_usd=5.0)
+    _insert_session(
+        conn, "a1", source_path="/fake/proj-a/x.jsonl", source_mtime=ts, scored_at=iso, cost_usd=1.0
+    )
+    _insert_session(
+        conn, "a2", source_path="/fake/proj-a/y.jsonl", source_mtime=ts, scored_at=iso, cost_usd=2.0
+    )
+    _insert_session(
+        conn, "b1", source_path="/fake/proj-b/z.jsonl", source_mtime=ts, scored_at=iso, cost_usd=5.0
+    )
 
     report = compute_period_cost(conn, now - timedelta(days=7), now)
 
@@ -182,7 +190,8 @@ def test_filters_by_source_mtime_not_scored_at(tmp_path: Path):
     # (real usage happened this week), scored_at is OUTSIDE it (scored a
     # month later). Must be INCLUDED -- proves source_mtime governs.
     _insert_session(
-        conn, "batch-scored-late",
+        conn,
+        "batch-scored-late",
         source_mtime=(now - timedelta(days=3)).timestamp(),
         scored_at=(now + timedelta(days=30)).isoformat(),
         cost_usd=4.0,
@@ -192,7 +201,8 @@ def test_filters_by_source_mtime_not_scored_at(tmp_path: Path):
     # was months ago. Must be EXCLUDED -- a scored_at-based filter would
     # wrongly include this in "this week's" spend.
     _insert_session(
-        conn, "old-usage-rescored-this-week",
+        conn,
+        "old-usage-rescored-this-week",
         source_mtime=(now - timedelta(days=90)).timestamp(),
         scored_at=(now - timedelta(days=1)).isoformat(),
         cost_usd=99.0,
@@ -227,7 +237,7 @@ def test_resolve_period_month_is_rolling_thirty_days_not_calendar_month():
 def test_resolve_period_since_parses_explicit_date():
     now = _now()
     start, end, label = resolve_period(since="2026-08-01", _now=now)
-    assert start == datetime(2026, 8, 1, tzinfo=timezone.utc)
+    assert start == datetime(2026, 8, 1, tzinfo=UTC)
     assert end == now
     assert "2026-08-01" in label
 
@@ -277,14 +287,19 @@ def test_coverage_fractions_reflect_missing_sessions_and_tokens(tmp_path: Path):
     ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
     _insert_session(conn, "priced", source_mtime=ts, scored_at=iso, cost_usd=3.0, real_tokens=300)
     _insert_session(
-        conn, "unpriced", source_mtime=ts, scored_at=iso, cost_usd=None, real_tokens=700,
+        conn,
+        "unpriced",
+        source_mtime=ts,
+        scored_at=iso,
+        cost_usd=None,
+        real_tokens=700,
         unpriced_models="claude-future-9",
     )
 
     report = compute_period_cost(conn, now - timedelta(days=7), now)
 
     assert report.session_coverage_pct == pytest.approx(50.0)  # 1 of 2 sessions
-    assert report.token_coverage_pct == pytest.approx(30.0)    # 300 of 1000 tokens
+    assert report.token_coverage_pct == pytest.approx(30.0)  # 300 of 1000 tokens
     assert report.unpriced_models == ["claude-future-9"]
     assert report.unpriced_models_incomplete is False
 
@@ -293,9 +308,15 @@ def test_unpriced_models_deduplicated_and_sorted(tmp_path: Path):
     conn = open_db(tmp_path / "tes.db")
     now = _now()
     ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
-    _insert_session(conn, "a", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model")
-    _insert_session(conn, "b", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="alpha-model")
-    _insert_session(conn, "c", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model")
+    _insert_session(
+        conn, "a", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model"
+    )
+    _insert_session(
+        conn, "b", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="alpha-model"
+    )
+    _insert_session(
+        conn, "c", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="zeta-model"
+    )
 
     report = compute_period_cost(conn, now - timedelta(days=7), now)
 
@@ -310,8 +331,12 @@ def test_legacy_unpriced_session_with_no_model_name_flags_incomplete(tmp_path: P
     conn = open_db(tmp_path / "tes.db")
     now = _now()
     ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
-    _insert_session(conn, "legacy", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models=None)
-    _insert_session(conn, "named", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="some-model")
+    _insert_session(
+        conn, "legacy", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models=None
+    )
+    _insert_session(
+        conn, "named", source_mtime=ts, scored_at=iso, cost_usd=None, unpriced_models="some-model"
+    )
 
     report = compute_period_cost(conn, now - timedelta(days=7), now)
 

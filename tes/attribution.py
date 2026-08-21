@@ -66,10 +66,10 @@ class AttributionResult:
     # --- 6 token buckets ---
     rr_waste_tokens: int
     rfr_waste_tokens: int
-    context_resend_tokens: int    # B3 — _LABEL_B3
-    output_tokens: int            # B4
-    fresh_input_tokens: int       # B5 — _LABEL_B5
-    context_growth_tokens: int    # B6 — _LABEL_B6
+    context_resend_tokens: int  # B3 — _LABEL_B3
+    output_tokens: int  # B4
+    fresh_input_tokens: int  # B5 — _LABEL_B5
+    context_growth_tokens: int  # B6 — _LABEL_B6
 
     # --- 6 USD buckets (float, always set; 0.0 when turn has no cost data) ---
     rr_waste_usd: float
@@ -80,8 +80,8 @@ class AttributionResult:
     context_growth_usd: float
 
     # --- totals ---
-    total_billed_tokens: int   # INVARIANT: equals sum of 6 token buckets
-    total_usd: float           # equals sum of 6 USD buckets
+    total_billed_tokens: int  # INVARIANT: equals sum of 6 token buckets
+    total_usd: float  # equals sum of 6 USD buckets
 
     # --- real_tokens for comparison with the verdict axis (excludes cache_read) ---
     real_tokens: int

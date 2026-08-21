@@ -27,38 +27,32 @@ Note: this test does NOT protect against repo-vs-installed divergence (that is a
 infrastructure problem solved by `pip install -e .` or publishing). It protects
 against code bugs where routes are accidentally omitted from create_app.
 """
+
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
 
 import pytest
-
-from tes.score import (
-    TOKEN_DOMAIN_OF_VALIDITY,
-    TRAJECTORY_DOMAIN_OF_VALIDITY,
-    WASTE_DOMAIN_OF_VALIDITY,
-    ThreeAxisResult,
-)
-from tes.store import open_db, upsert_session
+from tes.store import open_db
 from tes.web.server import ServerConfig, create_app, start_server  # same imports as `tes serve`
-
 
 # ---------------------------------------------------------------------------
 # Fixture
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def minimal_app(tmp_path: Path):
     """App created with the EXACT same call as start_server makes internally."""
     cfg = ServerConfig(db_path=tmp_path / "routes.db")
-    open_db(cfg.db_path).close()   # create the DB file (start_server assumes it exists)
-    return create_app(cfg)          # ← identical call to what start_server makes
+    open_db(cfg.db_path).close()  # create the DB file (start_server assumes it exists)
+    return create_app(cfg)  # ← identical call to what start_server makes
 
 
 # ---------------------------------------------------------------------------
 # Route-table assertions (url_map checks)
 # ---------------------------------------------------------------------------
+
 
 class TestProductionRouteTable:
     """Assert routes are in the Flask url_map that Werkzeug uses to dispatch.
@@ -72,13 +66,16 @@ class TestProductionRouteTable:
         "/session/<session_id>",
         "/trends",
         "/baseline-status",
-        "/patterns",       # 0.8.0 — new
-        "/ask",            # 0.8.0 — new
+        "/patterns",  # 0.8.0 — new
+        "/ask",  # 0.8.0 — new
     }
 
     def test_all_expected_routes_registered(self, minimal_app) -> None:
-        registered = {str(rule) for rule in minimal_app.url_map.iter_rules()
-                      if not str(rule).startswith("/static")}
+        registered = {
+            str(rule)
+            for rule in minimal_app.url_map.iter_rules()
+            if not str(rule).startswith("/static")
+        }
         for route in self._EXPECTED_ROUTES:
             assert route in registered, (
                 f"Route {route!r} is missing from create_app url_map.\n"
@@ -106,8 +103,9 @@ class TestProductionRouteTable:
 
     def test_no_extra_routes_added_accidentally(self, minimal_app) -> None:
         """Guard against accidentally registering admin/debug routes."""
-        registered = {str(r) for r in minimal_app.url_map.iter_rules()
-                      if not str(r).startswith("/static")}
+        registered = {
+            str(r) for r in minimal_app.url_map.iter_rules() if not str(r).startswith("/static")
+        }
         forbidden_prefixes = ("/admin", "/debug", "/internal", "/api/v")
         for route in registered:
             for prefix in forbidden_prefixes:
@@ -128,6 +126,7 @@ class TestProductionRouteTable:
 # HTTP-level reachability (test client GET /patterns, POST /ask)
 # ---------------------------------------------------------------------------
 
+
 class TestRoutesReachableViaTestClient:
     """These tests are what the existing test_web_patterns.py etc. already do.
 
@@ -138,14 +137,21 @@ class TestRoutesReachableViaTestClient:
 
     def test_patterns_get_returns_200(self, minimal_app) -> None:
         from unittest.mock import patch
-        with patch("tes.web.server.get_or_compute_intelligence", return_value={
-            "valid": False,
-            "reason": "not_enough_sessions",
-            "n_sessions": 0,
-            "n_content_sessions_needed": 30,
-            "status": "Not enough sessions.",
-            "domain_of_validity": "n/a",
-        }), patch("tes.web.server._check_ollama", return_value=False):
+
+        with (
+            patch(
+                "tes.web.server.get_or_compute_intelligence",
+                return_value={
+                    "valid": False,
+                    "reason": "not_enough_sessions",
+                    "n_sessions": 0,
+                    "n_content_sessions_needed": 30,
+                    "status": "Not enough sessions.",
+                    "domain_of_validity": "n/a",
+                },
+            ),
+            patch("tes.web.server._check_ollama", return_value=False),
+        ):
             with minimal_app.test_client() as c:
                 resp = c.get("/patterns")
         assert resp.status_code == 200, (
@@ -156,10 +162,11 @@ class TestRoutesReachableViaTestClient:
     def test_ask_post_empty_returns_400(self, minimal_app) -> None:
         """Empty POST to /ask must return 400, not 404 or 500."""
         import json
+
         with minimal_app.test_client() as c:
-            resp = c.post("/ask",
-                          data=json.dumps({"question": ""}),
-                          content_type="application/json")
+            resp = c.post(
+                "/ask", data=json.dumps({"question": ""}), content_type="application/json"
+            )
         assert resp.status_code == 400, (
             f"/ask returned {resp.status_code} for empty question — expected 400"
         )

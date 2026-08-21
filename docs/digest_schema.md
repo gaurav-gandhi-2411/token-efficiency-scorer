@@ -163,11 +163,11 @@ for real sessions that have no H2 annotation, or the record will be silently ski
 ## Constants (do not change without escalation)
 
 ```python
-_SNIPPET_MAX_CHARS = 300    # content_snippet truncation
+_SNIPPET_MAX_CHARS = 300  # content_snippet truncation
 _TASK_DESC_MAX_CHARS = 800  # task_description truncation (build_digest)
-task_desc_in_prompt = 400   # further truncation in _build_user_prompt
-_P25_RATIO_MIN = 0.1        # layer1_features clamping
-_P25_RATIO_MAX = 100.0      # layer1_features clamping
-P25_RATIO_MIN = 0.3         # score.py clamping (tighter)
-P25_RATIO_MAX = 5.0         # score.py clamping (tighter)
+task_desc_in_prompt = 400  # further truncation in _build_user_prompt
+_P25_RATIO_MIN = 0.1  # layer1_features clamping
+_P25_RATIO_MAX = 100.0  # layer1_features clamping
+P25_RATIO_MIN = 0.3  # score.py clamping (tighter)
+P25_RATIO_MAX = 5.0  # score.py clamping (tighter)
 ```

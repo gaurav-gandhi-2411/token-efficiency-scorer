@@ -21,10 +21,9 @@ consumers receive the honesty — not bolted on in CLI formatting only (spec dec
 import json
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from tes.baselines import BUNDLED_BASELINES_PATH, compute_real_tokens, load_baselines
+from tes.baselines import compute_real_tokens, load_baselines
 from tes.classify import classify_session
 
 if TYPE_CHECKING:
@@ -100,12 +99,12 @@ class EfficiencyResult:
     session_id: str
     task_type: str
     real_tokens: int
-    scope_status: str           # "in_scope" | "out_of_scope" | "no_baseline"
+    scope_status: str  # "in_scope" | "out_of_scope" | "no_baseline"
     baseline_available: bool
     p25: int | None
     p75: int | None
     median: int | None
-    band_verdict: str           # "within_band" | "above_p75" | "below_p25" | "unavailable"
+    band_verdict: str  # "within_band" | "above_p75" | "below_p25" | "unavailable"
     interpretation: str
     # Judge axis (populated when caller provides judge_entry)
     judge_verdict: str | None
@@ -140,15 +139,15 @@ class ThreeAxisResult:
 
     # --- token axis ---
     real_tokens: int
-    scope_status: str           # "in_scope" | "out_of_scope" | "no_baseline"
+    scope_status: str  # "in_scope" | "out_of_scope" | "no_baseline"
     baseline_available: bool
     p25: int | None
     p75: int | None
     median: int | None
-    band_verdict: str           # "within_band" | "above_p75" | "below_p25" | "unavailable"
+    band_verdict: str  # "within_band" | "above_p75" | "below_p25" | "unavailable"
     interpretation: str
     token_domain_of_validity: str
-    baseline_source: str        # "self" | "building" | "corpus" | "b2_corpus"
+    baseline_source: str  # "self" | "building" | "corpus" | "b2_corpus"
 
     # --- trajectory axis ---
     judge_verdict: str | None
@@ -395,11 +394,7 @@ def score_session(
     real_tokens = impl_result.real_tokens
 
     # Resolve which TypeBaseline to use for the token axis.
-    type_bl = (
-        self_baseline.by_type.get(task_type)
-        if self_baseline is not None
-        else None
-    )
+    type_bl = self_baseline.by_type.get(task_type) if self_baseline is not None else None
 
     if type_bl is not None and type_bl.source == "self":
         # Self-baseline active: score against user's own lean reference.
@@ -516,9 +511,7 @@ def score_session(
     # The API judge uses the validated rubric but on a model NOT validated in B3.
     _traj_dov: str
     if judge_entry is not None and judge_entry.get("judge_path") == "api":
-        _traj_dov = build_api_trajectory_dov(
-            judge_entry.get("api_model", "api-model")
-        )
+        _traj_dov = build_api_trajectory_dov(judge_entry.get("api_model", "api-model"))
     else:
         _traj_dov = TRAJECTORY_DOMAIN_OF_VALIDITY
 

@@ -37,8 +37,15 @@ def _live(
 def _self_baseline_active(task_type: str = "infra-deploy", p75: int = 140_000) -> SelfBaselineState:
     """A self-baseline with an ACTIVE ('self') band for task_type."""
     tb = TypeBaseline(
-        task_type=task_type, source="self", p25=40_000, median=80_000, p75=p75,
-        lean_n=12, waste_free_n=20, sessions_needed=0, scope_floor=20,
+        task_type=task_type,
+        source="self",
+        p25=40_000,
+        median=80_000,
+        p75=p75,
+        lean_n=12,
+        waste_free_n=20,
+        sessions_needed=0,
+        scope_floor=20,
         domain_of_validity="calibrated to your own sessions",
     )
     return SelfBaselineState(by_type={task_type: tb}, total_sessions=40)
@@ -46,8 +53,15 @@ def _self_baseline_active(task_type: str = "infra-deploy", p75: int = 140_000) -
 
 def _self_baseline_building(task_type: str = "infra-deploy") -> SelfBaselineState:
     tb = TypeBaseline(
-        task_type=task_type, source="building", p25=None, median=None, p75=None,
-        lean_n=2, waste_free_n=2, sessions_needed=6, scope_floor=20,
+        task_type=task_type,
+        source="building",
+        p25=None,
+        median=None,
+        p75=None,
+        lean_n=2,
+        waste_free_n=2,
+        sessions_needed=6,
+        scope_floor=20,
         domain_of_validity="building your baseline",
     )
     return SelfBaselineState(by_type={task_type: tb}, total_sessions=2)
@@ -135,8 +149,16 @@ def test_alarm_fires_when_both_gates_pass() -> None:
 def test_message_always_shows_both_dollar_and_token_framing_usage_based() -> None:
     live = _live()
     tb = TypeBaseline(
-        task_type="infra-deploy", source="self", p25=40_000, median=80_000, p75=140_000,
-        lean_n=12, waste_free_n=20, sessions_needed=0, scope_floor=20, domain_of_validity="",
+        task_type="infra-deploy",
+        source="self",
+        p25=40_000,
+        median=80_000,
+        p75=140_000,
+        lean_n=12,
+        waste_free_n=20,
+        sessions_needed=0,
+        scope_floor=20,
+        domain_of_validity="",
     )
     config = AlarmConfig(enabled=True, plan_type=PLAN_USAGE_BASED)
     msg = format_alarm_message(live, tb, config, resend_pct=92)
@@ -149,8 +171,16 @@ def test_message_never_hides_dollar_figure_on_max_plan() -> None:
     """plan=max reorders emphasis but must NEVER fully hide the dollar figure."""
     live = _live()
     tb = TypeBaseline(
-        task_type="infra-deploy", source="self", p25=40_000, median=80_000, p75=140_000,
-        lean_n=12, waste_free_n=20, sessions_needed=0, scope_floor=20, domain_of_validity="",
+        task_type="infra-deploy",
+        source="self",
+        p25=40_000,
+        median=80_000,
+        p75=140_000,
+        lean_n=12,
+        waste_free_n=20,
+        sessions_needed=0,
+        scope_floor=20,
+        domain_of_validity="",
     )
     config = AlarmConfig(enabled=True, plan_type=PLAN_MAX)
     msg = format_alarm_message(live, tb, config, resend_pct=92)
@@ -164,8 +194,16 @@ def test_message_never_hides_dollar_figure_on_max_plan() -> None:
 def test_live_figures_always_labeled_estimated_in_progress() -> None:
     live = _live()
     tb = TypeBaseline(
-        task_type="infra-deploy", source="self", p25=40_000, median=80_000, p75=140_000,
-        lean_n=12, waste_free_n=20, sessions_needed=0, scope_floor=20, domain_of_validity="",
+        task_type="infra-deploy",
+        source="self",
+        p25=40_000,
+        median=80_000,
+        p75=140_000,
+        lean_n=12,
+        waste_free_n=20,
+        sessions_needed=0,
+        scope_floor=20,
+        domain_of_validity="",
     )
     for plan in (PLAN_USAGE_BASED, PLAN_MAX):
         config = AlarmConfig(enabled=True, plan_type=plan)

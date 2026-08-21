@@ -6,9 +6,7 @@ Any extra key = test failure. Proves the field-by-field construction invariant.
 """
 
 import json
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from tes.contribution import ALLOWED_FIELDS, build_contribution_payload
 from tes.score import ThreeAxisResult
@@ -26,25 +24,33 @@ def _make_session(conn, session_id: str = "allowlist-test", task_type: str = "de
         real_tokens=2000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=1000, p75=3000, median=2000,
+        p25=1000,
+        p75=3000,
+        median=2000,
         band_verdict="within_band",
         interpretation="some interpretation text",
         token_domain_of_validity="",
         baseline_source="b2_corpus",
-        judge_verdict=None, judge_score=None, judge_reasoning="do not include this",
+        judge_verdict=None,
+        judge_score=None,
+        judge_reasoning="do not include this",
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REDUNDANT-READ",
-            "session_id": session_id,
-            "turns": [2, 4],
-            "repeat_count": 1,
-            "evidence": {"content": "sensitive content here"},
-        }],
+        waste_events=[
+            {
+                "detector": "REDUNDANT-READ",
+                "session_id": session_id,
+                "turns": [2, 4],
+                "repeat_count": 1,
+                "evidence": {"content": "sensitive content here"},
+            }
+        ],
         waste_domain_of_validity="",
-        session_cost_usd=0.01, cost_approximate=False, cost_domain_of_validity=None,
+        session_cost_usd=0.01,
+        cost_approximate=False,
+        cost_domain_of_validity=None,
     )
-    mtime = datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 10, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-al", turn_count=25)
 
 

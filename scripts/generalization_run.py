@@ -55,8 +55,16 @@ COMPARE_PATH: Path = ROOT / "data" / "generalization_compare.json"
 
 # Non-CC agents included in the generalization run (exclude "unknown" — no agent identity)
 _INCLUDE_AGENTS: frozenset[str] = frozenset(
-    {"opencode", "codex", "gemini cli", "cursor", "copilot cli", "agent", "roger roger agent",
-     "vogon agent"}
+    {
+        "opencode",
+        "codex",
+        "gemini cli",
+        "cursor",
+        "copilot cli",
+        "agent",
+        "roger roger agent",
+        "vogon agent",
+    }
 )
 
 
@@ -75,7 +83,9 @@ def phase_0_metadata() -> tuple[list[str], int, int]:
 
     sessions_path = DATA_DIR / "sessions.parquet"
     if not sessions_path.exists():
-        print(f"ERROR: {sessions_path} not found. Download sessions.parquet first.", file=sys.stderr)
+        print(
+            f"ERROR: {sessions_path} not found. Download sessions.parquet first.", file=sys.stderr
+        )
         sys.exit(1)
 
     sessions_df = pd.read_parquet(sessions_path)
@@ -122,6 +132,7 @@ def phase_1_download(uuids: list[str], max_cc: int | None) -> list[str]:
 
     try:
         from tqdm import tqdm
+
         iterator = tqdm(target_uuids, desc="Transcripts", unit="file")
     except ImportError:
         iterator = target_uuids  # type: ignore[assignment]
@@ -173,6 +184,7 @@ def phase_2_adapt_cc(present_uuids: list[str]) -> int:
 
     try:
         from tqdm import tqdm
+
         iterator = tqdm(present_uuids, desc="Adapting CC", unit="session")
     except ImportError:
         iterator = present_uuids  # type: ignore[assignment]
@@ -219,7 +231,6 @@ def phase_3_noncc(sessions_parquet_path: Path) -> dict[str, int]:
     """
     import pandas as pd
     import pyarrow.parquet as pq
-
     from public_trace_adapter import _NON_CC_TOOL_MAP, adapt_swechat_session
 
     # Download conversations.parquet if not present
@@ -256,18 +267,27 @@ def phase_3_noncc(sessions_parquet_path: Path) -> dict[str, int]:
 
     # Discover the session link column and ordering column
     session_col: str | None = next(
-        (c for c in ["session_id", "session", "conversation_id", "conv_id"] if c in conv_df.columns),
+        (
+            c
+            for c in ["session_id", "session", "conversation_id", "conv_id"]
+            if c in conv_df.columns
+        ),
         None,
     )
     order_col: str | None = next(
-        (c for c in ["turn_id", "turn_index", "index", "seq", "sequence", "order", "id"]
-         if c in conv_df.columns),
+        (
+            c
+            for c in ["turn_id", "turn_index", "index", "seq", "sequence", "order", "id"]
+            if c in conv_df.columns
+        ),
         None,
     )
 
     if session_col is None:
-        print("[phase_3] WARNING: cannot identify session column. Skipping non-CC adapt.",
-              file=sys.stderr)
+        print(
+            "[phase_3] WARNING: cannot identify session column. Skipping non-CC adapt.",
+            file=sys.stderr,
+        )
         return agent_breakdown
 
     noncc_session_ids: set[str] = set(noncc_df["session_id"].astype(str).tolist())
@@ -276,6 +296,7 @@ def phase_3_noncc(sessions_parquet_path: Path) -> dict[str, int]:
 
     try:
         from tqdm import tqdm
+
         session_iter = tqdm(sorted(noncc_session_ids), desc="Adapting non-CC", unit="session")
     except ImportError:
         session_iter = sorted(noncc_session_ids)  # type: ignore[assignment]
@@ -334,6 +355,7 @@ def _run_detectors_on_adapted(
 
     try:
         from tqdm import tqdm
+
         iterator = tqdm(records_in, desc=f"Detecting [{source_label}]", unit="session")
     except ImportError:
         iterator = records_in  # type: ignore[assignment]
@@ -494,7 +516,11 @@ def phase_7_report(
             text=True,
             cwd=str(ROOT),
         )
-        return "FROZEN OK (no changes)" if result.returncode == 0 else f"MODIFIED - {result.stdout[:200]}"
+        return (
+            "FROZEN OK (no changes)"
+            if result.returncode == 0
+            else f"MODIFIED - {result.stdout[:200]}"
+        )
 
     wd_check = _frozen_check("scripts/waste_detectors.py")
     adapter_check = _frozen_check("scripts/adapters/claudecode_adapter.py")
@@ -503,36 +529,34 @@ def phase_7_report(
     print("=== B5 GENERALIZATION RUN - COMPARISON REPORT ===")
     print("=" * 60)
 
-    print(f"\n--- CC POOL (baseline) ---")
+    print("\n--- CC POOL (baseline) ---")
     print(f"Sessions: {pool['sessions']} | Developers: 1 (single developer)")
     print(f"REPEATED-FAILED-RETRY: {_POOL_RFR_SESSIONS}/{pool['sessions']} = {pool_rfr_pct:.1f}%")
-    print(f"REDUNDANT-READ (any path): {_POOL_RR_ANY_SESSIONS}/{pool['sessions']} = {pool_rr_pct:.1f}%")
-    print(f"  PATH A: {pool['path_a_sessions']} sessions | PATH B: {pool['path_b_sessions']} sessions")
+    print(
+        f"REDUNDANT-READ (any path): {_POOL_RR_ANY_SESSIONS}/{pool['sessions']} = {pool_rr_pct:.1f}%"
+    )
+    print(
+        f"  PATH A: {pool['path_a_sessions']} sessions | PATH B: {pool['path_b_sessions']} sessions"
+    )
 
-    print(f"\n--- SWE-CHAT CC SUBSET (apples-to-apples: same agent, different developers) ---")
+    print("\n--- SWE-CHAT CC SUBSET (apples-to-apples: same agent, different developers) ---")
     print(f"Sessions: {swcc['sessions']} | Distinct users: {swcc['distinct_users']}")
     print(
         f"REPEATED-FAILED-RETRY: {swcc['rfr_sessions_fired']}/{swcc['sessions']} = {cc_rfr_pct:.1f}%"
     )
     print(f"  vs CC pool: [{_delta_label(delta_rfr)}]")
-    print(
-        f"REDUNDANT-READ PATH A: {swcc['path_a_note']}"
-    )
-    print(
-        f"REDUNDANT-READ PATH B: UNAVAILABLE - CC v2.1.38 format change (Finding 2)"
-    )
-    print(
-        "  CC pool used tab separator (^\\d+\\t); SWE-chat CC uses arrow format (v2.1.38+)"
-    )
-    print(
-        "  The frozen detector silently fires zero times on current Claude Code."
-    )
+    print(f"REDUNDANT-READ PATH A: {swcc['path_a_note']}")
+    print("REDUNDANT-READ PATH B: UNAVAILABLE - CC v2.1.38 format change (Finding 2)")
+    print("  CC pool used tab separator (^\\d+\\t); SWE-chat CC uses arrow format (v2.1.38+)")
+    print("  The frozen detector silently fires zero times on current Claude Code.")
     print(
         "  This is a version-specific assumption in the detector - documented as maintenance issue."
     )
 
     if noncc["sessions"] > 0:
-        print(f"\n--- SWE-CHAT NON-CC SUBSET (cross-agent: different agent + different developers) ---")
+        print(
+            "\n--- SWE-CHAT NON-CC SUBSET (cross-agent: different agent + different developers) ---"
+        )
         print(f"Sessions: {noncc['sessions']} | Agents: {noncc['agent_breakdown']}")
         print(
             f"REPEATED-FAILED-RETRY: {noncc['rfr_sessions_fired']}/{noncc['sessions']} = "
@@ -543,7 +567,7 @@ def phase_7_report(
     else:
         print("\n--- SWE-CHAT NON-CC SUBSET: skipped ---")
 
-    print(f"\n--- FROZEN DETECTOR CHECK ---")
+    print("\n--- FROZEN DETECTOR CHECK ---")
     print(f"waste_detectors.py: {wd_check}")
     print(f"claudecode_adapter.py: {adapter_check}")
 
@@ -568,9 +592,7 @@ def phase_7_report(
                 snippet = ev["evidence"].get("content_snippet", "")[:80]
             path = ev["evidence"].get("path", "")
             path_label = f" [PATH {path}]" if path else ""
-            print(
-                f"  [{detector}{path_label}] {sid_short}... turns={turns}: {repr(snippet)}"
-            )
+            print(f"  [{detector}{path_label}] {sid_short}... turns={turns}: {repr(snippet)}")
             shown += 1
 
     if shown == 0:
@@ -632,9 +654,7 @@ def main() -> None:
         present_uuids = phase_1_download(target_uuids, max_cc=None)  # cap already applied
     else:
         # Scan what's already present
-        present_uuids = [
-            u for u in target_uuids if (TRANSCRIPTS_DIR / f"{u}.jsonl").exists()
-        ]
+        present_uuids = [u for u in target_uuids if (TRANSCRIPTS_DIR / f"{u}.jsonl").exists()]
         print(f"\n=== PHASE 1: Skipped - {len(present_uuids)} transcripts present locally ===")
 
     # --- Phase 2 ---
@@ -668,7 +688,9 @@ def main() -> None:
     noncc_signals: list[dict[str, Any]] = []
     if not args.skip_noncc:
         print("\n=== PHASE 5: Run Detectors on Non-CC Adapted Sessions ===")
-        noncc_signals, noncc_processed = _run_detectors_on_adapted(NONCC_ADAPTED_PATH, "swechat_noncc")
+        noncc_signals, noncc_processed = _run_detectors_on_adapted(
+            NONCC_ADAPTED_PATH, "swechat_noncc"
+        )
         noncc_rfr = sum(1 for r in noncc_signals if r["rfr_fired"])
         print(f"Non-CC: {noncc_processed} sessions | RFR fired: {noncc_rfr}")
     else:

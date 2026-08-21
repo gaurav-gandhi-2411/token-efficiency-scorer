@@ -2,17 +2,15 @@ from __future__ import annotations
 
 """Tests: API judge uses the same validated v3 rubric as the local Qwen judge."""
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from tes.judge import (
+    _JUDGE_USER_TEMPLATE,
     JUDGE_SYSTEM_PROMPT,
     ApiJudgeConfig,
-    JudgeConfig,
-    _JUDGE_USER_TEMPLATE,
     _build_user_prompt,
     score_trajectory_api,
 )
-
 
 _MINIMAL_RECORD = {
     "session_id": "test-rubric",
@@ -49,7 +47,11 @@ _MINIMAL_RECORD = {
 def _make_mock_response(verdict: str = "MUCH_BETTER") -> MagicMock:
     mock = MagicMock()
     mock.json.return_value = {
-        "content": [{"text": f'{{"verdict":"{verdict}","waste_categories":[],"confidence":0.9,"reasoning":"ok"}}'}]
+        "content": [
+            {
+                "text": f'{{"verdict":"{verdict}","waste_categories":[],"confidence":0.9,"reasoning":"ok"}}'
+            }
+        ]
     }
     mock.raise_for_status = MagicMock()
     return mock
@@ -81,6 +83,7 @@ def test_api_judge_user_prompt_from_same_template():
 def test_api_and_local_use_same_system_prompt_constant():
     """Both code paths reference the SAME JUDGE_SYSTEM_PROMPT constant — not a copy."""
     from tes.judge import JUDGE_SYSTEM_PROMPT as system_prompt_from_module
+
     # The constant is the same object regardless of import path
     assert system_prompt_from_module is JUDGE_SYSTEM_PROMPT
 
@@ -88,12 +91,14 @@ def test_api_and_local_use_same_system_prompt_constant():
 def test_api_and_local_use_same_user_template_constant():
     """Both code paths reference the SAME _JUDGE_USER_TEMPLATE constant."""
     from tes.judge import _JUDGE_USER_TEMPLATE as template_from_module
+
     assert template_from_module is _JUDGE_USER_TEMPLATE
 
 
 def test_verdict_enum_is_identical():
     """The API judge parses the same VERDICT_TO_FLOAT keys as the local judge."""
     from tes.judge import VERDICT_TO_FLOAT
+
     expected_verdicts = {"MUCH_BETTER", "BETTER", "SIMILAR", "WORSE", "MUCH_WORSE"}
     assert set(VERDICT_TO_FLOAT.keys()) == expected_verdicts
 
@@ -117,6 +122,7 @@ def test_api_judge_returns_valid_judge_entry_format():
 def test_api_judge_same_verdict_to_float_mapping():
     """Verdicts map to the same float scores regardless of local vs API path."""
     from tes.judge import VERDICT_TO_FLOAT
+
     config = ApiJudgeConfig(api_key="sk-key")
     for verdict, expected_score in VERDICT_TO_FLOAT.items():
         with patch("tes.judge.httpx.post", return_value=_make_mock_response(verdict)):

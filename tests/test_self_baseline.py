@@ -18,12 +18,8 @@ Covers the ten required cases:
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tes.self_baseline import (
     MIN_MEANINGFUL_TURNS,
-    SelfBaselineState,
-    TypeBaseline,
     compute_self_baselines,
 )
 
@@ -120,14 +116,9 @@ def _make_test_db(
     return db_path
 
 
-def _waste_free_sessions(
-    tokens: list[int], turn_count: int = 100
-) -> list[dict]:
+def _waste_free_sessions(tokens: list[int], turn_count: int = 100) -> list[dict]:
     """Build waste-free session rows with the given token values."""
-    return [
-        {"real_tokens": t, "waste_event_count": 0, "turn_count": turn_count}
-        for t in tokens
-    ]
+    return [{"real_tokens": t, "waste_event_count": 0, "turn_count": turn_count} for t in tokens]
 
 
 # ---------------------------------------------------------------------------
@@ -299,10 +290,26 @@ def test_anti_trap(tmp_path: Path) -> None:
       - With naive (all-sessions) baseline: 1M ≤ naive_p75       (trap fires)
     """
     tokens = [
-        300_000, 350_000, 400_000, 450_000, 500_000,
-        550_000, 600_000, 650_000, 700_000, 750_000,
-        800_000, 850_000, 900_000, 950_000, 1_000_000,
-        1_100_000, 1_200_000, 1_300_000, 1_400_000, 1_500_000,
+        300_000,
+        350_000,
+        400_000,
+        450_000,
+        500_000,
+        550_000,
+        600_000,
+        650_000,
+        700_000,
+        750_000,
+        800_000,
+        850_000,
+        900_000,
+        950_000,
+        1_000_000,
+        1_100_000,
+        1_200_000,
+        1_300_000,
+        1_400_000,
+        1_500_000,
     ]
     assert len(tokens) == 20
 
@@ -316,7 +323,7 @@ def test_anti_trap(tmp_path: Path) -> None:
     # Part A: lean-subset baseline correctly flags 1_000_000 as above_p75.
     assert bl.source == "self", f"Expected source='self', got '{bl.source}'"
     assert bl.p75 is not None
-    assert 1_000_000 > bl.p75, (
+    assert bl.p75 < 1_000_000, (
         f"Anti-trap failed: 1_000_000 should be above lean p75 ({bl.p75}) "
         "but it is not — the lean-subset filter is not working."
     )
@@ -329,7 +336,7 @@ def test_anti_trap(tmp_path: Path) -> None:
     naive_p75_idx = min(int(len(sorted_all) * 0.75), len(sorted_all) - 1)
     naive_p75 = sorted_all[naive_p75_idx]
 
-    assert 1_000_000 <= naive_p75, (
+    assert naive_p75 >= 1_000_000, (
         f"Naive p75 ({naive_p75}) should be >= 1_000_000 so the trap is visible, "
         "but it's not — this dataset doesn't demonstrate the anti-trap effectively."
     )
@@ -482,8 +489,18 @@ def test_oos_sessions_excluded_from_lean_subset(tmp_path: Path) -> None:
     ]
     # 2 OOS stubs with low tokens
     oos_stubs = [
-        {"real_tokens": 42_092, "waste_event_count": 0, "turn_count": 12, "scope_status": "out_of_scope"},
-        {"real_tokens": 57_910, "waste_event_count": 0, "turn_count": 14, "scope_status": "out_of_scope"},
+        {
+            "real_tokens": 42_092,
+            "waste_event_count": 0,
+            "turn_count": 12,
+            "scope_status": "out_of_scope",
+        },
+        {
+            "real_tokens": 57_910,
+            "waste_event_count": 0,
+            "turn_count": 14,
+            "scope_status": "out_of_scope",
+        },
     ]
     db_path = _make_test_db(tmp_path, {"debug-fix": in_scope + oos_stubs})
     state = compute_self_baselines(db_path, _B2)
@@ -515,9 +532,22 @@ def test_band_stability_guard(tmp_path: Path) -> None:
     p25 = 5K, median = 200K, median/3 = 66K → p25 < median/3 → guard fires.
     """
     tokens = [5_000] * 4 + [
-        200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000,
-        1_000_000, 1_100_000, 1_200_000, 1_300_000, 1_400_000, 1_500_000,
-        1_600_000, 1_700_000,
+        200_000,
+        300_000,
+        400_000,
+        500_000,
+        600_000,
+        700_000,
+        800_000,
+        900_000,
+        1_000_000,
+        1_100_000,
+        1_200_000,
+        1_300_000,
+        1_400_000,
+        1_500_000,
+        1_600_000,
+        1_700_000,
     ]  # 4 + 16 = 20 sessions
     sessions = [
         {"real_tokens": t, "waste_event_count": 0, "turn_count": 200, "scope_status": "in_scope"}
@@ -530,8 +560,7 @@ def test_band_stability_guard(tmp_path: Path) -> None:
     # lean subset: [5K,5K,5K,5K,200K,300K,400K,500K,600K] → p25=5K, median=200K
     # p25=5K < median/3=66K → stability guard fires → source = 'building'
     assert bl.source == "building", (
-        f"Expected 'building' (unstable band), got '{bl.source}' "
-        f"(p25={bl.p25}, lean_n={bl.lean_n})"
+        f"Expected 'building' (unstable band), got '{bl.source}' (p25={bl.p25}, lean_n={bl.lean_n})"
     )
     assert bl.p25 is None
     assert "too wide" in bl.domain_of_validity or "tighten" in bl.domain_of_validity
@@ -559,8 +588,7 @@ def test_zero_token_stubs_excluded_from_scope_floor_p10(tmp_path: Path) -> None:
 
     # 10 zero-token stubs with turn_counts 1-10
     zero_stubs = [
-        {"real_tokens": 0, "waste_event_count": 0, "turn_count": tc}
-        for tc in range(1, 11)
+        {"real_tokens": 0, "waste_event_count": 0, "turn_count": tc} for tc in range(1, 11)
     ]
 
     # 20 substantive sessions with turn_counts 60-79, tokens 200K-600K

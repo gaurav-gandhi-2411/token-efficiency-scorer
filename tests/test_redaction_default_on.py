@@ -46,6 +46,8 @@ def test_redaction_is_default_not_opt_in() -> None:
     happens at ingestion, always, without a user opt-in.
     """
     import inspect
+
     from claudecode_adapter import adapt_session
+
     source = inspect.getsource(adapt_session)
     assert "_redact_secrets" in source

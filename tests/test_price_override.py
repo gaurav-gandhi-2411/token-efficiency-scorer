@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from tes._digest import TurnDigest
 from tes.cost import compute_turn_cost, load_price_table
 
@@ -29,6 +28,7 @@ _CUSTOM_PRICES: dict = {
 # Test 1 — TES_PRICE_TABLE env var overrides bundled
 # ---------------------------------------------------------------------------
 
+
 def test_env_var_overrides_bundled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     custom_file = tmp_path / "custom_prices.json"
     custom_file.write_text(json.dumps(_CUSTOM_PRICES), encoding="utf-8")
@@ -44,6 +44,7 @@ def test_env_var_overrides_bundled(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 # ---------------------------------------------------------------------------
 # Test 2 — ~/.tes/prices.json overrides bundled (when no env var)
 # ---------------------------------------------------------------------------
+
 
 def test_home_override_used_when_no_env_var(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -65,9 +66,8 @@ def test_home_override_used_when_no_env_var(
 # Test 3 — Explicit path arg takes precedence over env var
 # ---------------------------------------------------------------------------
 
-def test_explicit_path_takes_precedence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+
+def test_explicit_path_takes_precedence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     file_a = tmp_path / "file_a.json"
     file_b = tmp_path / "file_b.json"
     file_a.write_text(json.dumps({**_CUSTOM_PRICES, "as_of": "file-a"}), encoding="utf-8")
@@ -83,6 +83,7 @@ def test_explicit_path_takes_precedence(
 # Test 4 — Bundled table loads when no override
 # ---------------------------------------------------------------------------
 
+
 def test_bundled_table_loads_when_no_override(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
 
@@ -97,6 +98,7 @@ def test_bundled_table_loads_when_no_override(monkeypatch: pytest.MonkeyPatch) -
 # ---------------------------------------------------------------------------
 # Test 5 — Custom prices used in cost computation
 # ---------------------------------------------------------------------------
+
 
 def test_custom_prices_used_in_computation() -> None:
     # Sonnet at $6 input / $30 output

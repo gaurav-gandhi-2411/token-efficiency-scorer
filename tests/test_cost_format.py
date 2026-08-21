@@ -6,7 +6,6 @@ Cost is an annotation on the token axis — not a score, not a composite.
 These helpers format dollar amounts, baseline-relative framing, and price provenance.
 """
 
-import pytest
 
 from tes.web.cost_format import (
     format_cost_pct_vs_baseline,

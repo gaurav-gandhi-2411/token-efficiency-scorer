@@ -17,7 +17,6 @@ from types import SimpleNamespace
 
 import pytest
 from flask import render_template
-
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
@@ -26,7 +25,6 @@ from tes.score import (
 )
 from tes.store import TrajectoryRenderState, open_db, upsert_session
 from tes.web.server import ServerConfig, create_app
-
 
 # ── Shared fixtures ──────────────────────────────────────────────────────────
 
@@ -51,12 +49,14 @@ def _base_result() -> ThreeAxisResult:
         judge_reasoning=None,
         trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REDUNDANT-READ",
-            "turns": [14, 22],
-            "wasted_cost_usd": 0.12,
-            "evidence": {"file": "build.sh"},
-        }],
+        waste_events=[
+            {
+                "detector": "REDUNDANT-READ",
+                "turns": [14, 22],
+                "wasted_cost_usd": 0.12,
+                "evidence": {"file": "build.sh"},
+            }
+        ],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
 
@@ -107,8 +107,12 @@ def _mock_session() -> dict:
         "waste_domain_of_validity": WASTE_DOMAIN_OF_VALIDITY,
         "waste_event_count": 1,
         "waste_events": [
-            {"detector": "REDUNDANT-READ", "turns": [14, 22],
-             "wasted_cost_usd": 0.12, "evidence": {"file": "build.sh"}},
+            {
+                "detector": "REDUNDANT-READ",
+                "turns": [14, 22],
+                "wasted_cost_usd": 0.12,
+                "evidence": {"file": "build.sh"},
+            },
         ],
         "judge_verdict": None,
         "judge_score": None,
@@ -131,18 +135,60 @@ def _mock_attribution():
 
 def _mock_attribution_rows() -> list[dict]:
     return [
-        {"bucket": "B3", "label": "Context re-send (cache reads)",
-         "tokens": 9_500_000, "tok_pct": 95.0, "usd": 40.72, "cost_pct": 49.0, "is_waste": False},
-        {"bucket": "B4", "label": "Output",
-         "tokens": 100_000, "tok_pct": 1.0, "usd": 24.93, "cost_pct": 30.0, "is_waste": False},
-        {"bucket": "B6", "label": "Context growth (cache writes)",
-         "tokens": 300_000, "tok_pct": 3.0, "usd": 17.45, "cost_pct": 21.0, "is_waste": False},
-        {"bucket": "B5", "label": "Fresh input",
-         "tokens": 50_000, "tok_pct": 0.5, "usd": 0.0, "cost_pct": 0.0, "is_waste": False},
-        {"bucket": "B1", "label": "Redundant-read waste",
-         "tokens": 50_000, "tok_pct": 0.5, "usd": 0.01, "cost_pct": 0.0, "is_waste": True},
-        {"bucket": "B2", "label": "Retry-loop waste",
-         "tokens": 0, "tok_pct": 0.0, "usd": 0.0, "cost_pct": 0.0, "is_waste": True},
+        {
+            "bucket": "B3",
+            "label": "Context re-send (cache reads)",
+            "tokens": 9_500_000,
+            "tok_pct": 95.0,
+            "usd": 40.72,
+            "cost_pct": 49.0,
+            "is_waste": False,
+        },
+        {
+            "bucket": "B4",
+            "label": "Output",
+            "tokens": 100_000,
+            "tok_pct": 1.0,
+            "usd": 24.93,
+            "cost_pct": 30.0,
+            "is_waste": False,
+        },
+        {
+            "bucket": "B6",
+            "label": "Context growth (cache writes)",
+            "tokens": 300_000,
+            "tok_pct": 3.0,
+            "usd": 17.45,
+            "cost_pct": 21.0,
+            "is_waste": False,
+        },
+        {
+            "bucket": "B5",
+            "label": "Fresh input",
+            "tokens": 50_000,
+            "tok_pct": 0.5,
+            "usd": 0.0,
+            "cost_pct": 0.0,
+            "is_waste": False,
+        },
+        {
+            "bucket": "B1",
+            "label": "Redundant-read waste",
+            "tokens": 50_000,
+            "tok_pct": 0.5,
+            "usd": 0.01,
+            "cost_pct": 0.0,
+            "is_waste": True,
+        },
+        {
+            "bucket": "B2",
+            "label": "Retry-loop waste",
+            "tokens": 0,
+            "tok_pct": 0.0,
+            "usd": 0.0,
+            "cost_pct": 0.0,
+            "is_waste": True,
+        },
     ]
 
 
@@ -272,7 +318,7 @@ def test_10b_takeaway_prominent_in_list(route_app) -> None:
     with route_app.test_client() as c:
         body = c.get("/").data.decode()
     # The attribution_line link must use font-weight:600 (not subdued gray)
-    assert 'font-weight:600' in body
+    assert "font-weight:600" in body
 
 
 # ── Mock render tests (elements 2, 3, 10a — require attribution data) ────────

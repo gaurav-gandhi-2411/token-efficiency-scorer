@@ -14,7 +14,6 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-
 import tes.cli as cli
 
 

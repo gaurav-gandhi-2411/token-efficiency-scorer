@@ -10,11 +10,10 @@ no plan configured, and a window with zero priced sessions.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 from tes.plan import (
     PlanPeriod,
     compute_roi,
@@ -25,7 +24,7 @@ from tes.plan import (
 
 
 def _dt(y: int, m: int, d: int) -> datetime:
-    return datetime(y, m, d, tzinfo=timezone.utc)
+    return datetime(y, m, d, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------
@@ -60,12 +59,17 @@ def test_bad_entry_names_its_index(tmp_path: Path):
 
 def test_valid_config_parses_and_sorts_by_effective_from(tmp_path: Path):
     p = tmp_path / "plan.json"
-    p.write_text(json.dumps({
-        "plans": [
-            {"name": "Max", "monthly_cost_usd": 200, "effective_from": "2026-07-01"},
-            {"name": "Pro", "monthly_cost_usd": 20, "effective_from": "2026-01-01"},
-        ]
-    }), encoding="utf-8")
+    p.write_text(
+        json.dumps(
+            {
+                "plans": [
+                    {"name": "Max", "monthly_cost_usd": 200, "effective_from": "2026-07-01"},
+                    {"name": "Pro", "monthly_cost_usd": 20, "effective_from": "2026-01-01"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
 
     plans = load_plan_config(p)
 
@@ -131,8 +135,8 @@ def test_non_midnight_aligned_window_prorates_to_exact_elapsed_days_not_calendar
     the window doesn't start and end at midnight, which is every real
     invocation. Must price exactly 7.0 days' worth, not 8."""
     plans = [PlanPeriod(name="Max", monthly_cost_usd=300, effective_from=_dt(2026, 1, 1).date())]
-    window_start = datetime(2026, 8, 1, 14, 30, tzinfo=timezone.utc)
-    window_end = datetime(2026, 8, 8, 14, 30, tzinfo=timezone.utc)  # exactly 7.0 days later
+    window_start = datetime(2026, 8, 1, 14, 30, tzinfo=UTC)
+    window_end = datetime(2026, 8, 8, 14, 30, tzinfo=UTC)  # exactly 7.0 days later
 
     cost, _names = prorated_plan_cost(plans, window_start, window_end)
 

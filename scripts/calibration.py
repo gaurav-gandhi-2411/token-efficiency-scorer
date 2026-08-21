@@ -9,6 +9,7 @@ Three correlation pairs:
 
 Kill criterion: headline rho >= 0.55 to proceed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -166,9 +167,7 @@ def _print_block(label: str, block: dict[str, Any]) -> None:
     if block.get("error"):
         print(f"  {label}: ERROR — {block['error']}")
         return
-    print(
-        f"  Overall:    {_format_rho(block['rho'], block['ci_low'], block['ci_high'])}"
-    )
+    print(f"  Overall:    {_format_rho(block['rho'], block['ci_low'], block['ci_high'])}")
     for group in ("swe_agent", "openhands"):
         gs = block["per_scaffold"].get(group, {})
         if gs.get("rho") is None:
@@ -232,10 +231,11 @@ def main() -> None:
         print("Run scripts/layer2_judge.py first.", file=sys.stderr)
         sys.exit(1)
 
-    proxy = _load_proxy() if proxy_path == PROXY_PATH else {
-        r["session_id"]: r["objective_efficiency_proxy"]
-        for r in _load_jsonl(proxy_path)
-    }
+    proxy = (
+        _load_proxy()
+        if proxy_path == PROXY_PATH
+        else {r["session_id"]: r["objective_efficiency_proxy"] for r in _load_jsonl(proxy_path)}
+    )
     judge = _load_judge()
     llm: dict[str, float] = (
         _load_llm_ratings(llm_ratings_path)
@@ -251,15 +251,17 @@ def main() -> None:
     n_human = len(set(judge) & set(proxy) & set(human)) if human else 0
 
     # ---- Three core correlations -------------------------------------------
-    block_a = _compute_correlation_block(
-        "judge vs objective proxy", judge, proxy, scaffold_map
+    block_a = _compute_correlation_block("judge vs objective proxy", judge, proxy, scaffold_map)
+    block_b = (
+        _compute_correlation_block("judge vs llm_provisional", judge, llm, scaffold_map)
+        if llm
+        else None
     )
-    block_b = _compute_correlation_block(
-        "judge vs llm_provisional", judge, llm, scaffold_map
-    ) if llm else None
-    block_c = _compute_correlation_block(
-        "llm_provisional vs objective proxy", llm, proxy, scaffold_map
-    ) if llm else None
+    block_c = (
+        _compute_correlation_block("llm_provisional vs objective proxy", llm, proxy, scaffold_map)
+        if llm
+        else None
+    )
 
     # ---- Print ---------------------------------------------------------------
     print()
@@ -304,8 +306,7 @@ def main() -> None:
         print(f"  PASS: rho={headline_rho:.2f} >= {KILL_CRITERION_RHO}")
     else:
         print(
-            f"  FAIL: rho={headline_rho:.2f} < {KILL_CRITERION_RHO}"
-            " — escalate before proceeding."
+            f"  FAIL: rho={headline_rho:.2f} < {KILL_CRITERION_RHO} — escalate before proceeding."
         )
 
     # ---- Save JSON output ----------------------------------------------------

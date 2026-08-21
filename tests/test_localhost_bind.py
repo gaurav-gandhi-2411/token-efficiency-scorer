@@ -3,9 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-from tes.web.server import ServerConfig, create_app, start_server
+from tes.web.server import ServerConfig, start_server
 
 
 def test_server_binds_127_0_0_1(tmp_path: Path) -> None:

@@ -11,6 +11,7 @@ Formula:
 All ranks are within the 191 annotated sessions only. No API calls.
 Outputs: data/objective_proxy.jsonl, config/p25_refs.yaml
 """
+
 from __future__ import annotations
 
 import json

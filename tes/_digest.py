@@ -29,15 +29,15 @@ class TurnDigest:
     """Compact representation of one conversation turn."""
 
     turn_index: int
-    role: str                   # "ai" | "user" | "tool" | "system"
-    tool_names: list[str]       # names of tools called in this turn
-    content_snippet: str        # first 300 chars of content_text, stripped
+    role: str  # "ai" | "user" | "tool" | "system"
+    tool_names: list[str]  # names of tools called in this turn
+    content_snippet: str  # first 300 chars of content_text, stripped
     token_count_input: int
     token_count_output: int
     cache_read: int
-    h2_duplicate: bool          # True if annotation flagged this turn as llm_h2_duplicate_message
-    cache_creation: int = 0    # cache_creation_input_tokens for this turn (cost use only)
-    model: str = ""            # model string for this turn, e.g. "claude-sonnet-4-6"
+    h2_duplicate: bool  # True if annotation flagged this turn as llm_h2_duplicate_message
+    cache_creation: int = 0  # cache_creation_input_tokens for this turn (cost use only)
+    model: str = ""  # model string for this turn, e.g. "claude-sonnet-4-6"
     # Added 0.10.2 (S1 fix): raw usage.server_tool_use counts from the Claude
     # API response (e.g. {"web_search_requests": 2}), when present and
     # non-empty. None when the field was absent/empty on this turn's raw
@@ -61,8 +61,8 @@ class SessionDigest:
     cache_hit_rate: float
     p25_token_ratio: float
     output_tokens_available: bool  # True when per-turn output tokens are recorded
-    task_description: str          # first user turn content, first 800 chars
-    turns: list[TurnDigest]        # all turns, ordered by turn_index
+    task_description: str  # first user turn content, first 800 chars
+    turns: list[TurnDigest]  # all turns, ordered by turn_index
 
 
 def reconstruct_digest(d: dict) -> SessionDigest:

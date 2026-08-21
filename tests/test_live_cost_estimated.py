@@ -69,8 +69,8 @@ def test_find_active_session_picks_the_recently_modified_file(tmp_path: Path) ->
     new_file.write_text("{}", encoding="utf-8")
 
     now = time.time()
-    os.utime(old_file, (now - 10_000, now - 10_000))   # long finished
-    os.utime(new_file, (now - 5, now - 5))              # actively being written
+    os.utime(old_file, (now - 10_000, now - 10_000))  # long finished
+    os.utime(new_file, (now - 5, now - 5))  # actively being written
 
     active = find_active_session(cc_dir, stability_window=300, _now=now)
     assert active == new_file
@@ -103,8 +103,10 @@ def test_score_live_session_labels_are_never_final(tmp_path: Path) -> None:
     fake_path = tmp_path / "live.jsonl"
     fake_path.write_text("{}", encoding="utf-8")
 
-    with patch("tes.live_monitor.adapt_session", return_value=record), \
-         patch("tes.live_monitor.classify_session", return_value="infra-deploy"):
+    with (
+        patch("tes.live_monitor.adapt_session", return_value=record),
+        patch("tes.live_monitor.classify_session", return_value="infra-deploy"),
+    ):
         state = score_live_session(fake_path)
 
     assert state is not None
@@ -135,15 +137,21 @@ def test_score_live_session_tolerates_adapt_failure(tmp_path: Path) -> None:
 def test_resend_dominant_flag_matches_measured_attribution(tmp_path: Path) -> None:
     """A heavily-cached-read session must be flagged context_resend_dominant."""
     turns = [
-        _ai_turn(0, token_count_input=10_000, cache_read=9_000, cache_creation=0, token_count_output=100),
-        _ai_turn(1, token_count_input=10_000, cache_read=9_000, cache_creation=0, token_count_output=100),
+        _ai_turn(
+            0, token_count_input=10_000, cache_read=9_000, cache_creation=0, token_count_output=100
+        ),
+        _ai_turn(
+            1, token_count_input=10_000, cache_read=9_000, cache_creation=0, token_count_output=100
+        ),
     ]
     record = _fake_record(turns)
     fake_path = tmp_path / "resend.jsonl"
     fake_path.write_text("{}", encoding="utf-8")
 
-    with patch("tes.live_monitor.adapt_session", return_value=record), \
-         patch("tes.live_monitor.classify_session", return_value="infra-deploy"):
+    with (
+        patch("tes.live_monitor.adapt_session", return_value=record),
+        patch("tes.live_monitor.classify_session", return_value="infra-deploy"),
+    ):
         state = score_live_session(fake_path)
 
     assert state is not None
@@ -160,5 +168,7 @@ def test_completed_session_report_never_uses_live_estimate_wording() -> None:
     """report.py (completed sessions) must never carry the live-monitor's
     'estimated, in progress' phrasing — that label is exclusive to live_monitor.py.
     """
-    report_src = Path(__file__).resolve().parents[1].joinpath("tes", "report.py").read_text(encoding="utf-8")
+    report_src = (
+        Path(__file__).resolve().parents[1].joinpath("tes", "report.py").read_text(encoding="utf-8")
+    )
     assert "estimated, in progress" not in report_src

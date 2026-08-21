@@ -116,12 +116,22 @@ def _features(
 def test_compute_domain_p25_baselines_basic() -> None:
     """Two domains each with ≥3 sessions; verify p25 matches hand-computed value."""
     taxonomy = [
-        {"session_id": f"s{i}", "domain": "alpha", "tokens_total": str(t), "turn_count": "5",
-         "resolved": True}
+        {
+            "session_id": f"s{i}",
+            "domain": "alpha",
+            "tokens_total": str(t),
+            "turn_count": "5",
+            "resolved": True,
+        }
         for i, t in enumerate([1000, 2000, 3000, 4000])
     ] + [
-        {"session_id": f"b{i}", "domain": "beta", "tokens_total": str(t), "turn_count": "5",
-         "resolved": True}
+        {
+            "session_id": f"b{i}",
+            "domain": "beta",
+            "tokens_total": str(t),
+            "turn_count": "5",
+            "resolved": True,
+        }
         for i, t in enumerate([500, 1500, 2500])
     ]
 
@@ -140,12 +150,22 @@ def test_compute_domain_p25_baselines_small_domain_fallback() -> None:
     tiny_tokens = [9000, 9500]
 
     taxonomy = [
-        {"session_id": f"l{i}", "domain": "large", "tokens_total": str(t),
-         "turn_count": "5", "resolved": True}
+        {
+            "session_id": f"l{i}",
+            "domain": "large",
+            "tokens_total": str(t),
+            "turn_count": "5",
+            "resolved": True,
+        }
         for i, t in enumerate(large_tokens)
     ] + [
-        {"session_id": f"t{i}", "domain": "tiny", "tokens_total": str(t),
-         "turn_count": "5", "resolved": True}
+        {
+            "session_id": f"t{i}",
+            "domain": "tiny",
+            "tokens_total": str(t),
+            "turn_count": "5",
+            "resolved": True,
+        }
         for i, t in enumerate(tiny_tokens)
     ]
 
@@ -153,6 +173,7 @@ def test_compute_domain_p25_baselines_small_domain_fallback() -> None:
 
     # Corpus-wide p25 from all 6 values: [1000, 2000, 3000, 4000, 9000, 9500]
     import numpy as np
+
     all_tokens = large_tokens + tiny_tokens
     expected_corpus_p25 = float(np.percentile(all_tokens, 25))
 

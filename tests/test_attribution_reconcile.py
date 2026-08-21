@@ -11,12 +11,10 @@ Invariant under test:
     == total_billed_tokens
 """
 
-import pytest
 
 from tes._digest import SessionDigest, TurnDigest
 from tes.attribution import AttributionResult, compute_attribution
 from tes.cost import load_price_table
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -118,11 +116,11 @@ def test_no_waste_reconciles() -> None:
 def test_rr_waste_reconciles() -> None:
     """Session with one RR event (4 proof turns → turns[2:] are waste): buckets sum."""
     turns = [
-        _ai(0),   # legitimate call (turns[0])
-        _tool(1), # legitimate result (turns[1])
-        _ai(2),   # redundant call (turns[2] — waste)
-        _tool(3), # redundant result (turns[3] — waste, but tool so 0 tokens)
-        _ai(4),   # clean turn (not in any waste event)
+        _ai(0),  # legitimate call (turns[0])
+        _tool(1),  # legitimate result (turns[1])
+        _ai(2),  # redundant call (turns[2] — waste)
+        _tool(3),  # redundant result (turns[3] — waste, but tool so 0 tokens)
+        _ai(4),  # clean turn (not in any waste event)
         _tool(5),
     ]
     digest = _session(turns)
@@ -150,9 +148,9 @@ def test_rfr_waste_reconciles() -> None:
     turns = [
         _ai(0),
         _tool(1),
-        _ai(2),   # rfr waste
+        _ai(2),  # rfr waste
         _tool(3),
-        _ai(4),   # clean
+        _ai(4),  # clean
     ]
     digest = _session(turns)
     waste_entry = {
@@ -176,15 +174,15 @@ def test_rfr_waste_reconciles() -> None:
 def test_both_detectors_reconciles() -> None:
     """Session with both RR and RFR events active: buckets sum."""
     turns = [
-        _ai(0),   # rfr proof turn 0 (legitimate)
-        _tool(1), # rfr proof turn 1 (legitimate)
-        _ai(2),   # rfr waste
-        _tool(3), # rfr waste (tool — 0 tokens)
-        _ai(4),   # rr proof turn 0 (legitimate)
-        _tool(5), # rr proof turn 1 (legitimate)
-        _ai(6),   # rr waste
-        _tool(7), # rr waste (tool — 0 tokens)
-        _ai(8),   # clean
+        _ai(0),  # rfr proof turn 0 (legitimate)
+        _tool(1),  # rfr proof turn 1 (legitimate)
+        _ai(2),  # rfr waste
+        _tool(3),  # rfr waste (tool — 0 tokens)
+        _ai(4),  # rr proof turn 0 (legitimate)
+        _tool(5),  # rr proof turn 1 (legitimate)
+        _ai(6),  # rr waste
+        _tool(7),  # rr waste (tool — 0 tokens)
+        _ai(8),  # clean
     ]
     digest = _session(turns)
     waste_entry = {
@@ -218,8 +216,8 @@ def test_overlap_turns_no_double_count() -> None:
     turns = [
         _ai(0),
         _tool(1),
-        _ai(2),   # overlap: both RFR and RR claim it as waste
-        _ai(3),   # clean
+        _ai(2),  # overlap: both RFR and RR claim it as waste
+        _ai(3),  # clean
     ]
     digest = _session(turns)
     waste_entry = {

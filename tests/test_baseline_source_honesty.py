@@ -12,18 +12,12 @@ Cases:
   5. Session IN scope under self floor but would be OOS under B2 floor → scored correctly
 """
 
-from dataclasses import dataclass, field
-
-import pytest
 
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
-    ThreeAxisResult,
     score_session,
-    load_baselines,
 )
-from tes.self_baseline import SelfBaselineState, TypeBaseline, MIN_MEANINGFUL_TURNS
-
+from tes.self_baseline import SelfBaselineState, TypeBaseline
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -121,8 +115,11 @@ def test_self_baseline_active_uses_own_band() -> None:
     # B2 band: [500K, 700K, 900K]
     # Test session: 600K tokens — above_p75 for self (>500K), within_band for B2
     self_bl = _make_self_baseline(
-        "feature-build", source="self",
-        p25=300_000, median=400_000, p75=500_000,
+        "feature-build",
+        source="self",
+        p25=300_000,
+        median=400_000,
+        p75=500_000,
         scope_floor=30,
     )
     record = _make_record("add new feature to the app", turn_count=50, real_tokens=600_000)
@@ -141,8 +138,12 @@ def test_self_baseline_active_uses_own_band() -> None:
 def test_self_baseline_within_band() -> None:
     """Session within self lean band → within_band, interpretation mentions lean band."""
     self_bl = _make_self_baseline(
-        "feature-build", source="self",
-        p25=300_000, median=400_000, p75=500_000, scope_floor=30,
+        "feature-build",
+        source="self",
+        p25=300_000,
+        median=400_000,
+        p75=500_000,
+        scope_floor=30,
     )
     record = _make_record("add feature", turn_count=50, real_tokens=400_000)
     result = score_session(record, _B2_SIMPLE, self_baseline=self_bl)
@@ -155,8 +156,12 @@ def test_self_baseline_within_band() -> None:
 def test_self_baseline_below_p25() -> None:
     """Session below self lean p25 → below_p25."""
     self_bl = _make_self_baseline(
-        "feature-build", source="self",
-        p25=300_000, median=400_000, p75=500_000, scope_floor=30,
+        "feature-build",
+        source="self",
+        p25=300_000,
+        median=400_000,
+        p75=500_000,
+        scope_floor=30,
     )
     record = _make_record("add feature", turn_count=50, real_tokens=200_000)
     result = score_session(record, _B2_SIMPLE, self_baseline=self_bl)
@@ -175,8 +180,11 @@ def test_building_gives_unavailable_with_building_dov() -> None:
     """source='building' → band_verdict='unavailable', baseline_source='building',
     DOV text mentions 'Building'."""
     self_bl = _make_self_baseline(
-        "feature-build", source="building",
-        lean_n=3, sessions_needed=5, scope_floor=30,
+        "feature-build",
+        source="building",
+        lean_n=3,
+        sessions_needed=5,
+        scope_floor=30,
     )
     record = _make_record("add feature", turn_count=50, real_tokens=400_000)
     result = score_session(record, _B2_SIMPLE, self_baseline=self_bl)
@@ -185,7 +193,10 @@ def test_building_gives_unavailable_with_building_dov() -> None:
     assert result.band_verdict == "unavailable"
     assert result.p25 is None and result.p75 is None
     assert "Building your" in result.interpretation
-    assert "Building" in result.token_domain_of_validity or "building" in result.token_domain_of_validity.lower()
+    assert (
+        "Building" in result.token_domain_of_validity
+        or "building" in result.token_domain_of_validity.lower()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -215,8 +226,11 @@ def test_self_floor_oos_despite_b2_inscope() -> None:
     """Session in_scope under B2 (turn_count=200 > b2_floor=166) but OOS under self
     scope_floor=250 → result is out_of_scope."""
     self_bl = _make_self_baseline(
-        "feature-build", source="self",
-        p25=300_000, median=400_000, p75=500_000,
+        "feature-build",
+        source="self",
+        p25=300_000,
+        median=400_000,
+        p75=500_000,
         scope_floor=250,  # higher than B2 floor; user has longer typical sessions
     )
     record = _make_record("add feature", turn_count=200, real_tokens=400_000)
@@ -237,8 +251,11 @@ def test_self_floor_inscope_despite_b2_oos() -> None:
     """Session OOS under B2 (turn_count=50 < b2_floor=166) but in_scope under
     self scope_floor=30 → result is in_scope and scored against self-baseline."""
     self_bl = _make_self_baseline(
-        "feature-build", source="self",
-        p25=150_000, median=250_000, p75=350_000,
+        "feature-build",
+        source="self",
+        p25=150_000,
+        median=250_000,
+        p75=350_000,
         scope_floor=30,
     )
     record = _make_record("add feature", turn_count=50, real_tokens=200_000)
@@ -260,8 +277,11 @@ def test_building_applies_self_scope_floor() -> None:
     # Self scope_floor=30 (lower than B2's 166).  Session turn_count=50.
     # Under B2: out_of_scope (50 < 166).  Under self floor: in_scope (50 >= 30).
     self_bl = _make_self_baseline(
-        "feature-build", source="building",
-        lean_n=4, sessions_needed=4, scope_floor=30,
+        "feature-build",
+        source="building",
+        lean_n=4,
+        sessions_needed=4,
+        scope_floor=30,
     )
     record = _make_record("add feature", turn_count=50, real_tokens=400_000)
     result = score_session(record, _B2_SIMPLE, self_baseline=self_bl)

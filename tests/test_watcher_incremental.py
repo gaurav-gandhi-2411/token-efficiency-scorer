@@ -7,10 +7,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.store import get_session, open_db
+from tes.store import open_db
 from tes.watcher import WatcherConfig, _scan_once
 
 

@@ -94,49 +94,73 @@ def _report(records: list[dict], total_sessions: int) -> None:
     from collections import Counter
 
     worse_verdicts = {"WORSE", "MUCH_WORSE"}
-    good_verdicts  = {"MUCH_BETTER", "BETTER", "SIMILAR"}
+    good_verdicts = {"MUCH_BETTER", "BETTER", "SIMILAR"}
 
     # ------------------------------------------------------------------ #
     # REPEATED-FAILED-RETRY summary
     # ------------------------------------------------------------------ #
-    rfr_fired = [r for r in records if any(
-        e["detector"] == "REPEATED-FAILED-RETRY" for e in r["waste_events"]
-    )]
-    print(f"\n=== REPEATED-FAILED-RETRY ===")
-    print(f"Sessions fired: {len(rfr_fired)}/{total_sessions} ({len(rfr_fired)/total_sessions*100:.1f}%)")
+    rfr_fired = [
+        r
+        for r in records
+        if any(e["detector"] == "REPEATED-FAILED-RETRY" for e in r["waste_events"])
+    ]
+    print("\n=== REPEATED-FAILED-RETRY ===")
+    print(
+        f"Sessions fired: {len(rfr_fired)}/{total_sessions} ({len(rfr_fired) / total_sessions * 100:.1f}%)"
+    )
     rfr_verdicts = Counter((r["qwen_verdict"] or "unscored") for r in rfr_fired)
     for v, c in rfr_verdicts.most_common():
         print(f"  qwen={v}: {c}")
-    worse_fired_rfr  = sum(1 for r in rfr_fired if r["qwen_verdict"] in worse_verdicts)
-    worse_total      = sum(1 for r in records if r["qwen_verdict"] in worse_verdicts)
-    good_fired_rfr   = sum(1 for r in rfr_fired if r["qwen_verdict"] in good_verdicts)
-    good_total       = sum(1 for r in records if r["qwen_verdict"] in good_verdicts)
-    print(f"  4-way: fired+WORSE={worse_fired_rfr}/{worse_total}, fired+good={good_fired_rfr}/{good_total}, "
-          f"no-fire+WORSE={worse_total-worse_fired_rfr}/{worse_total}, no-fire+good={good_total-good_fired_rfr}/{good_total}")
+    worse_fired_rfr = sum(1 for r in rfr_fired if r["qwen_verdict"] in worse_verdicts)
+    worse_total = sum(1 for r in records if r["qwen_verdict"] in worse_verdicts)
+    good_fired_rfr = sum(1 for r in rfr_fired if r["qwen_verdict"] in good_verdicts)
+    good_total = sum(1 for r in records if r["qwen_verdict"] in good_verdicts)
+    print(
+        f"  4-way: fired+WORSE={worse_fired_rfr}/{worse_total}, fired+good={good_fired_rfr}/{good_total}, "
+        f"no-fire+WORSE={worse_total - worse_fired_rfr}/{worse_total}, no-fire+good={good_total - good_fired_rfr}/{good_total}"
+    )
 
     # ------------------------------------------------------------------ #
     # REDUNDANT-READ summary — per-path breakdown + gap distribution
     # ------------------------------------------------------------------ #
-    rr_fired = [r for r in records if any(
-        e["detector"] == "REDUNDANT-READ" for e in r["waste_events"]
-    )]
-    rr_events_a = [e for r in records for e in r["waste_events"]
-                   if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"]
-    rr_events_b = [e for r in records for e in r["waste_events"]
-                   if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"]
+    rr_fired = [
+        r for r in records if any(e["detector"] == "REDUNDANT-READ" for e in r["waste_events"])
+    ]
+    rr_events_a = [
+        e
+        for r in records
+        for e in r["waste_events"]
+        if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"
+    ]
+    rr_events_b = [
+        e
+        for r in records
+        for e in r["waste_events"]
+        if e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"
+    ]
 
     # Sessions with at least one PATH A event
-    rr_a_sids = {r["session_id"] for r in records if any(
-        e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"
-        for e in r["waste_events"]
-    )}
-    rr_b_sids = {r["session_id"] for r in records if any(
-        e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"
-        for e in r["waste_events"]
-    )}
+    rr_a_sids = {
+        r["session_id"]
+        for r in records
+        if any(
+            e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "A"
+            for e in r["waste_events"]
+        )
+    }
+    rr_b_sids = {
+        r["session_id"]
+        for r in records
+        if any(
+            e["detector"] == "REDUNDANT-READ" and e["evidence"].get("path") == "B"
+            for e in r["waste_events"]
+        )
+    }
 
-    print(f"\n=== REDUNDANT-READ ===")
-    print(f"Sessions fired (any path): {len(rr_fired)}/{total_sessions} ({len(rr_fired)/total_sessions*100:.1f}%)")
+    print("\n=== REDUNDANT-READ ===")
+    print(
+        f"Sessions fired (any path): {len(rr_fired)}/{total_sessions} ({len(rr_fired) / total_sessions * 100:.1f}%)"
+    )
     print(f"  PATH A (CC hint): {len(rr_a_sids)} sessions, {len(rr_events_a)} events")
     print(f"  PATH B (content): {len(rr_b_sids)} sessions, {len(rr_events_b)} events")
     print(f"  PATH A+B overlap: {len(rr_a_sids & rr_b_sids)} sessions")
@@ -144,38 +168,51 @@ def _report(records: list[dict], total_sessions: int) -> None:
     # PATH B gap distribution
     if rr_events_b:
         gap_counts = Counter(e["evidence"]["gap"] for e in rr_events_b)
-        print(f"  PATH B gap distribution (call_2.turn_idx - result_1.turn_idx):")
+        print("  PATH B gap distribution (call_2.turn_idx - result_1.turn_idx):")
         for g in sorted(gap_counts):
             print(f"    gap={g}: {gap_counts[g]} events")
 
     # Qwen verdict breakdown
     rr_verdicts = Counter((r["qwen_verdict"] or "unscored") for r in rr_fired)
-    print(f"  Qwen verdict breakdown:")
+    print("  Qwen verdict breakdown:")
     for v, c in rr_verdicts.most_common():
         print(f"    qwen={v}: {c}")
 
     # 4-way Qwen cross-check (session-level, any REDUNDANT-READ event)
     rr_fired_sids = {r["session_id"] for r in rr_fired}
-    worse_fired_rr  = sum(1 for r in records if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in worse_verdicts)
-    good_fired_rr   = sum(1 for r in records if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in good_verdicts)
-    print(f"  4-way: fired+WORSE={worse_fired_rr}/{worse_total}, fired+good={good_fired_rr}/{good_total}, "
-          f"no-fire+WORSE={worse_total-worse_fired_rr}/{worse_total}, no-fire+good={good_total-good_fired_rr}/{good_total}")
+    worse_fired_rr = sum(
+        1
+        for r in records
+        if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in worse_verdicts
+    )
+    good_fired_rr = sum(
+        1
+        for r in records
+        if r["session_id"] in rr_fired_sids and r["qwen_verdict"] in good_verdicts
+    )
+    print(
+        f"  4-way: fired+WORSE={worse_fired_rr}/{worse_total}, fired+good={good_fired_rr}/{good_total}, "
+        f"no-fire+WORSE={worse_total - worse_fired_rr}/{worse_total}, no-fire+good={good_total - good_fired_rr}/{good_total}"
+    )
 
     # Sample PATH A and PATH B events
     print("\n--- REDUNDANT-READ sample events ---")
     shown_a = shown_b = 0
     for r in records:
         for ev in r["waste_events"]:
-            if ev["detector"] != "REDUNDANT-READ": continue
+            if ev["detector"] != "REDUNDANT-READ":
+                continue
             path = ev["evidence"].get("path")
             snip = ev["evidence"].get("content_snippet", "")[:80]
-            sid  = r["session_id"][:8]
+            sid = r["session_id"][:8]
             if path == "A" and shown_a < 2:
                 print(f"  [A] {sid} (qwen={r['qwen_verdict']}) turns={ev['turns']}: {repr(snip)}")
                 shown_a += 1
             elif path == "B" and shown_b < 2:
                 gap = ev["evidence"].get("gap")
-                print(f"  [B] {sid} (qwen={r['qwen_verdict']}) gap={gap} turns={ev['turns']}: {repr(snip)}")
+                print(
+                    f"  [B] {sid} (qwen={r['qwen_verdict']}) gap={gap} turns={ev['turns']}: {repr(snip)}"
+                )
                 shown_b += 1
         if shown_a >= 2 and shown_b >= 2:
             break
