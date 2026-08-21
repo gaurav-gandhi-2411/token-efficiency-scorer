@@ -10,6 +10,8 @@
 
 B5 tests whether the B4 deterministic waste detectors (REPEATED-FAILED-RETRY, REDUNDANT-READ) generalize beyond the single 181-session pool. The dataset is SWE-chat (SALT-NLP/SWE-chat), a public corpus of real coding-agent sessions collected from real developers by the Entire.io CLI checkpoint logger. Two subsets: CC (1,053 sessions from 172 distinct users, processed through the native `claudecode_adapter`) and non-CC (893 sessions from OpenCode, Codex, Gemini CLI, Cursor; processed through `public_trace_adapter`).
 
+> Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). AW1: added retroactively — every derived statistic in this report (172 developers, 1,053 sessions, the 1.4%/6.6% rate comparison, etc.) is a "Produced Work" under ODC-BY §4.3, which requires this notice. See [../DATA_SOURCES.md](../DATA_SOURCES.md).
+
 **Detectors frozen throughout.** `scripts/waste_detectors.py` and `scripts/adapters/claudecode_adapter.py` are byte-identical to B4. `git diff --exit-code` on both files: clean.
 
 This report supersedes report 10 §9 (cumulative limitations, single-developer scope) for the detector-generalization claim.

@@ -20,7 +20,7 @@ This report runs a second independent judge model (Gemma 3 27B) over the same 14
 
 - "Qwen is harsher" is not "Qwen is right." The disagreement is a rubric-level difference in how the two models interpret repeated failures. It does not establish which model is calibrated to human judgment.
 
-- This does NOT close the human-accuracy gap from report 06. rho=0.79 against the 5-session human-rated set plus cross-model agreement on positives means positive verdicts are corroborated, not accuracy-validated. The two things are distinct.
+- This does NOT close the human-accuracy gap from report 06. rho=0.79 (N=53, empty-loop-excluded) against Claude Sonnet acting as an LLM reference rater — not human labels; the planned 40-session human gold set was never collected, see report 06 §7.4/§8 — plus cross-model agreement on positives means positive verdicts are corroborated, not accuracy-validated. The two things are distinct.
 
 - Reports 01-08 remain immutable. No retroactive changes to prior findings.
 
@@ -177,8 +177,8 @@ The pattern across the table is consistent: Qwen reads repeated failures across 
 The following limitations carry forward from reports 06-08 without modification:
 
 **From report 06:**
-- Human accuracy gap: rho=0.79 on 5 human-rated sessions. 5 sessions is not a sufficient sample for accuracy claims. The correlation result establishes rough rank-order alignment; it does not establish that the judge's verdicts are correct.
-- The 5 human-rated sessions are not uniformly distributed across the verdict range.
+- Human accuracy gap: rho=0.79 (N=53, empty-loop-excluded) against Claude Sonnet acting as an LLM reference rater, not human labels — the planned 40-session human gold set was never collected. The correlation establishes rough rank-order alignment against a strong reference model; it does not establish that the judge's verdicts are correct relative to human judgment.
+- No human gold set exists yet, so no claim in this report or report 06 is validated against human judgment at any sample size.
 - Self-consistency (same prompt, same model, multiple runs) was not measured.
 
 **From report 07:**
