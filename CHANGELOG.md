@@ -6,12 +6,46 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, and `0.12.2` (confirmed live against PyPI's own JSON API; this note previously stopped
-enumerating at `0.10.2` for four releases running — corrected here rather than left standing, per
-the same "nothing re-checks this note against reality" gap RELEASING.md's own incident section
-already names). Versions `0.2.0` and `0.4.0` were built and tagged internally but never published
-to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not published** — see its
-entry for why (corpus stays dormant). `0.12.2` is the **current published release**.
+`0.12.1`, `0.12.2`, and `0.12.3` (confirmed live against PyPI's own JSON API; this note previously
+stopped enumerating at `0.10.2` for four releases running — corrected here rather than left
+standing, per the same "nothing re-checks this note against reality" gap RELEASING.md's own
+incident section already names). Versions `0.2.0` and `0.4.0` were built and tagged internally but
+never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
+published** — see its entry for why (corpus stays dormant). `0.12.3` is the **current published
+release**.
+
+## [0.12.3] — ODC-BY attribution for the SWE-chat dataset; repo-wide ruff cleanup
+
+### Fixed
+- **License compliance gap on the published PyPI page.** The `172 independent developers,
+  1,053 SWE-chat CC sessions` generalization-validation figures in the README (which becomes
+  PyPI's own project description verbatim, per `pyproject.toml`'s `readme = "README.md"`) are
+  a "Produced Work" derived from SALT-NLP/SWE-chat, an ODC-BY 1.0-licensed dataset — publishing
+  derived statistics from ODC-BY data requires an attribution notice under the license's §4.3,
+  which this project never carried. Added the notice (with citation, Baumann et al. 2026,
+  arXiv:2604.20779) everywhere the figures appear, plus a new `DATA_SOURCES.md` recording every
+  external dataset/model this project uses, its license, and what was derived from it. This
+  release is the first one whose published PyPI page actually carries the notice — every prior
+  published version's page remains permanently non-compliant (PyPI does not allow re-uploading
+  a version's metadata; see RELEASING.md, "do not yank").
+- Two internal research-corpus documentation errors, unrelated to any public claim but worth
+  a clean record: `research/09-cross-model.md` twice mis-described the project's own real
+  Spearman ρ≈0.79 trajectory-judge figure as correlating against a "5-session human-rated set"
+  that never existed — corrected to the real methodology (Qwen3-30B-A3B vs. Claude Sonnet
+  acting as an LLM reference rater, N=53/67, not human labels). `data/README.md` described a
+  `raw/`/`processed/`/`benchmarks/` layout that was never actually populated.
+
+### Changed
+- **Repo-wide ruff lint debt resolved.** 1,030 pre-existing findings (not user-facing — no
+  behavior change, full test suite verified identical before and after: 755 passed, 20 skipped)
+  triaged and closed: the dominant class (E402, a structural false-positive against this
+  repo's own `from __future__ import annotations`-before-docstring convention) permanently
+  exempted via config; genuinely fixable findings (unused/unsorted imports, f-string/datetime
+  modernization) auto-fixed; the small remainder needing real per-call judgment scoped via
+  per-file ignores rather than silently permitted everywhere going forward. CI's ruff
+  check/format steps tightened from informational to blocking, matching the pre-commit hook.
+- New pre-commit hook (`scripts/check_staged_scope.py`) blocks a commit staging more than 20
+  files unless explicitly overridden — a guard against an accidentally-broad `git add`.
 
 ## [0.12.2] — Calibration brand identity wired into `tes serve`; corpus fail-fast fix
 
