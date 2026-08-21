@@ -93,6 +93,13 @@ Reused, not reinvented, per context:
 - `badge.svg` — compact horizontal README badge, 168×28, self-contained
   ground so it holds next to shields.io badges on any README background.
 - `og-preview.svg` — 1200×630 link-unfurl preview (GitHub/Slack/social).
+- `og-preview.png` — 1280×640 PNG export of the above, uploaded via repo
+  Settings → General → Social preview (GitHub serves this PNG directly;
+  it doesn't render the SVG). `og-preview-conservative.png` is a
+  maximally-stripped re-encode (RGB, 8-bit, no alpha/interlace/ICC
+  profile, IHDR+IDAT+IEND only) kept as a fallback upload if the primary
+  PNG's social-preview asset ever 404s again — see AU1 in git history for
+  the diagnosis.
 
 None of these are referenced by any shipped template yet.
 
