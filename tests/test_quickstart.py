@@ -1,3 +1,6 @@
+# ruff: noqa: E402 -- see the identical note in tes/cli.py; same repo-wide,
+# pre-existing rule-1-vs-E402 conflict, newly blocking now that this file is
+# touched under the (freshly-active, PR #41) pre-commit hook.
 from __future__ import annotations
 
 """tests/test_quickstart.py — HH1.2: end-to-end coverage for `tes quickstart`
@@ -9,7 +12,6 @@ and no network call.
 """
 
 import pytest
-
 import tes.cli as cli
 
 
@@ -50,6 +52,10 @@ def test_quickstart_bundled_fixture_is_reachable_via_importlib_resources():
         assert concrete_path.exists()
         content = concrete_path.read_text(encoding="utf-8")
         assert content.strip()
-        # 9 lines: 1 user + 4 assistant text/tool-use turns + 3 tool_result +
-        # 1 closing assistant summary -- matches the fixture as authored.
-        assert len(content.strip().splitlines()) == 9
+        # AV1: 50 lines -- 1 initial user (task) + 16 review cycles of
+        # (assistant tool_use, user tool_result, assistant text) = 48 + 1
+        # closing assistant summary. Sized to clear research-recon's 44-turn
+        # p10 scope-gate floor (tes/data/cc_baselines.json's scope_gates),
+        # the lowest floor of the 5 task types, so the bundled demo actually
+        # produces a TOKEN ECONOMY verdict instead of UNAVAILABLE.
+        assert len(content.strip().splitlines()) == 50

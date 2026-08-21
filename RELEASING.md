@@ -47,6 +47,15 @@ This document describes the actual flow, written after running it for real for `
    - Verify the *published* README (`curl -s https://pypi.org/pypi/tracegauge/<version>/json`,
      string-search the `description` field) contains the new command/flag names — not just
      that the local `README.md` file does; a build/publish step could in principle diverge.
+   - **Every checkable figure in `README.md` and `CURRENT_STATE.md`** (test counts, session/
+     corpus counts, model names, version numbers) is re-verified against current reality
+     before tagging — not just the newly-added ones. Test counts drift silently every time
+     tests are added without a release (e.g. a `README.md` line still citing an old total
+     while the suite has since grown); re-run `uv run pytest tests/ -q` and compare against
+     any hardcoded count in prose. `CURRENT_STATE.md`'s per-milestone historical counts
+     (364/377/472/543/601/…) are point-in-time records of that milestone and should NOT be
+     changed to the current total — only fix a figure there if it misstates what was true
+     *at that milestone*, not because the repo has grown since.
 3. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
    version-bumped code. Merge once green.
 4. **Tag the merged commit and push the tag:**
