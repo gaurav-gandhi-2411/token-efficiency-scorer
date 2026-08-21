@@ -1,3 +1,13 @@
+# ruff: noqa: E402 -- rule 1's future-import-first convention (this repo's own
+# CLAUDE.md) puts `from __future__ import annotations` before the module
+# docstring, which pycodestyle's E402 reads as "imports after a statement."
+# Pre-existing, repo-wide (608 findings per ci.yml's ruff-check comment,
+# previously informational-only); newly blocking here because AV1 is the
+# first commit to touch this file since the pre-commit hook went live
+# (PR #41). Suppressed locally rather than reordering the docstring (which
+# would violate rule 1) or fixing the other ~606 unrelated instances as a
+# drive-by (out of scope for this change) -- see the AV1/AV2 PR body for the
+# repo-wide flag.
 from __future__ import annotations
 
 """tes/cli.py — Command-line interface for the Token-Efficiency Scorer.
@@ -25,26 +35,29 @@ import sys
 import time
 from pathlib import Path
 
+from tes import __version__
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.cost_period import PeriodCostReport
 from tes.judge import (
+    JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
     JudgeConfig,
-    JUDGE_SETUP_HINT_FULL,
     build_api_judge_consent_notice,
     detect_env_api_key,
     is_judge_available,
     score_trajectory,
     score_trajectory_api,
 )
-from tes.watcher import DEFAULT_CC_PATH
 from tes.report import format_human, format_json
 from tes.score import score_session
-from tes.waste import annotate_waste_costs, build_waste_entry, detect_redundant_read, detect_repeated_failed_retry
-from tes import __version__
+from tes.waste import (
+    annotate_waste_costs,
+    build_waste_entry,
+)
+from tes.watcher import DEFAULT_CC_PATH
 
 # Load price table once at import time — prices don't change between sessions in a run.
 _PRICES: dict = load_price_table()
@@ -56,7 +69,8 @@ def _print_contribution_preview(payload: object, out_path: Path) -> None:
     Shows: row count, one real sample row (JSON), full field list, explicit
     exclusions, output path, and the non-transmission statement.
     """
-    from tes.contribution import ALLOWED_FIELDS, ContributionPayload
+    from tes.contribution import ALLOWED_FIELDS
+
     payload = payload  # type: ContributionPayload
 
     sep = "─" * 72
@@ -165,7 +179,9 @@ def _pick_session(cc_path: Path) -> list[Path]:
         return []
     print("Recent Claude Code sessions:\n")
     for i, (p, m) in enumerate(recent, 1):
-        print(f"  [{i}]  {_project_label(p):<40}  {p.stem[:8]}…  {_fmt_age(m):>8}  {_fmt_size(p):>8}")
+        print(
+            f"  [{i}]  {_project_label(p):<40}  {p.stem[:8]}…  {_fmt_age(m):>8}  {_fmt_size(p):>8}"
+        )
     try:
         raw = input(f"\nPick a session to score [1-{len(recent)}, default 1]: ").strip()
     except (EOFError, KeyboardInterrupt):
@@ -278,12 +294,14 @@ def score_path(
     if digest is not None:
         try:
             from tes.attribution import compute_attribution
+
             attribution = compute_attribution(digest, waste_entry, _PRICES)
         except Exception:
             pass  # attribution failure must never break CLI output
 
     result = score_session(
-        record, baselines,
+        record,
+        baselines,
         judge_entry=judge_entry,
         waste_entry=waste_entry,
         session_cost=session_cost,
@@ -294,8 +312,8 @@ def score_path(
     baseline_cost_band: tuple[float, float, float] | None = None
     if store_conn is not None and session_cost is not None:
         try:
-            import sqlite3 as _sqlite3  # noqa: PLC0415
             from tes.self_baseline import compute_baseline_cost_band  # noqa: PLC0415
+
             task_type = result.task_type
             # Derive scope_floor from DB: use p10 of turn_counts as a rough floor (min 20).
             tc_rows = store_conn.execute(  # type: ignore[union-attr]
@@ -310,7 +328,9 @@ def score_path(
             else:
                 scope_floor = 20
             baseline_cost_band = compute_baseline_cost_band(
-                store_conn, task_type, scope_floor  # type: ignore[arg-type]
+                store_conn,
+                task_type,
+                scope_floor,  # type: ignore[arg-type]
             )
         except Exception:
             pass  # baseline band lookup failure is non-fatal
@@ -323,6 +343,7 @@ def score_path(
     if store_conn is not None:
         try:
             from tes.store import file_hash, upsert_session
+
             source_hash = file_hash(path)
             source_mtime = path.stat().st_mtime
             upsert_session(store_conn, result, str(path), source_mtime, source_hash)
@@ -380,12 +401,14 @@ def _score_path_with_api_judge(
     if digest is not None:
         try:
             from tes.attribution import compute_attribution
+
             attribution = compute_attribution(digest, waste_entry, _PRICES)
         except Exception:
             pass
 
     result = score_session(
-        record, baselines,
+        record,
+        baselines,
         judge_entry=judge_entry,
         waste_entry=waste_entry,
         session_cost=session_cost,
@@ -395,8 +418,8 @@ def _score_path_with_api_judge(
     baseline_cost_band: tuple[float, float, float] | None = None
     if store_conn is not None and session_cost is not None:
         try:
-            import sqlite3 as _sqlite3  # noqa: PLC0415
             from tes.self_baseline import compute_baseline_cost_band  # noqa: PLC0415
+
             task_type = result.task_type
             tc_rows = store_conn.execute(  # type: ignore[union-attr]
                 "SELECT turn_count FROM sessions "
@@ -410,7 +433,9 @@ def _score_path_with_api_judge(
             else:
                 scope_floor = 20
             baseline_cost_band = compute_baseline_cost_band(
-                store_conn, task_type, scope_floor  # type: ignore[arg-type]
+                store_conn,
+                task_type,
+                scope_floor,  # type: ignore[arg-type]
             )
         except Exception:
             pass
@@ -423,6 +448,7 @@ def _score_path_with_api_judge(
     if store_conn is not None:
         try:
             from tes.store import file_hash, upsert_session  # noqa: PLC0415
+
             source_hash = file_hash(path)
             source_mtime = path.stat().st_mtime
             upsert_session(store_conn, result, str(path), source_mtime, source_hash)
@@ -437,6 +463,7 @@ def _store_session_count(db_path: Path | None) -> int | None:
     """
     try:
         from tes.store import open_db, resolve_db_path  # noqa: PLC0415
+
         conn = open_db(resolve_db_path(db_path))
         try:
             return int(conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0])
@@ -486,8 +513,12 @@ def _run_serve(
         plan_type=plan_type,
     )
     server_config = ServerConfig(
-        host="127.0.0.1", port=port, db_path=db_path,
-        cc_path=cc_path, stability_window=stability_window, plan_type=plan_type,
+        host="127.0.0.1",
+        port=port,
+        db_path=db_path,
+        cc_path=cc_path,
+        stability_window=stability_window,
+        plan_type=plan_type,
     )
 
     # First-run orientation — the tool tells you what it found and where to look.
@@ -500,8 +531,12 @@ def _run_serve(
         print("  First run:        scoring begins as sessions settle; the dashboard fills in live.")
     print(f"  Scan interval:    {scan_interval}s")
     print(f"  Stability window: {stability_window}s")
-    print(f"  Judge:            {'ON (--background-judge)' if background_judge else 'OFF (token+waste only)'}")
-    print(f"  Alarm:            {'ON — plan=' + plan_type if alarm_enabled else 'OFF (--alarm to enable)'}")
+    print(
+        f"  Judge:            {'ON (--background-judge)' if background_judge else 'OFF (token+waste only)'}"
+    )
+    print(
+        f"  Alarm:            {'ON — plan=' + plan_type if alarm_enabled else 'OFF (--alarm to enable)'}"
+    )
     print(f"  Database:         {db_path or '~/.tes/tes.db'}")
     print("  Press Ctrl+C to stop.", flush=True)
 
@@ -513,7 +548,7 @@ def _run_serve(
         watcher_thread.join(timeout=5)
 
 
-def _run_corpus(args: "argparse.Namespace") -> None:
+def _run_corpus(args: argparse.Namespace) -> None:
     """Handle `tes corpus contribute|withdraw|reset-id`.
 
     This is the ONLY code path that transmits session-derived data. Every
@@ -522,6 +557,7 @@ def _run_corpus(args: "argparse.Namespace") -> None:
     consent_given=True, and no send without passing the content-free guard
     on the ACTUAL bytes about to be POSTed.
     """
+    from tes.contribution import get_or_create_contributor_id
     from tes.corpus_client import (
         CorpusConfig,
         build_corpus_consent_notice,
@@ -529,7 +565,6 @@ def _run_corpus(args: "argparse.Namespace") -> None:
         reset_contributor_id,
         withdraw,
     )
-    from tes.contribution import get_or_create_contributor_id
 
     corpus_command = getattr(args, "corpus_command", None)
 
@@ -665,37 +700,51 @@ def _run_patterns(
     if not cache.get("valid"):
         print(f"\n{cache.get('status', 'Pattern analysis unavailable.')}")
         if cache.get("n_sessions") is not None:
-            print(f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)")
+            print(
+                f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)"
+            )
         return
 
     sep = "─" * 70
     print(f"\n{sep}")
     print("SESSION PATTERN ANALYSIS")
     print(sep)
-    print(f"  {cache['n_sessions']} content sessions  |  k={cache['k']}  |  "
-          f"silhouette={cache['silhouette']:.3f}  |  {'stable' if cache['stable'] else 'variable'}")
+    print(
+        f"  {cache['n_sessions']} content sessions  |  k={cache['k']}  |  "
+        f"silhouette={cache['silhouette']:.3f}  |  {'stable' if cache['stable'] else 'variable'}"
+    )
     print(f"  {cache['status']}")
     print()
     print("ARCHETYPES (measured behavioral patterns — not quality labels):")
     for a in cache["archetypes"]:
         c = a["centroid"]
-        task_str = "  ".join(f"{k}:{v}" for k, v in sorted(a["task_type_counts"].items(), key=lambda x: -x[1]))
+        task_str = "  ".join(
+            f"{k}:{v}" for k, v in sorted(a["task_type_counts"].items(), key=lambda x: -x[1])
+        )
         print(f"\n  [{a['cluster_id']}] {a['name']}")
-        print(f"      {a['size']} sessions ({a['fraction']*100:.1f}%)  "
-              f"context_resend={c.get('context_resend_pct', 0):.1%}  "
-              f"context_growth={c.get('context_growth_pct', 0):.1%}  "
-              f"output={c.get('output_pct', 0):.1%}  "
-              f"waste_flag={'yes' if c.get('has_waste', 0) > 0.5 else 'no'}")
+        print(
+            f"      {a['size']} sessions ({a['fraction'] * 100:.1f}%)  "
+            f"context_resend={c.get('context_resend_pct', 0):.1%}  "
+            f"context_growth={c.get('context_growth_pct', 0):.1%}  "
+            f"output={c.get('output_pct', 0):.1%}  "
+            f"waste_flag={'yes' if c.get('has_waste', 0) > 0.5 else 'no'}"
+        )
         print(f"      task mix: {task_str}")
     print()
-    print(f"ANOMALIES: {cache['anomaly_count']} of {cache['n_sessions']} sessions "
-          f"({cache['anomaly_pct']:.1f}%) are statistical outliers for their cluster.")
+    print(
+        f"ANOMALIES: {cache['anomaly_count']} of {cache['n_sessions']} sessions "
+        f"({cache['anomaly_pct']:.1f}%) are statistical outliers for their cluster."
+    )
     print()
     print(f"Domain of validity: {cache['domain_of_validity']}")
-    print(f"Computed from {cache['session_count']} total sessions in store  "
-          f"|  tracegauge {cache['tracegauge_version']}  |  {cache.get('computed_at', '')[:19]}")
+    print(
+        f"Computed from {cache['session_count']} total sessions in store  "
+        f"|  tracegauge {cache['tracegauge_version']}  |  {cache.get('computed_at', '')[:19]}"
+    )
     print(sep)
-    print("\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language.")
+    print(
+        "\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language."
+    )
 
 
 def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
@@ -737,33 +786,47 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
         print(sep)
         return
 
-    print(f"\n{report.total_operations} edit operation(s) across "
-          f"{report.sessions_with_data} session(s) with impact data"
-          + (f" ({report.sessions_legacy} additional session(s) predate this tracking, "
-             "not counted -- see the CHANGELOG)" if report.sessions_legacy else ""))
+    print(
+        f"\n{report.total_operations} edit operation(s) across "
+        f"{report.sessions_with_data} session(s) with impact data"
+        + (
+            f" ({report.sessions_legacy} additional session(s) predate this tracking, "
+            "not counted -- see the CHANGELOG)"
+            if report.sessions_legacy
+            else ""
+        )
+    )
     print(f"  +{report.total_additions} / -{report.total_deletions} lines")
 
     if report.prior_content_unknown_pct is not None:
-        print(f"  {report.prior_content_unknown_pct:.0f}% of additions are from Write/"
-              f"NotebookEdit calls, whose payload never carries the file's PRIOR content "
-              "-- additions are exact, but a full-file rewrite looks identical to a "
-              "brand-new file, so this fraction is inherently uncertain in that specific way.")
+        print(
+            f"  {report.prior_content_unknown_pct:.0f}% of additions are from Write/"
+            f"NotebookEdit calls, whose payload never carries the file's PRIOR content "
+            "-- additions are exact, but a full-file rewrite looks identical to a "
+            "brand-new file, so this fraction is inherently uncertain in that specific way."
+        )
     if report.untested_tool_shape_pct is not None and report.untested_tool_shape_operations:
-        print(f"  {report.untested_tool_shape_pct:.0f}% of operations came from MultiEdit/"
-              "NotebookEdit -- extraction paths with ZERO real-corpus verification "
-              "(see README). Not presented with the same confidence as Edit/Write.")
+        print(
+            f"  {report.untested_tool_shape_pct:.0f}% of operations came from MultiEdit/"
+            "NotebookEdit -- extraction paths with ZERO real-corpus verification "
+            "(see README). Not presented with the same confidence as Edit/Write."
+        )
 
     if report.top_files:
         print("\nMost-edited files:")
         for f in report.top_files:
-            print(f"  {f.edits:>4} edits  +{f.additions}/-{f.deletions}  "
-                  f"({f.sessions_touched} session(s))  {f.path}")
+            print(
+                f"  {f.edits:>4} edits  +{f.additions}/-{f.deletions}  "
+                f"({f.sessions_touched} session(s))  {f.path}"
+            )
 
     if report.top_directories:
         print("\nMost-edited directories:")
         for d in report.top_directories:
-            print(f"  {d.edits:>4} edits  +{d.additions}/-{d.deletions}  "
-                  f"({d.sessions_touched} session(s))  {d.path}")
+            print(
+                f"  {d.edits:>4} edits  +{d.additions}/-{d.deletions}  "
+                f"({d.sessions_touched} session(s))  {d.path}"
+            )
 
     print(sep)
 
@@ -779,14 +842,13 @@ def _run_ask(
 ) -> None:
     """Handle `tes ask "<question>"` — the conversational explainer."""
     from tes.intelligence.chat import (
-        ChatApiConfig,
-        ChatConfig,
         CHAT_EGRESS_NOTICE,
+        ChatApiConfig,
         ask_api,
         ask_local,
     )
 
-    print(f"\nLooking up your session data...", flush=True)
+    print("\nLooking up your session data...", flush=True)
 
     # --- Try local Ollama first (unless --api is specified) ---
     if not use_api:
@@ -804,6 +866,7 @@ def _run_ask(
         if not api_key:
             api_key = None
             import os as _os
+
             api_key = _os.environ.get("ANTHROPIC_API_KEY")
 
         if api_key:
@@ -816,7 +879,7 @@ def _run_ask(
             print(
                 "\nNo LLM available to answer. To enable:\n"
                 "  Option 1 — Local (free): install Ollama + pull any 7B+ model\n"
-                "  Option 2 — API: export ANTHROPIC_API_KEY=<key> then tes ask --api \"<question>\"\n"
+                '  Option 2 — API: export ANTHROPIC_API_KEY=<key> then tes ask --api "<question>"\n'
             )
             return
 
@@ -828,7 +891,9 @@ def _run_ask(
     # Show consent notice
     print(CHAT_EGRESS_NOTICE)
     try:
-        consent = input("\nSend metrics to Anthropic to answer this question? [y/N]: ").strip().lower()
+        consent = (
+            input("\nSend metrics to Anthropic to answer this question? [y/N]: ").strip().lower()
+        )
     except (EOFError, KeyboardInterrupt):
         consent = ""
 
@@ -871,7 +936,9 @@ def _run_budget(
     conn.close()
 
     if projection is None:
-        print(f"No sessions with cost data in the last {window_days} days — nothing to project yet.")
+        print(
+            f"No sessions with cost data in the last {window_days} days — nothing to project yet."
+        )
         return
 
     sep = "─" * 70
@@ -921,31 +988,41 @@ def _run_cost(
     print(sep)
 
     if report.session_count == 0 and report.sessions_missing_cost == 0:
-        print(f"\nNo sessions found in this period ({report.period_start.date()} "
-              f"to {report.period_end.date()}).")
+        print(
+            f"\nNo sessions found in this period ({report.period_start.date()} "
+            f"to {report.period_end.date()})."
+        )
         print(sep)
         return
 
-    print(f"\nTotal: ${report.total_usd:.2f}  ({report.session_count} session"
-          f"{'s' if report.session_count != 1 else ''})")
+    print(
+        f"\nTotal: ${report.total_usd:.2f}  ({report.session_count} session"
+        f"{'s' if report.session_count != 1 else ''})"
+    )
     if report.sessions_missing_cost:
-        print(f"  ({report.sessions_missing_cost} additional session"
-              f"{'s' if report.sessions_missing_cost != 1 else ''} in this period "
-              f"{'have' if report.sessions_missing_cost != 1 else 'has'} no cost "
-              "data yet -- excluded from the total above, not counted as $0)")
+        print(
+            f"  ({report.sessions_missing_cost} additional session"
+            f"{'s' if report.sessions_missing_cost != 1 else ''} in this period "
+            f"{'have' if report.sessions_missing_cost != 1 else 'has'} no cost "
+            "data yet -- excluded from the total above, not counted as $0)"
+        )
 
     if report.by_project:
         print("\nBy project:")
         for b in report.by_project:
-            print(f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
-                  f"{'s' if b.session_count != 1 else ''})")
+            print(
+                f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
+                f"{'s' if b.session_count != 1 else ''})"
+            )
 
     # XX1.3: unpriced coverage -- always shown, not gated behind --roi.
     sess_cov = report.session_coverage_pct
     tok_cov = report.token_coverage_pct
     if sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0)):
-        print(f"\nPriced coverage: {sess_cov:.0f}% of sessions"
-              + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else ""))
+        print(
+            f"\nPriced coverage: {sess_cov:.0f}% of sessions"
+            + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else "")
+        )
         if report.unpriced_models:
             models_str = ", ".join(report.unpriced_models)
             print(f"  Unpriced model(s): {models_str}")
@@ -973,8 +1050,10 @@ def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
     if not plans:
         cfg_path = resolve_plan_config_path(plan_config)
         print(f"\nROI: no plan configured. Create {cfg_path} to enable -- e.g.:")
-        print('  {"plans": [{"name": "Claude Max", "monthly_cost_usd": 200, '
-              '"effective_from": "2026-01-01"}]}')
+        print(
+            '  {"plans": [{"name": "Claude Max", "monthly_cost_usd": 200, '
+            '"effective_from": "2026-01-01"}]}'
+        )
         return
 
     result = compute_roi(
@@ -984,12 +1063,18 @@ def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
         print("\nROI: no priced sessions in this period -- nothing to compare against plan cost.")
         return
 
-    plan_label = " + ".join(result.plan_names) if len(result.plan_names) > 1 else result.plan_names[0]
+    plan_label = (
+        " + ".join(result.plan_names) if len(result.plan_names) > 1 else result.plan_names[0]
+    )
     print(f"\nPlan: {plan_label} (${result.plan_cost_usd:.2f} for this window)")
-    print(f"ROI: ${result.api_equivalent_usd:.2f} API-equivalent / "
-          f"${result.plan_cost_usd:.2f} plan cost = {result.multiple:.1f}x")
-    print("  (API-equivalent value at measured token rates, not a bill you'd "
-          "actually pay under a flat plan.)")
+    print(
+        f"ROI: ${result.api_equivalent_usd:.2f} API-equivalent / "
+        f"${result.plan_cost_usd:.2f} plan cost = {result.multiple:.1f}x"
+    )
+    print(
+        "  (API-equivalent value at measured token rates, not a bill you'd "
+        "actually pay under a flat plan.)"
+    )
 
 
 def _run_monitor(
@@ -1009,8 +1094,10 @@ def _run_monitor(
     cc_path = _resolve_cc_path(cc_path_arg)
     active = find_active_session(cc_path, stability_window)
     if active is None:
-        print(f"No active session detected under {cc_path} "
-              f"(nothing modified in the last {stability_window}s).")
+        print(
+            f"No active session detected under {cc_path} "
+            f"(nothing modified in the last {stability_window}s)."
+        )
         return
 
     live = score_live_session(active, _PRICES)
@@ -1032,7 +1119,9 @@ def _run_monitor(
     if alarm is not None:
         print(f"\n[ALARM] {alarm.message}")
     else:
-        print("\nNo alarm (measured thresholds not tripped, or baseline still building for this type).")
+        print(
+            "\nNo alarm (measured thresholds not tripped, or baseline still building for this type)."
+        )
 
 
 def main() -> None:
@@ -1046,7 +1135,8 @@ def main() -> None:
         description="Token-Efficiency Scorer — three-axis efficiency report for CC sessions.",
     )
     parser.add_argument(
-        "--version", "-V",
+        "--version",
+        "-V",
         action="version",
         version=f"%(prog)s {__version__}",
     )
@@ -1164,7 +1254,9 @@ def main() -> None:
         ),
     )
     backfill_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
@@ -1179,32 +1271,46 @@ def main() -> None:
         ),
     )
     serve_p.add_argument(
-        "--port", type=int, default=4747,
+        "--port",
+        type=int,
+        default=4747,
         metavar="PORT",
         help="Dashboard port (default: 4747).",
     )
     serve_p.add_argument(
-        "--scan-interval", type=int, default=120, dest="scan_interval",
+        "--scan-interval",
+        type=int,
+        default=120,
+        dest="scan_interval",
         metavar="SECONDS",
         help="Seconds between scan cycles (default: 120).",
     )
     serve_p.add_argument(
-        "--stability-window", type=int, default=300, dest="stability_window",
+        "--stability-window",
+        type=int,
+        default=300,
+        dest="stability_window",
         metavar="SECONDS",
         help="Seconds a session file must be unmodified before scoring (default: 300).",
     )
     serve_p.add_argument(
-        "--cc-path", default=None, dest="cc_path",
+        "--cc-path",
+        default=None,
+        dest="cc_path",
         metavar="PATH",
         help="Path to Claude Code projects directory (default: ~/.claude/projects).",
     )
     serve_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     serve_p.add_argument(
-        "--background-judge", action="store_true", dest="background_judge",
+        "--background-judge",
+        action="store_true",
+        dest="background_judge",
         help=(
             "Enable trajectory judge in the background watcher (local Ollama only). "
             "Requires Ollama + qwen3:30b-a3b (~18 GB VRAM). "
@@ -1213,7 +1319,9 @@ def main() -> None:
         ),
     )
     serve_p.add_argument(
-        "--alarm", action="store_true", dest="alarm",
+        "--alarm",
+        action="store_true",
+        dest="alarm",
         help=(
             "Enable the live cost/context alarm (OFF by default). Data-gated: only fires when "
             "the active session's context already exceeds your own p75 for that task_type AND "
@@ -1221,7 +1329,9 @@ def main() -> None:
         ),
     )
     serve_p.add_argument(
-        "--plan", default="usage_based", dest="plan_type",
+        "--plan",
+        default="usage_based",
+        dest="plan_type",
         choices=["usage_based", "max"],
         help=(
             "Billing plan, for alarm display emphasis only (default: usage_based). "
@@ -1240,20 +1350,26 @@ def main() -> None:
         ),
     )
     export_p.add_argument(
-        "--output", default=None, dest="output",
+        "--output",
+        default=None,
+        dest="output",
         metavar="PATH",
         help="Output file path (default: ~/.tes/contribution-<date>.jsonl).",
     )
     export_p.add_argument(
-        "--anonymous", action="store_true",
+        "--anonymous",
+        action="store_true",
         help="Omit contributor_id from all rows.",
     )
     export_p.add_argument(
-        "--preview", action="store_true",
+        "--preview",
+        action="store_true",
         help="Show the sample row and field list without writing any file.",
     )
     export_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
@@ -1297,7 +1413,9 @@ def main() -> None:
         help="Anthropic API key (default: ANTHROPIC_API_KEY env var).",
     )
     ask_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
@@ -1317,7 +1435,9 @@ def main() -> None:
         ),
     )
     patterns_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
@@ -1338,12 +1458,17 @@ def main() -> None:
         ),
     )
     impact_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     impact_p.add_argument(
-        "--top", type=int, default=10, dest="top_n",
+        "--top",
+        type=int,
+        default=10,
+        dest="top_n",
         metavar="N",
         help="Number of files/directories to show in the churn ranking (default: 10).",
     )
@@ -1371,11 +1496,14 @@ def main() -> None:
         ),
     )
     corpus_contribute_p.add_argument(
-        "--anonymous", action="store_true",
+        "--anonymous",
+        action="store_true",
         help="Omit contributor_id from all rows (rows cannot be individually withdrawn later).",
     )
     corpus_contribute_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
@@ -1401,12 +1529,17 @@ def main() -> None:
         ),
     )
     budget_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     budget_p.add_argument(
-        "--window-days", type=int, default=7, dest="window_days",
+        "--window-days",
+        type=int,
+        default=7,
+        dest="window_days",
         metavar="N",
         help="Rolling window size in days (default: 7).",
     )
@@ -1421,25 +1554,32 @@ def main() -> None:
         ),
     )
     cost_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     cost_period_group = cost_p.add_mutually_exclusive_group(required=True)
     cost_period_group.add_argument(
-        "--week", action="store_true",
+        "--week",
+        action="store_true",
         help="Rolling last 7 days.",
     )
     cost_period_group.add_argument(
-        "--month", action="store_true",
+        "--month",
+        action="store_true",
         help="Rolling last 30 days.",
     )
     cost_period_group.add_argument(
-        "--since", default=None, metavar="YYYY-MM-DD",
+        "--since",
+        default=None,
+        metavar="YYYY-MM-DD",
         help="From this date (inclusive) through now.",
     )
     cost_p.add_argument(
-        "--roi", action="store_true",
+        "--roi",
+        action="store_true",
         help=(
             "Also report plan ROI: API-equivalent spend against your configured plan "
             "cost for this window. Requires ~/.tes/plan.json (or --plan-config) -- "
@@ -1447,7 +1587,9 @@ def main() -> None:
         ),
     )
     cost_p.add_argument(
-        "--plan-config", default=None, dest="plan_config",
+        "--plan-config",
+        default=None,
+        dest="plan_config",
         metavar="PATH",
         help="Path to plan config JSON (default: ~/.tes/plan.json, or TES_PLAN_PATH env var).",
     )
@@ -1461,22 +1603,31 @@ def main() -> None:
         ),
     )
     monitor_p.add_argument(
-        "--cc-path", default=None, dest="cc_path",
+        "--cc-path",
+        default=None,
+        dest="cc_path",
         metavar="PATH",
         help="Claude Code projects directory to search (default: ~/.claude/projects).",
     )
     monitor_p.add_argument(
-        "--db-path", default=None, dest="db_path",
+        "--db-path",
+        default=None,
+        dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     monitor_p.add_argument(
-        "--stability-window", type=int, default=300, dest="stability_window",
+        "--stability-window",
+        type=int,
+        default=300,
+        dest="stability_window",
         metavar="SECONDS",
         help="A session modified more recently than this is considered 'active' (default: 300).",
     )
     monitor_p.add_argument(
-        "--plan", default="usage_based", dest="plan_type",
+        "--plan",
+        default="usage_based",
+        dest="plan_type",
         choices=["usage_based", "max"],
         help="Billing plan, for alarm display emphasis only (default: usage_based).",
     )
@@ -1499,15 +1650,28 @@ def main() -> None:
         )
         sample_path = resources.files("tes.data") / "quickstart_sample_session.jsonl"
         with resources.as_file(sample_path) as concrete_path:
-            score_path(concrete_path, load_baselines(), JudgeConfig(), use_judge=False, json_mode=False)
+            score_path(
+                concrete_path, load_baselines(), JudgeConfig(), use_judge=False, json_mode=False
+            )
+        print(
+            "Example -- what TRAJECTORY QUALITY looks like with a judge configured\n"
+            "(illustrative only: a fixed example, not computed from this session --\n"
+            "quickstart never probes or calls a judge):\n"
+            "\n"
+            "  Verdict:     BETTER (score: 1)\n"
+            "  Reasoning:   Direct, minimal-detour path to the stated goal; no\n"
+            "               backtracking or redundant exploration.\n"
+        )
         print(
             "This ran entirely from what shipped in the installed package. Next: `tes score` "
-            "(no path) scores your own most recent real Claude Code session."
+            "(no path) scores your own most recent real Claude Code session, or "
+            "`tes score --judge` once you have a local Ollama judge or an API key configured."
         )
         sys.exit(0)
 
     if args.command == "backfill-waste":
         from pathlib import Path as _Path
+
         from tes.store import backfill_waste
 
         db_path = _Path(args.db_path).expanduser() if args.db_path else None
@@ -1517,7 +1681,7 @@ def main() -> None:
         print(f"  Sessions confirmed 0-waste:  {summary['no_waste']}")
         print(f"  Source files not accessible: {summary['missing_source']}")
         print(f"  Errors (skipped):            {summary['errors']}")
-        total_processed = summary['updated'] + summary['no_waste']
+        total_processed = summary["updated"] + summary["no_waste"]
         print(f"  Total processed: {total_processed}")
         sys.exit(0)
 
@@ -1540,8 +1704,12 @@ def main() -> None:
 
     if args.command == "cost":
         _run_cost(
-            db_path=args.db_path, week=args.week, month=args.month, since=args.since,
-            roi=args.roi, plan_config=args.plan_config,
+            db_path=args.db_path,
+            week=args.week,
+            month=args.month,
+            since=args.since,
+            roi=args.roi,
+            plan_config=args.plan_config,
         )
         sys.exit(0)
 
@@ -1556,6 +1724,7 @@ def main() -> None:
 
     if args.command == "export-contribution":
         from datetime import date as _date
+
         from tes.contribution import build_contribution_payload, get_or_create_contributor_id
         from tes.store import open_db as _open_db
         from tes.store import resolve_db_path as _resolve_db_path
@@ -1648,6 +1817,7 @@ def main() -> None:
 
     if args.command == "ask":
         import os as _os
+
         _run_ask(
             question=args.question,
             db_path=args.db_path,
@@ -1762,8 +1932,9 @@ def main() -> None:
         print(f"\n{JUDGE_SETUP_HINT_FULL}\n", file=sys.stderr)
 
     from tes.store import open_db  # noqa: PLC0415
+
     store_conn = None
-    try:
+    try:  # noqa: SIM105 -- pre-existing, unrelated to this change; not a drive-by fix
         store_conn = open_db()
     except Exception:
         pass
@@ -1771,7 +1942,11 @@ def main() -> None:
     try:
         for sp in session_paths:
             _score_path_with_api_judge(
-                sp, baselines, judge_config, use_local_judge, args.json_mode,
+                sp,
+                baselines,
+                judge_config,
+                use_local_judge,
+                args.json_mode,
                 store_conn=store_conn,
                 api_judge_config=api_judge_config,
                 api_judge_consent=api_judge_consent,
