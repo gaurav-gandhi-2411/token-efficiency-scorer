@@ -31,14 +31,14 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.live_monitor import find_active_session, score_live_session
 from tes.score import ThreeAxisResult, score_session
-from tes.self_baseline import compute_baseline_cost_band, load_or_compute
+from tes.self_baseline import load_or_compute
 from tes.store import file_hash, needs_scoring, open_db, resolve_db_path, upsert_session
 from tes.waste import annotate_waste_costs, build_waste_entry
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CC_PATH: Path = Path.home() / ".claude" / "projects"
-DEFAULT_SCAN_INTERVAL: int = 120    # seconds between scans
+DEFAULT_SCAN_INTERVAL: int = 120  # seconds between scans
 DEFAULT_STABILITY_WINDOW: int = 300  # seconds a file must be unmodified to be "finished"
 
 
@@ -49,7 +49,7 @@ class WatcherConfig:
     stability_window: int = DEFAULT_STABILITY_WINDOW
     db_path: Path | None = None
     background_judge: bool = False  # OFF by default — opt-in only, see spec discipline 3
-    alarm_enabled: bool = False     # OFF by default — opt-in live cost/context alarm (0.10.0)
+    alarm_enabled: bool = False  # OFF by default — opt-in live cost/context alarm (0.10.0)
     plan_type: str = "usage_based"  # "usage_based" | "max" — alarm display emphasis only
 
 
@@ -84,6 +84,7 @@ def score_session_file(
             # background_judge opt-in path. Lazy import so the judge module
             # is never loaded (or its GPU checks triggered) unless opted in.
             from tes.judge import JudgeConfig, score_trajectory  # noqa: PLC0415
+
             judge_entry = score_trajectory(record, JudgeConfig())
 
         # Cost annotation: compute from measured tokens at per-turn rates.
@@ -112,6 +113,7 @@ def score_session_file(
         if digest is not None:
             try:
                 from tes.attribution import compute_attribution
+
                 attribution = compute_attribution(digest, waste_entry, prices)
             except Exception:
                 logger.debug(
@@ -119,7 +121,8 @@ def score_session_file(
                 )
 
         return score_session(
-            record, baselines,
+            record,
+            baselines,
             judge_entry=judge_entry,
             waste_entry=waste_entry,
             self_baseline=self_baseline,

@@ -7,6 +7,7 @@ Tests:
   4. The existing honesty elements survive sorted HTML responses:
      band_verdict, DOV caveat, trajectory badge, price_provenance, sort arrows.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -14,7 +15,6 @@ import time
 from pathlib import Path
 
 import pytest
-
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
@@ -23,10 +23,10 @@ from tes.score import (
 )
 from tes.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
 
-
 # ---------------------------------------------------------------------------
 # Fixture helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_result(
     session_id: str,
@@ -67,16 +67,17 @@ def _seed_db(db_path: Path) -> None:
     conn = open_db(db_path)
     sessions = [
         # (sid_suffix, tokens,  cost,   waste, verdict)
-        ("aaaa", 100,   0.001,  0,    "within_band"),
-        ("bbbb", 500,   0.050,  2,    "above_p75"),
-        ("cccc", 300,   0.020,  0,    "below_p25"),
-        ("dddd", 900,   0.100,  5,    "within_band"),
-        ("eeee", 700,   0.005,  1,    "above_p75"),
+        ("aaaa", 100, 0.001, 0, "within_band"),
+        ("bbbb", 500, 0.050, 2, "above_p75"),
+        ("cccc", 300, 0.020, 0, "below_p25"),
+        ("dddd", 900, 0.100, 5, "within_band"),
+        ("eeee", 700, 0.005, 1, "above_p75"),
     ]
     for i, (suf, tokens, cost, waste, verdict) in enumerate(sessions):
         sid = f"test-{suf}-0000-0000-0000-{i:012d}"
-        r = _make_result(sid, real_tokens=tokens, cost_usd=cost,
-                         waste_count=waste, band_verdict=verdict)
+        r = _make_result(
+            sid, real_tokens=tokens, cost_usd=cost, waste_count=waste, band_verdict=verdict
+        )
         upsert_session(conn, r, f"/fake/{sid}.jsonl", float(i), f"hash-{suf}")
         # Patch cost + waste because upsert_session reads them from the result
         # and already writes them; this ensures they're committed to the store.
@@ -84,7 +85,7 @@ def _seed_db(db_path: Path) -> None:
             "UPDATE sessions SET waste_event_count=?, session_cost_usd=? WHERE session_id=?",
             (waste, cost, sid),
         )
-        time.sleep(0.01)   # ensure distinct scored_at values
+        time.sleep(0.01)  # ensure distinct scored_at values
     conn.commit()
     conn.close()
 
@@ -104,6 +105,7 @@ def seeded_conn(seeded_db: Path) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 # Unit tests: list_sessions sort
 # ---------------------------------------------------------------------------
+
 
 class TestListSessionsSort:
     def test_sort_cost_desc(self, seeded_conn: sqlite3.Connection) -> None:
@@ -157,13 +159,16 @@ class TestListSessionsSort:
 # Whitelist integrity — no SQL injection surface
 # ---------------------------------------------------------------------------
 
+
 class TestSortWhitelist:
     def test_whitelist_values_are_real_column_names(self, seeded_conn: sqlite3.Connection) -> None:
         """Every whitelist value must be an actual DB column name."""
         cursor = seeded_conn.execute("SELECT * FROM sessions LIMIT 1")
         col_names = {desc[0] for desc in cursor.description}
         for key, col in _SORT_COLUMN_WHITELIST.items():
-            assert col in col_names, f"Whitelist maps {key!r} → {col!r} but that column doesn't exist"
+            assert col in col_names, (
+                f"Whitelist maps {key!r} → {col!r} but that column doesn't exist"
+            )
 
     def test_all_five_sort_keys_present(self) -> None:
         expected = {"date", "cost", "waste", "tokens", "verdict"}
@@ -174,9 +179,11 @@ class TestSortWhitelist:
 # Flask route tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def flask_app(seeded_db: Path):
     from tes.web.server import ServerConfig, create_app
+
     cfg = ServerConfig(db_path=seeded_db)
     app = create_app(cfg)
     app.config["TESTING"] = True

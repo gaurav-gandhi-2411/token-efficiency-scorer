@@ -24,10 +24,12 @@ column (unlike `scored_at`'s ISO-string column), so this module compares
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 DEFAULT_WINDOW_DAYS: int = 7
-_MIN_DAYS_OBSERVED: float = 1.0 / 24  # floor at 1 hour — avoids divide-by-near-zero on a single fresh session
+_MIN_DAYS_OBSERVED: float = (
+    1.0 / 24
+)  # floor at 1 hour — avoids divide-by-near-zero on a single fresh session
 
 
 @dataclass
@@ -50,7 +52,7 @@ def compute_budget_projection(
     Returns None when there are no sessions with cost data in the window —
     silence rather than a fabricated $0 projection (nothing to project).
     """
-    now = _now if _now is not None else datetime.now(timezone.utc)
+    now = _now if _now is not None else datetime.now(UTC)
     window_start = now - timedelta(days=window_days)
 
     rows = conn.execute(
@@ -66,7 +68,7 @@ def compute_budget_projection(
     total_usd = sum(float(r["session_cost_usd"]) for r in rows)
     session_count = len(rows)
 
-    first_ts = datetime.fromtimestamp(float(rows[0]["source_mtime"]), tz=timezone.utc)
+    first_ts = datetime.fromtimestamp(float(rows[0]["source_mtime"]), tz=UTC)
     days_observed = max((now - first_ts).total_seconds() / 86400.0, _MIN_DAYS_OBSERVED)
 
     daily_rate = total_usd / days_observed

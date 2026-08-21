@@ -11,12 +11,10 @@ Verifies that:
 
 import numpy as np
 import pytest
-
-from tes.intelligence.anomaly import AnomalyResult, detect_anomalies, summarize_anomalies
+from tes.intelligence.anomaly import detect_anomalies, summarize_anomalies
 from tes.intelligence.cluster import run_clustering
 from tes.intelligence.features import FEATURE_NAMES, SessionFeatures, build_feature_matrix
 from tes.store import list_sessions, open_db
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -89,7 +87,7 @@ class TestAnomalyThreshold:
             pytest.skip("Invalid clustering")
         pct = len(anomalies) / len(features)
         assert pct < 0.20, (
-            f"{pct*100:.1f}% of sessions flagged as anomalies. "
+            f"{pct * 100:.1f}% of sessions flagged as anomalies. "
             "Tukey fence should catch tails, not the majority."
         )
 
@@ -109,7 +107,9 @@ class TestAnomalyThreshold:
             mask = labels == k
             cluster_dists = distances[mask]
             if len(cluster_dists) < 4:
-                cluster_thresholds[k] = float(cluster_dists.max() * 2.0 if len(cluster_dists) > 0 else 1e9)
+                cluster_thresholds[k] = float(
+                    cluster_dists.max() * 2.0 if len(cluster_dists) > 0 else 1e9
+                )
                 continue
             q3 = float(np.percentile(cluster_dists, 75))
             iqr = q3 - float(np.percentile(cluster_dists, 25))
@@ -137,9 +137,7 @@ class TestAnomalyFeatureAttribution:
             pytest.skip("No anomalies to test")
         for a in anomalies:
             for df in a.top_deviating_features:
-                assert df["name"] in FEATURE_NAMES, (
-                    f"Unknown deviating feature: {df['name']}"
-                )
+                assert df["name"] in FEATURE_NAMES, f"Unknown deviating feature: {df['name']}"
 
     def test_deviating_features_count_is_bounded(self, anomalies):
         if not anomalies:
@@ -180,8 +178,8 @@ class TestAnomalyFeatureAttribution:
 class TestAnomalyGuards:
     def test_no_anomalies_on_invalid_clustering(self):
         """detect_anomalies should return [] when result.valid is False."""
-        from tes.intelligence.cluster import ClusteringResult, MIN_SESSIONS_FOR_CLUSTERING
         from sklearn.preprocessing import StandardScaler
+        from tes.intelligence.cluster import ClusteringResult
 
         # Build a result that has valid=False
         fake_result = ClusteringResult(
@@ -208,16 +206,24 @@ class TestAnomalyGuards:
 
     def test_no_anomalies_on_empty_labels(self):
         """detect_anomalies with empty labels returns []."""
-        from tes.intelligence.cluster import ClusteringResult
         from sklearn.preprocessing import StandardScaler
+        from tes.intelligence.cluster import ClusteringResult
 
         result = ClusteringResult(
-            n_sessions=0, k=2, valid=True,
-            status="ok", domain_of_validity="n/a",
-            silhouette=0.3, silhouette_stability_mean=0.3, silhouette_stability_cv=0.0,
-            stable=True, archetypes=[],
-            session_ids=[], labels=[],
-            distances_to_centroid=[], scaler=StandardScaler(),
+            n_sessions=0,
+            k=2,
+            valid=True,
+            status="ok",
+            domain_of_validity="n/a",
+            silhouette=0.3,
+            silhouette_stability_mean=0.3,
+            silhouette_stability_cv=0.0,
+            stable=True,
+            archetypes=[],
+            session_ids=[],
+            labels=[],
+            distances_to_centroid=[],
+            scaler=StandardScaler(),
         )
         anomalies = detect_anomalies([], np.zeros((0, 8)), result)
         assert anomalies == []

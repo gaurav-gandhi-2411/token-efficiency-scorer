@@ -8,7 +8,6 @@ assignment) or honestly reports no-stable-clusters when the data lacks structure
 
 import numpy as np
 import pytest
-
 from tes.intelligence.cluster import (
     SILHOUETTE_STABLE_THRESHOLD,
     SILHOUETTE_WEAK_THRESHOLD,
@@ -21,7 +20,6 @@ from tes.intelligence.features import (
     build_feature_matrix,
 )
 from tes.store import list_sessions, open_db
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -46,7 +44,9 @@ def _load_real_corpus() -> tuple[list[SessionFeatures], np.ndarray, dict[str, in
     return features, X, diagnostics
 
 
-def _fake_features(n: int, n_feats: int = len(FEATURE_NAMES)) -> tuple[list[SessionFeatures], np.ndarray]:
+def _fake_features(
+    n: int, n_feats: int = len(FEATURE_NAMES)
+) -> tuple[list[SessionFeatures], np.ndarray]:
     """Build minimal fake SessionFeatures + random X for structural tests."""
     rng = np.random.default_rng(42)
     X = rng.standard_normal((n, n_feats))
@@ -204,9 +204,7 @@ class TestClusteringValidity:
     def test_dominant_features_are_valid_feature_names(self, real_result: ClusteringResult):
         for archetype in real_result.archetypes:
             for df in archetype.dominant_features:
-                assert df["name"] in FEATURE_NAMES, (
-                    f"Unknown dominant feature: {df['name']}"
-                )
+                assert df["name"] in FEATURE_NAMES, f"Unknown dominant feature: {df['name']}"
 
     def test_archetype_names_not_quality_labels(self, real_result: ClusteringResult):
         """Names must be descriptive, not evaluative quality labels."""
@@ -231,11 +229,16 @@ class TestClusteringValidity:
         # the status message is honest when silhouette is low
         if result.silhouette < SILHOUETTE_WEAK_THRESHOLD:
             assert not result.valid
-            assert "no stable clusters" in result.status.lower() or "not valid" in result.status.lower() or result.k == 0
+            assert (
+                "no stable clusters" in result.status.lower()
+                or "not valid" in result.status.lower()
+                or result.k == 0
+            )
 
     def test_too_few_sessions_returns_invalid(self):
         """Fewer than MIN_SESSIONS should return an invalid result with clear status."""
         from tes.intelligence.cluster import MIN_SESSIONS_FOR_CLUSTERING
+
         feats, X_small = _fake_features(MIN_SESSIONS_FOR_CLUSTERING - 1)
         result = run_clustering(feats, X_small, random_state=42)
         assert not result.valid

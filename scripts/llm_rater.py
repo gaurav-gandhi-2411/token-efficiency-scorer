@@ -9,6 +9,7 @@ Modes:
 
 Output: data/llm_provisional_ratings.jsonl
 """
+
 from __future__ import annotations
 
 import argparse
@@ -385,10 +386,7 @@ def _run_batch_poll(client: Any, batch_id: str) -> None:
 
         in_t: int = msg.usage.input_tokens
         out_t: int = msg.usage.output_tokens
-        cost = (
-            in_t * SONNET_BATCH_COST_PER_M_IN / 1e6
-            + out_t * SONNET_BATCH_COST_PER_M_OUT / 1e6
-        )
+        cost = in_t * SONNET_BATCH_COST_PER_M_IN / 1e6 + out_t * SONNET_BATCH_COST_PER_M_OUT / 1e6
         _log_cost(sid, in_t, out_t, cost, mode="anthropic-batch")
         _append_rating(sid, rating, parsed.get("justification", ""))
         existing_ids.add(sid)

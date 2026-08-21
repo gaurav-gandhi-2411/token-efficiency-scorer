@@ -11,27 +11,23 @@ Tests VALUE leakage, not just key leakage.
 """
 
 import json
-from datetime import datetime, timezone
-from unittest.mock import patch
+from datetime import UTC, datetime
 
-import pytest
-
-from tes.contribution import ALLOWED_FIELDS, build_contribution_payload
+from tes.contribution import build_contribution_payload
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
 
-
 # Sensitive strings that must NEVER appear in the serialized payload
 PLANTED_SECRETS = [
-    "sk-ant-api03-SUPERSECRETKEY123456",           # Anthropic key
-    "gsk_GROQAPIKEY9876543210abcdef",              # Groq key
-    "/home/gaurav/secret-project/session.jsonl",   # file path
-    "my-identifying-project-name",                 # project name
-    "custom-self-hosted-model-v99",                # exotic model string
-    "EVIDENCE_SNIPPET_CONTENT_123",                # evidence in waste event
-    "proof_turn_content_DO_NOT_LEAK",              # proof turn content
-    "judge said this is TERRIBLE code",            # judge reasoning
-    "interpretation_string_with_details",          # interpretation
+    "sk-ant-api03-SUPERSECRETKEY123456",  # Anthropic key
+    "gsk_GROQAPIKEY9876543210abcdef",  # Groq key
+    "/home/gaurav/secret-project/session.jsonl",  # file path
+    "my-identifying-project-name",  # project name
+    "custom-self-hosted-model-v99",  # exotic model string
+    "EVIDENCE_SNIPPET_CONTENT_123",  # evidence in waste event
+    "proof_turn_content_DO_NOT_LEAK",  # proof turn content
+    "judge said this is TERRIBLE code",  # judge reasoning
+    "interpretation_string_with_details",  # interpretation
 ]
 
 
@@ -51,24 +47,26 @@ def _make_result_with_secrets(session_id: str = "test-leak-check") -> ThreeAxisR
         p75=7000,
         median=5000,
         band_verdict="within_band",
-        interpretation="interpretation_string_with_details",    # PLANTED
+        interpretation="interpretation_string_with_details",  # PLANTED
         token_domain_of_validity="",
         baseline_source="b2_corpus",
         judge_verdict="WORSE",
         judge_score=2.0,
-        judge_reasoning="judge said this is TERRIBLE code",     # PLANTED
+        judge_reasoning="judge said this is TERRIBLE code",  # PLANTED
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REPEATED-FAILED-RETRY",
-            "session_id": session_id,                           # PLANTED (session_id in event)
-            "turns": [3, 5, 7],
-            "repeat_count": 3,
-            "evidence": {
-                "error_snippet": "EVIDENCE_SNIPPET_CONTENT_123",   # PLANTED
-                "proof_turn_content": "proof_turn_content_DO_NOT_LEAK",  # PLANTED
-            },
-        }],
+        waste_events=[
+            {
+                "detector": "REPEATED-FAILED-RETRY",
+                "session_id": session_id,  # PLANTED (session_id in event)
+                "turns": [3, 5, 7],
+                "repeat_count": 3,
+                "evidence": {
+                    "error_snippet": "EVIDENCE_SNIPPET_CONTENT_123",  # PLANTED
+                    "proof_turn_content": "proof_turn_content_DO_NOT_LEAK",  # PLANTED
+                },
+            }
+        ],
         waste_domain_of_validity="",
         session_cost_usd=0.05,
         cost_approximate=False,
@@ -79,7 +77,7 @@ def _make_result_with_secrets(session_id: str = "test-leak-check") -> ThreeAxisR
 def _payload_json(result: ThreeAxisResult, source_path: str = "/nonexistent/path.jsonl") -> str:
     """Build a contribution payload from a single session and return serialized JSON."""
     conn = _make_conn()
-    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=UTC).timestamp()
     upsert_session(conn, result, source_path, mtime, "hash-test", turn_count=20)
     payload = build_contribution_payload(
         conn,
@@ -153,11 +151,9 @@ def test_exotic_model_string_becomes_other() -> None:
     # This test confirms no raw exotic string survives via any path.
     conn = _make_conn()
     result = _make_result_with_secrets()
-    mtime = datetime(2026, 6, 9, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-exotic", turn_count=20)
-    payload = build_contribution_payload(
-        conn, contributor_id=None, include_source_components=False
-    )
+    payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     serialized = json.dumps([{"rows": payload.rows}])
     assert "custom-self-hosted-model-v99" not in serialized
 
@@ -167,21 +163,29 @@ def test_unknown_task_type_becomes_other() -> None:
     conn = _make_conn()
     result = ThreeAxisResult(
         session_id="unknown-task-type-test",
-        task_type="IDENTIFYING-PROJECT-NAME-AS-TYPE",   # not in known set
+        task_type="IDENTIFYING-PROJECT-NAME-AS-TYPE",  # not in known set
         real_tokens=1000,
         scope_status="no_baseline",
         baseline_available=False,
-        p25=None, p75=None, median=None,
+        p25=None,
+        p75=None,
+        median=None,
         band_verdict="unavailable",
         interpretation="",
         token_domain_of_validity="",
         baseline_source="b2_corpus",
-        judge_verdict=None, judge_score=None, judge_reasoning=None,
+        judge_verdict=None,
+        judge_score=None,
+        judge_reasoning=None,
         trajectory_domain_of_validity="",
-        waste_event_count=0, waste_events=[], waste_domain_of_validity="",
-        session_cost_usd=None, cost_approximate=False, cost_domain_of_validity=None,
+        waste_event_count=0,
+        waste_events=[],
+        waste_domain_of_validity="",
+        session_cost_usd=None,
+        cost_approximate=False,
+        cost_domain_of_validity=None,
     )
-    mtime = datetime(2026, 6, 9, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-tasktype", turn_count=5)
     payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     serialized = json.dumps([{"rows": payload.rows}])

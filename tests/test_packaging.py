@@ -14,9 +14,6 @@ resolution that depends on package-data inclusion in the wheel.
 """
 
 import re
-import sys
-
-import pytest
 
 
 def test_version_present() -> None:

@@ -1,6 +1,10 @@
 """Check instance_id, first-turn content, and patch_diff stats."""
+
 from __future__ import annotations
-import json, pathlib, re, collections
+
+import json
+import pathlib
+import re
 
 traces_dir = pathlib.Path("data/validation-corpus/traces_normalized")
 files = sorted(traces_dir.glob("*.json"))
@@ -27,7 +31,9 @@ for f in files:
         lines_added = diff.count("\n+") - diff.count("\n+++")
         lines_removed = diff.count("\n-") - diff.count("\n---")
         files_changed = len(re.findall(r"^diff --git", diff, re.MULTILINE))
-        print(f"  [{s['scaffold']}] files={files_changed} +{lines_added} -{lines_removed} instance={s['instance_id'][:30]}")
+        print(
+            f"  [{s['scaffold']}] files={files_changed} +{lines_added} -{lines_removed} instance={s['instance_id'][:30]}"
+        )
         count += 1
         if count >= 10:
             break

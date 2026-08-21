@@ -76,6 +76,7 @@ WHAT YOU MUST NEVER DO:
 @dataclass
 class ChatConfig:
     """Local Ollama chat configuration."""
+
     endpoint: str = "http://localhost:11434"
     model: str = "qwen3:8b"
     probe_timeout_s: float = 3.0
@@ -85,6 +86,7 @@ class ChatConfig:
 @dataclass
 class ChatApiConfig:
     """Anthropic API chat configuration. Consent required before any network call."""
+
     api_key: str
     model: str = "claude-haiku-4-5-20251001"
     inference_timeout_s: float = 60.0
@@ -95,9 +97,11 @@ class ChatApiConfig:
 # than the judge path, but we still show a consent screen: egress is egress.
 _SEP = "─" * 70
 CHAT_EGRESS_NOTICE = (
-    _SEP + "\n"
+    _SEP
+    + "\n"
     + "CHAT — API CALL OPT-IN CONSENT\n"
-    + _SEP + "\n"
+    + _SEP
+    + "\n"
     + "\n"
     + "Answering this question will send SESSION METRICS to Anthropic.\n"
     + "\n"
@@ -143,8 +147,9 @@ def build_chat_context(
       "session": specific session data if question mentions a session ID (else None)
       "question": the original question (for prompt construction)
     """
-    from tes.store import open_db, list_sessions, resolve_db_path
     import numpy as np
+
+    from tes.store import list_sessions, open_db, resolve_db_path
 
     resolved_db_path = resolve_db_path(db_path)
     intelligence = get_or_compute_intelligence(
@@ -162,6 +167,7 @@ def build_chat_context(
     waste_rows = [r for r in content_rows if (r.get("waste_event_count") or 0) > 0]
 
     from collections import Counter
+
     type_counts = Counter(r["task_type"] for r in rows)
 
     corpus_stats: dict[str, Any] = {
@@ -190,10 +196,12 @@ def build_chat_context(
     session_data = None
     # Simple heuristic: look for UUID-like strings in the question
     import re
+
     uuid_pattern = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
     session_ids_in_q = uuid_pattern.findall(question)
     if session_ids_in_q:
         from tes.store import get_session
+
         conn = open_db(resolved_db_path)
         for sid in session_ids_in_q[:1]:  # max 1 session per query
             row = get_session(conn, sid)
@@ -219,7 +227,7 @@ def _summarize_session(row: dict) -> dict[str, Any]:
     waste_events = row.get("waste_events") or []
     waste_types = list({e.get("detector", "unknown") for e in waste_events})
     return {
-        "session_id_prefix": row["session_id"][:8] + "...",   # partial ID only
+        "session_id_prefix": row["session_id"][:8] + "...",  # partial ID only
         "task_type": row.get("task_type"),
         "scored_at": row.get("scored_at"),
         "real_tokens": row.get("real_tokens"),
@@ -311,6 +319,7 @@ def _strip_thinking(text: str) -> str:
       we detect this and return empty string so the caller falls back gracefully.
     """
     import re as _re
+
     # Remove complete <think>...</think> blocks
     text = _re.sub(r"<think>.*?</think>", "", text, flags=_re.DOTALL)
     # If </think> appears without an opening tag, keep only what follows it
@@ -339,6 +348,7 @@ def _pick_chat_model(config: ChatConfig) -> str | None:
             return m
     # Fall back to any model with >= 7B params (rough heuristic: name contains a number >= 7)
     import re as _re
+
     for m in models:
         nums = [int(x) for x in _re.findall(r"\d+", m) if int(x) >= 7]
         if nums:
@@ -384,7 +394,9 @@ def ask_local(
                 "options": {"temperature": 0.1, "seed": 42, "num_ctx": 8192, "num_predict": 1024},
                 "think": False,  # suppress extended thinking on qwen3/thinking-capable models
             },
-            timeout=httpx.Timeout(connect=5.0, read=config.inference_timeout_s, write=10.0, pool=10.0),
+            timeout=httpx.Timeout(
+                connect=5.0, read=config.inference_timeout_s, write=10.0, pool=10.0
+            ),
         ) as resp:
             resp.raise_for_status()
             for line in resp.iter_lines():

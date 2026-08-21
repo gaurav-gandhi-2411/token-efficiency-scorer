@@ -11,6 +11,7 @@ disagreement cases, gate overlap, and reverse-gate analysis.
 
 Writes data/judge_agreement.json and prints a human-readable summary.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,7 +58,9 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
             try:
                 records.append(json.loads(line))
             except json.JSONDecodeError as exc:
-                print(f"WARNING: skipping malformed JSON at {path}:{lineno} — {exc}", file=sys.stderr)
+                print(
+                    f"WARNING: skipping malformed JSON at {path}:{lineno} — {exc}", file=sys.stderr
+                )
     return records
 
 
@@ -220,11 +223,7 @@ def compute_agreement(
         # Waste disagreement: Qwen flags waste + rates bad, Gemma rates good
         qwen_waste = set(qrec.get("waste_categories") or [])
         flagged_waste = bool(qwen_waste & WASTE_FLAG_CATEGORIES)
-        if (
-            flagged_waste
-            and qv in ("WORSE", "MUCH_WORSE")
-            and gv in ("BETTER", "MUCH_BETTER")
-        ):
+        if flagged_waste and qv in ("WORSE", "MUCH_WORSE") and gv in ("BETTER", "MUCH_BETTER"):
             waste_disagreements.append(
                 {
                     "session_id": qrec["session_id"],
@@ -249,9 +248,7 @@ def compute_agreement(
         try:
             from sklearn.metrics import cohen_kappa_score  # type: ignore[import-untyped]
 
-            weighted_kappa = float(
-                cohen_kappa_score(qwen_ords, gemma_ords, weights="quadratic")
-            )
+            weighted_kappa = float(cohen_kappa_score(qwen_ords, gemma_ords, weights="quadratic"))
             kappa_label = kappa_interpretation(weighted_kappa)
         except Exception as exc:
             print(f"WARNING: kappa computation failed — {exc}", file=sys.stderr)
@@ -278,9 +275,7 @@ def compute_agreement(
     # ---------- directional analysis ----------
 
     n_disagreements = len(disagreement_directions)
-    mean_direction = (
-        sum(disagreement_directions) / n_disagreements if n_disagreements else 0.0
-    )
+    mean_direction = sum(disagreement_directions) / n_disagreements if n_disagreements else 0.0
     n_gemma_lenient = sum(1 for d in disagreement_directions if d > 0)
     n_gemma_harsher = sum(1 for d in disagreement_directions if d < 0)
     pct_gemma_lenient = n_gemma_lenient / n_disagreements if n_disagreements else 0.0
@@ -333,13 +328,9 @@ def compute_agreement(
             "qwen_negative_slice": {
                 "n": qneg_n,
                 "gemma_also_negative_n": qneg_also_neg,
-                "gemma_also_negative_pct": round(
-                    qneg_also_neg / qneg_n if qneg_n else 0.0, 4
-                ),
+                "gemma_also_negative_pct": round(qneg_also_neg / qneg_n if qneg_n else 0.0, 4),
                 "gemma_lenient_n": qneg_gemma_lenient,
-                "gemma_lenient_pct": round(
-                    qneg_gemma_lenient / qneg_n if qneg_n else 0.0, 4
-                ),
+                "gemma_lenient_pct": round(qneg_gemma_lenient / qneg_n if qneg_n else 0.0, 4),
                 "mean_direction": round(qneg_mean_direction, 4),
             },
         },
@@ -398,7 +389,9 @@ def print_summary(result: dict[str, Any]) -> None:
     qneg = d["qwen_negative_slice"]
     print("Qwen-negative slice (Qwen rated WORSE/MUCH_WORSE):")
     print(f"  N sessions:       {qneg['n']}")
-    print(f"  Gemma also neg:   {qneg['gemma_also_negative_n']} ({qneg['gemma_also_negative_pct']:.1%})")
+    print(
+        f"  Gemma also neg:   {qneg['gemma_also_negative_n']} ({qneg['gemma_also_negative_pct']:.1%})"
+    )
     print(f"  Gemma lenient:    {qneg['gemma_lenient_n']} ({qneg['gemma_lenient_pct']:.1%})")
     print(f"  Mean direction:   {qneg['mean_direction']:+.3f}")
     print()
@@ -414,7 +407,9 @@ def print_summary(result: dict[str, Any]) -> None:
     print("Reverse gate (Qwen WORSE/MUCH_WORSE):")
     print(f"  N Qwen bad:              {rg['n_qwen_bad']}")
     print(f"  Gemma also bad:          {rg['n_gemma_also_bad']} ({rg['pct_gemma_agrees_bad']:.1%})")
-    print(f"  Gemma lenient on bad:    {rg['n_gemma_lenient_on_bad']} ({rg['pct_gemma_lenient_on_bad']:.1%})")
+    print(
+        f"  Gemma lenient on bad:    {rg['n_gemma_lenient_on_bad']} ({rg['pct_gemma_lenient_on_bad']:.1%})"
+    )
     print()
 
     print(f"Waste disagreements:  {result['n_waste_disagreements']}")
@@ -485,7 +480,10 @@ def main(argv: list[str] | None = None) -> None:
     qwen_records = load_jsonl(qwen_path)
     gemma_records = load_jsonl(gemma_path)
 
-    print(f"Loaded {len(qwen_records)} Qwen records, {len(gemma_records)} Gemma records", file=sys.stderr)
+    print(
+        f"Loaded {len(qwen_records)} Qwen records, {len(gemma_records)} Gemma records",
+        file=sys.stderr,
+    )
 
     if not qwen_records and not gemma_records:
         print("ERROR: both score files are empty or missing — nothing to compute", file=sys.stderr)

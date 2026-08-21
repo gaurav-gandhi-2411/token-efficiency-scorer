@@ -18,7 +18,6 @@ Covered:
 import socket
 
 import pytest
-
 import tes.cli as cli
 import tes.judge as judge
 
@@ -135,7 +134,9 @@ def test_no_silent_egress_consent_gate_is_unconditional(monkeypatch):
     monkeypatch.setattr(socket.socket, "connect", _boom)
 
     cfg = judge.ApiJudgeConfig(api_key="sk-test-key")
-    result = judge.score_trajectory_api({"session_id": "x", "digest": {"turns": []}}, cfg, consent_given=False)
+    result = judge.score_trajectory_api(
+        {"session_id": "x", "digest": {"turns": []}}, cfg, consent_given=False
+    )
     assert result is None  # no verdict, no network, no egress
 
 

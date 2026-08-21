@@ -1,6 +1,3 @@
-# ruff: noqa: E402 -- see the identical note in tes/cli.py; same repo-wide,
-# pre-existing rule-1-vs-E402 conflict, newly blocking now that this file is
-# touched under the (freshly-active, PR #41) pre-commit hook.
 from __future__ import annotations
 
 """tests/test_quickstart.py — HH1.2: end-to-end coverage for `tes quickstart`

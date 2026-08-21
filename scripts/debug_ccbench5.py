@@ -1,17 +1,25 @@
 """Inspect CC-Bench and write OOD traces to disk."""
+
 from __future__ import annotations
-import json, pathlib, hashlib, sys
+
+import hashlib
+import json
+import pathlib
+import sys
+
 sys.stdout.reconfigure(encoding="utf-8")
 
-from datasets import load_dataset, VerificationMode
+from datasets import VerificationMode, load_dataset
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT_DIR = REPO_ROOT / "data" / "ood-corpus" / "traces_normalized"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 LOG = REPO_ROOT / "data" / "ood-corpus" / "ccbench_download.log"
 
+
 def _sid(key: str) -> str:
     return hashlib.sha256(f"ccbench:{key}".encode()).hexdigest()[:16]
+
 
 def parse_content(content) -> tuple[str, list]:
     """Parse Claude Code content block into (text, tool_uses)."""
@@ -27,11 +35,13 @@ def parse_content(content) -> tuple[str, list]:
         if btype == "text":
             texts.append(blk.get("text", ""))
         elif btype == "tool_use":
-            tools.append({
-                "tool_name": blk.get("name", ""),
-                "tool_input": blk.get("input", {}),
-                "tool_result": None,
-            })
+            tools.append(
+                {
+                    "tool_name": blk.get("name", ""),
+                    "tool_input": blk.get("input", {}),
+                    "tool_result": None,
+                }
+            )
         elif btype == "tool_result":
             rc = blk.get("content", "")
             if isinstance(rc, list):
@@ -39,11 +49,13 @@ def parse_content(content) -> tuple[str, list]:
             texts.append(f"[RESULT: {str(rc)[:300]}]")
     return " ".join(texts), tools
 
-ds = load_dataset("zai-org/CC-Bench-trajectories", split="train",
-                  verification_mode=VerificationMode.NO_CHECKS)
+
+ds = load_dataset(
+    "zai-org/CC-Bench-trajectories", split="train", verification_mode=VerificationMode.NO_CHECKS
+)
 
 log_lines = [f"CC-Bench: {len(ds)} rows"]
-categories = list(set(r.get("task_category","?") for r in ds))
+categories = list(set(r.get("task_category", "?") for r in ds))
 log_lines.append(f"Categories: {categories}")
 
 records = []
@@ -70,7 +82,9 @@ for row in ds:
     turns = []
     for i, raw in enumerate(traj):
         raw_role = raw.get("type", "user")
-        role = {"user": "user", "assistant": "assistant", "system": "system"}.get(raw_role, raw_role)
+        role = {"user": "user", "assistant": "assistant", "system": "system"}.get(
+            raw_role, raw_role
+        )
         msg = raw.get("message", {})
         if not isinstance(msg, dict):
             content_raw = str(msg)
@@ -78,12 +92,14 @@ for row in ds:
         else:
             content_raw = msg.get("content", "")
             text, tool_uses = parse_content(content_raw)
-        turns.append({
-            "turn_index": i,
-            "role": role,
-            "content_text": text[:2000],  # cap per turn
-            "tool_uses": tool_uses,
-        })
+        turns.append(
+            {
+                "turn_index": i,
+                "role": role,
+                "content_text": text[:2000],  # cap per turn
+                "tool_uses": tool_uses,
+            }
+        )
 
     task_id = str(row.get("task_id") or len(records))
     result = "pass" if row.get("tool_failures", 0) == 0 and tcs > 0 else "unknown"

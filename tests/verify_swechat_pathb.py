@@ -43,18 +43,19 @@ def main() -> None:
             pathb_event_total += len(pathb)
             if len(sample_snippets) < 3:
                 snippet = pathb[0].evidence.get("content_snippet", "")[:80]
-                sample_snippets.append(f"  session={sid[:8]} gap={pathb[0].evidence.get('gap')} "
-                                       f"snippet={snippet!r}")
+                sample_snippets.append(
+                    f"  session={sid[:8]} gap={pathb[0].evidence.get('gap')} snippet={snippet!r}"
+                )
 
     fire_rate = pathb_fire_count / total * 100 if total else 0.0
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total sessions:          {total}")
     print(f"  PATH-B fire count:       {pathb_fire_count}")
     print(f"  PATH-B total events:     {pathb_event_total}")
     print(f"  PATH-B fire rate:        {fire_rate:.2f}%")
 
     if sample_snippets:
-        print(f"\nSample PATH-B events (up to 3):")
+        print("\nSample PATH-B events (up to 3):")
         for s in sample_snippets:
             print(s.encode("ascii", errors="replace").decode("ascii"))
 
@@ -63,7 +64,9 @@ def main() -> None:
         print("Inspect a sample content_snippet from a tool turn in swechat_cc_adapted.jsonl.")
         sys.exit(1)
     else:
-        print(f"\nPATH-B fix confirmed: {pathb_fire_count}/{total} SWE-chat CC sessions fire ({fire_rate:.2f}%)")
+        print(
+            f"\nPATH-B fix confirmed: {pathb_fire_count}/{total} SWE-chat CC sessions fire ({fire_rate:.2f}%)"
+        )
 
 
 if __name__ == "__main__":

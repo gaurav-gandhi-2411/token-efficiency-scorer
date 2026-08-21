@@ -300,9 +300,7 @@ def print_summary(baselines: dict) -> None:
     print()
 
     col_w = 16
-    print(
-        f"  {'Type':<{col_w}} {'n':>5}  {'p25':>8}  {'median':>8}  {'p75':>8}  {'available':>10}"
-    )
+    print(f"  {'Type':<{col_w}} {'n':>5}  {'p25':>8}  {'median':>8}  {'p75':>8}  {'available':>10}")
     print("  " + "-" * (col_w + 48))
     for task_type, info in baselines["types"].items():
         if info["available"]:
@@ -311,7 +309,9 @@ def print_summary(baselines: dict) -> None:
                 f"{info['median']:>8,}  {info['p75']:>8,}  {'yes':>10}"
             )
         else:
-            print(f"  {task_type:<{col_w}} {info['n']:>5}  {'—':>8}  {'—':>8}  {'—':>8}  {'no':>10}")
+            print(
+                f"  {task_type:<{col_w}} {info['n']:>5}  {'—':>8}  {'—':>8}  {'—':>8}  {'no':>10}"
+            )
     print()
 
     print("Scope gates (p10 turns per type):")

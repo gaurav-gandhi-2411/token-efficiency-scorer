@@ -55,7 +55,9 @@ class LayerOneFeatures:
     p25_token_ratio: float  # total_tokens / domain_p25_baseline; clamped to [0.1, 100.0]
     labeler_model: str  # annotation._model; "missing" if annotation absent
     scaffold: str  # source scaffold: swe_agent | openhands_nebius | openhands_swegym
-    output_tokens_available: bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
+    output_tokens_available: (
+        bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
+    )
 
 
 # ---------------------------------------------------------------------------

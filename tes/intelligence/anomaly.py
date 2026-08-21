@@ -55,9 +55,9 @@ class AnomalyResult:
     task_type: str
     cluster_id: int
     cluster_name: str
-    distance_to_centroid: float        # in scaled feature space
-    cluster_threshold: float           # Tukey fence for this cluster
-    top_deviating_features: list[dict] # top-3 features by |deviation|; see _build_top_features
+    distance_to_centroid: float  # in scaled feature space
+    cluster_threshold: float  # Tukey fence for this cluster
+    top_deviating_features: list[dict]  # top-3 features by |deviation|; see _build_top_features
 
 
 def _build_top_features(
@@ -71,7 +71,7 @@ def _build_top_features(
         {
             "name": FEATURE_NAMES[i],
             "label": FEATURE_LABELS.get(FEATURE_NAMES[i], FEATURE_NAMES[i]),
-            "deviation": float(diff[i]),   # positive = above centroid, negative = below
+            "deviation": float(diff[i]),  # positive = above centroid, negative = below
             "abs_deviation": float(abs(diff[i])),
         }
         for i in top_idxs
@@ -113,7 +113,9 @@ def detect_anomalies(
         cluster_dists = distances[mask]
         if len(cluster_dists) < 4:
             # Too few samples for Tukey; fall back to 2× max distance
-            cluster_thresholds[k_idx] = float(cluster_dists.max() * 2.0 if len(cluster_dists) > 0 else 1e9)
+            cluster_thresholds[k_idx] = float(
+                cluster_dists.max() * 2.0 if len(cluster_dists) > 0 else 1e9
+            )
             continue
         q1 = float(np.percentile(cluster_dists, 25))
         q3 = float(np.percentile(cluster_dists, 75))
@@ -134,9 +136,11 @@ def detect_anomalies(
 
         archetype = archetype_by_id.get(k_idx)
         cluster_name = archetype.name if archetype else f"cluster_{k_idx}"
-        centroid_scaled = result.scaler.transform(
-            archetype.centroid_unscaled.reshape(1, -1)
-        )[0] if archetype is not None else np.zeros(X_scaled.shape[1])
+        centroid_scaled = (
+            result.scaler.transform(archetype.centroid_unscaled.reshape(1, -1))[0]
+            if archetype is not None
+            else np.zeros(X_scaled.shape[1])
+        )
 
         top_features = _build_top_features(X_scaled[i], centroid_scaled)
 

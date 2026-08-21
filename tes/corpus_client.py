@@ -30,18 +30,18 @@ import re
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 
 from tes.contribution import (
-    ALLOWED_FIELDS,
     _CONTRIBUTOR_ID_FILE,
     _KNOWN_DETECTOR_NAMES,
     _KNOWN_MODELS,
     _KNOWN_TASK_TYPES,
+    ALLOWED_FIELDS,
     build_contribution_payload,
 )
 
@@ -90,7 +90,7 @@ class CorpusConfig:
     table_name: str = "corpus_contributions"
 
     @classmethod
-    def from_env(cls) -> "CorpusConfig | None":
+    def from_env(cls) -> CorpusConfig | None:
         import os
 
         url = os.environ.get("TES_CORPUS_URL")
@@ -223,7 +223,7 @@ def _write_non_transmitted_log(reason: str) -> None:
     """Append a local record of a blocked send. The log itself never transmits."""
     _BLOCKED_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     entry = {
-        "at": datetime.now(tz=timezone.utc).isoformat(),
+        "at": datetime.now(tz=UTC).isoformat(),
         "event": "NON_TRANSMITTED — content-free guard blocked a send",
         "reason": reason,
     }
@@ -273,8 +273,8 @@ def build_corpus_consent_notice(sample_row: dict, contributor_id: str | None) ->
         f"{fields_block}\n\n"
         f"{_NEVER_SENT_BLOCK}\n\n"
         "USE: pooled with other contributors' rows to compute cross-developer\n"
-        "percentile baselines (e.g. \"your context-resend efficiency for\n"
-        "infra-deploy is in the 60th percentile across N developers\"), which\n"
+        'percentile baselines (e.g. "your context-resend efficiency for\n'
+        'infra-deploy is in the 60th percentile across N developers"), which\n'
         "you can then see alongside (never replacing) your own local self-baseline.\n\n"
         f"{cid_line}\n\n"
         "YOUR ROW (real data, exactly what would be sent):\n"
@@ -317,7 +317,7 @@ def contribute(
     *,
     consent_given: bool,
     contributor_id: str | None,
-    config: "CorpusConfig | None",
+    config: CorpusConfig | None,
     include_source_components: bool = True,
     timeout_s: float = 15.0,
 ) -> ContributeResult:
@@ -376,7 +376,7 @@ def contribute(
 def withdraw(
     *,
     confirmed: bool,
-    config: "CorpusConfig | None",
+    config: CorpusConfig | None,
     contributor_id_path: Path = _CONTRIBUTOR_ID_FILE,
     timeout_s: float = 15.0,
 ) -> WithdrawResult:

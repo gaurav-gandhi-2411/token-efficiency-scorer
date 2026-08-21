@@ -5,8 +5,6 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-import pytest
-
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
@@ -21,7 +19,6 @@ from tes.store import (
     open_db,
     upsert_session,
 )
-
 
 # ---------------------------------------------------------------------------
 # Synthetic fixture
@@ -100,7 +97,9 @@ def test_ledger_unchanged(tmp_path: Path) -> None:
     conn = open_db(tmp_path / "tes.db")
     result = _make_result()
 
-    upsert_session(conn, result, source_path="/tmp/sess.jsonl", source_mtime=1.0, source_hash="abc123")
+    upsert_session(
+        conn, result, source_path="/tmp/sess.jsonl", source_mtime=1.0, source_hash="abc123"
+    )
 
     assert needs_scoring(conn, "sess-001", "abc123") is False
     assert needs_scoring(conn, "sess-001", "def456") is True
@@ -117,7 +116,9 @@ def test_merge_full_update_with_judge(tmp_path: Path) -> None:
         real_tokens=400_000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=353_000, p75=654_000, median=524_000,
+        p25=353_000,
+        p75=654_000,
+        median=524_000,
         band_verdict="within_band",
         interpretation="Within the debug-fix band.",
         token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
@@ -130,7 +131,9 @@ def test_merge_full_update_with_judge(tmp_path: Path) -> None:
         waste_events=[],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
-    upsert_session(conn, result_a, source_path="/tmp/s.jsonl", source_mtime=1.0, source_hash="hash_a")
+    upsert_session(
+        conn, result_a, source_path="/tmp/s.jsonl", source_mtime=1.0, source_hash="hash_a"
+    )
 
     result_b = ThreeAxisResult(
         session_id="sess-001",
@@ -138,7 +141,9 @@ def test_merge_full_update_with_judge(tmp_path: Path) -> None:
         real_tokens=520_000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=353_000, p75=654_000, median=524_000,
+        p25=353_000,
+        p75=654_000,
+        median=524_000,
         band_verdict="within_band",
         interpretation="Within the debug-fix band.",
         token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
@@ -151,7 +156,9 @@ def test_merge_full_update_with_judge(tmp_path: Path) -> None:
         waste_events=[],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
-    upsert_session(conn, result_b, source_path="/tmp/s.jsonl", source_mtime=2.0, source_hash="new_hash")
+    upsert_session(
+        conn, result_b, source_path="/tmp/s.jsonl", source_mtime=2.0, source_hash="new_hash"
+    )
 
     row = get_session(conn, "sess-001")
     assert row is not None
@@ -171,7 +178,9 @@ def test_merge_preserve_judge_stale(tmp_path: Path) -> None:
         real_tokens=400_000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=353_000, p75=654_000, median=524_000,
+        p25=353_000,
+        p75=654_000,
+        median=524_000,
         band_verdict="within_band",
         interpretation="Within the debug-fix band.",
         token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
@@ -184,7 +193,9 @@ def test_merge_preserve_judge_stale(tmp_path: Path) -> None:
         waste_events=[],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
-    upsert_session(conn, result_a, source_path="/tmp/s.jsonl", source_mtime=1.0, source_hash="hash_v1")
+    upsert_session(
+        conn, result_a, source_path="/tmp/s.jsonl", source_mtime=1.0, source_hash="hash_v1"
+    )
 
     result_b = ThreeAxisResult(
         session_id="sess-001",
@@ -192,7 +203,9 @@ def test_merge_preserve_judge_stale(tmp_path: Path) -> None:
         real_tokens=520_000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=353_000, p75=654_000, median=524_000,
+        p25=353_000,
+        p75=654_000,
+        median=524_000,
         band_verdict="within_band",
         interpretation="Within the debug-fix band.",
         token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
@@ -205,7 +218,9 @@ def test_merge_preserve_judge_stale(tmp_path: Path) -> None:
         waste_events=[],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
-    upsert_session(conn, result_b, source_path="/tmp/s.jsonl", source_mtime=2.0, source_hash="hash_v2")
+    upsert_session(
+        conn, result_b, source_path="/tmp/s.jsonl", source_mtime=2.0, source_hash="hash_v2"
+    )
 
     row = get_session(conn, "sess-001")
     assert row is not None
@@ -227,10 +242,18 @@ def test_edit_operations_round_trips_through_json(tmp_path: Path) -> None:
 
     conn = open_db(tmp_path / "tes.db")
     result = _make_result(session_id="sess-edit")
-    result.edit_operations = json.dumps([
-        {"path": "foo.py", "additions": 3, "deletions": 1, "tool": "Edit",
-         "prior_content_unknown": False, "untested_tool_shape": False},
-    ])
+    result.edit_operations = json.dumps(
+        [
+            {
+                "path": "foo.py",
+                "additions": 3,
+                "deletions": 1,
+                "tool": "Edit",
+                "prior_content_unknown": False,
+                "untested_tool_shape": False,
+            },
+        ]
+    )
 
     upsert_session(conn, result, source_path="/tmp/sess.jsonl", source_mtime=1.0, source_hash="abc")
     row = get_session(conn, "sess-edit")
@@ -238,8 +261,14 @@ def test_edit_operations_round_trips_through_json(tmp_path: Path) -> None:
     assert row is not None
     stored = json.loads(row["edit_operations"])
     assert stored == [
-        {"path": "foo.py", "additions": 3, "deletions": 1, "tool": "Edit",
-         "prior_content_unknown": False, "untested_tool_shape": False},
+        {
+            "path": "foo.py",
+            "additions": 3,
+            "deletions": 1,
+            "tool": "Edit",
+            "prior_content_unknown": False,
+            "untested_tool_shape": False,
+        },
     ]
 
 
@@ -277,8 +306,13 @@ def test_wal_concurrent_access(tmp_path: Path) -> None:
             conn = open_db(tmp_path / "tes.db")
             for i in range(50):
                 r = _make_result(session_id=f"w-sess-{i:03d}")
-                upsert_session(conn, r, source_path=f"/tmp/{i}.jsonl",
-                               source_mtime=float(i), source_hash=f"hash{i}")
+                upsert_session(
+                    conn,
+                    r,
+                    source_path=f"/tmp/{i}.jsonl",
+                    source_mtime=float(i),
+                    source_hash=f"hash{i}",
+                )
             conn.close()
         except Exception as exc:
             errors.append(exc)

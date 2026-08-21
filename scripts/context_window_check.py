@@ -5,6 +5,7 @@ context window when combined with the judge prompt scaffolding and output budget
 Run: python scripts/context_window_check.py
 Does NOT modify any files. Does NOT submit anything.
 """
+
 from __future__ import annotations
 
 import json
@@ -67,9 +68,9 @@ Respond with ONLY valid JSON:
 # ---------------------------------------------------------------------------
 # Context window budget constants
 # ---------------------------------------------------------------------------
-QWEN3_8B_CTX_LIMIT: int = 32768   # tokens (conservative Ollama default)
-OUTPUT_BUDGET: int = 300           # tokens reserved for judge JSON output
-SYSTEM_OVERHEAD: int = 80          # tokens for system prompt
+QWEN3_8B_CTX_LIMIT: int = 32768  # tokens (conservative Ollama default)
+OUTPUT_BUDGET: int = 300  # tokens reserved for judge JSON output
+SYSTEM_OVERHEAD: int = 80  # tokens for system prompt
 EFFECTIVE_INPUT_BUDGET: int = QWEN3_8B_CTX_LIMIT - OUTPUT_BUDGET - SYSTEM_OVERHEAD
 
 # ---------------------------------------------------------------------------
@@ -189,10 +190,10 @@ def main() -> None:
     print(f"  System prompt overhead:                        {SYSTEM_OVERHEAD:,} tokens")
     print(f"  Effective input budget:                        {EFFECTIVE_INPUT_BUDGET:,} tokens")
 
-    print(f"\nTop 5 sessions by full-prompt character length:")
+    print("\nTop 5 sessions by full-prompt character length:")
     header = f"  {'Rank':<5} {'session_id':<52} {'chars':>8} {'tok/3.5':>8} {'tok/word':>9}"
     print(header)
-    print(f"  {'-'*5} {'-'*52} {'-'*8} {'-'*8} {'-'*9}")
+    print(f"  {'-' * 5} {'-' * 52} {'-' * 8} {'-' * 8} {'-' * 9}")
     for rank, (sid, chars, tok_c, tok_w) in enumerate(results[:5], start=1):
         fits_flag = "" if tok_c <= EFFECTIVE_INPUT_BUDGET else " !"
         print(f"  {rank:<5} {sid:<52} {chars:>8,} {tok_c:>8,} {tok_w:>9,}{fits_flag}")
@@ -208,7 +209,7 @@ def main() -> None:
     digest_tok_char = estimate_tokens_char(digest_text_only)
     digest_tok_word = estimate_tokens_word(digest_text_only)
 
-    print(f"\nLargest full prompt detail:")
+    print("\nLargest full prompt detail:")
     print(f"  Session ID:                         {largest_sid}")
     print(f"  Full prompt character count:        {largest_chars:,}")
     print(f"  Full prompt tokens (chars/3.5):     {largest_tok_char:,}")

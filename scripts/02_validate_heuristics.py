@@ -18,6 +18,7 @@ Output:
 Usage:
     python scripts/02_validate_heuristics.py
 """
+
 from __future__ import annotations
 
 import json
@@ -56,16 +57,31 @@ _BACKTRACK_RE = re.compile("|".join(BACKTRACK_PATTERNS), re.IGNORECASE)
 
 # File-read tool names across scaffolds
 READ_TOOL_NAMES = {
-    "view_file", "read_file", "str_replace_editor", "open_file",
-    "cat", "view", "get_file_contents", "read", "bash",
+    "view_file",
+    "read_file",
+    "str_replace_editor",
+    "open_file",
+    "cat",
+    "view",
+    "get_file_contents",
+    "read",
+    "bash",
     # SWE-agent uses bash for many reads
 }
 
 # Edit/write tool names (after these, re-reading the same file is legitimate)
 WRITE_TOOL_NAMES = {
-    "str_replace_editor", "write_file", "edit_file", "create_file",
-    "insert_content", "replace_in_file", "sed", "patch", "apply_patch",
-    "write", "bash",  # bash can write; we approximate
+    "str_replace_editor",
+    "write_file",
+    "edit_file",
+    "create_file",
+    "insert_content",
+    "replace_in_file",
+    "sed",
+    "patch",
+    "apply_patch",
+    "write",
+    "bash",  # bash can write; we approximate
 }
 
 
@@ -103,7 +119,9 @@ def _is_write_tool(tool_name: str, tool_input: Any) -> bool:
         cmd = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
         return cmd not in ("view", "open", "scroll_down", "scroll_up", "")
     if tool_name == "bash":
-        cmd = str(tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input)
+        cmd = str(
+            tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input
+        )
         return any(op in cmd for op in [">", ">>", "tee ", "patch ", "sed -i"])
     return True
 
@@ -212,7 +230,7 @@ def compute_h4_tool_result_used(turns: list[dict]) -> dict[int, bool]:
             # Sample up to 10 non-trivial substrings from result
             clean = result_str.translate(str.maketrans("", "", string.whitespace))
             for start in range(0, min(len(clean) - 20, 500), 50):
-                fragment = clean[start:start + 20]
+                fragment = clean[start : start + 20]
                 if fragment and fragment in check_text.replace(" ", "").replace("\n", ""):
                     used = True
                     break
@@ -221,6 +239,7 @@ def compute_h4_tool_result_used(turns: list[dict]) -> dict[int, bool]:
 
 
 # ── Evaluation ──────────────────────────────────────────────────────────────
+
 
 def _safe_div(num: int, den: int) -> float:
     return num / den if den else 0.0
@@ -249,19 +268,27 @@ def evaluate_heuristic(
             elif pred_val and not gt_val:
                 fp += 1
                 if len(fp_examples) < 5:
-                    fp_examples.append({
-                        "session_id": sid, "turn_index": turn_idx,
-                        "gt": gt_val, "pred": pred_val,
-                        "reason": gt_entry.get(f"{gt_field}_reason", ""),
-                    })
+                    fp_examples.append(
+                        {
+                            "session_id": sid,
+                            "turn_index": turn_idx,
+                            "gt": gt_val,
+                            "pred": pred_val,
+                            "reason": gt_entry.get(f"{gt_field}_reason", ""),
+                        }
+                    )
             elif not pred_val and gt_val:
                 fn += 1
                 if len(fn_examples) < 5:
-                    fn_examples.append({
-                        "session_id": sid, "turn_index": turn_idx,
-                        "gt": gt_val, "pred": pred_val,
-                        "reason": gt_entry.get(f"{gt_field}_reason", ""),
-                    })
+                    fn_examples.append(
+                        {
+                            "session_id": sid,
+                            "turn_index": turn_idx,
+                            "gt": gt_val,
+                            "pred": pred_val,
+                            "reason": gt_entry.get(f"{gt_field}_reason", ""),
+                        }
+                    )
             else:
                 tn += 1
 
@@ -278,7 +305,10 @@ def evaluate_heuristic(
 
     return {
         "heuristic": heuristic_name,
-        "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn,
         "precision": round(precision, 3),
         "recall": round(recall, 3),
         "f1": round(f1, 3),
@@ -350,10 +380,10 @@ def main() -> None:
 
     # Map heuristic -> ground truth field name
     heuristic_configs = [
-        ("H1_is_retry",          "is_retry",          h1_preds),    # Note: annotated as is_retry if in GT
-        ("H2_redundant_read",    "redundant_read",     h2_preds),
-        ("H3_is_backtrack",      "is_backtrack",       h3_preds),
-        ("H4_tool_result_used",  "tool_result_used",   h4_preds),
+        ("H1_is_retry", "is_retry", h1_preds),  # Note: annotated as is_retry if in GT
+        ("H2_redundant_read", "redundant_read", h2_preds),
+        ("H3_is_backtrack", "is_backtrack", h3_preds),
+        ("H4_tool_result_used", "tool_result_used", h4_preds),
     ]
 
     all_results = []
@@ -362,7 +392,9 @@ def main() -> None:
     for hname, gt_field, preds in heuristic_configs:
         res = evaluate_heuristic(hname, gt_field, preds, gt, failure_cases)
         all_results.append(res)
-        status = "READY" if res["production_ready"] else ("MARGINAL" if res["marginal"] else "NEEDS_V2")
+        status = (
+            "READY" if res["production_ready"] else ("MARGINAL" if res["marginal"] else "NEEDS_V2")
+        )
         print(
             f"{hname}: P={res['precision']:.3f} R={res['recall']:.3f} F1={res['f1']:.3f} "
             f"({res['tp']}TP {res['fp']}FP {res['fn']}FN {res['tn']}TN) "

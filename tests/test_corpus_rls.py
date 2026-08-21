@@ -17,7 +17,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from tes.contribution import ALLOWED_FIELDS
 
 _SCHEMA_PATH = Path(__file__).parent.parent / "corpus" / "schema.sql"
@@ -109,7 +108,7 @@ def test_table_columns_match_allowed_fields_exactly(schema_sql: str) -> None:
         column_names.add(token)
 
     expected_extra = {"id", "inserted_at"}
-    assert ALLOWED_FIELDS <= column_names, (
+    assert column_names >= ALLOWED_FIELDS, (
         f"schema.sql is missing columns: {ALLOWED_FIELDS - column_names}"
     )
     unexpected = column_names - ALLOWED_FIELDS - expected_extra
@@ -129,7 +128,9 @@ def test_withdraw_edge_function_validates_uuid_before_delete() -> None:
     assert fn_path.exists(), f"withdraw-contributor Edge Function not found at {fn_path}"
     source = fn_path.read_text(encoding="utf-8")
 
-    uuid_check_pos = source.find("UUID_V4_RE") if "UUID_V4_RE" in source else source.lower().find("uuid")
+    uuid_check_pos = (
+        source.find("UUID_V4_RE") if "UUID_V4_RE" in source else source.lower().find("uuid")
+    )
     delete_pos = source.find(".delete(")
 
     assert uuid_check_pos != -1, "no UUID validation found in withdraw-contributor/index.ts"

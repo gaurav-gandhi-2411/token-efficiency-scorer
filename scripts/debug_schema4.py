@@ -1,6 +1,10 @@
 """Find task description turn and check token totals coverage."""
+
 from __future__ import annotations
-import json, pathlib, collections
+
+import collections
+import json
+import pathlib
 
 traces_dir = pathlib.Path("data/validation-corpus/traces_normalized")
 files = sorted(traces_dir.glob("*.json"))
@@ -17,10 +21,16 @@ for f in files[:6]:
     print("  ", task_text[:300].replace("\n", " "))
 
 print("\n=== Token totals coverage ===")
-has_output = sum(1 for f in files
-                 if json.loads(f.read_text()).get("session_token_totals", {}).get("output", 0) > 0)
-has_input = sum(1 for f in files
-                if json.loads(f.read_text()).get("session_token_totals", {}).get("input", 0) > 0)
+has_output = sum(
+    1
+    for f in files
+    if json.loads(f.read_text()).get("session_token_totals", {}).get("output", 0) > 0
+)
+has_input = sum(
+    1
+    for f in files
+    if json.loads(f.read_text()).get("session_token_totals", {}).get("input", 0) > 0
+)
 print(f"  sessions with input tokens: {has_input}/200")
 print(f"  sessions with output tokens: {has_output}/200")
 
@@ -34,5 +44,6 @@ for f in files:
 print()
 for sc, vals in by_scaffold.items():
     nonzero = sum(1 for v in vals if v > 0)
-    print(f"  {sc}: {nonzero}/{len(vals)} have output tokens, "
-          f"mean_total={sum(vals)/len(vals):.0f}")
+    print(
+        f"  {sc}: {nonzero}/{len(vals)} have output tokens, mean_total={sum(vals) / len(vals):.0f}"
+    )

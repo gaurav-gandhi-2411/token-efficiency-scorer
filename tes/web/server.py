@@ -6,32 +6,34 @@ Binds 127.0.0.1 ONLY. Never 0.0.0.0. No external network egress.
 """
 
 import json
-import sqlite3
-from dataclasses import dataclass, field
-from pathlib import Path
-
 import os
+import sqlite3
+from dataclasses import dataclass
+from pathlib import Path
 
 from flask import Flask, abort, g, jsonify, render_template, request
 
+from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
 from tes.attribution import AttributionResult, compute_attribution
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes._digest import reconstruct_digest
 from tes.cost import load_price_table
-from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.intelligence.cache import get_or_compute_intelligence
 from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
+from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import (
-    TrajectoryRenderState,
     _SORT_COLUMN_WHITELIST,
+    TrajectoryRenderState,
     get_session,
     list_sessions,
     open_db,
     trajectory_render_state,
 )
 from tes.waste import build_waste_entry
-from tes.web.cost_format import format_cost_usd, format_cost_pct_vs_baseline, format_price_provenance
+from tes.web.cost_format import (
+    format_cost_pct_vs_baseline,
+    format_price_provenance,
+)
 
 # ---------------------------------------------------------------------------
 # Attribution helpers
@@ -98,7 +100,9 @@ def _build_attribution_takeaway(attr: AttributionResult) -> str:
         parts.append(f"output ({output_pct}%)")
 
     cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
-    waste_str = f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
+    waste_str = (
+        f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
+    )
 
     # Data-gated hints — each checked independently, waste first
     hints: list[str] = []
@@ -213,7 +217,11 @@ def _stored_attribution_line(session: dict) -> str | None:
         return None
     waste_events_raw = session.get("waste_events", "[]")
     try:
-        waste_events = json.loads(waste_events_raw) if isinstance(waste_events_raw, str) else (waste_events_raw or [])
+        waste_events = (
+            json.loads(waste_events_raw)
+            if isinstance(waste_events_raw, str)
+            else (waste_events_raw or [])
+        )
     except (json.JSONDecodeError, TypeError):
         waste_events = []
 
@@ -237,6 +245,7 @@ def _check_ollama(endpoint: str = "http://localhost:11434") -> bool:
     """Probe Ollama health endpoint; returns True if reachable. Non-blocking (3 s cap)."""
     try:
         import httpx as _httpx
+
         resp = _httpx.get(f"{endpoint}/api/tags", timeout=3.0)
         return resp.status_code == 200
     except Exception:
@@ -245,13 +254,13 @@ def _check_ollama(endpoint: str = "http://localhost:11434") -> bool:
 
 @dataclass
 class ServerConfig:
-    host: str = "127.0.0.1"   # NEVER change to 0.0.0.0 — moat discipline
+    host: str = "127.0.0.1"  # NEVER change to 0.0.0.0 — moat discipline
     port: int = 4747
     db_path: Path | None = None
     cc_baselines_path: Path | None = None
-    cc_path: Path | None = None          # for the /monitor live view; defaults to DEFAULT_CC_PATH
-    stability_window: int = 300          # a session modified more recently than this is "active"
-    plan_type: str = "usage_based"       # "usage_based" | "max" — alarm display emphasis only
+    cc_path: Path | None = None  # for the /monitor live view; defaults to DEFAULT_CC_PATH
+    stability_window: int = 300  # a session modified more recently than this is "active"
+    plan_type: str = "usage_based"  # "usage_based" | "max" — alarm display emphasis only
 
 
 def _projected_metrics(conn: sqlite3.Connection, self_bl_state) -> dict:
@@ -301,20 +310,22 @@ def _per_type_status(conn: sqlite3.Connection, self_bl_state) -> list[dict]:
             "SELECT COUNT(*) FROM sessions WHERE task_type = ? AND turn_count >= ?",
             (task_type, sf),
         ).fetchone()[0]
-        rows.append({
-            "task_type": task_type,
-            "total": total_type,
-            "in_scope": in_scope,
-            "waste_free_n": type_bl.waste_free_n,
-            "lean_n": type_bl.lean_n,
-            "scope_floor": sf,
-            "source": type_bl.source,
-            "sessions_needed": type_bl.sessions_needed,
-            "p25": type_bl.p25,
-            "median": type_bl.median,
-            "p75": type_bl.p75,
-            "domain_of_validity": type_bl.domain_of_validity,
-        })
+        rows.append(
+            {
+                "task_type": task_type,
+                "total": total_type,
+                "in_scope": in_scope,
+                "waste_free_n": type_bl.waste_free_n,
+                "lean_n": type_bl.lean_n,
+                "scope_floor": sf,
+                "source": type_bl.source,
+                "sessions_needed": type_bl.sessions_needed,
+                "p25": type_bl.p25,
+                "median": type_bl.median,
+                "p75": type_bl.p75,
+                "domain_of_validity": type_bl.domain_of_validity,
+            }
+        )
     return rows
 
 
@@ -483,8 +494,9 @@ def create_app(config: ServerConfig) -> Flask:
         conn = get_db()
         self_bl = get_self_bl()
         if self_bl is None:
-            return render_template("baseline_status.html", status_rows=[], headline=None,
-                                   waste_by_type=[])
+            return render_template(
+                "baseline_status.html", status_rows=[], headline=None, waste_by_type=[]
+            )
 
         headline = _projected_metrics(conn, self_bl)
         status_rows = _per_type_status(conn, self_bl)
@@ -594,17 +606,21 @@ def create_app(config: ServerConfig) -> Flask:
                 return jsonify({"answer": answer, "source": "api"})
 
         if api_key and not api_consent:
-            return jsonify({
-                "error": "Ollama unavailable. API path available — check the consent box to proceed.",
-                "needs_consent": True,
-            })
-
-        return jsonify({
-            "error": (
-                "No LLM available. Run Ollama locally (ollama run qwen3:8b) "
-                "or set ANTHROPIC_API_KEY."
+            return jsonify(
+                {
+                    "error": "Ollama unavailable. API path available — check the consent box to proceed.",
+                    "needs_consent": True,
+                }
             )
-        })
+
+        return jsonify(
+            {
+                "error": (
+                    "No LLM available. Run Ollama locally (ollama run qwen3:8b) "
+                    "or set ANTHROPIC_API_KEY."
+                )
+            }
+        )
 
     return app
 

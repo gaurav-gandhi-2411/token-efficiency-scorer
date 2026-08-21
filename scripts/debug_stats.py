@@ -1,5 +1,7 @@
 """Quick corpus statistics."""
+
 from __future__ import annotations
+
 import json
 import pathlib
 import statistics
@@ -17,8 +19,10 @@ for f in files:
 turn_counts.sort()
 n = len(turn_counts)
 print(f"Total sessions: {n}")
-print(f"Turn counts: min={min(turn_counts)} median={statistics.median(turn_counts):.0f} "
-      f"p75={turn_counts[int(n*0.75)]} max={max(turn_counts)}")
+print(
+    f"Turn counts: min={min(turn_counts)} median={statistics.median(turn_counts):.0f} "
+    f"p75={turn_counts[int(n * 0.75)]} max={max(turn_counts)}"
+)
 for sc, tcs in sorted(by_scaffold.items()):
     tcs.sort()
     print(f"  {sc}: n={len(tcs)} median={statistics.median(tcs):.0f} max={max(tcs)}")

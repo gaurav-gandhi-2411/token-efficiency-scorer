@@ -238,8 +238,10 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         try:
             messages.append(json.loads(line))
         except json.JSONDecodeError:
-            print(f"[adapter] WARNING: skipping malformed JSON line in {session_path.name}",
-                  file=sys.stderr)
+            print(
+                f"[adapter] WARNING: skipping malformed JSON line in {session_path.name}",
+                file=sys.stderr,
+            )
 
     # --- Session-level accumulation ------------------------------------------
     turns: list[TurnDigest] = []
@@ -342,8 +344,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             elif isinstance(content, list):
                 has_tool_result: bool = any(
-                    isinstance(item, dict) and item.get("type") == "tool_result"
-                    for item in content
+                    isinstance(item, dict) and item.get("type") == "tool_result" for item in content
                 )
                 if not has_tool_result:
                     continue

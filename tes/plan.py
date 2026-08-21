@@ -95,7 +95,9 @@ def load_plan_config(path: str | Path | None = None) -> list[PlanPeriod]:
             raise ValueError(f"{resolved}: plans[{i}] is invalid ({exc})") from exc
         if monthly_cost < 0:
             raise ValueError(f"{resolved}: plans[{i}].monthly_cost_usd must be >= 0")
-        plans.append(PlanPeriod(name=name, monthly_cost_usd=monthly_cost, effective_from=effective_from))
+        plans.append(
+            PlanPeriod(name=name, monthly_cost_usd=monthly_cost, effective_from=effective_from)
+        )
 
     plans.sort(key=lambda p: p.effective_from)
     return plans

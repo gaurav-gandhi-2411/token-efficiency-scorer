@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 diagnose_distribution.py - Phase 4 verdict distribution diagnosis.
 
@@ -12,7 +13,6 @@ Usage: python scripts/diagnose_distribution.py
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -38,7 +38,8 @@ VERDICT_SCORE: dict[str, float] = {
 # Band helpers
 # ---------------------------------------------------------------------------
 
-def h2_band(h2: Optional[int]) -> str:
+
+def h2_band(h2: int | None) -> str:
     """Assign h2_duplicate_count to a named band."""
     if h2 is None:
         return "unknown"
@@ -51,7 +52,7 @@ def h2_band(h2: Optional[int]) -> str:
     return "H2=21+"
 
 
-def p25_band(p25: Optional[float]) -> str:
+def p25_band(p25: float | None) -> str:
     """Assign p25_token_ratio to a named band."""
     if p25 is None:
         return "unknown"
@@ -65,6 +66,7 @@ def p25_band(p25: Optional[float]) -> str:
 # ---------------------------------------------------------------------------
 # File loaders
 # ---------------------------------------------------------------------------
+
 
 def load_judge_scores(path: Path) -> dict[str, dict]:
     """Load judge_scores.jsonl; returns {session_id: row}."""
@@ -144,6 +146,7 @@ def load_layer1_outputs(path: Path) -> dict[str, dict]:
 # Merge into a flat session record
 # ---------------------------------------------------------------------------
 
+
 def build_session_records(
     scores: dict[str, dict],
     cal: dict[str, dict],
@@ -199,17 +202,18 @@ def build_session_records(
 # Table rendering
 # ---------------------------------------------------------------------------
 
-def _mean_score(verdicts: list[Optional[str]]) -> Optional[float]:
+
+def _mean_score(verdicts: list[str | None]) -> float | None:
     """Mean verdict score, ignoring None entries."""
     scored = [VERDICT_SCORE[v] for v in verdicts if v in VERDICT_SCORE]
     return sum(scored) / len(scored) if scored else None
 
 
-def _col_count(verdicts: list[Optional[str]], label: str) -> int:
+def _col_count(verdicts: list[str | None], label: str) -> int:
     return sum(1 for v in verdicts if v == label)
 
 
-def print_breakdown_table(title: str, groups: dict[str, list[Optional[str]]]) -> None:
+def print_breakdown_table(title: str, groups: dict[str, list[str | None]]) -> None:
     """
     Print a breakdown table.
 
@@ -227,7 +231,11 @@ def print_breakdown_table(title: str, groups: dict[str, list[Optional[str]]]) ->
         + f"  {'mean_score':>{col_w}}"
     )
     print(header)
-    print(f"  {'-' * label_w}  {'-----'}  " + "  ".join([f"{'------':>{col_w}}"] * 5) + f"  {'----------':>{col_w}}")
+    print(
+        f"  {'-' * label_w}  {'-----'}  "
+        + "  ".join([f"{'------':>{col_w}}"] * 5)
+        + f"  {'----------':>{col_w}}"
+    )
 
     for band, verdicts in sorted(groups.items()):
         n = len(verdicts)
@@ -246,6 +254,7 @@ def print_breakdown_table(title: str, groups: dict[str, list[Optional[str]]]) ->
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Run all breakdown tables and print diagnostics."""
@@ -267,7 +276,7 @@ def main() -> None:
         return
 
     # ── Overall distribution ─────────────────────────────────────────────────
-    all_verdicts: list[Optional[str]] = [r["verdict"] for r in records]
+    all_verdicts: list[str | None] = [r["verdict"] for r in records]
     valid_verdicts = [v for v in all_verdicts if v in VERDICT_SCORE]
     parse_fail = sum(1 for v in all_verdicts if v not in VERDICT_SCORE)
 
@@ -279,29 +288,35 @@ def main() -> None:
         pct = c / len(valid_verdicts) * 100 if valid_verdicts else 0.0
         print(f"  {v:<16} {c:>6}  {pct:>5.1f}%")
     overall_mean = _mean_score(valid_verdicts)
-    print(f"\n  Overall mean_score: {overall_mean:.3f}" if overall_mean is not None else "\n  Overall mean_score: n/a")
+    print(
+        f"\n  Overall mean_score: {overall_mean:.3f}"
+        if overall_mean is not None
+        else "\n  Overall mean_score: n/a"
+    )
 
     # ── H2 band breakdown ────────────────────────────────────────────────────
-    h2_groups: dict[str, list[Optional[str]]] = defaultdict(list)
+    h2_groups: dict[str, list[str | None]] = defaultdict(list)
     for r in records:
         h2_groups[h2_band(r["h2"])].append(r["verdict"])
     print_breakdown_table("Breakdown by H2 duplicate count band", h2_groups)
 
     # ── p25 band breakdown ───────────────────────────────────────────────────
-    p25_groups: dict[str, list[Optional[str]]] = defaultdict(list)
+    p25_groups: dict[str, list[str | None]] = defaultdict(list)
     for r in records:
         p25_groups[p25_band(r["p25"])].append(r["verdict"])
     print_breakdown_table("Breakdown by p25_token_ratio band", p25_groups)
 
     # ── Resolved breakdown ───────────────────────────────────────────────────
-    res_groups: dict[str, list[Optional[str]]] = defaultdict(list)
+    res_groups: dict[str, list[str | None]] = defaultdict(list)
     for r in records:
-        label = {True: "resolved=True", False: "resolved=False"}.get(r["resolved"], "resolved=unknown")
+        label = {True: "resolved=True", False: "resolved=False"}.get(
+            r["resolved"], "resolved=unknown"
+        )
         res_groups[label].append(r["verdict"])
     print_breakdown_table("Breakdown by resolved status", res_groups)
 
     # ── Scaffold breakdown ───────────────────────────────────────────────────
-    scf_groups: dict[str, list[Optional[str]]] = defaultdict(list)
+    scf_groups: dict[str, list[str | None]] = defaultdict(list)
     for r in records:
         label = r["scaffold"] if r["scaffold"] else "unknown"
         scf_groups[label].append(r["verdict"])
@@ -355,7 +370,9 @@ def main() -> None:
         if lean_mean > wasteful_mean:
             print("  -> PASS (lean sessions score better than wasteful - judge direction correct)")
         else:
-            print("  -> ALERT (wasteful sessions not penalised - judge may not distinguish token efficiency)")
+            print(
+                "  -> ALERT (wasteful sessions not penalised - judge may not distinguish token efficiency)"
+            )
     else:
         print("  -> INCONCLUSIVE (insufficient data in one or both bands)")
 

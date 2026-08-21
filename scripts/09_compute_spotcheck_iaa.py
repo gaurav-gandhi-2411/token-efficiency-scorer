@@ -6,8 +6,11 @@ Compute Cohen's kappa between spot-check (Sonnet) labels and:
 Also produces the pre-annotation kappa to document baseline agreement
 between deterministic GT and Sonnet judgment.
 """
+
 from __future__ import annotations
-import json, math, pathlib
+
+import json
+import pathlib
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 ANNOT_DIR = REPO_ROOT / "data" / "validation-corpus" / "annotations"
@@ -76,9 +79,13 @@ def main() -> None:
 
     print("=== Structural GT vs Sonnet spot-check ===")
     print(f"  is_retry (H1):      kappa={kappa_struct_retry['kappa']}  n={kappa_struct_retry['n']}")
-    print(f"    SC positive rate: {kappa_struct_retry['labeler_a_pos_rate']}  GT positive rate: {kappa_struct_retry['labeler_b_pos_rate']}")
+    print(
+        f"    SC positive rate: {kappa_struct_retry['labeler_a_pos_rate']}  GT positive rate: {kappa_struct_retry['labeler_b_pos_rate']}"
+    )
     print(f"  redundant_read (H2): kappa={kappa_struct_rr['kappa']}  n={kappa_struct_rr['n']}")
-    print(f"    SC positive rate: {kappa_struct_rr['labeler_a_pos_rate']}  GT positive rate: {kappa_struct_rr['labeler_b_pos_rate']}")
+    print(
+        f"    SC positive rate: {kappa_struct_rr['labeler_a_pos_rate']}  GT positive rate: {kappa_struct_rr['labeler_b_pos_rate']}"
+    )
 
     # ── 2. Haiku vs Spot-check (if annotations exist) ────────────────────────
     haiku_files = {f.stem: f for f in HAIKU_DIR.glob("*.json")} if HAIKU_DIR.exists() else {}
@@ -106,8 +113,10 @@ def main() -> None:
 
         print("\n=== Haiku annotations vs Sonnet spot-check ===")
         for field, k in haiku_kappas.items():
-            print(f"  {field:<22} kappa={k['kappa']}  n={k['n']}  "
-                  f"SC_pos={k['labeler_a_pos_rate']}  HK_pos={k['labeler_b_pos_rate']}")
+            print(
+                f"  {field:<22} kappa={k['kappa']}  n={k['n']}  "
+                f"SC_pos={k['labeler_a_pos_rate']}  HK_pos={k['labeler_b_pos_rate']}"
+            )
     else:
         print("\n(Haiku annotations not available — run 01_annotate_corpus.py first)")
         haiku_kappas = {}
@@ -120,10 +129,26 @@ def main() -> None:
         },
         "haiku_vs_sonnet": haiku_kappas,
         "spotcheck_label_distribution": {
-            "is_retry": sum(s["spotcheck_labels"]["is_retry"] for s in samples if s["spotcheck_labels"]["is_retry"] is not None),
-            "is_backtrack": sum(s["spotcheck_labels"]["is_backtrack"] for s in samples if s["spotcheck_labels"]["is_backtrack"] is not None),
-            "tool_result_used": sum(s["spotcheck_labels"]["tool_result_used"] for s in samples if s["spotcheck_labels"]["tool_result_used"] is not None),
-            "redundant_read": sum(s["spotcheck_labels"]["redundant_read"] for s in samples if s["spotcheck_labels"]["redundant_read"] is not None),
+            "is_retry": sum(
+                s["spotcheck_labels"]["is_retry"]
+                for s in samples
+                if s["spotcheck_labels"]["is_retry"] is not None
+            ),
+            "is_backtrack": sum(
+                s["spotcheck_labels"]["is_backtrack"]
+                for s in samples
+                if s["spotcheck_labels"]["is_backtrack"] is not None
+            ),
+            "tool_result_used": sum(
+                s["spotcheck_labels"]["tool_result_used"]
+                for s in samples
+                if s["spotcheck_labels"]["tool_result_used"] is not None
+            ),
+            "redundant_read": sum(
+                s["spotcheck_labels"]["redundant_read"]
+                for s in samples
+                if s["spotcheck_labels"]["redundant_read"] is not None
+            ),
             "n_total": len([s for s in samples if s["spotcheck_labels"]["is_retry"] is not None]),
         },
     }

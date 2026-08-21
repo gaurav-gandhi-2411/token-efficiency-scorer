@@ -17,6 +17,7 @@ Output:
     data/validation-corpus/traces_normalized/  — one JSON per trace
     data/validation-corpus/corpus_manifest.jsonl — provenance record
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -42,7 +43,7 @@ SOURCES: list[dict] = [
         "n_resolved": 40,
         "n_unresolved": 40,
         "license": "CC-BY-4.0",
-        "resolved_field": "target",       # bool
+        "resolved_field": "target",  # bool
         "trajectory_field": "trajectory",  # JSON list of steps
         "model_field": "model_name",
         "instance_field": "instance_id",
@@ -55,9 +56,9 @@ SOURCES: list[dict] = [
         "n_resolved": 35,
         "n_unresolved": 35,
         "license": "CC-BY-4.0",
-        "resolved_field": "resolved",      # int 0/1
+        "resolved_field": "resolved",  # int 0/1
         "trajectory_field": "trajectory",
-        "model_field": None,               # not in schema
+        "model_field": None,  # not in schema
         "instance_field": "instance_id",
         "patch_field": "model_patch",
     },
@@ -94,12 +95,13 @@ def _normalize_turn(raw: dict | str, turn_idx: int) -> dict:
 
     role = raw.get("role", raw.get("type", "unknown"))
     # SWE-agent uses "text"; OpenHands uses "content"; fallback chain
-    content = raw.get("content") or raw.get("text") or raw.get("observation") or raw.get("action") or ""
+    content = (
+        raw.get("content") or raw.get("text") or raw.get("observation") or raw.get("action") or ""
+    )
     if isinstance(content, list):
         # Claude-style content blocks
         content = " ".join(
-            b.get("text", str(b)) if isinstance(b, dict) else str(b)
-            for b in content
+            b.get("text", str(b)) if isinstance(b, dict) else str(b) for b in content
         )
     content_str = str(content) if content else ""
 
@@ -114,23 +116,28 @@ def _normalize_turn(raw: dict | str, turn_idx: int) -> dict:
             if isinstance(args, str):
                 try:
                     import json as _json
+
                     args = _json.loads(args)
                 except Exception:
                     args = {"raw": args}
-            tool_uses.append({
-                "tool_name": fn.get("name") or tc.get("name", "unknown"),
-                "tool_input": args,
-                "tool_result": None,
-                "is_error": False,
-            })
+            tool_uses.append(
+                {
+                    "tool_name": fn.get("name") or tc.get("name", "unknown"),
+                    "tool_input": args,
+                    "tool_result": None,
+                    "is_error": False,
+                }
+            )
     # Also handle single-tool-call fields (SWE-agent style)
     if not tool_uses and (raw.get("tool_use_id") or raw.get("tool_name")):
-        tool_uses.append({
-            "tool_name": raw.get("tool_name", raw.get("action", "unknown")),
-            "tool_input": raw.get("tool_input", raw.get("args", {})),
-            "tool_result": raw.get("tool_result", raw.get("observation", None)),
-            "is_error": raw.get("is_error", False),
-        })
+        tool_uses.append(
+            {
+                "tool_name": raw.get("tool_name", raw.get("action", "unknown")),
+                "tool_input": raw.get("tool_input", raw.get("args", {})),
+                "tool_result": raw.get("tool_result", raw.get("observation")),
+                "is_error": raw.get("is_error", False),
+            }
+        )
 
     approx_tokens = _estimate_tokens(content_str)
 
@@ -142,7 +149,7 @@ def _normalize_turn(raw: dict | str, turn_idx: int) -> dict:
         "token_counts": {
             "input": approx_tokens if role in ("user", "tool") else 0,
             "output": approx_tokens if role == "assistant" else 0,
-            "cache_read": 0,   # not available in these datasets
+            "cache_read": 0,  # not available in these datasets
             "cache_creation": 0,
         },
     }
@@ -155,7 +162,7 @@ def process_source(cfg: dict) -> list[dict]:
         print("ERROR: datasets library not installed", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Loading {cfg['hf_dataset']} (streaming)…")
 
     ds = load_dataset(cfg["hf_dataset"], split=cfg["split"], streaming=True)
@@ -178,10 +185,7 @@ def process_source(cfg: dict) -> list[dict]:
 
     random.shuffle(resolved_pool)
     random.shuffle(unresolved_pool)
-    sampled = (
-        resolved_pool[: cfg["n_resolved"]]
-        + unresolved_pool[: cfg["n_unresolved"]]
-    )
+    sampled = resolved_pool[: cfg["n_resolved"]] + unresolved_pool[: cfg["n_unresolved"]]
 
     sessions = []
     for idx, row in enumerate(sampled):
@@ -219,8 +223,7 @@ def process_source(cfg: dict) -> list[dict]:
                 "output": sum(t["token_counts"]["output"] for t in turns),
                 "cache_read": 0,
                 "total": sum(
-                    t["token_counts"]["input"] + t["token_counts"]["output"]
-                    for t in turns
+                    t["token_counts"]["input"] + t["token_counts"]["output"] for t in turns
                 ),
             },
             "turn_count": len(turns),
@@ -245,17 +248,21 @@ def main() -> None:
     # Write manifest
     manifest_lines = []
     for s in all_sessions:
-        manifest_lines.append(json.dumps({
-            "session_id": s["session_id"],
-            "source_dataset": s["source_dataset"],
-            "scaffold": s["scaffold"],
-            "model": s["model"],
-            "license": s["license"],
-            "instance_id": s["instance_id"],
-            "outcome": s["outcome"]["result"],
-            "turn_count": s["turn_count"],
-            "total_tokens": s["session_token_totals"]["total"],
-        }))
+        manifest_lines.append(
+            json.dumps(
+                {
+                    "session_id": s["session_id"],
+                    "source_dataset": s["source_dataset"],
+                    "scaffold": s["scaffold"],
+                    "model": s["model"],
+                    "license": s["license"],
+                    "instance_id": s["instance_id"],
+                    "outcome": s["outcome"]["result"],
+                    "turn_count": s["turn_count"],
+                    "total_tokens": s["session_token_totals"]["total"],
+                }
+            )
+        )
     MANIFEST_PATH.write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
 
     # Summary
@@ -269,10 +276,12 @@ def main() -> None:
         else:
             by_scaffold[sc]["unresolved"] += 1
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print(f"CORPUS SUMMARY: {len(all_sessions)} total sessions")
     for sc, counts in by_scaffold.items():
-        print(f"  {sc}: {counts['total']} ({counts['resolved']} resolved, {counts['unresolved']} unresolved)")
+        print(
+            f"  {sc}: {counts['total']} ({counts['resolved']} resolved, {counts['unresolved']} unresolved)"
+        )
     print(f"\nWrote {len(all_sessions)} JSON files to {OUT_DIR}")
     print(f"Manifest: {MANIFEST_PATH}")
 

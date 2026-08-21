@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from waste_detectors import _is_error_result, _is_transient, _is_write_call
+from waste_detectors import _is_error_result, _is_transient
 
 POOL_DIGESTS = ROOT / "data" / "layer1_outputs.jsonl"
 POOL_SIGNALS = ROOT / "data" / "pool_waste_signals.jsonl"
@@ -45,6 +45,7 @@ _WRITE_TOOLS: frozenset[str] = frozenset({"Write", "Edit", "NotebookEdit"})
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def load_jsonl(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
@@ -61,15 +62,11 @@ def _next_tool_pos(turns: list[dict], from_pos: int) -> int | None:
 
 def _is_shell_call_compat(turn: dict) -> bool:
     """Role-agnostic shell call check: handles both 'ai' and 'assistant' roles."""
-    return turn.get("role") in _AGENT_ROLES and bool(
-        set(turn.get("tool_names", [])) & _SHELL_TOOLS
-    )
+    return turn.get("role") in _AGENT_ROLES and bool(set(turn.get("tool_names", [])) & _SHELL_TOOLS)
 
 
 def _is_write_call_compat(turn: dict) -> bool:
-    return turn.get("role") in _AGENT_ROLES and bool(
-        set(turn.get("tool_names", [])) & _WRITE_TOOLS
-    )
+    return turn.get("role") in _AGENT_ROLES and bool(set(turn.get("tool_names", [])) & _WRITE_TOOLS)
 
 
 def session_stats(records: list[dict]) -> dict:
@@ -129,6 +126,7 @@ def session_stats(records: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 # Near-miss RFR analysis (Hypothesis 3)
 # ---------------------------------------------------------------------------
+
 
 def _error_prefix(snip: str, n: int = 60) -> str:
     return snip[:n].lower()
@@ -202,21 +200,25 @@ def find_near_miss_rfr(records: list[dict]) -> dict:
                                     if pfx:
                                         near_miss_same_prefix += 1
                                         if len(samples_same_prefix) < 5:
-                                            samples_same_prefix.append({
-                                                "session_id": session_id[:12],
-                                                "snip1": snip1[:150],
-                                                "snip2": snip2[:150],
-                                            })
+                                            samples_same_prefix.append(
+                                                {
+                                                    "session_id": session_id[:12],
+                                                    "snip1": snip1[:150],
+                                                    "snip2": snip2[:150],
+                                                }
+                                            )
                                     elif same_exit:
                                         near_miss_same_exit_code += 1
                                     else:
                                         near_miss_different_error += 1
                                         if len(samples_different) < 3:
-                                            samples_different.append({
-                                                "session_id": session_id[:12],
-                                                "snip1": snip1[:100],
-                                                "snip2": snip2[:100],
-                                            })
+                                            samples_different.append(
+                                                {
+                                                    "session_id": session_id[:12],
+                                                    "snip1": snip1[:100],
+                                                    "snip2": snip2[:100],
+                                                }
+                                            )
                         break
                     k += 1
                     continue
@@ -245,6 +247,7 @@ def find_near_miss_rfr(records: list[dict]) -> dict:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     print("Loading pool digests...", end="", flush=True)
     pool_records = load_jsonl(POOL_DIGESTS)
@@ -260,10 +263,7 @@ def main() -> None:
     def _pool_has_rfr(r: dict) -> bool:
         if "rfr_fired" in r:
             return bool(r["rfr_fired"])
-        return any(
-            e.get("detector") == "REPEATED-FAILED-RETRY"
-            for e in r.get("waste_events", [])
-        )
+        return any(e.get("detector") == "REPEATED-FAILED-RETRY" for e in r.get("waste_events", []))
 
     pool_rfr = sum(1 for r in pool_signals if _pool_has_rfr(r))
     swechat_signals = [r for r in load_jsonl(SWECHAT_CC_SIGNALS) if r.get("source") == "swechat_cc"]
@@ -275,11 +275,11 @@ def main() -> None:
     pool_rfr_pct = pool_rfr / pool_n * 100 if pool_n else 0
     swechat_rfr_pct = swechat_rfr / swechat_n * 100 if swechat_n else 0
 
-    print(f"\n=== RFR BASELINE ===")
+    print("\n=== RFR BASELINE ===")
     print(f"Pool:       {pool_rfr}/{pool_n} = {pool_rfr_pct:.1f}%")
     print(f"SWE-chat:   {swechat_rfr}/{swechat_n} = {swechat_rfr_pct:.1f}%")
     if swechat_rfr_pct > 0:
-        print(f"Ratio:      {pool_rfr_pct/swechat_rfr_pct:.1f}x higher in pool")
+        print(f"Ratio:      {pool_rfr_pct / swechat_rfr_pct:.1f}x higher in pool")
 
     # --- Diagnostic 1 & 2: Session length + Bash error rate ---
     print("\nComputing pool stats...")
@@ -298,7 +298,11 @@ def main() -> None:
         ("turn_count_max", "Max"),
     ]:
         print(f"  {label:<28} {pool_stats[key]:<22.1f} {swechat_stats[key]:<20.1f}")
-    ratio_median = pool_stats["turn_count_median"] / swechat_stats["turn_count_median"] if swechat_stats["turn_count_median"] else 0
+    ratio_median = (
+        pool_stats["turn_count_median"] / swechat_stats["turn_count_median"]
+        if swechat_stats["turn_count_median"]
+        else 0
+    )
     print(f"\n  Pool median is {ratio_median:.2f}x the SWE-chat CC median")
 
     print("\n=== DIAGNOSTIC 2: BASH CALL + ERROR RATE ===")
@@ -324,21 +328,33 @@ def main() -> None:
     sw_err_per_session = swechat_stats["bash_errors_mean"]
 
     if sw_err_rate > 0:
-        print(f"\n  Bash error rate ratio: {pool_err_rate/sw_err_rate:.2f}x (pool vs SWE-chat)")
+        print(f"\n  Bash error rate ratio: {pool_err_rate / sw_err_rate:.2f}x (pool vs SWE-chat)")
     if sw_err_per_session > 0:
-        print(f"  Bash errors/session ratio: {pool_err_per_session/sw_err_per_session:.2f}x (pool vs SWE-chat)")
+        print(
+            f"  Bash errors/session ratio: {pool_err_per_session / sw_err_per_session:.2f}x (pool vs SWE-chat)"
+        )
 
     # --- Diagnostic 3: Near-miss format analysis ---
     print("\nRunning near-miss RFR analysis on SWE-chat CC...")
     nm = find_near_miss_rfr(swechat_records)
 
-    print(f"\n=== DIAGNOSTIC 3: FORMAT SPOT-CHECK (H3 — suppression) ===")
-    print(f"Sessions with exact snippet match (detector fires):          {nm['sessions_with_exact_match']}")
-    print(f"Sessions with near-miss pairs (detector doesn't fire):       {nm['sessions_with_near_miss']}")
-    print(f"  Near-miss breakdown:")
-    print(f"    Same 60-char prefix (H3 strongest — same error, format diff): {nm['near_miss_same_prefix']}")
-    print(f"    Same exit code only (moderate — same tool, different output):  {nm['near_miss_same_exit_code']}")
-    print(f"    Different error entirely (H3 inapplicable):                     {nm['near_miss_different_error']}")
+    print("\n=== DIAGNOSTIC 3: FORMAT SPOT-CHECK (H3 — suppression) ===")
+    print(
+        f"Sessions with exact snippet match (detector fires):          {nm['sessions_with_exact_match']}"
+    )
+    print(
+        f"Sessions with near-miss pairs (detector doesn't fire):       {nm['sessions_with_near_miss']}"
+    )
+    print("  Near-miss breakdown:")
+    print(
+        f"    Same 60-char prefix (H3 strongest — same error, format diff): {nm['near_miss_same_prefix']}"
+    )
+    print(
+        f"    Same exit code only (moderate — same tool, different output):  {nm['near_miss_same_exit_code']}"
+    )
+    print(
+        f"    Different error entirely (H3 inapplicable):                     {nm['near_miss_different_error']}"
+    )
 
     if nm["samples_same_prefix"]:
         print("\nSame-prefix near-miss samples (H3 candidates):")
@@ -355,24 +371,32 @@ def main() -> None:
     h1h2_evidence = []
 
     if pool_err_per_session > sw_err_per_session * 1.5:
-        h1h2_evidence.append(f"pool has {pool_err_per_session/sw_err_per_session:.1f}x more errors/session")
+        h1h2_evidence.append(
+            f"pool has {pool_err_per_session / sw_err_per_session:.1f}x more errors/session"
+        )
     if pool_stats["turn_count_median"] > swechat_stats["turn_count_median"] * 1.5:
         h1h2_evidence.append(f"pool sessions are {ratio_median:.1f}x longer")
     elif swechat_stats["turn_count_median"] > pool_stats["turn_count_median"] * 1.5:
         h1h2_evidence.append(
-            f"SWE-chat sessions are {1/ratio_median:.1f}x LONGER than pool"
+            f"SWE-chat sessions are {1 / ratio_median:.1f}x LONGER than pool"
             " — OPPOSITE of H2 prediction"
         )
 
-    print(f"\n  H1/H2 evidence: {'; '.join(h1h2_evidence) if h1h2_evidence else 'weak — stats similar'}")
-    print(f"  H3 evidence: {h3_score} same-prefix near-miss sessions "
-          f"({'significant' if h3_score > 20 else 'low'} — "
-          f"{'investigate further' if h3_score > 20 else 'unlikely to explain gap'})")
+    print(
+        f"\n  H1/H2 evidence: {'; '.join(h1h2_evidence) if h1h2_evidence else 'weak — stats similar'}"
+    )
+    print(
+        f"  H3 evidence: {h3_score} same-prefix near-miss sessions "
+        f"({'significant' if h3_score > 20 else 'low'} — "
+        f"{'investigate further' if h3_score > 20 else 'unlikely to explain gap'})"
+    )
 
     if not h1h2_evidence and h3_score <= 20:
         print("\n  FINDING: The 4.7x gap has no single strong explanation from these diagnostics.")
         print("  Likely mixed causes: SWE-chat developers are more adaptive (different approaches")
-        print("  on failure), AND SWE-chat session task mix differs from this pool's GPU/infra work.")
+        print(
+            "  on failure), AND SWE-chat session task mix differs from this pool's GPU/infra work."
+        )
 
 
 if __name__ == "__main__":

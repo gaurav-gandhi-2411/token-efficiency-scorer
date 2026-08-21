@@ -24,9 +24,9 @@ REFERENCE IMPLEMENTATION (differs from heuristic):
 Output:
   data/validation-corpus/annotations/structural_gt/{session_id}.json
 """
+
 from __future__ import annotations
 
-import hashlib
 import json
 import pathlib
 import re
@@ -39,30 +39,67 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Indicators that a tool_result contains an error
 ERROR_INDICATORS = [
-    "error:", "traceback", "exception", "syntaxerror", "nameerror",
-    "typeerror", "valueerror", "attributeerror", "importerror",
-    "filenotfounderror", "permissionerror", "oserror",
-    "command not found", "no such file", "permission denied",
-    "exit code 1", "exit code 2", "exit status 1",
-    "stderr:", "returncode=1", "returncode=2",
-    "failed with", "cannot ", "could not ",
+    "error:",
+    "traceback",
+    "exception",
+    "syntaxerror",
+    "nameerror",
+    "typeerror",
+    "valueerror",
+    "attributeerror",
+    "importerror",
+    "filenotfounderror",
+    "permissionerror",
+    "oserror",
+    "command not found",
+    "no such file",
+    "permission denied",
+    "exit code 1",
+    "exit code 2",
+    "exit status 1",
+    "stderr:",
+    "returncode=1",
+    "returncode=2",
+    "failed with",
+    "cannot ",
+    "could not ",
 ]
 
 # All tool names that perform reads
 READ_TOOLS = {
-    "view_file", "read_file", "open_file", "cat", "view",
-    "str_replace_editor", "get_file_contents", "read",
+    "view_file",
+    "read_file",
+    "open_file",
+    "cat",
+    "view",
+    "str_replace_editor",
+    "get_file_contents",
+    "read",
     "bash",  # approximate: bash can read
     # swe_agent specific
-    "open", "scroll_down", "scroll_up", "search_file", "search_dir",
+    "open",
+    "scroll_down",
+    "scroll_up",
+    "search_file",
+    "search_dir",
 }
 
 # All tool names that write/modify files
 WRITE_TOOLS = {
-    "str_replace_editor", "write_file", "edit_file", "create_file",
-    "insert_content", "replace_in_file", "sed", "patch", "apply_patch",
-    "write", "bash",
-    "str_replace", "insert_line", "overwrite_file",
+    "str_replace_editor",
+    "write_file",
+    "edit_file",
+    "create_file",
+    "insert_content",
+    "replace_in_file",
+    "sed",
+    "patch",
+    "apply_patch",
+    "write",
+    "bash",
+    "str_replace",
+    "insert_line",
+    "overwrite_file",
 }
 
 
@@ -100,7 +137,9 @@ def _is_write_call(tool_name: str, tool_input: Any) -> bool:
     # bash can both read and write; conservatively mark as write only if it contains
     # redirection operators or known write commands
     if tool_name == "bash":
-        cmd = str(tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input)
+        cmd = str(
+            tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input
+        )
         return any(op in cmd for op in [">", ">>", "tee ", "write_file", "patch ", "sed -i"])
     return True
 
@@ -109,8 +148,17 @@ def _extract_paths(tool_name: str, tool_input: Any) -> list[str]:
     """Extract all plausible file paths from a tool call."""
     paths: list[str] = []
     if isinstance(tool_input, dict):
-        for key in ("path", "file_path", "filename", "file", "target", "source",
-                    "old_path", "new_path", "filepath"):
+        for key in (
+            "path",
+            "file_path",
+            "filename",
+            "file",
+            "target",
+            "source",
+            "old_path",
+            "new_path",
+            "filepath",
+        ):
             if key in tool_input:
                 val = str(tool_input[key])
                 if val and ("/" in val or "." in val):
@@ -119,8 +167,12 @@ def _extract_paths(tool_name: str, tool_input: Any) -> list[str]:
         cmd = str(tool_input.get("command", tool_input.get("cmd", "")))
         if cmd and tool_name == "bash":
             for token in cmd.split():
-                if (token.startswith("/") or token.startswith("./") or token.startswith("../")
-                        or (re.match(r"\w+/\w+", token) and "." in token)):
+                if (
+                    token.startswith("/")
+                    or token.startswith("./")
+                    or token.startswith("../")
+                    or (re.match(r"\w+/\w+", token) and "." in token)
+                ):
                     paths.append(token.rstrip(",;"))
     elif isinstance(tool_input, str):
         if "/" in tool_input or "." in tool_input:
@@ -140,7 +192,7 @@ def compute_structural_gt(session: dict) -> dict[str, Any]:
     prior_calls: dict[tuple[str, str], list[tuple[int, bool]]] = {}
 
     # State for H2: file read/write history
-    last_read_turn: dict[str, int] = {}   # path -> last turn_index that read it
+    last_read_turn: dict[str, int] = {}  # path -> last turn_index that read it
     last_write_turn: dict[str, int] = {}  # path -> last turn_index that wrote it
 
     for t in turns:
@@ -194,14 +246,16 @@ def compute_structural_gt(session: dict) -> dict[str, Any]:
                         h2_prior_turn = last_r
                 last_read_turn[p] = t["turn_index"]
 
-        labels.append({
-            "turn_index": t["turn_index"],
-            "role": role,
-            "h1_is_retry_gt": h1_retry,
-            "h2_redundant_read_gt": h2_redundant,
-            "h2_redundant_read_prior_turn": h2_prior_turn,
-            "_gt_source": "structural_deterministic",
-        })
+        labels.append(
+            {
+                "turn_index": t["turn_index"],
+                "role": role,
+                "h1_is_retry_gt": h1_retry,
+                "h2_redundant_read_gt": h2_redundant,
+                "h2_redundant_read_prior_turn": h2_prior_turn,
+                "_gt_source": "structural_deterministic",
+            }
+        )
 
     return {
         "session_id": session["session_id"],
@@ -214,8 +268,7 @@ def compute_structural_gt(session: dict) -> dict[str, Any]:
 
 def main() -> None:
     sessions = [
-        json.loads(f.read_text(encoding="utf-8"))
-        for f in sorted(TRACES_DIR.glob("*.json"))
+        json.loads(f.read_text(encoding="utf-8")) for f in sorted(TRACES_DIR.glob("*.json"))
     ]
     print(f"Generating structural GT for {len(sessions)} sessions…")
 
@@ -236,8 +289,12 @@ def main() -> None:
 
     total_turns = h1_pos + h1_neg
     print(f"\nStructural GT summary ({len(sessions)} sessions, {total_turns} agent turns):")
-    print(f"  H1 (is_retry):       {h1_pos} positive ({100*h1_pos/total_turns:.1f}%), {h1_neg} negative")
-    print(f"  H2 (redundant_read): {h2_pos} positive ({100*h2_pos/total_turns:.1f}%), {h2_neg} negative")
+    print(
+        f"  H1 (is_retry):       {h1_pos} positive ({100 * h1_pos / total_turns:.1f}%), {h1_neg} negative"
+    )
+    print(
+        f"  H2 (redundant_read): {h2_pos} positive ({100 * h2_pos / total_turns:.1f}%), {h2_neg} negative"
+    )
     print(f"\nOutput: {OUT_DIR}")
 
 

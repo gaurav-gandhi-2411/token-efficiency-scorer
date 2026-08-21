@@ -112,13 +112,15 @@ def test_json_includes_proof_turns_when_present() -> None:
         judge_reasoning=None,
         trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REPEATED-FAILED-RETRY",
-            "session_id": "test-waste",
-            "turns": [14, 15, 18, 19],
-            "repeat_count": 2,
-            "evidence": {"error_snippet": "Exit code 1\nERROR: something", "gap": 0},
-        }],
+        waste_events=[
+            {
+                "detector": "REPEATED-FAILED-RETRY",
+                "session_id": "test-waste",
+                "turns": [14, 15, 18, 19],
+                "repeat_count": 2,
+                "evidence": {"error_snippet": "Exit code 1\nERROR: something", "gap": 0},
+            }
+        ],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
     output = format_json(result_with_waste)

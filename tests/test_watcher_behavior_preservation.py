@@ -11,8 +11,6 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.score import score_session
 from tes.waste import build_waste_entry

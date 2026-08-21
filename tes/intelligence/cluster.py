@@ -38,7 +38,6 @@ Archetype naming:
 
 import dataclasses
 import warnings
-from typing import Any
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -56,12 +55,12 @@ from tes.intelligence.features import (
 # ---------------------------------------------------------------------------
 
 MIN_SESSIONS_FOR_CLUSTERING: int = 30  # below this we don't attempt clustering
-K_RANGE: tuple[int, int] = (2, 8)      # min/max k to evaluate
-N_INIT: int = 30                        # KMeans random restarts per k evaluation
+K_RANGE: tuple[int, int] = (2, 8)  # min/max k to evaluate
+N_INIT: int = 30  # KMeans random restarts per k evaluation
 STABILITY_SEEDS: list[int] = list(range(10))  # seeds for stability check
-SILHOUETTE_STABLE_THRESHOLD: float = 0.20     # above this: meaningful clusters
-SILHOUETTE_WEAK_THRESHOLD: float = 0.10       # above this: weak but present
-STABILITY_CV_THRESHOLD: float = 0.15         # CV below this: stable solution
+SILHOUETTE_STABLE_THRESHOLD: float = 0.20  # above this: meaningful clusters
+SILHOUETTE_WEAK_THRESHOLD: float = 0.10  # above this: weak but present
+STABILITY_CV_THRESHOLD: float = 0.15  # CV below this: stable solution
 
 
 # ---------------------------------------------------------------------------
@@ -137,14 +136,16 @@ class ArchetypeCluster:
     """Descriptor for one cluster archetype."""
 
     cluster_id: int
-    name: str               # derived from dominant measured features
-    size: int               # number of sessions in this cluster
-    fraction: float         # size / total N
-    centroid_unscaled: np.ndarray   # centroid in original feature space
-    centroid_scaled: np.ndarray     # centroid in scaled feature space (for distance)
+    name: str  # derived from dominant measured features
+    size: int  # number of sessions in this cluster
+    fraction: float  # size / total N
+    centroid_unscaled: np.ndarray  # centroid in original feature space
+    centroid_scaled: np.ndarray  # centroid in scaled feature space (for distance)
 
     # Dominant features (top features by absolute deviation from global mean in scaled space)
-    dominant_features: list[dict]   # [{"name": str, "label": str, "value_unscaled": float, "z_from_global": float}]
+    dominant_features: list[
+        dict
+    ]  # [{"name": str, "label": str, "value_unscaled": float, "z_from_global": float}]
 
     # Per-task-type breakdown in this cluster
     task_type_counts: dict[str, int]
@@ -156,23 +157,23 @@ class ClusteringResult:
 
     # Metadata
     n_sessions: int
-    k: int                      # chosen k
-    valid: bool                 # True if silhouette >= SILHOUETTE_WEAK_THRESHOLD
-    status: str                 # human-readable status message
+    k: int  # chosen k
+    valid: bool  # True if silhouette >= SILHOUETTE_WEAK_THRESHOLD
+    status: str  # human-readable status message
     domain_of_validity: str
 
     # Validity metrics
     silhouette: float
     silhouette_stability_mean: float
     silhouette_stability_cv: float
-    stable: bool                # CV < threshold
+    stable: bool  # CV < threshold
 
     # Clusters
     archetypes: list[ArchetypeCluster]
 
     # Per-session assignment
     session_ids: list[str]
-    labels: list[int]           # cluster label per session (same order as session_ids)
+    labels: list[int]  # cluster label per session (same order as session_ids)
     distances_to_centroid: list[float]  # scaled-space distance from assigned centroid
 
     # Fitted scaler (needed by anomaly.py)
@@ -213,12 +214,20 @@ def run_clustering(
 
     if n < MIN_SESSIONS_FOR_CLUSTERING:
         return ClusteringResult(
-            n_sessions=n, k=0, valid=False,
+            n_sessions=n,
+            k=0,
+            valid=False,
             status=f"Too few content sessions ({n} < {MIN_SESSIONS_FOR_CLUSTERING}) for clustering.",
             domain_of_validity=dov,
-            silhouette=0.0, silhouette_stability_mean=0.0, silhouette_stability_cv=0.0,
-            stable=False, archetypes=[], session_ids=[sf.session_id for sf in features],
-            labels=[], distances_to_centroid=[], scaler=StandardScaler(),
+            silhouette=0.0,
+            silhouette_stability_mean=0.0,
+            silhouette_stability_cv=0.0,
+            stable=False,
+            archetypes=[],
+            session_ids=[sf.session_id for sf in features],
+            labels=[],
+            distances_to_centroid=[],
+            scaler=StandardScaler(),
         )
 
     # --- Scale ---
@@ -306,8 +315,7 @@ def run_clustering(
     # Centroid distances
     centers_scaled = km_final.cluster_centers_
     distances = [
-        float(np.linalg.norm(X_scaled[i] - centers_scaled[labels_final[i]]))
-        for i in range(n)
+        float(np.linalg.norm(X_scaled[i] - centers_scaled[labels_final[i]])) for i in range(n)
     ]
 
     # --- Build archetype descriptors ---

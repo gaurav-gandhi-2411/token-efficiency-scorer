@@ -1,6 +1,10 @@
 """Find where anthropic client gets its key."""
+
 from __future__ import annotations
-import os, anthropic
+
+import os
+
+import anthropic
 
 print("Checking env vars:")
 for var in ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]:

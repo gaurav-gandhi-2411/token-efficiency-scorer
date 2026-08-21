@@ -11,7 +11,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Shared output type
 # ---------------------------------------------------------------------------
@@ -23,8 +22,8 @@ class WasteEvent:
 
     detector: str
     session_id: str
-    turns: list[int]        # turn_index values (from digest) that prove the event
-    repeat_count: int = 1   # number of consecutive failures in REPEATED-FAILED-RETRY
+    turns: list[int]  # turn_index values (from digest) that prove the event
+    repeat_count: int = 1  # number of consecutive failures in REPEATED-FAILED-RETRY
     evidence: dict[str, Any] = field(default_factory=dict)
 
 
@@ -95,15 +94,11 @@ _STATE_MUTATION_PATTERNS: list[re.Pattern[str]] = [
 
 
 def _is_shell_call(turn: dict[str, Any]) -> bool:
-    return turn.get("role") == "ai" and bool(
-        set(turn.get("tool_names", [])) & _SHELL_TOOLS
-    )
+    return turn.get("role") == "ai" and bool(set(turn.get("tool_names", [])) & _SHELL_TOOLS)
 
 
 def _is_write_call(turn: dict[str, Any]) -> bool:
-    return turn.get("role") == "ai" and bool(
-        set(turn.get("tool_names", [])) & _WRITE_TOOLS
-    )
+    return turn.get("role") == "ai" and bool(set(turn.get("tool_names", [])) & _WRITE_TOOLS)
 
 
 def _is_error_result(snippet: str) -> bool:

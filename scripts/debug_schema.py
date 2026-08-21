@@ -1,7 +1,9 @@
 """Temporary schema inspection script — not part of final pipeline."""
+
 from __future__ import annotations
+
 import json
-import sys
+
 from datasets import load_dataset  # type: ignore[import]
 
 for dataset_name in [
@@ -10,7 +12,7 @@ for dataset_name in [
     "SWE-Gym/OpenHands-Sampled-Trajectories",
 ]:
     split = "train.raw" if "SWE-Gym" in dataset_name else "train"
-    print(f"\n{'='*60}\nDataset: {dataset_name}")
+    print(f"\n{'=' * 60}\nDataset: {dataset_name}")
     ds = load_dataset(dataset_name, split=split, streaming=True)
     for row in ds:
         print("Top-level keys:", list(row.keys()))

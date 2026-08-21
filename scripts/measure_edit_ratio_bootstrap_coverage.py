@@ -99,7 +99,9 @@ def generate_sessions(rng: np.random.Generator, n: int) -> tuple[np.ndarray, np.
     return cost, edits
 
 
-def bootstrap_replicates(rng: np.random.Generator, cost: np.ndarray, edits: np.ndarray, n_boot: int) -> np.ndarray:
+def bootstrap_replicates(
+    rng: np.random.Generator, cost: np.ndarray, edits: np.ndarray, n_boot: int
+) -> np.ndarray:
     """Resample (cost_i, edits_i) PAIRS with replacement -- preserves the
     session-level cost/edits correlation. Returns the n_boot ratio-of-sums
     replicates, vectorized (one index matrix, one pass)."""
@@ -118,7 +120,11 @@ def percentile_interval(replicates: np.ndarray, confidence: float) -> tuple[floa
 
 
 def bca_interval(
-    replicates: np.ndarray, cost: np.ndarray, edits: np.ndarray, point_estimate: float, confidence: float
+    replicates: np.ndarray,
+    cost: np.ndarray,
+    edits: np.ndarray,
+    point_estimate: float,
+    confidence: float,
 ) -> tuple[float, float]:
     """Standard BCa (Efron 1987): bias-correction z0 from the fraction of
     bootstrap replicates below the point estimate, acceleration a from the
@@ -257,7 +263,9 @@ def main() -> int:
     print("\n=== n_boot sufficiency (ZZ1.6): std dev of interval bounds across 200 repeats ===")
     for confidence, n in [(0.98, 30), (0.98, 250)]:
         print(f"\nconfidence={confidence} n={n}:")
-        results = measure_n_boot_sufficiency(confidence, n, [500, 1_000, 2_000, 5_000, 10_000, 20_000])
+        results = measure_n_boot_sufficiency(
+            confidence, n, [500, 1_000, 2_000, 5_000, 10_000, 20_000]
+        )
         for n_boot, stats_ in results.items():
             print(
                 f"  n_boot={n_boot:>6}: lower std={stats_['lower_std']:.5f} "
@@ -265,7 +273,9 @@ def main() -> int:
                 f"(lower mean={stats_['lower_mean']:.4f}, upper mean={stats_['upper_mean']:.4f})"
             )
 
-    out_path = Path(__file__).resolve().parent.parent / "reports" / "edit_ratio_bootstrap_coverage.json"
+    out_path = (
+        Path(__file__).resolve().parent.parent / "reports" / "edit_ratio_bootstrap_coverage.json"
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     serializable = {
         "true_ratio": TRUE_RATIO,
@@ -273,14 +283,18 @@ def main() -> int:
         "n_boot_survey": N_BOOT_SURVEY,
         "percentile": {
             f"{c}|{n}": {
-                "covered": v[0], "n_trials": v[1], "coverage_rate": v[0] / v[1],
+                "covered": v[0],
+                "n_trials": v[1],
+                "coverage_rate": v[0] / v[1],
                 "wilson_95ci": list(wilson_score_interval(v[0], v[1])),
             }
             for (c, n), v in grid["percentile"].items()
         },
         "bca": {
             f"{c}|{n}": {
-                "covered": v[0], "n_trials": v[1], "coverage_rate": v[0] / v[1],
+                "covered": v[0],
+                "n_trials": v[1],
+                "coverage_rate": v[0] / v[1],
                 "wilson_95ci": list(wilson_score_interval(v[0], v[1])),
             }
             for (c, n), v in grid["bca"].items()

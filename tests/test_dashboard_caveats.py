@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-
-import pytest
 
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
@@ -34,12 +31,14 @@ def _make_judge_absent_result() -> ThreeAxisResult:
         judge_reasoning=None,
         trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REPEATED-FAILED-RETRY",
-            "turns": [14, 15, 18, 19],
-            "repeat_count": 3,
-            "evidence": {"error_snippet": "Connection refused"},
-        }],
+        waste_events=[
+            {
+                "detector": "REPEATED-FAILED-RETRY",
+                "turns": [14, 15, 18, 19],
+                "repeat_count": 3,
+                "evidence": {"error_snippet": "Connection refused"},
+            }
+        ],
         waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
     )
 

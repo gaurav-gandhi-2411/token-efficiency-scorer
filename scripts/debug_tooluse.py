@@ -1,6 +1,10 @@
 """Debug tool_use content in normalized traces."""
+
 from __future__ import annotations
-import json, pathlib, random
+
+import json
+import pathlib
+import random
 
 random.seed(42)
 files = list(pathlib.Path("data/validation-corpus/traces_normalized").glob("*.json"))
@@ -14,7 +18,9 @@ for f in files[:10]:
             for tu in t["tool_uses"][:2]:
                 print(f"  tool_name: {tu['tool_name']}")
                 print(f"  tool_input: {str(tu['tool_input'])[:100]}")
-                print(f"  tool_result: {str(tu['tool_result'])[:80] if tu['tool_result'] else 'None'}")
+                print(
+                    f"  tool_result: {str(tu['tool_result'])[:80] if tu['tool_result'] else 'None'}"
+                )
             # Also show surrounding turns
             break
 
@@ -32,10 +38,15 @@ for f in files:
                 if tu["tool_result"]:
                     counts[sc]["with_result"] += 1
                 inp = tu["tool_input"]
-                if isinstance(inp, dict) and any(k in inp for k in ["path", "file_path", "command", "filename"]):
-                    counts[sc]["with_path"] += 1
-                elif isinstance(inp, str) and ("/" in inp or "." in inp):
+                if (
+                    isinstance(inp, dict)
+                    and any(k in inp for k in ["path", "file_path", "command", "filename"])
+                    or isinstance(inp, str)
+                    and ("/" in inp or "." in inp)
+                ):
                     counts[sc]["with_path"] += 1
 
 for sc, c in counts.items():
-    print(f"  {sc}: {c['tool_turns']} tool-bearing turns, {c['with_result']} have result, {c['with_path']} have path")
+    print(
+        f"  {sc}: {c['tool_turns']} tool-bearing turns, {c['with_result']} have result, {c['with_path']} have path"
+    )

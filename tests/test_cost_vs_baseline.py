@@ -7,10 +7,8 @@ Cost is an annotation only — not a score, not part of any composite.
 """
 
 import pytest
-
-from tes.cost import SessionCost, TurnCost
-from tes.score import ThreeAxisResult, score_session, load_baselines
-
+from tes.cost import SessionCost
+from tes.score import load_baselines, score_session
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -278,7 +276,9 @@ def test_cost_unpriced_models_handles_empty_model_string() -> None:
         total_usd=0.0,
         turn_costs=[],
         approximate=True,
-        approximate_reasons=["empty model string — cost unknown, not priced at a guessed/default rate"],
+        approximate_reasons=[
+            "empty model string — cost unknown, not priced at a guessed/default rate"
+        ],
         domain_of_validity="test domain",
         ai_turn_count=5,
         approximate_turn_count=5,

@@ -43,11 +43,11 @@ DEFAULT_TOP_N: int = 3
 
 @dataclass
 class HabitResult:
-    habit_id: str            # "H1" | "H2" | "H3"
-    task_type: str | None    # None when not scoped to a single task_type
+    habit_id: str  # "H1" | "H2" | "H3"
+    task_type: str | None  # None when not scoped to a single task_type
     message: str
     measured_n: int
-    impact_usd: float        # ranking key — total measured $ this habit accounts for
+    impact_usd: float  # ranking key — total measured $ this habit accounts for
 
 
 def _fetch_sessions(conn: sqlite3.Connection, task_type: str | None) -> list[dict]:
@@ -127,8 +127,11 @@ def _compute_h1(conn: sqlite3.Connection, prices: dict, task_type: str) -> Habit
         "Action: run `/compact` earlier in long sessions of this type."
     )
     return HabitResult(
-        habit_id="H1", task_type=task_type, message=message,
-        measured_n=n_high, impact_usd=excess * n_high,
+        habit_id="H1",
+        task_type=task_type,
+        message=message,
+        measured_n=n_high,
+        impact_usd=excess * n_high,
     )
 
 
@@ -163,8 +166,11 @@ def _compute_h2(conn: sqlite3.Connection) -> HabitResult | None:
         "this repeats."
     )
     return HabitResult(
-        habit_id="H2", task_type=None, message=message,
-        measured_n=n_with_waste, impact_usd=total_waste_usd,
+        habit_id="H2",
+        task_type=None,
+        message=message,
+        measured_n=n_with_waste,
+        impact_usd=total_waste_usd,
     )
 
 
@@ -182,8 +188,12 @@ def _compute_h3(
         return None  # data-gated: only once a real self-baseline is active
 
     rows = _fetch_sessions(conn, task_type)
-    above = [float(r["session_cost_usd"]) for r in rows if r["band_verdict"] in _ABOVE_BAND_VERDICTS]
-    rest = [float(r["session_cost_usd"]) for r in rows if r["band_verdict"] not in _ABOVE_BAND_VERDICTS]
+    above = [
+        float(r["session_cost_usd"]) for r in rows if r["band_verdict"] in _ABOVE_BAND_VERDICTS
+    ]
+    rest = [
+        float(r["session_cost_usd"]) for r in rows if r["band_verdict"] not in _ABOVE_BAND_VERDICTS
+    ]
 
     n_above = len(above)
     if n_above < MIN_N_FOR_HABIT or not rest:
@@ -203,8 +213,11 @@ def _compute_h3(
         "session detail pages for what made those heavier."
     )
     return HabitResult(
-        habit_id="H3", task_type=task_type, message=message,
-        measured_n=n_above, impact_usd=excess * n_above,
+        habit_id="H3",
+        task_type=task_type,
+        message=message,
+        measured_n=n_above,
+        impact_usd=excess * n_above,
     )
 
 

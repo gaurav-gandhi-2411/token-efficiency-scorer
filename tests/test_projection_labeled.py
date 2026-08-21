@@ -8,7 +8,7 @@ and window/N, and that no false-certainty phrasing ("you will spend") ever appea
 
 import re
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from tes.budget import compute_budget_projection
@@ -55,7 +55,7 @@ def _insert_session(
 
 
 def _now() -> datetime:
-    return datetime(2026, 7, 4, 12, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 7, 4, 12, 0, 0, tzinfo=UTC)
 
 
 # ---------------------------------------------------------------------------

@@ -19,15 +19,16 @@ import hashlib
 import json
 import os
 import sqlite3
+from datetime import UTC
 from pathlib import Path
 
 from tes.score import ThreeAxisResult
 
 
 class TrajectoryRenderState(enum.Enum):
-    UNAVAILABLE = "unavailable"   # judge_verdict is None (never ran, or errored at scoring time)
-    CURRENT = "current"           # verdict present, hash matches (not stale)
-    STALE = "stale"               # verdict present, but judge ran against an older file version
+    UNAVAILABLE = "unavailable"  # judge_verdict is None (never ran, or errored at scoring time)
+    CURRENT = "current"  # verdict present, hash matches (not stale)
+    STALE = "stale"  # verdict present, but judge ran against an older file version
 
 
 def trajectory_render_state(row: dict) -> TrajectoryRenderState:
@@ -135,9 +136,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
 
     # Additive migration: turn_count was added after the initial schema shipped.
     # ALTER TABLE is safe to re-run guard: check column presence first.
-    existing_cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
-    }
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
     if "turn_count" not in existing_cols:
         conn.execute("ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
         conn.commit()
@@ -239,9 +238,9 @@ def upsert_session(
 
     turn_count: from the adapted record (adapt_session returns it at top level).
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    scored_at = datetime.now(timezone.utc).isoformat()
+    scored_at = datetime.now(UTC).isoformat()
     has_judge = result.judge_verdict is not None
 
     axes: list[str] = ["token", "waste"]
@@ -287,23 +286,41 @@ def upsert_session(
             )
             """,
             (
-                result.session_id, result.task_type,
-                source_path, source_mtime, source_hash, scored_at, axes_json,
-                result.real_tokens, result.scope_status, int(result.baseline_available),
-                result.p25, result.p75, result.median, result.band_verdict,
-                result.interpretation, result.token_domain_of_validity,
+                result.session_id,
+                result.task_type,
+                source_path,
+                source_mtime,
+                source_hash,
+                scored_at,
+                axes_json,
+                result.real_tokens,
+                result.scope_status,
+                int(result.baseline_available),
+                result.p25,
+                result.p75,
+                result.median,
+                result.band_verdict,
+                result.interpretation,
+                result.token_domain_of_validity,
                 result.baseline_source,
-                result.judge_verdict, result.judge_score, result.judge_reasoning,
+                result.judge_verdict,
+                result.judge_score,
+                result.judge_reasoning,
                 result.trajectory_domain_of_validity,
                 source_hash if has_judge else None,
-                result.waste_event_count, json.dumps(result.waste_events),
+                result.waste_event_count,
+                json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
-                result.session_cost_usd, int(result.cost_approximate),
+                result.session_cost_usd,
+                int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
-                result.context_resend_pct, result.context_growth_pct,
-                result.output_pct, result.waste_pct,
-                result.cost_unpriced_models, result.edit_operations,
+                result.context_resend_pct,
+                result.context_growth_pct,
+                result.output_pct,
+                result.waste_pct,
+                result.cost_unpriced_models,
+                result.edit_operations,
             ),
         )
 
@@ -330,21 +347,39 @@ def upsert_session(
             """,
             (
                 result.task_type,
-                source_path, source_mtime, source_hash, scored_at, axes_json,
-                result.real_tokens, result.scope_status, int(result.baseline_available),
-                result.p25, result.p75, result.median, result.band_verdict,
-                result.interpretation, result.token_domain_of_validity,
+                source_path,
+                source_mtime,
+                source_hash,
+                scored_at,
+                axes_json,
+                result.real_tokens,
+                result.scope_status,
+                int(result.baseline_available),
+                result.p25,
+                result.p75,
+                result.median,
+                result.band_verdict,
+                result.interpretation,
+                result.token_domain_of_validity,
                 result.baseline_source,
-                result.judge_verdict, result.judge_score, result.judge_reasoning,
-                result.trajectory_domain_of_validity, source_hash,
-                result.waste_event_count, json.dumps(result.waste_events),
+                result.judge_verdict,
+                result.judge_score,
+                result.judge_reasoning,
+                result.trajectory_domain_of_validity,
+                source_hash,
+                result.waste_event_count,
+                json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
-                result.session_cost_usd, int(result.cost_approximate),
+                result.session_cost_usd,
+                int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
-                result.context_resend_pct, result.context_growth_pct,
-                result.output_pct, result.waste_pct,
-                result.cost_unpriced_models, result.edit_operations,
+                result.context_resend_pct,
+                result.context_growth_pct,
+                result.output_pct,
+                result.waste_pct,
+                result.cost_unpriced_models,
+                result.edit_operations,
                 result.session_id,
             ),
         )
@@ -370,19 +405,34 @@ def upsert_session(
             """,
             (
                 result.task_type,
-                source_path, source_mtime, source_hash, scored_at, axes_json,
-                result.real_tokens, result.scope_status, int(result.baseline_available),
-                result.p25, result.p75, result.median, result.band_verdict,
-                result.interpretation, result.token_domain_of_validity,
+                source_path,
+                source_mtime,
+                source_hash,
+                scored_at,
+                axes_json,
+                result.real_tokens,
+                result.scope_status,
+                int(result.baseline_available),
+                result.p25,
+                result.p75,
+                result.median,
+                result.band_verdict,
+                result.interpretation,
+                result.token_domain_of_validity,
                 result.baseline_source,
-                result.waste_event_count, json.dumps(result.waste_events),
+                result.waste_event_count,
+                json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
-                result.session_cost_usd, int(result.cost_approximate),
+                result.session_cost_usd,
+                int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
-                result.context_resend_pct, result.context_growth_pct,
-                result.output_pct, result.waste_pct,
-                result.cost_unpriced_models, result.edit_operations,
+                result.context_resend_pct,
+                result.context_growth_pct,
+                result.output_pct,
+                result.waste_pct,
+                result.cost_unpriced_models,
+                result.edit_operations,
                 result.session_id,
             ),
         )
@@ -410,21 +460,39 @@ def upsert_session(
             """,
             (
                 result.task_type,
-                source_path, source_mtime, source_hash, scored_at, axes_json,
-                result.real_tokens, result.scope_status, int(result.baseline_available),
-                result.p25, result.p75, result.median, result.band_verdict,
-                result.interpretation, result.token_domain_of_validity,
+                source_path,
+                source_mtime,
+                source_hash,
+                scored_at,
+                axes_json,
+                result.real_tokens,
+                result.scope_status,
+                int(result.baseline_available),
+                result.p25,
+                result.p75,
+                result.median,
+                result.band_verdict,
+                result.interpretation,
+                result.token_domain_of_validity,
                 result.baseline_source,
-                None, None, None,
-                result.trajectory_domain_of_validity, None,
-                result.waste_event_count, json.dumps(result.waste_events),
+                None,
+                None,
+                None,
+                result.trajectory_domain_of_validity,
+                None,
+                result.waste_event_count,
+                json.dumps(result.waste_events),
                 result.waste_domain_of_validity,
                 turn_count,
-                result.session_cost_usd, int(result.cost_approximate),
+                result.session_cost_usd,
+                int(result.cost_approximate),
                 result.cost_domain_of_validity or "",
-                result.context_resend_pct, result.context_growth_pct,
-                result.output_pct, result.waste_pct,
-                result.cost_unpriced_models, result.edit_operations,
+                result.context_resend_pct,
+                result.context_growth_pct,
+                result.output_pct,
+                result.waste_pct,
+                result.cost_unpriced_models,
+                result.edit_operations,
                 result.session_id,
             ),
         )
@@ -466,8 +534,7 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
                     turn_count += 1
                 elif isinstance(content, list):
                     has_tr = any(
-                        isinstance(x, dict) and x.get("type") == "tool_result"
-                        for x in content
+                        isinstance(x, dict) and x.get("type") == "tool_result" for x in content
                     )
                     if has_tr:
                         turn_count += 1
@@ -529,9 +596,9 @@ def backfill_waste(
     where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
     processed with 0 detected events, "missing_source" = source file not accessible.
     """
+    from tes._digest import reconstruct_digest
     from tes.adapt import adapt_session
     from tes.cost import compute_session_cost, load_price_table
-    from tes._digest import reconstruct_digest
     from tes.waste import annotate_waste_costs, build_waste_entry
 
     if prices is None:
@@ -597,9 +664,9 @@ def backfill_cost(
     cache_creation tokens are available. Returns summary dict:
       {"updated": N, "missing_source": M, "errors": E, "approximate": A}
     """
+    from tes._digest import reconstruct_digest
     from tes.adapt import adapt_session
     from tes.cost import compute_session_cost, load_price_table
-    from tes._digest import reconstruct_digest
 
     if prices is None:
         prices = load_price_table()
@@ -640,7 +707,12 @@ def backfill_cost(
             errors += 1
 
     conn.close()
-    return {"updated": updated, "missing_source": missing, "errors": errors, "approximate": approximate}
+    return {
+        "updated": updated,
+        "missing_source": missing,
+        "errors": errors,
+        "approximate": approximate,
+    }
 
 
 def _deserialize_row(row: sqlite3.Row) -> dict:
@@ -650,9 +722,7 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
     d["axes_scored"] = json.loads(d["axes_scored"])
     d["baseline_available"] = bool(d["baseline_available"])
     d["judge_stale"] = bool(
-        d["judge_verdict"]
-        and d["judge_source_hash"]
-        and d["judge_source_hash"] != d["source_hash"]
+        d["judge_verdict"] and d["judge_source_hash"] and d["judge_source_hash"] != d["source_hash"]
     )
     d["cost_approximate"] = bool(d.get("cost_approximate", 0))
     return d
@@ -660,9 +730,7 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
 
 def get_session(conn: sqlite3.Connection, session_id: str) -> dict | None:
     """Return full session row as dict, or None if not found."""
-    row = conn.execute(
-        "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
     if row is None:
         return None
     return _deserialize_row(row)

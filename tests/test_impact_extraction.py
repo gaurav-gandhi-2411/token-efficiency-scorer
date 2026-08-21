@@ -14,7 +14,6 @@ import json
 
 from tes.impact import compute_impact_report, extract_edit_operations
 
-
 # ---------------------------------------------------------------------------
 # extract_edit_operations
 # ---------------------------------------------------------------------------
@@ -23,7 +22,11 @@ from tes.impact import compute_impact_report, extract_edit_operations
 def test_edit_computes_additions_and_deletions_from_line_counts():
     ops = extract_edit_operations(
         "Edit",
-        {"file_path": "/repo/foo.py", "old_string": "line1\nline2\n", "new_string": "line1\nline2\nline3\n"},
+        {
+            "file_path": "/repo/foo.py",
+            "old_string": "line1\nline2\n",
+            "new_string": "line1\nline2\nline3\n",
+        },
     )
     assert len(ops) == 1
     op = ops[0]
@@ -109,9 +112,7 @@ def test_non_dict_input_returns_nothing():
 def test_trailing_newline_does_not_count_as_an_extra_line():
     """_line_count: a trailing newline ends the last line, doesn't start
     an empty one -- 'a\\nb\\n' is 2 lines, not 3."""
-    ops = extract_edit_operations(
-        "Write", {"file_path": "/repo/f.py", "content": "a\nb\n"}
-    )
+    ops = extract_edit_operations("Write", {"file_path": "/repo/f.py", "content": "a\nb\n"})
     assert ops[0].additions == 2
 
 
@@ -145,12 +146,27 @@ def test_legacy_rows_counted_separately_from_sessions_with_data():
 
 def test_total_additions_deletions_and_operations_sum_correctly():
     rows = [
-        _row("s1", [
-            {"path": "a.py", "additions": 5, "deletions": 2, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-            {"path": "b.py", "additions": 3, "deletions": 0, "tool": "Write",
-             "prior_content_unknown": True, "untested_tool_shape": False},
-        ]),
+        _row(
+            "s1",
+            [
+                {
+                    "path": "a.py",
+                    "additions": 5,
+                    "deletions": 2,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+                {
+                    "path": "b.py",
+                    "additions": 3,
+                    "deletions": 0,
+                    "tool": "Write",
+                    "prior_content_unknown": True,
+                    "untested_tool_shape": False,
+                },
+            ],
+        ),
     ]
     report = compute_impact_report(rows)
     assert report.total_operations == 2
@@ -160,12 +176,27 @@ def test_total_additions_deletions_and_operations_sum_correctly():
 
 def test_prior_content_unknown_pct_only_counts_flagged_additions():
     rows = [
-        _row("s1", [
-            {"path": "a.py", "additions": 10, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-            {"path": "b.py", "additions": 10, "deletions": 0, "tool": "Write",
-             "prior_content_unknown": True, "untested_tool_shape": False},
-        ]),
+        _row(
+            "s1",
+            [
+                {
+                    "path": "a.py",
+                    "additions": 10,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+                {
+                    "path": "b.py",
+                    "additions": 10,
+                    "deletions": 0,
+                    "tool": "Write",
+                    "prior_content_unknown": True,
+                    "untested_tool_shape": False,
+                },
+            ],
+        ),
     ]
     report = compute_impact_report(rows)
     assert report.prior_content_unknown_pct == 50.0  # 10 of 20 additions
@@ -173,12 +204,27 @@ def test_prior_content_unknown_pct_only_counts_flagged_additions():
 
 def test_untested_tool_shape_pct_reported_inline():
     rows = [
-        _row("s1", [
-            {"path": "a.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-            {"path": "b.py", "additions": 1, "deletions": 0, "tool": "MultiEdit",
-             "prior_content_unknown": False, "untested_tool_shape": True},
-        ]),
+        _row(
+            "s1",
+            [
+                {
+                    "path": "a.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+                {
+                    "path": "b.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "MultiEdit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": True,
+                },
+            ],
+        ),
     ]
     report = compute_impact_report(rows)
     assert report.untested_tool_shape_pct == 50.0  # 1 of 2 operations
@@ -186,16 +232,40 @@ def test_untested_tool_shape_pct_reported_inline():
 
 def test_churn_ranking_sorted_by_edit_count_descending():
     rows = [
-        _row("s1", [
-            {"path": "hot.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-            {"path": "cold.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-        ]),
-        _row("s2", [
-            {"path": "hot.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-        ]),
+        _row(
+            "s1",
+            [
+                {
+                    "path": "hot.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+                {
+                    "path": "cold.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+            ],
+        ),
+        _row(
+            "s2",
+            [
+                {
+                    "path": "hot.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+            ],
+        ),
     ]
     report = compute_impact_report(rows)
     assert report.top_files[0].path == "hot.py"
@@ -207,12 +277,27 @@ def test_churn_ranking_sorted_by_edit_count_descending():
 
 def test_directory_aggregation_groups_files_by_parent():
     rows = [
-        _row("s1", [
-            {"path": "src/a.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-            {"path": "src/b.py", "additions": 1, "deletions": 0, "tool": "Edit",
-             "prior_content_unknown": False, "untested_tool_shape": False},
-        ]),
+        _row(
+            "s1",
+            [
+                {
+                    "path": "src/a.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+                {
+                    "path": "src/b.py",
+                    "additions": 1,
+                    "deletions": 0,
+                    "tool": "Edit",
+                    "prior_content_unknown": False,
+                    "untested_tool_shape": False,
+                },
+            ],
+        ),
     ]
     report = compute_impact_report(rows)
     assert len(report.top_directories) == 1

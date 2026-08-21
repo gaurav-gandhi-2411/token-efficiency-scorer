@@ -1,13 +1,3 @@
-# ruff: noqa: E402 -- rule 1's future-import-first convention (this repo's own
-# CLAUDE.md) puts `from __future__ import annotations` before the module
-# docstring, which pycodestyle's E402 reads as "imports after a statement."
-# Pre-existing, repo-wide (608 findings per ci.yml's ruff-check comment,
-# previously informational-only); newly blocking here because AV1 is the
-# first commit to touch this file since the pre-commit hook went live
-# (PR #41). Suppressed locally rather than reordering the docstring (which
-# would violate rule 1) or fixing the other ~606 unrelated instances as a
-# drive-by (out of scope for this change) -- see the AV1/AV2 PR body for the
-# repo-wide flag.
 from __future__ import annotations
 
 """tes/cli.py — Command-line interface for the Token-Efficiency Scorer.
@@ -1934,7 +1924,7 @@ def main() -> None:
     from tes.store import open_db  # noqa: PLC0415
 
     store_conn = None
-    try:  # noqa: SIM105 -- pre-existing, unrelated to this change; not a drive-by fix
+    try:
         store_conn = open_db()
     except Exception:
         pass

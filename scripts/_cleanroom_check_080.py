@@ -1,4 +1,5 @@
 """Clean-room gate script for 0.8.0: runs from the INSTALLED wheel, not the repo."""
+
 from __future__ import annotations
 
 import pathlib
@@ -40,14 +41,15 @@ mock_cache = {
     "status": "Not enough sessions.",
     "domain_of_validity": "n/a",
 }
-with patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache), \
-     patch("tes.web.server._check_ollama", return_value=False):
+with (
+    patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache),
+    patch("tes.web.server._check_ollama", return_value=False),
+):
     with app.test_client() as c:
         resp = c.get("/patterns")
 assert resp.status_code == 200, f"/patterns returned {resp.status_code}, expected 200"
 html = resp.data.decode()
-assert "Not enough sessions" in html or "not enough" in html.lower(), \
-    "Floor message not rendered"
+assert "Not enough sessions" in html or "not enough" in html.lower(), "Floor message not rendered"
 assert "ask-panel" in html, "Ask panel not rendered"
 print("[OK] GET /patterns -> 200 from installed wheel (templates bundled correctly)")
 print("[OK] Floor message rendered")
@@ -55,6 +57,7 @@ print("[OK] Ask panel present")
 
 # --- 4. POST /ask empty -> 400 ---
 import json
+
 with app.test_client() as c:
     r = c.post("/ask", data=json.dumps({"question": ""}), content_type="application/json")
 assert r.status_code == 400, f"POST /ask empty -> {r.status_code}, expected 400"
@@ -67,12 +70,16 @@ assert r.status_code == 405, f"GET /ask -> {r.status_code}, expected 405 (not 40
 print("[OK] GET /ask -> 405 (route registered, not 404)")
 
 # --- 6. /ask POST with mocked local LLM -> grounded answer ---
-with patch("tes.web.server.ask_local", return_value="Corpus has 0 content sessions."), \
-     patch("tes.web.server.ask_api", return_value=None):
+with (
+    patch("tes.web.server.ask_local", return_value="Corpus has 0 content sessions."),
+    patch("tes.web.server.ask_api", return_value=None),
+):
     with app.test_client() as c:
-        r = c.post("/ask",
-                   data=json.dumps({"question": "How many sessions do I have?"}),
-                   content_type="application/json")
+        r = c.post(
+            "/ask",
+            data=json.dumps({"question": "How many sessions do I have?"}),
+            content_type="application/json",
+        )
 assert r.status_code == 200, f"/ask mocked local -> {r.status_code}"
 data = r.get_json()
 assert data.get("answer"), f"No answer in response: {data}"
@@ -81,17 +88,19 @@ print(f"[OK] POST /ask -> answer from local: '{data['answer']}'")
 
 # --- 7. tes --version ---
 import subprocess
+
 result = subprocess.run(
     [sys.executable, "-m", "tes", "--version"],
-    capture_output=True, text=True,
+    capture_output=True,
+    text=True,
 )
 ver_out = (result.stdout + result.stderr).strip()
 assert "0.8.0" in ver_out, f"tes --version output does not contain 0.8.0: {ver_out!r}"
 print(f"[OK] tes --version: {ver_out}")
 
 # --- 8. tes patterns import (ML deps available) ---
-from tes.intelligence.cache import get_or_compute_intelligence
-from tes.intelligence.chat import ask_local as chat_ask_local, CHAT_SYSTEM_PROMPT
+from tes.intelligence.chat import CHAT_SYSTEM_PROMPT
+
 print("[OK] tes.intelligence imports OK (numpy/sklearn available)")
 assert "I don't predict" in CHAT_SYSTEM_PROMPT, "Honesty guard missing from system prompt"
 print("[OK] CHAT_SYSTEM_PROMPT contains 'I don't predict' guard")

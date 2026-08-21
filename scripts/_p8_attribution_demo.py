@@ -50,36 +50,34 @@ def show_attribution(session_id_prefix: str, label: str) -> None:
     tb = attr.total_billed_tokens
     rt = attr.real_tokens
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  {label}")
     print(f"  task_type: {row['task_type']}   session: {row['session_id']}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"  real_tokens (verdict basis):         {rt:>12,}")
     print(f"  total_billed_tokens (attribution):   {tb:>12,}")
     print(f"  cache_carry ratio (cache/billed):    {(tb - rt) / tb * 100 if tb else 0:.1f}%")
     print(f"  total_usd:                           ${attr.total_usd:>10.4f}")
     print()
     print(f"  {'Bucket':<43} {'tokens':>10}  {'%billed':>7}  {'usd':>9}  {'%cost':>7}")
-    print(f"  {'-'*83}")
+    print(f"  {'-' * 83}")
 
     buckets = [
-        ("B1 Redundant-read waste",         attr.rr_waste_tokens,        attr.rr_waste_usd),
-        ("B2 Retry-loop waste",              attr.rfr_waste_tokens,       attr.rfr_waste_usd),
-        ("B3 Context re-send (cache reads)", attr.context_resend_tokens,  attr.context_resend_usd),
-        ("B4 Output",                        attr.output_tokens,          attr.output_usd),
-        ("B5 Fresh input (residual)",        attr.fresh_input_tokens,     attr.fresh_input_usd),
-        ("B6 Context growth (cache writes)", attr.context_growth_tokens,  attr.context_growth_usd),
+        ("B1 Redundant-read waste", attr.rr_waste_tokens, attr.rr_waste_usd),
+        ("B2 Retry-loop waste", attr.rfr_waste_tokens, attr.rfr_waste_usd),
+        ("B3 Context re-send (cache reads)", attr.context_resend_tokens, attr.context_resend_usd),
+        ("B4 Output", attr.output_tokens, attr.output_usd),
+        ("B5 Fresh input (residual)", attr.fresh_input_tokens, attr.fresh_input_usd),
+        ("B6 Context growth (cache writes)", attr.context_growth_tokens, attr.context_growth_usd),
     ]
     for name, tok, usd in buckets:
         pct_tok = tok / tb * 100 if tb else 0
         pct_usd = usd / attr.total_usd * 100 if attr.total_usd else 0
         print(f"  {name:<43} {tok:>10,}  {pct_tok:>6.1f}%  ${usd:>8.4f}  {pct_usd:>6.1f}%")
 
-    print(f"  {'-'*83}")
+    print(f"  {'-' * 83}")
     total_check = sum(t for _, t, _ in buckets)
-    print(
-        f"  {'TOTAL':<43} {total_check:>10,}  100.0%  ${attr.total_usd:>8.4f}  100.0%"
-    )
+    print(f"  {'TOTAL':<43} {total_check:>10,}  100.0%  ${attr.total_usd:>8.4f}  100.0%")
     print(f"  reconciles_to_total_billed: {total_check == tb}")
 
     we_stored = json.loads(row["waste_events"])

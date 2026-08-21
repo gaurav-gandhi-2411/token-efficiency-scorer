@@ -17,7 +17,6 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from tes.intelligence.chat import (
     CHAT_EGRESS_NOTICE,
     CHAT_SYSTEM_PROMPT,
@@ -27,10 +26,10 @@ from tes.intelligence.chat import (
     build_chat_context,
 )
 
-
 # ---------------------------------------------------------------------------
 # Message builder tests
 # ---------------------------------------------------------------------------
+
 
 class TestUserMessageBuilder:
     @pytest.fixture(scope="class")
@@ -61,7 +60,13 @@ class TestUserMessageBuilder:
 
     def test_message_no_raw_content_fields(self, user_msg):
         """Session content fields must not appear in the message."""
-        forbidden_fields = ["content_snippet", "tool_use", "tool_result", "reasoning", "task_description"]
+        forbidden_fields = [
+            "content_snippet",
+            "tool_use",
+            "tool_result",
+            "reasoning",
+            "task_description",
+        ]
         for field in forbidden_fields:
             assert field not in user_msg, f"Forbidden field '{field}' found in user message"
 
@@ -88,7 +93,8 @@ class TestUserMessageBuilder:
 
     def test_session_context_only_includes_metrics(self):
         """When a session is in context, it should contain only metrics, not content."""
-        from tes.intelligence.chat import _summarize_session, _build_user_message
+        from tes.intelligence.chat import _build_user_message, _summarize_session
+
         fake_session_row = {
             "session_id": "deadbeef-0000-0000-0000-000000000000",
             "task_type": "debug-fix",
@@ -110,8 +116,10 @@ class TestUserMessageBuilder:
             "question": "Tell me about this session",
             "intelligence": {"valid": False, "status": "n/a", "n_sessions": 0},
             "corpus_stats": {
-                "total_sessions_in_store": 0, "content_sessions": 0,
-                "task_type_counts": {}, "cost_usd": {"n": 0, "median": None, "p75": None, "p95": None, "total": None},
+                "total_sessions_in_store": 0,
+                "content_sessions": 0,
+                "task_type_counts": {},
+                "cost_usd": {"n": 0, "median": None, "p75": None, "p95": None, "total": None},
                 "real_tokens": {"median": None, "p75": None},
                 "waste": {"sessions_with_waste": 0, "pct_of_content": 0.0, "total_waste_events": 0},
             },
@@ -126,6 +134,7 @@ class TestUserMessageBuilder:
 # ---------------------------------------------------------------------------
 # API payload inspection tests
 # ---------------------------------------------------------------------------
+
 
 class TestApiPayloadContent:
     @pytest.fixture(scope="class")
@@ -180,6 +189,7 @@ class TestApiPayloadContent:
 # Egress notice accuracy tests
 # ---------------------------------------------------------------------------
 
+
 class TestEgressNoticeAccuracy:
     def test_notice_claims_metrics_only(self):
         notice_lower = CHAT_EGRESS_NOTICE.lower()
@@ -190,7 +200,9 @@ class TestEgressNoticeAccuracy:
         assert "no session content" in notice_lower or "not" in notice_lower
 
     def test_notice_names_anthropic(self):
-        assert "anthropic" in CHAT_EGRESS_NOTICE.lower() or "api.anthropic.com" in CHAT_EGRESS_NOTICE
+        assert (
+            "anthropic" in CHAT_EGRESS_NOTICE.lower() or "api.anthropic.com" in CHAT_EGRESS_NOTICE
+        )
 
     def test_notice_no_tracegauge_server(self):
         """Must state that no tracegauge server is involved."""

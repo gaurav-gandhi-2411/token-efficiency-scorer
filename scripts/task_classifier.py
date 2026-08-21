@@ -333,11 +333,7 @@ def run_selftest() -> None:
     total_all = sum(counts_all.values())
     total_scored = sum(counts_scored.values())
     total_strict = sum(counts_strict.values())
-    print(
-        f"  {'TOTAL':<{col_w}} {total_all:>10}"
-        f"  {total_scored:>12}"
-        f"  {total_strict:>15}"
-    )
+    print(f"  {'TOTAL':<{col_w}} {total_all:>10}  {total_scored:>12}  {total_strict:>15}")
     print()
 
     # Strict-gate coverage

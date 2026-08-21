@@ -135,7 +135,7 @@ class JudgeConfig:
 
     model: str = "qwen3:30b-a3b"
     endpoint: str = "http://localhost:11434"
-    probe_timeout_s: float = 3.0   # fast probe — fail quickly when Ollama is absent
+    probe_timeout_s: float = 3.0  # fast probe — fail quickly when Ollama is absent
     inference_timeout_s: float = 300.0  # covers cold load (~30-60s) + large-session prefill
 
 
@@ -154,9 +154,9 @@ class ApiJudgeConfig:
     (B3: exact-match cross-model agreement is 58%; adjacent 85%). B3 caveats apply.
     """
 
-    api_key: str                         # user's own key; never shipped with tracegauge
+    api_key: str  # user's own key; never shipped with tracegauge
     model: str = "claude-haiku-4-5-20251001"  # override with --api-judge-model
-    provider: str = "anthropic"          # only "anthropic" currently supported
+    provider: str = "anthropic"  # only "anthropic" currently supported
     inference_timeout_s: float = 120.0
 
 
@@ -175,9 +175,11 @@ JUDGE_SETUP_HINT: str = (
 # content is not filtered. That distinction must appear here, not just in docs.
 _CONSENT_SEP = "═" * 70
 API_JUDGE_CONSENT_NOTICE_TEMPLATE: str = (
-    _CONSENT_SEP + "\n"
+    _CONSENT_SEP
+    + "\n"
     + "API JUDGE — OPT-IN CONSENT\n"
-    + _CONSENT_SEP + "\n"
+    + _CONSENT_SEP
+    + "\n"
     + "\n"
     + "Enabling the API judge will SEND SESSION TRAJECTORY DATA to Anthropic\n"
     + "using your API key.\n"
@@ -344,8 +346,7 @@ def _call_judge_api(record: dict[str, Any], config: JudgeConfig) -> dict[str, An
         raw = _json.loads(response_text)
     except httpx.ReadTimeout:
         print(
-            f"  Judge timed out after {config.inference_timeout_s:.0f}s "
-            f"— trajectory UNAVAILABLE",
+            f"  Judge timed out after {config.inference_timeout_s:.0f}s — trajectory UNAVAILABLE",
             file=sys.stderr,
         )
         return None
@@ -423,7 +424,7 @@ def score_trajectory(
 
 def _call_api_judge(
     record: dict[str, Any],
-    config: "ApiJudgeConfig",
+    config: ApiJudgeConfig,
 ) -> dict[str, Any] | None:
     """Internal Anthropic API call — only called after consent_given=True is confirmed.
 
@@ -496,7 +497,7 @@ def _call_api_judge(
 
 def score_trajectory_api(
     record: dict[str, Any],
-    config: "ApiJudgeConfig",
+    config: ApiJudgeConfig,
     *,
     consent_given: bool,
 ) -> dict[str, Any] | None:

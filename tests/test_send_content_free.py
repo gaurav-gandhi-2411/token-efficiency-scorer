@@ -15,15 +15,14 @@ Two things, both required:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from tes.contribution import ALLOWED_FIELDS, build_contribution_payload
+from tes.contribution import ALLOWED_FIELDS
 from tes.corpus_client import (
-    CorpusConfig,
     ContentLeakGuardError,
+    CorpusConfig,
     contribute,
     verify_payload_content_free,
 )
@@ -59,7 +58,9 @@ def _make_conn_with_secrets(session_id: str = "send-leak-check") -> object:
         real_tokens=5000,
         scope_status="in_scope",
         baseline_available=True,
-        p25=3000, p75=7000, median=5000,
+        p25=3000,
+        p75=7000,
+        median=5000,
         band_verdict="within_band",
         interpretation="interpretation_string_with_details",
         token_domain_of_validity="",
@@ -69,24 +70,30 @@ def _make_conn_with_secrets(session_id: str = "send-leak-check") -> object:
         judge_reasoning="judge said this is TERRIBLE code",
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REPEATED-FAILED-RETRY",
-            "session_id": session_id,
-            "turns": [3, 5, 7],
-            "repeat_count": 3,
-            "evidence": {
-                "error_snippet": "EVIDENCE_SNIPPET_CONTENT_123",
-                "proof_turn_content": "proof_turn_content_DO_NOT_LEAK",
-            },
-        }],
+        waste_events=[
+            {
+                "detector": "REPEATED-FAILED-RETRY",
+                "session_id": session_id,
+                "turns": [3, 5, 7],
+                "repeat_count": 3,
+                "evidence": {
+                    "error_snippet": "EVIDENCE_SNIPPET_CONTENT_123",
+                    "proof_turn_content": "proof_turn_content_DO_NOT_LEAK",
+                },
+            }
+        ],
         waste_domain_of_validity="",
         session_cost_usd=0.05,
         cost_approximate=False,
         cost_domain_of_validity="",
     )
-    mtime = datetime(2026, 6, 9, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(
-        conn, result, "/home/gaurav/secret-project/session.jsonl", mtime, "hash-send-test",
+        conn,
+        result,
+        "/home/gaurav/secret-project/session.jsonl",
+        mtime,
+        "hash-send-test",
         turn_count=20,
     )
     return conn
@@ -148,7 +155,10 @@ def test_actual_post_body_keys_are_exactly_allowed_fields() -> None:
 
     with patch("tes.corpus_client.httpx.post", side_effect=fake_post):
         contribute(
-            conn, consent_given=True, contributor_id=None, config=_FAKE_CONFIG,
+            conn,
+            consent_given=True,
+            contributor_id=None,
+            config=_FAKE_CONFIG,
             include_source_components=False,
         )
 
@@ -227,8 +237,13 @@ def test_guard_catches_numeric_as_string_attempt() -> None:
 def test_guard_catches_numeric_as_string_in_every_numeric_field() -> None:
     """Omnibus: every numeric field individually rejects a string value."""
     numeric_fields = [
-        "real_tokens", "token_count_input", "token_count_output",
-        "cache_creation", "cache_read", "waste_event_count", "turn_count",
+        "real_tokens",
+        "token_count_input",
+        "token_count_output",
+        "cache_creation",
+        "cache_read",
+        "waste_event_count",
+        "turn_count",
     ]
     for field in numeric_fields:
         row = _legit_row()
@@ -286,15 +301,30 @@ def test_guard_rejects_non_array_body() -> None:
 def _conn_with_one_session() -> object:
     conn = open_db(":memory:")
     result = ThreeAxisResult(
-        session_id="guard-e2e-test", task_type="debug-fix", real_tokens=1000,
-        scope_status="in_scope", baseline_available=True, p25=500, p75=1500, median=1000,
-        band_verdict="within_band", interpretation="", token_domain_of_validity="",
-        baseline_source="b2_corpus", judge_verdict=None, judge_score=None, judge_reasoning=None,
-        trajectory_domain_of_validity="", waste_event_count=0, waste_events=[],
-        waste_domain_of_validity="", session_cost_usd=0.01, cost_approximate=False,
+        session_id="guard-e2e-test",
+        task_type="debug-fix",
+        real_tokens=1000,
+        scope_status="in_scope",
+        baseline_available=True,
+        p25=500,
+        p75=1500,
+        median=1000,
+        band_verdict="within_band",
+        interpretation="",
+        token_domain_of_validity="",
+        baseline_source="b2_corpus",
+        judge_verdict=None,
+        judge_score=None,
+        judge_reasoning=None,
+        trajectory_domain_of_validity="",
+        waste_event_count=0,
+        waste_events=[],
+        waste_domain_of_validity="",
+        session_cost_usd=0.01,
+        cost_approximate=False,
         cost_domain_of_validity="",
     )
-    mtime = datetime(2026, 6, 9, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-guard-e2e", turn_count=5)
     return conn
 
@@ -307,14 +337,15 @@ def test_contribute_never_calls_httpx_post_when_guard_blocks_poisoned_payload() 
     conn = _conn_with_one_session()
     poisoned_payload = MagicMock()
     poisoned_payload.manifest.row_count = 1
-    poisoned_payload.rows = [
-        {**_legit_row(), "task_type": "sk-ant-api03-SUPERSECRETKEY123456"}
-    ]
+    poisoned_payload.rows = [{**_legit_row(), "task_type": "sk-ant-api03-SUPERSECRETKEY123456"}]
 
     with patch("tes.corpus_client.build_contribution_payload", return_value=poisoned_payload):
         with patch("tes.corpus_client.httpx.post") as mock_post:
             result = contribute(
-                conn, consent_given=True, contributor_id="safe-uuid", config=_FAKE_CONFIG,
+                conn,
+                consent_given=True,
+                contributor_id="safe-uuid",
+                config=_FAKE_CONFIG,
             )
 
     mock_post.assert_not_called()
@@ -338,7 +369,10 @@ def test_contribute_writes_non_transmitted_log_on_guard_failure(tmp_path, monkey
     with patch("tes.corpus_client.build_contribution_payload", return_value=poisoned_payload):
         with patch("tes.corpus_client.httpx.post") as mock_post:
             contribute(
-                conn, consent_given=True, contributor_id="safe-uuid", config=_FAKE_CONFIG,
+                conn,
+                consent_given=True,
+                contributor_id="safe-uuid",
+                config=_FAKE_CONFIG,
             )
 
     mock_post.assert_not_called()

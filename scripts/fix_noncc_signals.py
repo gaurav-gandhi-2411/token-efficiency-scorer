@@ -46,6 +46,7 @@ def main() -> None:
 
     try:
         from tqdm import tqdm
+
         iterator = tqdm(noncc_records, desc="Detecting non-CC", unit="session")
     except ImportError:
         iterator = noncc_records  # type: ignore[assignment]
@@ -62,18 +63,20 @@ def main() -> None:
         path_a_events = [e for e in rr_events if e.evidence.get("path") == "A"]
         path_b_events = [e for e in rr_events if e.evidence.get("path") == "B"]
 
-        noncc_signals.append({
-            "session_id": session_id,
-            "source": "swechat_noncc",
-            "agent_type": agent_type,
-            "turn_count": row.get("turn_count", len(turns)),
-            "waste_events": [dataclasses.asdict(e) for e in all_events],
-            "waste_event_count": len(all_events),
-            "rfr_fired": bool(rfr_events),
-            "rr_fired": bool(rr_events),
-            "path_a_fired": bool(path_a_events),
-            "path_b_fired": bool(path_b_events),
-        })
+        noncc_signals.append(
+            {
+                "session_id": session_id,
+                "source": "swechat_noncc",
+                "agent_type": agent_type,
+                "turn_count": row.get("turn_count", len(turns)),
+                "waste_events": [dataclasses.asdict(e) for e in all_events],
+                "waste_event_count": len(all_events),
+                "rfr_fired": bool(rfr_events),
+                "rr_fired": bool(rr_events),
+                "path_a_fired": bool(path_a_events),
+                "path_b_fired": bool(path_b_events),
+            }
+        )
 
         agent_counts[agent_type] = agent_counts.get(agent_type, 0) + 1
 
@@ -181,12 +184,18 @@ def main() -> None:
     noncc_rfr_pct = noncc_rfr_rate * 100
 
     print("\n=== GENERALIZATION SUMMARY ===")
-    print(f"CC pool (B4):          {_POOL_RFR_SESSIONS}/{_POOL_SESSIONS} = {pool_rfr_pct:.1f}% RFR | 1 developer")
-    print(f"SWE-chat CC:           {cc_rfr}/{cc_n} = {cc_rfr_pct:.1f}% RFR | {distinct_users} users")
-    print(f"SWE-chat non-CC:       {noncc_rfr}/{noncc_n} = {noncc_rfr_pct:.1f}% RFR | {agent_counts}")
+    print(
+        f"CC pool (B4):          {_POOL_RFR_SESSIONS}/{_POOL_SESSIONS} = {pool_rfr_pct:.1f}% RFR | 1 developer"
+    )
+    print(
+        f"SWE-chat CC:           {cc_rfr}/{cc_n} = {cc_rfr_pct:.1f}% RFR | {distinct_users} users"
+    )
+    print(
+        f"SWE-chat non-CC:       {noncc_rfr}/{noncc_n} = {noncc_rfr_pct:.1f}% RFR | {agent_counts}"
+    )
     print(f"PATH A (SWE-chat CC):  {cc_pa} sessions (pool: {_POOL_RR_PATH_A_SESSIONS})")
-    print(f"PATH B (SWE-chat CC):  UNAVAILABLE (CC v2.1.38 format change)")
-    print(f"PATH B (non-CC):       UNAVAILABLE (no \\d+\\t format in non-CC agents)")
+    print("PATH B (SWE-chat CC):  UNAVAILABLE (CC v2.1.38 format change)")
+    print("PATH B (non-CC):       UNAVAILABLE (no \\d+\\t format in non-CC agents)")
 
 
 if __name__ == "__main__":

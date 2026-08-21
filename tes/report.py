@@ -40,7 +40,7 @@ def _format_turns(turns: list[int]) -> str:
     """Format [14,15,18,19] -> '14→15, 18→19'."""
     pairs = []
     for i in range(0, len(turns) - 1, 2):
-        pairs.append(f"{turns[i]}→{turns[i+1]}")
+        pairs.append(f"{turns[i]}→{turns[i + 1]}")
     return ", ".join(pairs) if pairs else str(turns)
 
 
@@ -138,6 +138,7 @@ def format_human(
         # Load prices for provenance line — lazy import to avoid circular at module level.
         try:
             from tes.cost import load_price_table  # noqa: PLC0415
+
             _prices = load_price_table()
             provenance_line = format_price_provenance(_prices)
         except Exception:
@@ -161,10 +162,12 @@ def format_human(
             lines.append(f"         [NOT PRICED: {warning}]")
 
     lines.append("")
-    lines.append(_wrap(
-        "Cost is not a score. It annotates the token axis at API-equivalent rates. "
-        "Flat-plan users: marginal cost differs; token consumption is the honest metric."
-    ))
+    lines.append(
+        _wrap(
+            "Cost is not a score. It annotates the token axis at API-equivalent rates. "
+            "Flat-plan users: marginal cost differs; token consumption is the honest metric."
+        )
+    )
     lines.append(_BORDER)
 
     return "\n".join(lines)

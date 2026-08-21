@@ -11,12 +11,9 @@ When a user has fewer than MIN_CONTENT_FOR_CACHE content sessions, tracegauge mu
 This path protects new users whose corpora are too small for stable clustering.
 """
 
-import json
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
-
 from tes.intelligence.cache import (
     MIN_CONTENT_FOR_CACHE,
     format_intelligence_summary,
@@ -24,14 +21,14 @@ from tes.intelligence.cache import (
 )
 from tes.intelligence.chat import _build_user_message
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _small_corpus_cache() -> dict:
     """Return the cache dict produced for a corpus below the clustering floor."""
-    n = MIN_CONTENT_FOR_CACHE - 1   # one below the floor
+    n = MIN_CONTENT_FOR_CACHE - 1  # one below the floor
     return {
         "valid": False,
         "reason": "not_enough_sessions",
@@ -50,21 +47,24 @@ def _make_fake_rows(n_total: int, n_content: int) -> list[dict]:
     """Build fake session rows with n_content having real_tokens > 0."""
     rows = []
     for i in range(n_total):
-        rows.append({
-            "session_id": f"fake-{i:04d}-0000-0000-0000-000000000000",
-            "task_type": "feature-build",
-            "real_tokens": 500000 if i < n_content else 0,
-            "turn_count": 10,
-            "session_cost_usd": 5.0 if i < n_content else None,
-            "waste_event_count": 0,
-            "waste_events": [],
-        })
+        rows.append(
+            {
+                "session_id": f"fake-{i:04d}-0000-0000-0000-000000000000",
+                "task_type": "feature-build",
+                "real_tokens": 500000 if i < n_content else 0,
+                "turn_count": 10,
+                "session_cost_usd": 5.0 if i < n_content else None,
+                "waste_event_count": 0,
+                "waste_events": [],
+            }
+        )
     return rows
 
 
 # ---------------------------------------------------------------------------
 # Cache layer: honest path
 # ---------------------------------------------------------------------------
+
 
 class TestSmallCorpusCacheLayer:
     def test_get_or_compute_returns_invalid_below_floor(self) -> None:
@@ -175,30 +175,38 @@ class TestSmallCorpusCacheLayer:
         fake_rows = _make_fake_rows(n_total, n_total)
 
         fake_features = []
-        from tes.intelligence.features import SessionFeatures
         import numpy as _np
+        from tes.intelligence.features import SessionFeatures
+
         for i, row in enumerate(fake_rows):
             vec = _np.zeros(8)
-            fake_features.append(SessionFeatures(
-                session_id=row["session_id"],
-                task_type="feature-build",
-                real_tokens=500000,
-                turn_count=10,
-                session_cost_usd=5.0,
-                waste_event_count=0,
-                context_resend_pct=0.9,
-                context_growth_pct=0.05,
-                output_pct=0.05,
-                waste_pct=0.0,
-                fresh_input_pct=0.0,
-                vector=vec,
-            ))
+            fake_features.append(
+                SessionFeatures(
+                    session_id=row["session_id"],
+                    task_type="feature-build",
+                    real_tokens=500000,
+                    turn_count=10,
+                    session_cost_usd=5.0,
+                    waste_event_count=0,
+                    context_resend_pct=0.9,
+                    context_growth_pct=0.05,
+                    output_pct=0.05,
+                    waste_pct=0.0,
+                    fresh_input_pct=0.0,
+                    vector=vec,
+                )
+            )
         fake_X = np.random.default_rng(42).random((n_total, 8))
 
-        from tes.intelligence.cluster import ClusteringResult, ArchetypeCluster
+        from tes.intelligence.cluster import ArchetypeCluster, ClusteringResult
+
         mock_result = ClusteringResult(
-            valid=True, k=2, silhouette=0.35, silhouette_stability_mean=0.35,
-            silhouette_stability_cv=0.05, stable=True,
+            valid=True,
+            k=2,
+            silhouette=0.35,
+            silhouette_stability_mean=0.35,
+            silhouette_stability_cv=0.05,
+            stable=True,
             status="silhouette=0.350 (meaningful). stable (CV=0.050).",
             domain_of_validity="test",
             n_sessions=n_total,
@@ -208,9 +216,13 @@ class TestSmallCorpusCacheLayer:
             scaler=MagicMock(),
             archetypes=[
                 ArchetypeCluster(
-                    cluster_id=0, name="test archetype", size=n_total,
-                    fraction=1.0, centroid_unscaled=np.zeros(8),
-                    centroid_scaled=np.zeros(8), dominant_features=[],
+                    cluster_id=0,
+                    name="test archetype",
+                    size=n_total,
+                    fraction=1.0,
+                    centroid_unscaled=np.zeros(8),
+                    centroid_scaled=np.zeros(8),
+                    dominant_features=[],
                     task_type_counts={"feature-build": n_total},
                 )
             ],
@@ -267,24 +279,37 @@ class TestSmallCorpusCacheLayer:
         fake_rows = _make_fake_rows(n_total, n_total)
         import numpy as _np2
         from tes.intelligence.features import SessionFeatures
+
         fake_features = [
             SessionFeatures(
                 session_id=f"fake-{i:04d}-0000-0000-0000-000000000000",
-                task_type="feature-build", real_tokens=500000, turn_count=10,
-                session_cost_usd=5.0, waste_event_count=0,
-                context_resend_pct=0.9, context_growth_pct=0.05,
-                output_pct=0.05, waste_pct=0.0, fresh_input_pct=0.0,
+                task_type="feature-build",
+                real_tokens=500000,
+                turn_count=10,
+                session_cost_usd=5.0,
+                waste_event_count=0,
+                context_resend_pct=0.9,
+                context_growth_pct=0.05,
+                output_pct=0.05,
+                waste_pct=0.0,
+                fresh_input_pct=0.0,
                 vector=_np2.zeros(8),
             )
             for i in range(n_total)
         ]
         fake_X = _np2.random.default_rng(42).random((n_total, 8))
 
-        from tes.intelligence.cluster import ClusteringResult, ArchetypeCluster
+        from tes.intelligence.cluster import ArchetypeCluster, ClusteringResult
+
         mock_result = ClusteringResult(
-            valid=True, k=2, silhouette=0.35,
-            silhouette_stability_mean=0.35, silhouette_stability_cv=0.05,
-            stable=True, status="test", domain_of_validity="test",
+            valid=True,
+            k=2,
+            silhouette=0.35,
+            silhouette_stability_mean=0.35,
+            silhouette_stability_cv=0.05,
+            stable=True,
+            status="test",
+            domain_of_validity="test",
             n_sessions=n_total,
             session_ids=[r["session_id"] for r in fake_rows],
             labels=_np2.zeros(n_total, dtype=int),
@@ -292,22 +317,34 @@ class TestSmallCorpusCacheLayer:
             scaler=__import__("unittest.mock", fromlist=["MagicMock"]).MagicMock(),
             archetypes=[
                 ArchetypeCluster(
-                    cluster_id=0, name="test archetype", size=n_total,
-                    fraction=1.0, centroid_unscaled=_np2.zeros(8),
-                    centroid_scaled=_np2.zeros(8), dominant_features=[],
+                    cluster_id=0,
+                    name="test archetype",
+                    size=n_total,
+                    fraction=1.0,
+                    centroid_unscaled=_np2.zeros(8),
+                    centroid_scaled=_np2.zeros(8),
+                    dominant_features=[],
                     task_type_counts={"feature-build": n_total},
                 )
             ],
         )
 
         stamped_cache = {
-            "valid": True, "k": 2, "silhouette": 0.35,
-            "archetypes": [], "anomaly_count": 0, "anomaly_pct": 0.0,
-            "session_count": n_total, "tracegauge_version": "0.7.0",
+            "valid": True,
+            "k": 2,
+            "silhouette": 0.35,
+            "archetypes": [],
+            "anomaly_count": 0,
+            "anomaly_pct": 0.0,
+            "session_count": n_total,
+            "tracegauge_version": "0.7.0",
             "computed_at": "2026-06-15T00:00:00+00:00",
-            "n_sessions": n_total, "status": "test",
-            "domain_of_validity": "test", "stable": True,
-            "silhouette_stability_mean": 0.35, "silhouette_stability_cv": 0.05,
+            "n_sessions": n_total,
+            "status": "test",
+            "domain_of_validity": "test",
+            "stable": True,
+            "silhouette_stability_mean": 0.35,
+            "silhouette_stability_cv": 0.05,
         }
 
         with (
@@ -335,6 +372,7 @@ class TestSmallCorpusCacheLayer:
 # ---------------------------------------------------------------------------
 # Format layer: honest path
 # ---------------------------------------------------------------------------
+
 
 class TestSmallCorpusFormatLayer:
     def test_format_small_corpus_no_archetype_claims(self) -> None:
@@ -366,6 +404,7 @@ class TestSmallCorpusFormatLayer:
 # Chat layer: honest path
 # ---------------------------------------------------------------------------
 
+
 class TestSmallCorpusChatLayer:
     def _small_ctx(self) -> dict:
         return {
@@ -375,7 +414,13 @@ class TestSmallCorpusChatLayer:
                 "total_sessions_in_store": MIN_CONTENT_FOR_CACHE - 1,
                 "content_sessions": MIN_CONTENT_FOR_CACHE - 1,
                 "task_type_counts": {"feature-build": MIN_CONTENT_FOR_CACHE - 1},
-                "cost_usd": {"n": MIN_CONTENT_FOR_CACHE - 1, "median": 5.0, "p75": 8.0, "p95": 12.0, "total": 50.0},
+                "cost_usd": {
+                    "n": MIN_CONTENT_FOR_CACHE - 1,
+                    "median": 5.0,
+                    "p75": 8.0,
+                    "p95": 12.0,
+                    "total": 50.0,
+                },
                 "real_tokens": {"median": 300000, "p75": 500000},
                 "waste": {"sessions_with_waste": 0, "pct_of_content": 0.0, "total_waste_events": 0},
             },

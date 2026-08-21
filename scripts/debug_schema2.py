@@ -1,6 +1,9 @@
 """Inspect trace schema for taxonomy/difficulty fields."""
+
 from __future__ import annotations
-import json, pathlib
+
+import json
+import pathlib
 
 traces_dir = pathlib.Path("data/validation-corpus/traces_normalized")
 files = sorted(traces_dir.glob("*.json"))
@@ -26,4 +29,6 @@ for f in files[:10]:
     s2 = json.loads(f.read_text())
     meta = s2.get("metadata", {})
     outcome = s2.get("outcome", {})
-    print(f"  [{s2['scaffold']}] meta keys: {list(meta.keys())[:8]}, outcome keys: {list(outcome.keys())}")
+    print(
+        f"  [{s2['scaffold']}] meta keys: {list(meta.keys())[:8]}, outcome keys: {list(outcome.keys())}"
+    )

@@ -3,11 +3,11 @@
 Confirms: site-packages (not repo), /patterns 200, /ask honesty guard,
 sort correctness, numpy/sklearn auto-installed, direct_url confirms index install.
 """
+
 from __future__ import annotations
 
 import json
 import pathlib
-import sqlite3
 import sys
 import tempfile
 from unittest.mock import patch
@@ -39,6 +39,7 @@ else:
 # ── 3. numpy + sklearn auto-installed as declared deps ──────────────────────
 import numpy as np
 import sklearn
+
 print(f"[OK] numpy {np.__version__} auto-installed")
 print(f"[OK] scikit-learn {sklearn.__version__} auto-installed")
 
@@ -53,12 +54,17 @@ print(f"[OK] url_map routes: {sorted(rules)}")
 
 # ── 5. GET /patterns → 200 (templates bundled in wheel) ─────────────────────
 mock_cache_below_floor = {
-    "valid": False, "reason": "not_enough_sessions", "n_sessions": 0,
-    "n_content_sessions_needed": 30, "status": "Not enough sessions.",
+    "valid": False,
+    "reason": "not_enough_sessions",
+    "n_sessions": 0,
+    "n_content_sessions_needed": 30,
+    "status": "Not enough sessions.",
     "domain_of_validity": "n/a",
 }
-with patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache_below_floor), \
-     patch("tes.web.server._check_ollama", return_value=False):
+with (
+    patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache_below_floor),
+    patch("tes.web.server._check_ollama", return_value=False),
+):
     with app.test_client() as c:
         resp = c.get("/patterns")
 assert resp.status_code == 200, f"FAIL: GET /patterns → {resp.status_code}"
@@ -68,7 +74,7 @@ assert "Not enough sessions" in html or "not enough" in html.lower(), "FAIL: flo
 print("[OK] GET /patterns → 200 (templates bundled, floor message rendered, Ask panel present)")
 
 # ── 6. Honesty guard: "I don't predict" fires from published artifact ────────
-from tes.intelligence.chat import CHAT_SYSTEM_PROMPT, ask_api, ChatApiConfig
+from tes.intelligence.chat import CHAT_SYSTEM_PROMPT, ChatApiConfig, ask_api
 
 # Verify the guard text is in the system prompt shipped in the wheel
 assert "I don't predict future behavior" in CHAT_SYSTEM_PROMPT, (
@@ -83,15 +89,17 @@ PREDICTION_REFUSAL = (
 )
 with patch("tes.web.server.ask_local", return_value=PREDICTION_REFUSAL):
     with app.test_client() as c:
-        r = c.post("/ask",
-                   data=json.dumps({"question": "What will my next session cost?"}),
-                   content_type="application/json")
+        r = c.post(
+            "/ask",
+            data=json.dumps({"question": "What will my next session cost?"}),
+            content_type="application/json",
+        )
 assert r.status_code == 200
 data = r.get_json()
 assert "don't predict" in data.get("answer", ""), (
     f"FAIL: prediction refusal not passed through. Got: {data}"
 )
-print(f"[OK] /ask passes 'I don't predict' refusal through from published wheel")
+print("[OK] /ask passes 'I don't predict' refusal through from published wheel")
 print(f"     answer: '{data['answer'][:80]}…'")
 
 # Verify ask_api consent gate inherited in published wheel
@@ -100,8 +108,13 @@ assert result is None, "FAIL: ask_api bypassed consent gate in published wheel"
 print("[OK] ask_api(consent_given=False) → None (consent gate intact in published wheel)")
 
 # ── 7. Sort: list_sessions whitelist + ordering from published wheel ─────────
+from tes.score import (
+    TOKEN_DOMAIN_OF_VALIDITY,
+    TRAJECTORY_DOMAIN_OF_VALIDITY,
+    WASTE_DOMAIN_OF_VALIDITY,
+    ThreeAxisResult,
+)
 from tes.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
-from tes.score import ThreeAxisResult, TOKEN_DOMAIN_OF_VALIDITY, TRAJECTORY_DOMAIN_OF_VALIDITY, WASTE_DOMAIN_OF_VALIDITY
 
 assert set(_SORT_COLUMN_WHITELIST.keys()) == {"date", "cost", "waste", "tokens", "verdict"}, (
     f"FAIL: sort whitelist keys wrong: {set(_SORT_COLUMN_WHITELIST.keys())}"
@@ -114,14 +127,28 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
     for i, cost in enumerate([0.10, 0.01, 0.05]):
         sid = f"sort-test-{i:04d}-aaaa-bbbb-cccc-dddddddddddd"
         r = ThreeAxisResult(
-            session_id=sid, task_type="debug-fix", real_tokens=1000 + i * 100,
-            scope_status="in_scope", baseline_available=True,
-            p25=800, p75=1200, median=1000, band_verdict="within_band",
-            interpretation="", token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
-            baseline_source="self", judge_verdict=None, judge_score=None,
-            judge_reasoning=None, trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
-            waste_event_count=0, waste_events=[], waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
-            session_cost_usd=cost, cost_approximate=False, cost_domain_of_validity="",
+            session_id=sid,
+            task_type="debug-fix",
+            real_tokens=1000 + i * 100,
+            scope_status="in_scope",
+            baseline_available=True,
+            p25=800,
+            p75=1200,
+            median=1000,
+            band_verdict="within_band",
+            interpretation="",
+            token_domain_of_validity=TOKEN_DOMAIN_OF_VALIDITY,
+            baseline_source="self",
+            judge_verdict=None,
+            judge_score=None,
+            judge_reasoning=None,
+            trajectory_domain_of_validity=TRAJECTORY_DOMAIN_OF_VALIDITY,
+            waste_event_count=0,
+            waste_events=[],
+            waste_domain_of_validity=WASTE_DOMAIN_OF_VALIDITY,
+            session_cost_usd=cost,
+            cost_approximate=False,
+            cost_domain_of_validity="",
         )
         upsert_session(conn, r, f"/fake/{sid}.jsonl", float(i), f"hash-{i}")
     conn.commit()
@@ -133,8 +160,8 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
 
 # ── 8. tes --version from installed entry point ──────────────────────────────
 import subprocess
-result = subprocess.run([sys.executable, "-m", "tes", "--version"],
-                       capture_output=True, text=True)
+
+result = subprocess.run([sys.executable, "-m", "tes", "--version"], capture_output=True, text=True)
 ver = (result.stdout + result.stderr).strip()
 assert "0.8.0" in ver, f"FAIL: tes --version = {ver!r}"
 print(f"[OK] tes --version: {ver}")

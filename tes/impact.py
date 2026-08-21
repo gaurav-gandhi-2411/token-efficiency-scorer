@@ -155,8 +155,12 @@ def extract_edit_operations(tool_name: str, tool_input: dict[str, Any]) -> list[
         if edit_mode == "insert":
             return [
                 EditOperation(
-                    path=path, additions=_line_count(str(new_source)), deletions=0,
-                    tool=tool_name, prior_content_unknown=True, untested_tool_shape=True,
+                    path=path,
+                    additions=_line_count(str(new_source)),
+                    deletions=0,
+                    tool=tool_name,
+                    prior_content_unknown=True,
+                    untested_tool_shape=True,
                 )
             ]
         # "replace" (default) or "delete": treat as a replace of unknown prior
@@ -164,8 +168,12 @@ def extract_edit_operations(tool_name: str, tool_input: dict[str, Any]) -> list[
         # ever supplied by this tool's own documented arguments.
         return [
             EditOperation(
-                path=path, additions=_line_count(str(new_source)), deletions=0,
-                tool=tool_name, prior_content_unknown=True, untested_tool_shape=True,
+                path=path,
+                additions=_line_count(str(new_source)),
+                deletions=0,
+                tool=tool_name,
+                prior_content_unknown=True,
+                untested_tool_shape=True,
             )
         ]
 
@@ -180,6 +188,7 @@ def extract_edit_operations(tool_name: str, tool_input: dict[str, Any]) -> list[
 # uncertainty attached" dilution that document flags. Every figure here is
 # a direct count or a plainly-labeled fraction, nothing inferred.
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class FileChurn:
@@ -277,8 +286,11 @@ def compute_impact_report(rows: list[dict[str, Any]], top_n: int = 10) -> Impact
 
     file_rows = [
         FileChurn(
-            path=p, edits=r["edits"], additions=r["additions"],
-            deletions=r["deletions"], sessions_touched=len(r["sessions"]),
+            path=p,
+            edits=r["edits"],
+            additions=r["additions"],
+            deletions=r["deletions"],
+            sessions_touched=len(r["sessions"]),
         )
         for p, r in files.items()
     ]
@@ -287,17 +299,18 @@ def compute_impact_report(rows: list[dict[str, Any]], top_n: int = 10) -> Impact
     dir_agg: dict[str, dict[str, Any]] = {}
     for p, r in files.items():
         d = _directory_of(p)
-        rec = dir_agg.setdefault(
-            d, {"edits": 0, "additions": 0, "deletions": 0, "sessions": set()}
-        )
+        rec = dir_agg.setdefault(d, {"edits": 0, "additions": 0, "deletions": 0, "sessions": set()})
         rec["edits"] += r["edits"]
         rec["additions"] += r["additions"]
         rec["deletions"] += r["deletions"]
         rec["sessions"] |= r["sessions"]
     dir_rows = [
         FileChurn(
-            path=d, edits=r["edits"], additions=r["additions"],
-            deletions=r["deletions"], sessions_touched=len(r["sessions"]),
+            path=d,
+            edits=r["edits"],
+            additions=r["additions"],
+            deletions=r["deletions"],
+            sessions_touched=len(r["sessions"]),
         )
         for d, r in dir_agg.items()
     ]

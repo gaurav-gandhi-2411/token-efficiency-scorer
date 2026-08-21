@@ -40,10 +40,14 @@ class LiveSessionState:
     task_type: str
     source_path: str
     live_cost_usd: float
-    live_context_tokens: int       # cumulative real_tokens (input - cache_read + output) so far
-    live_resend_tokens: int        # cumulative context re-send (cache read) tokens so far
-    live_resend_ratio: float       # context_resend_tokens / total_billed_tokens (0.0 when no billed tokens yet)
-    context_resend_dominant: bool  # context_resend > output + fresh_input — is /compact actually relevant?
+    live_context_tokens: int  # cumulative real_tokens (input - cache_read + output) so far
+    live_resend_tokens: int  # cumulative context re-send (cache read) tokens so far
+    live_resend_ratio: (
+        float  # context_resend_tokens / total_billed_tokens (0.0 when no billed tokens yet)
+    )
+    context_resend_dominant: (
+        bool  # context_resend > output + fresh_input — is /compact actually relevant?
+    )
     ai_turn_count: int
     domain_of_validity: str
 

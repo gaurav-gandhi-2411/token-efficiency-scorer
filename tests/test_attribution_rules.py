@@ -13,11 +13,9 @@ Verifies that every bucket follows its exact observable definition:
 All tests use synthetic fixtures; no external files, no LLM calls.
 """
 
-import pytest
 
 from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import AttributionResult, compute_attribution
-
+from tes.attribution import compute_attribution
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -250,15 +248,20 @@ def test_rfr_priority_over_rr_for_overlap() -> None:
     t5 = _ai(5, token_count_input=600, token_count_output=120, cache_read=400, cache_creation=60)
     # Build a session with enough turns
     turns = [
-        _ai(0), _tool(1),   # RFR legitimate pair
-        _ai(2), _tool(3),   # RR legitimate pair
-        _ai(4), t5,         # t5 is AI at index 5 (overlap waste)
+        _ai(0),
+        _tool(1),  # RFR legitimate pair
+        _ai(2),
+        _tool(3),  # RR legitimate pair
+        _ai(4),
+        t5,  # t5 is AI at index 5 (overlap waste)
     ]
     digest = _session(turns)
-    waste_entry = _waste_entry([
-        _rfr_event([0, 1, 5]),   # RFR: proof_turns[2:] = [5]
-        _rr_event([2, 3, 5]),    # RR:  proof_turns[2:] = [5] — overlap!
-    ])
+    waste_entry = _waste_entry(
+        [
+            _rfr_event([0, 1, 5]),  # RFR: proof_turns[2:] = [5]
+            _rr_event([2, 3, 5]),  # RR:  proof_turns[2:] = [5] — overlap!
+        ]
+    )
     result = compute_attribution(digest, waste_entry)
 
     # t5 tokens = 600 + 120 = 720

@@ -47,8 +47,8 @@ PLAN_MAX: str = "max"
 
 @dataclass
 class AlarmConfig:
-    enabled: bool = False               # OFF by default — opt-in, matches background_judge posture
-    plan_type: str = PLAN_USAGE_BASED   # "usage_based" | "max" — display emphasis ONLY, never a gate
+    enabled: bool = False  # OFF by default — opt-in, matches background_judge posture
+    plan_type: str = PLAN_USAGE_BASED  # "usage_based" | "max" — display emphasis ONLY, never a gate
 
 
 @dataclass

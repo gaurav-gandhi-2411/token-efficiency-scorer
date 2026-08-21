@@ -1,6 +1,9 @@
 """Load CC-Bench-trajectories with verification_mode bypass."""
+
 from __future__ import annotations
-from datasets import load_dataset, VerificationMode
+
+from datasets import VerificationMode, load_dataset
+
 ds = load_dataset(
     "zai-org/CC-Bench-trajectories",
     split="train",
@@ -8,10 +11,10 @@ ds = load_dataset(
 )
 print("Rows:", len(ds))
 print("Keys:", list(ds[0].keys()))
-print("Categories:", list(set(r.get("task_category","?") for r in ds)))
+print("Categories:", list(set(r.get("task_category", "?") for r in ds)))
 row = ds[0]
 for k in ["task_id", "task_category", "model_name", "success"]:
-    print(f"  {k}: {str(row.get(k,''))[:80]}")
+    print(f"  {k}: {str(row.get(k, ''))[:80]}")
 traj = row.get("trajectory") or []
 print(f"  trajectory length: {len(traj)}")
 if traj:

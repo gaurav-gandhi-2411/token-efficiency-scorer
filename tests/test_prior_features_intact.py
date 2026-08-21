@@ -31,7 +31,9 @@ def test_waste_detectors_byte_frozen() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0, f"tes/_waste_detectors.py has uncommitted changes:\n{result.stdout}"
+    assert result.returncode == 0, (
+        f"tes/_waste_detectors.py has uncommitted changes:\n{result.stdout}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +86,14 @@ def test_prior_dashboard_routes_still_registered(tmp_path: Path) -> None:
     app = create_app(cfg)
 
     rules = {r.rule for r in app.url_map.iter_rules()}
-    for expected in ("/", "/session/<session_id>", "/trends", "/baseline-status", "/patterns", "/ask"):
+    for expected in (
+        "/",
+        "/session/<session_id>",
+        "/trends",
+        "/baseline-status",
+        "/patterns",
+        "/ask",
+    ):
         assert expected in rules, f"Route {expected} missing from url_map — regression."
 
 

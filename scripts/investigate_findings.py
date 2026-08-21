@@ -5,6 +5,7 @@ Investigation 1: scaffold split (nebius 0.926 vs swegym 0.150)
 Investigation 2: p25 inversion (lean sessions scoring WORSE/MUCH_WORSE)
 Investigation 3: resolved collinearity (point-biserial correlation)
 """
+
 from __future__ import annotations
 
 import json
@@ -30,6 +31,7 @@ VERDICT_SCORE = {
 # Loaders
 # ---------------------------------------------------------------------------
 
+
 def load_judge() -> dict[str, dict]:
     rows = {}
     for line in JUDGE_PATH.read_text(encoding="utf-8").splitlines():
@@ -37,6 +39,7 @@ def load_judge() -> dict[str, dict]:
             r = json.loads(line)
             rows[r["session_id"]] = r
     return rows
+
 
 def load_layer1() -> dict[str, dict]:
     rows = {}
@@ -46,22 +49,27 @@ def load_layer1() -> dict[str, dict]:
             rows[r["session_id"]] = r
     return rows
 
+
 def load_cal() -> dict[str, dict]:
     data = json.loads(CAL_PATH.read_text(encoding="utf-8"))
     return {r["session_id"]: r for r in data}
+
 
 # ---------------------------------------------------------------------------
 # Stats helpers
 # ---------------------------------------------------------------------------
 
+
 def mean(vals: list[float]) -> float:
     return sum(vals) / len(vals) if vals else float("nan")
+
 
 def stdev(vals: list[float]) -> float:
     if len(vals) < 2:
         return float("nan")
     m = mean(vals)
     return math.sqrt(sum((v - m) ** 2 for v in vals) / (len(vals) - 1))
+
 
 def point_biserial(binary: list[int], continuous: list[float]) -> float:
     """Point-biserial correlation between a 0/1 variable and a continuous one."""
@@ -79,11 +87,13 @@ def point_biserial(binary: list[int], continuous: list[float]) -> float:
         return float("nan")
     return (m1 - m0) / s * math.sqrt(n1 * n0 / (n * n))
 
+
 def spearman(x: list[float], y: list[float]) -> float:
     """Spearman rank correlation."""
     n = len(x)
     if n < 3:
         return float("nan")
+
     def ranks(vals: list[float]) -> list[float]:
         sorted_vals = sorted(enumerate(vals), key=lambda t: t[1])
         r = [0.0] * n
@@ -97,13 +107,16 @@ def spearman(x: list[float], y: list[float]) -> float:
                 r[sorted_vals[k][0]] = avg_rank
             i = j + 1
         return r
+
     rx, ry = ranks(x), ranks(y)
     d2 = sum((a - b) ** 2 for a, b in zip(rx, ry))
     return 1 - 6 * d2 / (n * (n * n - 1))
 
+
 # ---------------------------------------------------------------------------
 # Build merged records
 # ---------------------------------------------------------------------------
+
 
 def build_merged(judge: dict, cal: dict, l1: dict) -> list[dict]:
     records = []
@@ -112,26 +125,29 @@ def build_merged(judge: dict, cal: dict, l1: dict) -> list[dict]:
         l1r = l1.get(sid, {})
         verdict = jr.get("verdict", "")
         score = VERDICT_SCORE.get(verdict, float("nan"))
-        records.append({
-            "session_id": sid,
-            "verdict": verdict,
-            "score": score,
-            "reasoning": jr.get("reasoning", ""),
-            "waste_categories": jr.get("waste_categories", []),
-            "confidence": jr.get("confidence", 0.0),
-            "scaffold": jr.get("scaffold") or cr.get("scaffold", "unknown"),
-            "domain_id": jr.get("domain_id") or cr.get("domain_id", "unknown"),
-            "resolved": cr.get("resolved"),
-            "h2": cr.get("h2_duplicate_count"),
-            "turn_count": cr.get("turn_count") or l1r.get("turn_count"),
-            "p25_ratio": l1r.get("p25_token_ratio"),
-        })
+        records.append(
+            {
+                "session_id": sid,
+                "verdict": verdict,
+                "score": score,
+                "reasoning": jr.get("reasoning", ""),
+                "waste_categories": jr.get("waste_categories", []),
+                "confidence": jr.get("confidence", 0.0),
+                "scaffold": jr.get("scaffold") or cr.get("scaffold", "unknown"),
+                "domain_id": jr.get("domain_id") or cr.get("domain_id", "unknown"),
+                "resolved": cr.get("resolved"),
+                "h2": cr.get("h2_duplicate_count"),
+                "turn_count": cr.get("turn_count") or l1r.get("turn_count"),
+                "p25_ratio": l1r.get("p25_token_ratio"),
+            }
+        )
     return records
 
 
 # ---------------------------------------------------------------------------
 # Investigation 1 — scaffold split
 # ---------------------------------------------------------------------------
+
 
 def investigation_1(records: list[dict]) -> None:
     print("\n" + "=" * 90)
@@ -153,7 +169,9 @@ def investigation_1(records: list[dict]) -> None:
         print(f"    mean_score:    {mean(scores):.3f}")
         print(f"    mean H2:       {mean(h2_vals):.1f}  (stdev {stdev(h2_vals):.1f})")
         print(f"    mean turns:    {mean(tc_vals):.1f}  (stdev {stdev(tc_vals):.1f})")
-        print(f"    resolved rate: {resolved_rate:.1%}  ({sum(1 for v in res_vals if v)}/{len(res_vals)})")
+        print(
+            f"    resolved rate: {resolved_rate:.1%}  ({sum(1 for v in res_vals if v)}/{len(res_vals)})"
+        )
         verdict_counts = defaultdict(int)
         for r in group:
             verdict_counts[r["verdict"]] += 1
@@ -171,8 +189,10 @@ def investigation_1(records: list[dict]) -> None:
     print("  3 nebius MUCH_BETTER — judge reasoning")
     print("-" * 90)
     for r in nebius_mb:
-        print(f"\n  Session: {r['session_id']}  turns={r['turn_count']}  H2={r['h2']}  "
-              f"resolved={r['resolved']}  confidence={r['confidence']:.2f}")
+        print(
+            f"\n  Session: {r['session_id']}  turns={r['turn_count']}  H2={r['h2']}  "
+            f"resolved={r['resolved']}  confidence={r['confidence']:.2f}"
+        )
         print(f"  waste: {r['waste_categories']}")
         print(f"  REASONING: {r['reasoning']}")
 
@@ -180,8 +200,10 @@ def investigation_1(records: list[dict]) -> None:
     print("  3 swegym MUCH_WORSE — judge reasoning")
     print("-" * 90)
     for r in swegym_mw:
-        print(f"\n  Session: {r['session_id']}  turns={r['turn_count']}  H2={r['h2']}  "
-              f"resolved={r['resolved']}  confidence={r['confidence']:.2f}")
+        print(
+            f"\n  Session: {r['session_id']}  turns={r['turn_count']}  H2={r['h2']}  "
+            f"resolved={r['resolved']}  confidence={r['confidence']:.2f}"
+        )
         print(f"  waste: {r['waste_categories']}")
         print(f"  REASONING: {r['reasoning']}")
 
@@ -190,13 +212,15 @@ def investigation_1(records: list[dict]) -> None:
 # Investigation 2 — p25 inversion
 # ---------------------------------------------------------------------------
 
+
 def investigation_2(records: list[dict]) -> None:
     print("\n" + "=" * 90)
     print("INVESTIGATION 2 — p25 INVERSION: lean sessions scoring WORSE/MUCH_WORSE")
     print("=" * 90)
 
     lean_bad = [
-        r for r in records
+        r
+        for r in records
         if r["p25_ratio"] is not None
         and r["p25_ratio"] < 1.0
         and r["verdict"] in ("WORSE", "MUCH_WORSE")
@@ -206,7 +230,8 @@ def investigation_2(records: list[dict]) -> None:
 
     # Also show lean MUCH_BETTER for contrast
     lean_good = [
-        r for r in records
+        r
+        for r in records
         if r["p25_ratio"] is not None
         and r["p25_ratio"] < 1.0
         and r["verdict"] in ("MUCH_BETTER", "BETTER")
@@ -214,23 +239,27 @@ def investigation_2(records: list[dict]) -> None:
     print(f"  Lean sessions scoring MUCH_BETTER/BETTER: {len(lean_good)}")
 
     print("\n" + "-" * 90)
-    print(f"  5 lean WORSE/MUCH_WORSE sessions — judge reasoning")
+    print("  5 lean WORSE/MUCH_WORSE sessions — judge reasoning")
     print("-" * 90)
     for r in lean_bad[:5]:
-        print(f"\n  Session: {r['session_id']}  turns={r['turn_count']}  "
-              f"p25_ratio={r['p25_ratio']:.3f}  H2={r['h2']}  "
-              f"resolved={r['resolved']}  verdict={r['verdict']}  conf={r['confidence']:.2f}")
+        print(
+            f"\n  Session: {r['session_id']}  turns={r['turn_count']}  "
+            f"p25_ratio={r['p25_ratio']:.3f}  H2={r['h2']}  "
+            f"resolved={r['resolved']}  verdict={r['verdict']}  conf={r['confidence']:.2f}"
+        )
         print(f"  waste: {r['waste_categories']}")
         print(f"  REASONING: {r['reasoning']}")
 
     if lean_good:
         print("\n" + "-" * 90)
-        print(f"  3 lean MUCH_BETTER/BETTER sessions — for contrast")
+        print("  3 lean MUCH_BETTER/BETTER sessions — for contrast")
         print("-" * 90)
         for r in lean_good[:3]:
-            print(f"\n  Session: {r['session_id']}  turns={r['turn_count']}  "
-                  f"p25_ratio={r['p25_ratio']:.3f}  H2={r['h2']}  "
-                  f"resolved={r['resolved']}  verdict={r['verdict']}  conf={r['confidence']:.2f}")
+            print(
+                f"\n  Session: {r['session_id']}  turns={r['turn_count']}  "
+                f"p25_ratio={r['p25_ratio']:.3f}  H2={r['h2']}  "
+                f"resolved={r['resolved']}  verdict={r['verdict']}  conf={r['confidence']:.2f}"
+            )
             print(f"  waste: {r['waste_categories']}")
             print(f"  REASONING: {r['reasoning']}")
 
@@ -238,6 +267,7 @@ def investigation_2(records: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 # Investigation 3 — resolved collinearity
 # ---------------------------------------------------------------------------
+
 
 def investigation_3(records: list[dict]) -> None:
     print("\n" + "=" * 90)
@@ -276,7 +306,7 @@ def investigation_3(records: list[dict]) -> None:
     # Cross-tab
     print("\n  Cross-tab: resolved × verdict")
     print(f"  {'Verdict':<14}  {'resolved=T':>10}  {'resolved=F':>10}")
-    print(f"  {'-'*14}  {'-'*10}  {'-'*10}")
+    print(f"  {'-' * 14}  {'-' * 10}  {'-' * 10}")
     res_T = [r for r in scored if r["resolved"]]
     res_F = [r for r in scored if not r["resolved"]]
     for v in ["MUCH_BETTER", "BETTER", "SIMILAR", "WORSE", "MUCH_WORSE"]:
@@ -288,6 +318,7 @@ def investigation_3(records: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     judge = load_judge()

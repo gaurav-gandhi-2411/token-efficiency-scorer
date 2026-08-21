@@ -272,7 +272,9 @@ def _ordinal(n: int) -> str:
     return f"{n}{suffix}"
 
 
-def _community_domain_of_validity(task_type: str, contributor_count: int, session_count: int) -> str:
+def _community_domain_of_validity(
+    task_type: str, contributor_count: int, session_count: int
+) -> str:
     """Build the DOV string carried on every score_against_community() result.
 
     Non-negotiable per spec.md: every returned result carries (a) N

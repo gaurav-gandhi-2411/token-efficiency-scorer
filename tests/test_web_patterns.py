@@ -8,13 +8,13 @@ Tests:
   5. Ask panel present on the page.
   6. Judge status chips rendered.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from tes.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
@@ -23,10 +23,10 @@ from tes.score import (
 )
 from tes.store import open_db, upsert_session
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_result(session_id: str, real_tokens: int = 1000) -> ThreeAxisResult:
     return ThreeAxisResult(
@@ -70,10 +70,12 @@ def _seed_sessions(db_path: Path, n: int) -> None:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def app_below_floor(tmp_path: Path):
     """App with fewer than 30 content sessions (below the clustering floor)."""
     from tes.web.server import ServerConfig, create_app
+
     db = tmp_path / "below.db"
     _seed_sessions(db, 5)
     cfg = ServerConfig(db_path=db)
@@ -89,6 +91,7 @@ def app_above_floor(tmp_path: Path):
     Patterns computation is mocked — we don't need real sklearn for these tests.
     """
     from tes.web.server import ServerConfig, create_app
+
     db = tmp_path / "above.db"
     _seed_sessions(db, 35)
     cfg = ServerConfig(db_path=db)
@@ -127,7 +130,12 @@ _MOCK_CACHE_VALID = {
             },
             "task_type_counts": {"debug-fix": 20},
             "dominant_features": [
-                {"name": "context_resend_pct", "label": "High re-send", "value_unscaled": 0.94, "z_from_global": 2.1},
+                {
+                    "name": "context_resend_pct",
+                    "label": "High re-send",
+                    "value_unscaled": 0.94,
+                    "z_from_global": 2.1,
+                },
             ],
         },
         {
@@ -143,7 +151,12 @@ _MOCK_CACHE_VALID = {
             },
             "task_type_counts": {"debug-fix": 15},
             "dominant_features": [
-                {"name": "context_growth_pct", "label": "High growth", "value_unscaled": 0.10, "z_from_global": 1.8},
+                {
+                    "name": "context_growth_pct",
+                    "label": "High growth",
+                    "value_unscaled": 0.10,
+                    "z_from_global": 1.8,
+                },
             ],
         },
     ],
@@ -163,11 +176,13 @@ _MOCK_CACHE_BELOW_FLOOR = {
 # Tests: /patterns route
 # ---------------------------------------------------------------------------
 
+
 class TestPatternsRouteStatus:
     def test_returns_200_below_floor(self, app_below_floor) -> None:
         with patch(
-            "tes.web.server.patterns.__wrapped__" if hasattr(app_below_floor, "__wrapped__") else
-            "tes.web.server.get_or_compute_intelligence",
+            "tes.web.server.patterns.__wrapped__"
+            if hasattr(app_below_floor, "__wrapped__")
+            else "tes.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
@@ -250,7 +265,11 @@ class TestPatternsAboveFloor:
 
     def test_descriptive_not_predictive_caveat(self, app_above_floor) -> None:
         html = self._html(app_above_floor)
-        assert "Descriptive only" in html or "not predictive" in html.lower() or "descriptive" in html.lower()
+        assert (
+            "Descriptive only" in html
+            or "not predictive" in html.lower()
+            or "descriptive" in html.lower()
+        )
 
     def test_no_quality_labels(self, app_above_floor) -> None:
         html = self._html(app_above_floor)
@@ -263,23 +282,29 @@ class TestPatternsAboveFloor:
 
 class TestPatternsJudgeStatus:
     def test_ollama_status_shown_when_available(self, app_above_floor) -> None:
-        with patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID), \
-             patch("tes.web.server._check_ollama", return_value=True):
+        with (
+            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
+            patch("tes.web.server._check_ollama", return_value=True),
+        ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
         assert "Ollama running" in html or "local inference" in html
 
     def test_ollama_status_shown_when_unavailable(self, app_above_floor) -> None:
-        with patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID), \
-             patch("tes.web.server._check_ollama", return_value=False):
+        with (
+            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
+            patch("tes.web.server._check_ollama", return_value=False),
+        ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
         assert "Ollama not detected" in html or "not detected" in html.lower()
 
     def test_api_key_shown_when_present(self, app_above_floor) -> None:
-        with patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID), \
-             patch("tes.web.server._check_ollama", return_value=False), \
-             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}):
+        with (
+            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
+            patch("tes.web.server._check_ollama", return_value=False),
+            patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
+        ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
         assert "consent required" in html.lower() or "ANTHROPIC_API_KEY set" in html
@@ -296,7 +321,9 @@ class TestPatternsAskPanelPresent:
 
     def test_ask_panel_rendered_below_floor_too(self, app_below_floor) -> None:
         """Ask panel must appear even below floor — just limits what context has."""
-        with patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_BELOW_FLOOR):
+        with patch(
+            "tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_BELOW_FLOOR
+        ):
             with app_below_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
         assert "ask-panel" in html

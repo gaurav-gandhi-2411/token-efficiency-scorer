@@ -30,22 +30,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      # Non-blocking: this repo never had ruff enforced before this workflow
-      # (608 pre-existing findings as of 2026-07-26, none introduced by this
-      # change). Kept visible rather than silently passing; tightening to
-      # blocking is a follow-up once the backlog is triaged, not a
-      # prerequisite for CI existing at all.
-      - name: Lint (ruff check, informational)
-        continue-on-error: true
+      # AW2: the 608-pre-existing-findings backlog this comment used to
+      # describe is triaged and resolved -- ~93% was E402 (a structural
+      # false-positive against this repo's own future-import-first
+      # convention, permanently exempted via pyproject.toml's
+      # [tool.ruff.lint] ignore), the rest was either safely autofixed
+      # (ruff check --fix / ruff format, full test suite verified clean
+      # before and after) or per-file-ignored where fixing correctly needed
+      # real per-call judgment this pass didn't do (see pyproject.toml's
+      # [tool.ruff.lint.per-file-ignores] comment). Now blocking, matching
+      # the pre-commit hook's own (already-blocking) behavior.
+      - name: Lint (ruff check)
         run: uv run ruff check .
 
-      # Non-blocking, same reason as lint above: 134 pre-existing files don't
-      # match ruff's format yet. Reformatting them is a legitimate, safe,
-      # mechanical follow-up (verified: ruff format . + a full test run is
-      # clean) but it's a 134-file diff unrelated to this change, so it's
-      # left for its own separate PR rather than bundled here.
-      - name: Format check (ruff format, informational)
-        continue-on-error: true
+      - name: Format check (ruff format)
         run: uv run ruff format --check .
 
       # Non-blocking: [tool.mypy] has declared strict=true since before this

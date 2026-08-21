@@ -46,7 +46,6 @@ Total: 8 features, N≈235 content sessions.
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -167,7 +166,8 @@ def extract_features(
     fresh_input_pct: float | None = None
     if all(v is not None for v in persisted):
         context_resend_pct, context_growth_pct, output_pct, waste_pct = (
-            float(v) for v in persisted  # type: ignore[arg-type]
+            float(v)
+            for v in persisted  # type: ignore[arg-type]
         )
         # fresh_input_pct is not persisted (dropped from the feature vector
         # anyway, kept only for provenance on legacy rows) -- the remainder
@@ -181,11 +181,11 @@ def extract_features(
             return None
 
         try:
+            from tes._digest import reconstruct_digest
             from tes.adapt import adapt_session
             from tes.attribution import attribution_fractions, compute_attribution
-            from tes._digest import reconstruct_digest
-            from tes.waste import build_waste_entry
             from tes.cost import load_price_table
+            from tes.waste import build_waste_entry
 
             if prices is None:
                 prices = load_price_table()
@@ -198,8 +198,8 @@ def extract_features(
             if attr.total_billed_tokens == 0:
                 return None
 
-            context_resend_pct, context_growth_pct, output_pct, waste_pct = (
-                attribution_fractions(attr)
+            context_resend_pct, context_growth_pct, output_pct, waste_pct = attribution_fractions(
+                attr
             )
             fresh_input_pct = attr.fresh_input_tokens / attr.total_billed_tokens
         except Exception:
@@ -214,6 +214,7 @@ def extract_features(
         # feature is accurate rather than defaulting to log1p(1)=0.693.
         try:
             from tes.store import _count_turns_from_jsonl
+
             computed_tc = _count_turns_from_jsonl(source_path)
             stored_tc = computed_tc or 0
         except Exception:

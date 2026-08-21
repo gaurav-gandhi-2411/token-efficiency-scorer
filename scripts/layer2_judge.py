@@ -8,6 +8,7 @@ Judge scope (v2): trajectory purposefulness ONLY — not token efficiency,
 not task success. Token economy is handled deterministically by
 p25_token_ratio in objective_proxy.py and composed arithmetically in score.py.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -278,13 +279,16 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--session-id", default=None, metavar="ID")
     parser.add_argument("--model", default="qwen3:8b", metavar="MODEL")
-    parser.add_argument(
-        "--ollama-url", default="http://localhost:11434", metavar="URL"
-    )
+    parser.add_argument("--ollama-url", default="http://localhost:11434", metavar="URL")
     parser.add_argument("--force", action="store_true", help="Re-score already-scored sessions.")
     parser.add_argument("--limit", type=int, default=None, metavar="N")
-    parser.add_argument("--max-turns", type=int, default=None, metavar="N",
-                        help="Skip sessions with turn_count > N.")
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Skip sessions with turn_count > N.",
+    )
     parser.add_argument(
         "--session-ids-file",
         default=None,
@@ -418,9 +422,7 @@ def main() -> None:
             continue
 
         all_scores[sid] = scored
-        print(
-            f" {scored['verdict']} (confidence {scored['confidence']:.2f})  {elapsed:.1f}s"
-        )
+        print(f" {scored['verdict']} (confidence {scored['confidence']:.2f})  {elapsed:.1f}s")
         completed += 1
 
         # Write incrementally so partial results survive interruption
@@ -429,10 +431,7 @@ def main() -> None:
                 fh.write(json.dumps(row) + "\n")
 
     total_elapsed = time.monotonic() - start_all
-    print(
-        f"\nDone: {completed}/{total} scored in {total_elapsed:.1f}s. "
-        f"Output: {args.output_path}"
-    )
+    print(f"\nDone: {completed}/{total} scored in {total_elapsed:.1f}s. Output: {args.output_path}")
 
 
 if __name__ == "__main__":

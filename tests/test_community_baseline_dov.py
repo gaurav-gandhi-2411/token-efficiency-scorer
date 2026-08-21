@@ -14,8 +14,6 @@ Covers (per spec.md's community-baseline requirement + the 0.9.0 build task):
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
-
 from tes.community_baseline import (
     MIN_CONTRIBUTORS,
     compute_community_baseline,
@@ -234,7 +232,9 @@ def test_fetch_success_returns_parsed_dict():
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = baseline
     with patch("tes.community_baseline.httpx.get", return_value=mock_response) as mock_get:
-        result = fetch_community_baseline("https://example.invalid/community_baseline.json", timeout_s=5.0)
+        result = fetch_community_baseline(
+            "https://example.invalid/community_baseline.json", timeout_s=5.0
+        )
     mock_get.assert_called_once()
     assert result == baseline
 

@@ -11,7 +11,7 @@ import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import tes
@@ -41,14 +41,22 @@ ALLOWED_FIELDS: frozenset[str] = frozenset(
     }
 )
 
-_KNOWN_TASK_TYPES: frozenset[str] = frozenset({
-    "ml-eval", "debug-fix", "infra-deploy", "research-recon", "feature-build",
-})
+_KNOWN_TASK_TYPES: frozenset[str] = frozenset(
+    {
+        "ml-eval",
+        "debug-fix",
+        "infra-deploy",
+        "research-recon",
+        "feature-build",
+    }
+)
 
-_KNOWN_DETECTOR_NAMES: frozenset[str] = frozenset({
-    "REPEATED-FAILED-RETRY",
-    "REDUNDANT-READ",
-})
+_KNOWN_DETECTOR_NAMES: frozenset[str] = frozenset(
+    {
+        "REPEATED-FAILED-RETRY",
+        "REDUNDANT-READ",
+    }
+)
 
 _KNOWN_MODELS: frozenset[str] = frozenset(
     {
@@ -99,10 +107,10 @@ class ContributionManifest:
     schema_version: str
     tracegauge_version: str
     row_count: int
-    fields_included: list[str]     # sorted list of the 14 allowed field names
-    fields_excluded: list[str]     # explicit list of excluded content-bearing fields
+    fields_included: list[str]  # sorted list of the 14 allowed field names
+    fields_excluded: list[str]  # explicit list of excluded content-bearing fields
     contributor_id: str | None
-    built_at_week: str             # ISO week only, NOT precise timestamp
+    built_at_week: str  # ISO week only, NOT precise timestamp
 
 
 @dataclass
@@ -138,7 +146,7 @@ def get_or_create_contributor_id() -> str:
 
 def _week_bucket_from_mtime(mtime: float) -> str:
     """Convert a POSIX float mtime to an ISO week string like '2026-W23'."""
-    iso = datetime.fromtimestamp(mtime, tz=timezone.utc).isocalendar()
+    iso = datetime.fromtimestamp(mtime, tz=UTC).isocalendar()
     return f"{iso.year}-W{iso.week:02d}"
 
 
@@ -185,8 +193,8 @@ def _get_source_components(source_path: str) -> dict[str, int | None]:
     because token_count_input, cache_creation, cache_read, model are not stored columns.
     """
     try:
-        from tes.adapt import adapt_session
         from tes._digest import reconstruct_digest
+        from tes.adapt import adapt_session
 
         p = Path(source_path)
         if not p.exists():
@@ -240,7 +248,7 @@ def build_contribution_payload(
 
     tracegauge_version = tes.__version__
     # Use the current wall-clock week for the manifest timestamp (not per-row mtime).
-    now_iso = datetime.now(tz=timezone.utc).isocalendar()
+    now_iso = datetime.now(tz=UTC).isocalendar()
     built_at_week = f"{now_iso.year}-W{now_iso.week:02d}"
 
     for session_row in session_rows:

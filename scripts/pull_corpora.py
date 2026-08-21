@@ -19,7 +19,7 @@ import json
 import sys
 import tempfile
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -167,9 +167,7 @@ def _adapt_from_path(session_path: Path, session_id_override: str | None = None)
     return AdaptResult(record=record)
 
 
-def _adapt_from_lines(
-    lines: list[str], session_id: str, source_label: str
-) -> AdaptResult:
+def _adapt_from_lines(lines: list[str], session_id: str, source_label: str) -> AdaptResult:
     """Write JSONL lines to a temp file and adapt them via the CC adapter.
 
     Used for public-dataset sessions that are already in CC JSONL format
@@ -262,11 +260,7 @@ def _list_armand_files() -> list[str]:
     from huggingface_hub import list_repo_files
 
     all_files = list(list_repo_files(_HF_REPO_ARMAND, repo_type="dataset"))
-    return [
-        f
-        for f in all_files
-        if f.endswith(".jsonl") and not f.startswith(".cache")
-    ]
+    return [f for f in all_files if f.endswith(".jsonl") and not f.startswith(".cache")]
 
 
 def process_armand(
@@ -327,9 +321,7 @@ def process_armand(
 
         if not _looks_like_cc_jsonl(raw_lines):
             stats.format_unknown += 1
-            print(
-                f"  [armand0e] format-unknown (not CC JSONL): {filename}", file=sys.stderr
-            )
+            print(f"  [armand0e] format-unknown (not CC JSONL): {filename}", file=sys.stderr)
             continue
 
         result = _adapt_from_path(local_path, session_id_override=session_id)
@@ -423,9 +415,7 @@ def process_cfahlgren(
         if not _looks_like_cc_jsonl(raw_lines):
             # Non-CC format (codex, pi, etc.) — count and skip gracefully.
             stats.format_unknown += 1
-            print(
-                f"  [cfahlgren1] format-unknown (not CC JSONL): {filename}", file=sys.stderr
-            )
+            print(f"  [cfahlgren1] format-unknown (not CC JSONL): {filename}", file=sys.stderr)
             continue
 
         result = _adapt_from_path(local_path, session_id_override=session_id)
@@ -572,34 +562,22 @@ def main() -> None:
     # 2. Public datasets
     # ------------------------------------------------------------------
     if not skip_public:
-        print(
-            f"[pull_corpora] Fetching {_HF_REPO_ARMAND}...", file=sys.stderr
-        )
+        print(f"[pull_corpora] Fetching {_HF_REPO_ARMAND}...", file=sys.stderr)
         armand_stats = SourceStats(label="armand0e/kimi-k2.6 (HF)")
         try:
-            armand_records = process_armand(
-                armand_stats, limit=limit, seen_ids=seen_ids
-            )
+            armand_records = process_armand(armand_stats, limit=limit, seen_ids=seen_ids)
             all_records.extend(armand_records)
         except Exception as exc:
-            print(
-                f"[pull_corpora] armand0e fetch error: {exc}", file=sys.stderr
-            )
+            print(f"[pull_corpora] armand0e fetch error: {exc}", file=sys.stderr)
         sources.append(armand_stats)
 
-        print(
-            f"[pull_corpora] Fetching {_HF_REPO_CFAHLGREN}...", file=sys.stderr
-        )
+        print(f"[pull_corpora] Fetching {_HF_REPO_CFAHLGREN}...", file=sys.stderr)
         cfahlgren_stats = SourceStats(label="cfahlgren1/agent-sessions (HF)")
         try:
-            cfahlgren_records = process_cfahlgren(
-                cfahlgren_stats, limit=limit, seen_ids=seen_ids
-            )
+            cfahlgren_records = process_cfahlgren(cfahlgren_stats, limit=limit, seen_ids=seen_ids)
             all_records.extend(cfahlgren_records)
         except Exception as exc:
-            print(
-                f"[pull_corpora] cfahlgren1 fetch error: {exc}", file=sys.stderr
-            )
+            print(f"[pull_corpora] cfahlgren1 fetch error: {exc}", file=sys.stderr)
         sources.append(cfahlgren_stats)
 
     # ------------------------------------------------------------------
