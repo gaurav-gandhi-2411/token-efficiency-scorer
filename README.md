@@ -459,7 +459,7 @@ from tes.baselines import BUNDLED_BASELINES_PATH
 from tes.waste import detect_repeated_failed_retry, detect_redundant_read, build_waste_entry
 
 baselines = load_baselines(BUNDLED_BASELINES_PATH)
-record = adapt_session("path/to/session.jsonl")  # secrets redacted at ingestion
+record = adapt_session("path/to/session.jsonl")   # secrets redacted at ingestion
 
 session_id = record["session_id"]
 turns = record["digest"]["turns"]
@@ -467,14 +467,13 @@ waste_entry = build_waste_entry(session_id, turns)
 
 # Optional: trajectory judge (returns None → UNAVAILABLE when no local judge)
 from tes.judge import score_trajectory
-
 judge_entry = score_trajectory(record)
 
 result = score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
-print(result.band_verdict)  # "within_band" | "above_p75" | "below_p25" | "unavailable"
-print(result.judge_verdict)  # "BETTER" | None
-print(result.waste_event_count)  # int
-print(result.token_domain_of_validity)  # caveat string, always populated
+print(result.band_verdict)        # "within_band" | "above_p75" | "below_p25" | "unavailable"
+print(result.judge_verdict)       # "BETTER" | None
+print(result.waste_event_count)   # int
+print(result.token_domain_of_validity)   # caveat string, always populated
 ```
 
 ---
