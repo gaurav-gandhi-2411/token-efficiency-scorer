@@ -80,7 +80,9 @@ class SessionDigest:
     h2_duplicate_count: int
     cache_hit_rate: float
     p25_token_ratio: float
-    output_tokens_available: bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
+    output_tokens_available: (
+        bool  # True when per-turn output tokens are recorded (openhands); False for swe_agent
+    )
     task_description: str  # first user turn content, first 800 chars
     turns: list[TurnDigest]  # all turns, ordered by turn_index
 

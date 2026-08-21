@@ -11,23 +11,18 @@ Tests:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from tes.cli import _print_contribution_preview
 from tes.contribution import (
     ALLOWED_FIELDS,
-    ContributionManifest,
-    ContributionPayload,
     build_contribution_payload,
-    get_or_create_contributor_id,
 )
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -42,27 +37,33 @@ def _make_conn_with_session(session_id: str = "consent-test-session") -> object:
         real_tokens=123_456,
         scope_status="in_scope",
         baseline_available=True,
-        p25=80_000, p75=200_000, median=130_000,
+        p25=80_000,
+        p75=200_000,
+        median=130_000,
         band_verdict="within_band",
         interpretation="some interpretation",
         token_domain_of_validity="",
         baseline_source="b2_corpus",
-        judge_verdict=None, judge_score=None, judge_reasoning=None,
+        judge_verdict=None,
+        judge_score=None,
+        judge_reasoning=None,
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{
-            "detector": "REPEATED-FAILED-RETRY",
-            "session_id": session_id,
-            "turns": [2, 4],
-            "repeat_count": 2,
-            "evidence": {"error_snippet": "sensitive error text"},
-        }],
+        waste_events=[
+            {
+                "detector": "REPEATED-FAILED-RETRY",
+                "session_id": session_id,
+                "turns": [2, 4],
+                "repeat_count": 2,
+                "evidence": {"error_snippet": "sensitive error text"},
+            }
+        ],
         waste_domain_of_validity="",
         session_cost_usd=0.025,
         cost_approximate=False,
         cost_domain_of_validity="",
     )
-    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/session.jsonl", mtime, "hash-consent", turn_count=30)
     return conn
 
@@ -75,7 +76,9 @@ def _make_conn_with_session(session_id: str = "consent-test-session") -> object:
 def test_preview_shows_real_sample_row(capsys: pytest.CaptureFixture) -> None:
     """Preview must print an actual row (real_tokens, task_type) — not a schematic."""
     conn = _make_conn_with_session()
-    payload = build_contribution_payload(conn, contributor_id="test-uuid", include_source_components=False)
+    payload = build_contribution_payload(
+        conn, contributor_id="test-uuid", include_source_components=False
+    )
     out_path = Path("/tmp/test-contribution.jsonl")
 
     _print_contribution_preview(payload, out_path)
@@ -118,7 +121,11 @@ def test_preview_states_no_transmission(capsys: pytest.CaptureFixture) -> None:
     _print_contribution_preview(payload, Path("/tmp/x.jsonl"))
 
     captured = capsys.readouterr().out.lower()
-    assert "nothing is transmitted" in captured or "not transmitted" in captured or "no server" in captured
+    assert (
+        "nothing is transmitted" in captured
+        or "not transmitted" in captured
+        or "no server" in captured
+    )
 
 
 def test_preview_shows_output_path(capsys: pytest.CaptureFixture) -> None:
@@ -169,7 +176,9 @@ def test_file_not_written_on_empty_answer(tmp_path: Path) -> None:
 def test_file_written_on_y_answer(tmp_path: Path) -> None:
     """Answering 'y' writes a JSONL file with the correct rows."""
     conn = _make_conn_with_session()
-    payload = build_contribution_payload(conn, contributor_id="cid-xyz", include_source_components=False)
+    payload = build_contribution_payload(
+        conn, contributor_id="cid-xyz", include_source_components=False
+    )
     out_file = tmp_path / "contribution.jsonl"
 
     with patch("builtins.input", return_value="y"):
@@ -206,5 +215,7 @@ def test_anonymous_flag_omits_contributor_id() -> None:
 def test_non_anonymous_has_contributor_id(tmp_path: Path) -> None:
     """When contributor_id is provided, it appears in rows."""
     conn = _make_conn_with_session()
-    payload = build_contribution_payload(conn, contributor_id="explicit-uuid", include_source_components=False)
+    payload = build_contribution_payload(
+        conn, contributor_id="explicit-uuid", include_source_components=False
+    )
     assert payload.rows[0]["contributor_id"] == "explicit-uuid"

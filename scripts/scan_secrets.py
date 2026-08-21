@@ -88,10 +88,10 @@ _SAFE_SUBSTRINGS: tuple[str, ...] = (
 class Hit(NamedTuple):
     """A single secret match found during scanning."""
 
-    line_num: int        # 1-based line number in the JSONL file
+    line_num: int  # 1-based line number in the JSONL file
     session_id: str
     pattern_type: str
-    match_display: str   # first-8[...]last-4 safe display string
+    match_display: str  # first-8[...]last-4 safe display string
 
 
 def _make_display(value: str) -> str:

@@ -258,9 +258,7 @@ def _print_result(result: EfficiencyResult) -> None:
     print("--- TOKEN ECONOMY ---")
     print(f"band_verdict:        {result.band_verdict}")
     if result.p25 is not None and result.median is not None and result.p75 is not None:
-        print(
-            f"p25 / median / p75:  {result.p25:,} / {result.median:,} / {result.p75:,}"
-        )
+        print(f"p25 / median / p75:  {result.p25:,} / {result.median:,} / {result.p75:,}")
     print(f"interpretation:      {result.interpretation}")
     print()
     print("--- TRAJECTORY QUALITY ---")

@@ -122,7 +122,9 @@ def _build_sample(corpus: list[LayerOneFeatures]) -> list[dict[str, Any]]:
         for s in sample_rows:
             t = s["total_tokens"]
             s["token_bucket"] = (
-                "low" if t <= p25 else ("mid_low" if t <= p50 else ("mid_high" if t <= p75 else "high"))
+                "low"
+                if t <= p25
+                else ("mid_low" if t <= p50 else ("mid_high" if t <= p75 else "high"))
             )
 
     return sample_rows
@@ -211,7 +213,25 @@ def _print_confirmation_table(sample: list[dict[str, Any]]) -> None:
         f" {'#':>3}   {'session_id':<18} {'scaffold':<16} {'domain':<14}"
         f"   {'Res':<3}   {'Tokens':>6}  {'Bucket':<8}  {'OTok':<4}  {'Labeler'}"
     )
-    sep = "─" * 3 + "  " + "─" * 17 + "  " + "─" * 15 + "  " + "─" * 13 + "   " + "─" * 3 + "   " + "─" * 6 + "  " + "─" * 8 + "  " + "─" * 4 + "  " + "─" * 8
+    sep = (
+        "─" * 3
+        + "  "
+        + "─" * 17
+        + "  "
+        + "─" * 15
+        + "  "
+        + "─" * 13
+        + "   "
+        + "─" * 3
+        + "   "
+        + "─" * 6
+        + "  "
+        + "─" * 8
+        + "  "
+        + "─" * 4
+        + "  "
+        + "─" * 8
+    )
     print(hdr)
     print(sep)
 
@@ -349,13 +369,17 @@ def _run_rating_loop(
             print()
 
             # Full digest — no truncation.
-            digest_text = _load_session_digest(sid, taxonomy_index, domain_p25, show_stats=show_stats)
+            digest_text = _load_session_digest(
+                sid, taxonomy_index, domain_p25, show_stats=show_stats
+            )
             print(digest_text)
 
             print()
             print(_RATING_RUBRIC)
             if not show_stats:
-                print("  [Stats hidden — rate from trajectory behavior, not token counts. Use --show-stats to reveal.]")
+                print(
+                    "  [Stats hidden — rate from trajectory behavior, not token counts. Use --show-stats to reveal.]"
+                )
 
             # Validated rating input.
             while True:

@@ -3,10 +3,10 @@ Unit tests for scripts/judge_agreement.py.
 
 Uses hardcoded synthetic records — no live data files required.
 """
+
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
@@ -27,6 +27,7 @@ VERDICT_ORDER = _mod.VERDICT_ORDER
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _rec(session_id: str, verdict: str, judge_score: float, waste: list[str] | None = None) -> dict:
     return {
         "session_id": session_id,
@@ -40,6 +41,7 @@ def _rec(session_id: str, verdict: str, judge_score: float, waste: list[str] | N
 # ---------------------------------------------------------------------------
 # kappa_interpretation
 # ---------------------------------------------------------------------------
+
 
 def test_kappa_interpretation_slight() -> None:
     assert kappa_interpretation(0.1) == "slight"
@@ -70,6 +72,7 @@ def test_kappa_interpretation_exactly_0_2() -> None:
 # inner_join
 # ---------------------------------------------------------------------------
 
+
 def test_inner_join_all_match() -> None:
     q = [_rec("s1", "BETTER", 0.75), _rec("s2", "SIMILAR", 0.5)]
     g = [_rec("s1", "MUCH_BETTER", 1.0), _rec("s2", "BETTER", 0.75)]
@@ -96,6 +99,7 @@ def test_inner_join_no_overlap() -> None:
 # compute_agreement — exact match
 # ---------------------------------------------------------------------------
 
+
 def test_exact_match_perfect() -> None:
     """All verdicts identical → exact_match_pct = 1.0."""
     q = [_rec("s1", "BETTER", 0.75), _rec("s2", "SIMILAR", 0.5), _rec("s3", "WORSE", 0.25)]
@@ -119,6 +123,7 @@ def test_exact_match_none() -> None:
 # ---------------------------------------------------------------------------
 # compute_agreement — directional
 # ---------------------------------------------------------------------------
+
 
 def test_gemma_lenient_direction() -> None:
     """Gemma rates UP on one pair → mean_direction positive."""
@@ -158,6 +163,7 @@ def test_qwen_negative_slice_tracked() -> None:
 # compute_agreement — waste disagreements
 # ---------------------------------------------------------------------------
 
+
 def test_waste_disagreement_detected() -> None:
     """
     Qwen rates WORSE with flagged waste, Gemma rates BETTER → detected as waste_disagreement.
@@ -196,6 +202,7 @@ def test_waste_disagreement_non_flagged_category_ignored() -> None:
 # compute_agreement — gate overlap
 # ---------------------------------------------------------------------------
 
+
 def test_gate_overlap_strict() -> None:
     """Both judges rate MUCH_BETTER → strict overlap."""
     q = [_rec("s1", "MUCH_BETTER", 1.0), _rec("s2", "MUCH_BETTER", 1.0)]
@@ -214,6 +221,7 @@ def test_gate_overlap_strict() -> None:
 # compute_agreement — reverse gate
 # ---------------------------------------------------------------------------
 
+
 def test_reverse_gate() -> None:
     """Qwen rates 2 sessions bad; Gemma agrees on 1, lenient on 1."""
     q = [_rec("s1", "WORSE", 0.25), _rec("s2", "MUCH_WORSE", 0.0)]
@@ -231,6 +239,7 @@ def test_reverse_gate() -> None:
 # compute_agreement — verdict distributions
 # ---------------------------------------------------------------------------
 
+
 def test_verdict_distributions_populated() -> None:
     """Verdict distribution dicts reflect the matched sessions."""
     q = [_rec("s1", "BETTER", 0.75), _rec("s2", "MUCH_BETTER", 1.0)]
@@ -247,6 +256,7 @@ def test_verdict_distributions_populated() -> None:
 # compute_agreement — per_level breakdown
 # ---------------------------------------------------------------------------
 
+
 def test_per_level_breakdown() -> None:
     """per_level tracks Gemma distribution for each Qwen verdict."""
     q = [_rec("s1", "WORSE", 0.25), _rec("s2", "WORSE", 0.25)]
@@ -261,6 +271,7 @@ def test_per_level_breakdown() -> None:
 # ---------------------------------------------------------------------------
 # Edge: zero matched sessions
 # ---------------------------------------------------------------------------
+
 
 def test_zero_matched_sessions() -> None:
     """No matched sessions → all metrics are zeroed/default, no crash."""

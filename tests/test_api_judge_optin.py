@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tes.judge import ApiJudgeConfig, score_trajectory_api
-
 
 _MINIMAL_RECORD = {
     "session_id": "test-session-optin",
@@ -72,7 +69,11 @@ def test_consent_given_true_attempts_call():
     config = ApiJudgeConfig(api_key="sk-valid-key")
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "content": [{"text": '{"verdict":"MUCH_BETTER","waste_categories":[],"confidence":0.9,"reasoning":"Good session."}'}]
+        "content": [
+            {
+                "text": '{"verdict":"MUCH_BETTER","waste_categories":[],"confidence":0.9,"reasoning":"Good session."}'
+            }
+        ]
     }
     mock_response.raise_for_status = MagicMock()
     with patch("tes.judge.httpx.post", return_value=mock_response) as mock_post:
@@ -92,6 +93,7 @@ def test_consent_false_returns_none_not_error():
 def test_api_call_failure_returns_none():
     """Network error returns None — UNAVAILABLE, not an exception propagated to caller."""
     import httpx as _httpx
+
     config = ApiJudgeConfig(api_key="sk-key")
     with patch("tes.judge.httpx.post", side_effect=_httpx.ConnectError("refused")):
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)

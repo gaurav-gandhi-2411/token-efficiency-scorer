@@ -1,6 +1,10 @@
 """Check which instance_ids are unclassified."""
+
 from __future__ import annotations
-import json, pathlib, collections
+
+import collections
+import json
+import pathlib
 
 taxonomy_path = pathlib.Path("data/validation-corpus/taxonomy/task_taxonomy.json")
 records = json.loads(taxonomy_path.read_text())

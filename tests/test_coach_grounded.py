@@ -52,8 +52,12 @@ def _insert_session(
         )
         """,
         (
-            session_id, task_type, source_path, band_verdict,
-            len(waste_events or []), json.dumps(waste_events or []),
+            session_id,
+            task_type,
+            source_path,
+            band_verdict,
+            len(waste_events or []),
+            json.dumps(waste_events or []),
             cost_usd,
         ),
     )
@@ -62,8 +66,15 @@ def _insert_session(
 
 def _active_baseline(task_type: str = "infra-deploy") -> SelfBaselineState:
     tb = TypeBaseline(
-        task_type=task_type, source="self", p25=100, median=200, p75=300,
-        lean_n=10, waste_free_n=15, sessions_needed=0, scope_floor=20,
+        task_type=task_type,
+        source="self",
+        p25=100,
+        median=200,
+        p75=300,
+        lean_n=10,
+        waste_free_n=15,
+        sessions_needed=0,
+        scope_floor=20,
         domain_of_validity="",
     )
     return SelfBaselineState(by_type={task_type: tb}, total_sessions=30)
@@ -71,8 +82,15 @@ def _active_baseline(task_type: str = "infra-deploy") -> SelfBaselineState:
 
 def _building_baseline(task_type: str = "infra-deploy") -> SelfBaselineState:
     tb = TypeBaseline(
-        task_type=task_type, source="building", p25=None, median=None, p75=None,
-        lean_n=2, waste_free_n=2, sessions_needed=6, scope_floor=20,
+        task_type=task_type,
+        source="building",
+        p25=None,
+        median=None,
+        p75=None,
+        lean_n=2,
+        waste_free_n=2,
+        sessions_needed=6,
+        scope_floor=20,
         domain_of_validity="",
     )
     return SelfBaselineState(by_type={task_type: tb}, total_sessions=2)
@@ -164,11 +182,17 @@ def _fake_record(turns: list[dict], session_id: str) -> dict:
     return {
         "session_id": session_id,
         "digest": {
-            "session_id": session_id, "domain": "unknown", "resolved": False,
+            "session_id": session_id,
+            "domain": "unknown",
+            "resolved": False,
             "total_tokens": sum(t["token_count_input"] + t["token_count_output"] for t in turns),
-            "turn_count": len(turns), "h2_duplicate_count": 0, "cache_hit_rate": 0.0,
-            "p25_token_ratio": 1.0, "output_tokens_available": True,
-            "task_description": "synthetic", "turns": turns,
+            "turn_count": len(turns),
+            "h2_duplicate_count": 0,
+            "cache_hit_rate": 0.0,
+            "p25_token_ratio": 1.0,
+            "output_tokens_available": True,
+            "task_description": "synthetic",
+            "turns": turns,
         },
     }
 
@@ -176,10 +200,16 @@ def _fake_record(turns: list[dict], session_id: str) -> dict:
 def _ai_turn(idx: int, cache_read: int, cache_creation: int = 0, output: int = 100) -> dict:
     total_input = cache_read + cache_creation + 100  # some fresh input too
     return {
-        "turn_index": idx, "role": "ai", "tool_names": [], "content_snippet": "x",
-        "token_count_input": total_input, "token_count_output": output,
-        "cache_read": cache_read, "h2_duplicate": False,
-        "cache_creation": cache_creation, "model": "claude-sonnet-4-6",
+        "turn_index": idx,
+        "role": "ai",
+        "tool_names": [],
+        "content_snippet": "x",
+        "token_count_input": total_input,
+        "token_count_output": output,
+        "cache_read": cache_read,
+        "h2_duplicate": False,
+        "cache_creation": cache_creation,
+        "model": "claude-sonnet-4-6",
     }
 
 
@@ -265,6 +295,8 @@ def test_no_hardcoded_savings_percentage_in_source() -> None:
     Every percentage/dollar figure in a habit message must come from an f-string
     interpolation of a computed value, never a bare literal claim like 'save 40%'.
     """
-    src = Path(__file__).resolve().parents[1].joinpath("tes", "coach.py").read_text(encoding="utf-8")
+    src = (
+        Path(__file__).resolve().parents[1].joinpath("tes", "coach.py").read_text(encoding="utf-8")
+    )
     assert not re.search(r"save[s]?\s*~?\d+%", src, re.IGNORECASE)
     assert not re.search(r"\d+%\s*(less|savings|cheaper)", src, re.IGNORECASE)

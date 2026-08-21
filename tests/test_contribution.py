@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from tes.contribution import (
     ALLOWED_FIELDS,
@@ -21,7 +20,6 @@ from tes.contribution import (
     get_or_create_contributor_id,
 )
 
-
 # ---------------------------------------------------------------------------
 # _week_bucket_from_mtime
 # ---------------------------------------------------------------------------
@@ -29,19 +27,19 @@ from tes.contribution import (
 
 def test_week_bucket_known_date() -> None:
     # 2026-06-09 00:00:00 UTC → 2026-W24
-    from datetime import datetime, timezone
+    from datetime import datetime
 
-    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=UTC).timestamp()
     result = _week_bucket_from_mtime(mtime)
     assert result == "2026-W24"
 
 
 def test_week_bucket_zero_pad() -> None:
     # ISO week 1 of 2026 should be zero-padded to W01
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     # 2026-01-05 is in week 2, 2026-01-01 is in week 1
-    mtime = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC).timestamp()
     result = _week_bucket_from_mtime(mtime)
     assert result.endswith("-W01")
 
@@ -126,12 +124,22 @@ def test_allowed_fields_count() -> None:
 
 def test_allowed_fields_contains_required_keys() -> None:
     expected = {
-        "task_type", "real_tokens", "token_count_input", "token_count_output",
-        "cache_creation", "cache_read", "waste_event_count", "waste_detectors_fired",
-        "model", "turn_count", "week_bucket", "tracegauge_version",
-        "schema_version", "contributor_id",
+        "task_type",
+        "real_tokens",
+        "token_count_input",
+        "token_count_output",
+        "cache_creation",
+        "cache_read",
+        "waste_event_count",
+        "waste_detectors_fired",
+        "model",
+        "turn_count",
+        "week_bucket",
+        "tracegauge_version",
+        "schema_version",
+        "contributor_id",
     }
-    assert ALLOWED_FIELDS == expected
+    assert expected == ALLOWED_FIELDS
 
 
 def test_allowed_fields_excludes_sensitive_columns() -> None:
@@ -205,7 +213,7 @@ def test_build_contribution_payload_anonymous() -> None:
 
 def test_build_contribution_payload_row_keys_exactly_allowed() -> None:
     """Each row must contain exactly ALLOWED_FIELDS keys — no more, no less."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from tes.score import ThreeAxisResult
     from tes.store import upsert_session
@@ -235,7 +243,7 @@ def test_build_contribution_payload_row_keys_exactly_allowed() -> None:
         cost_approximate=False,
         cost_domain_of_validity=None,
     )
-    mtime = datetime(2026, 1, 15, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 1, 15, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash123", turn_count=5)
 
     payload = build_contribution_payload(
@@ -248,7 +256,7 @@ def test_build_contribution_payload_row_keys_exactly_allowed() -> None:
 
 def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
     """session_id, source_path, scored_at, judge_reasoning must never appear in rows."""
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from tes.score import ThreeAxisResult
     from tes.store import upsert_session
@@ -272,20 +280,24 @@ def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
         judge_reasoning="SHOULD NOT APPEAR",
         trajectory_domain_of_validity="",
         waste_event_count=1,
-        waste_events=[{"detector": "REDUNDANT-READ", "session_id": "test-banned-check",
-                       "turns": [2, 4], "repeat_count": 1,
-                       "evidence": {"content": "SENSITIVE"}}],
+        waste_events=[
+            {
+                "detector": "REDUNDANT-READ",
+                "session_id": "test-banned-check",
+                "turns": [2, 4],
+                "repeat_count": 1,
+                "evidence": {"content": "SENSITIVE"},
+            }
+        ],
         waste_domain_of_validity="",
         session_cost_usd=None,
         cost_approximate=False,
         cost_domain_of_validity=None,
     )
-    mtime = datetime(2026, 3, 1, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 3, 1, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash456", turn_count=3)
 
-    payload = build_contribution_payload(
-        conn, contributor_id=None, include_source_components=False
-    )
+    payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     row = payload.rows[0]
     for banned in ("session_id", "source_path", "scored_at", "judge_reasoning"):
         assert banned not in row

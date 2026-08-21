@@ -11,6 +11,7 @@ from layer2_judge.py is deliberately avoided so the parity is version-locked at
 copy time — if Qwen's prompt drifts, Gemma's stays fixed here until an explicit
 re-sync.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -356,7 +357,9 @@ def _score_session(
 ) -> dict[str, Any] | None:
     """Score a single session; return output record (including json_valid) or None on failure."""
     user_prompt = _build_user_prompt(rec)
-    result, json_valid, done_reason = _call_ollama(user_prompt, ollama_url, ollama_model, num_predict)
+    result, json_valid, done_reason = _call_ollama(
+        user_prompt, ollama_url, ollama_model, num_predict
+    )
     if result is None:
         return None
 
@@ -437,9 +440,7 @@ def mode_verify_parity(args: argparse.Namespace) -> None:
 
 def mode_validate(args: argparse.Namespace) -> None:
     """Score exactly 5 hardcoded sessions and print a summary table."""
-    pool_by_id: dict[str, dict[str, Any]] = {
-        r["session_id"]: r for r in _load_pool(POOL_PATH)
-    }
+    pool_by_id: dict[str, dict[str, Any]] = {r["session_id"]: r for r in _load_pool(POOL_PATH)}
     existing_m2 = _load_existing_m2(OUTPUT_PATH)
     qwen_verdicts = _load_qwen_verdicts(QWEN_SCORES_PATH)
 
@@ -473,16 +474,18 @@ def mode_validate(args: argparse.Namespace) -> None:
                 f"Gemma=FAILED | {elapsed:.0f}s | json_valid=False | done_reason="
             )
             print("        Reasoning: (failed — no response)")
-            results.append({
-                "session_id": sid,
-                "turns": actual_turns,
-                "qwen": qwen_verdict,
-                "gemma": "FAILED",
-                "conf": None,
-                "json_valid": False,
-                "done_reason": "",
-                "reasoning": "",
-            })
+            results.append(
+                {
+                    "session_id": sid,
+                    "turns": actual_turns,
+                    "qwen": qwen_verdict,
+                    "gemma": "FAILED",
+                    "conf": None,
+                    "json_valid": False,
+                    "done_reason": "",
+                    "reasoning": "",
+                }
+            )
             continue
 
         if not cached:
@@ -501,16 +504,18 @@ def mode_validate(args: argparse.Namespace) -> None:
             f"json_valid={scored['json_valid']} | done_reason={done_reason}"
         )
         print(f"        Reasoning: {reasoning}")
-        results.append({
-            "session_id": sid,
-            "turns": actual_turns,
-            "qwen": qwen_verdict,
-            "gemma": scored["verdict"],
-            "conf": scored["confidence"],
-            "json_valid": scored["json_valid"],
-            "done_reason": done_reason,
-            "reasoning": reasoning,
-        })
+        results.append(
+            {
+                "session_id": sid,
+                "turns": actual_turns,
+                "qwen": qwen_verdict,
+                "gemma": scored["verdict"],
+                "conf": scored["confidence"],
+                "json_valid": scored["json_valid"],
+                "done_reason": done_reason,
+                "reasoning": reasoning,
+            }
+        )
 
     wall_elapsed = time.monotonic() - wall_start
     print()
@@ -550,9 +555,9 @@ def mode_run(args: argparse.Namespace) -> None:
 
     # Filter: must be in pool, must be in Qwen set, must not be already scored (unless --force)
     candidates = [
-        r for r in pool_records
-        if r["session_id"] in qwen_ids
-        and (args.force or r["session_id"] not in existing_m2)
+        r
+        for r in pool_records
+        if r["session_id"] in qwen_ids and (args.force or r["session_id"] not in existing_m2)
     ]
 
     if args.max_turns is not None:
@@ -609,8 +614,10 @@ def mode_run(args: argparse.Namespace) -> None:
         bar = "#" * (n // max(1, total_scored // 40))
         print(f"  {v:<12} {n:>4}  ({pct:5.1f}%)  {bar}")
     mb_b = counts.get("MUCH_BETTER", 0) + counts.get("BETTER", 0)
-    print(f"\nCandidate gate (MUCH_BETTER+BETTER): {mb_b}/{total_scored} = "
-          f"{mb_b / total_scored * 100:.1f}%")
+    print(
+        f"\nCandidate gate (MUCH_BETTER+BETTER): {mb_b}/{total_scored} = "
+        f"{mb_b / total_scored * 100:.1f}%"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -634,9 +641,7 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--model", default="gemma3:27b", metavar="MODEL")
-    parser.add_argument(
-        "--ollama-url", default="http://localhost:11434", metavar="URL"
-    )
+    parser.add_argument("--ollama-url", default="http://localhost:11434", metavar="URL")
     parser.add_argument("--force", action="store_true", help="Re-score already-scored sessions.")
     parser.add_argument(
         "--max-turns",

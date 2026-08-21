@@ -13,6 +13,7 @@ Formula (§6.1 of research/05-architecture-pivot.md):
 
 Outputs: data/efficiency_scores.jsonl
 """
+
 from __future__ import annotations
 
 import json
@@ -187,9 +188,7 @@ def main() -> None:
         scaffold_groups.setdefault(row["scaffold"], []).append(row["efficiency_score"])
     for sc, vals in sorted(scaffold_groups.items()):
         arr = np.array(vals)
-        print(
-            f"  {sc:<22}: mean={np.mean(arr):.4f}  median={np.median(arr):.4f}  (n={len(vals)})"
-        )
+        print(f"  {sc:<22}: mean={np.mean(arr):.4f}  median={np.median(arr):.4f}  (n={len(vals)})")
     n_low = sum(1 for r in output_records if r["reliability"] == "LOW")
     print(f"\n  Reliability LOW: {n_low}/{len(output_records)} sessions")
     print("=" * 60)

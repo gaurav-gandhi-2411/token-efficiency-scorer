@@ -83,11 +83,30 @@ _NON_CC_TOOL_MAP: dict[str, str] = {
 # CC-native tool names (no mapping needed for these).
 _CC_NATIVE_TOOLS: frozenset[str] = frozenset(
     {
-        "Read", "Write", "Edit", "MultiEdit", "Bash", "Glob", "Grep",
-        "WebFetch", "WebSearch", "Task", "TaskCreate", "TaskUpdate",
-        "TaskOutput", "Agent", "SendMessage", "NotebookEdit", "NotebookRead",
-        "TodoWrite", "TodoRead", "ToolSearch", "AskUserQuestion",
-        "EnterPlanMode", "ExitPlanMode", "Skill",
+        "Read",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebFetch",
+        "WebSearch",
+        "Task",
+        "TaskCreate",
+        "TaskUpdate",
+        "TaskOutput",
+        "Agent",
+        "SendMessage",
+        "NotebookEdit",
+        "NotebookRead",
+        "TodoWrite",
+        "TodoRead",
+        "ToolSearch",
+        "AskUserQuestion",
+        "EnterPlanMode",
+        "ExitPlanMode",
+        "Skill",
     }
 )
 
@@ -137,7 +156,8 @@ def probe_schema(data_dir: Path) -> dict[str, Any]:
 
         # Heuristic: find the agent-identifying column.
         candidate_cols = [
-            c for c in sessions_df.columns
+            c
+            for c in sessions_df.columns
             if any(kw in c.lower() for kw in ["agent", "tool", "framework", "model", "client"])
         ]
         result["agent_column_candidates"] = candidate_cols
@@ -146,8 +166,8 @@ def probe_schema(data_dir: Path) -> dict[str, Any]:
             agent_col = candidate_cols[0]
             result["agent_field"] = agent_col
             result["agent_values"] = sessions_df[agent_col].value_counts().to_dict()
-            cc_mask = sessions_df[agent_col].str.lower().str.contains(
-                "claude.?code|anthropic", na=False
+            cc_mask = (
+                sessions_df[agent_col].str.lower().str.contains("claude.?code|anthropic", na=False)
             )
             result["cc_session_count"] = int(cc_mask.sum())
             result["noncc_session_count"] = int((~cc_mask).sum())
@@ -198,8 +218,8 @@ def identify_cc_sessions(
     Identification is case-insensitive substring match on "claude" or "anthropic"
     in the agent column value.
     """
-    cc_mask = sessions_df[agent_col].str.lower().str.contains(
-        "claude.?code|claude|anthropic", na=False
+    cc_mask = (
+        sessions_df[agent_col].str.lower().str.contains("claude.?code|claude|anthropic", na=False)
     )
     id_col = "session_id" if "session_id" in sessions_df.columns else sessions_df.columns[0]
     cc_ids: set[str] = set(sessions_df.loc[cc_mask, id_col].astype(str).tolist())
@@ -497,7 +517,9 @@ def main() -> None:
     all_tool_names: list[str] = schema_info.get("all_tool_names", [])
     cc_native_present = [t for t in all_tool_names if t in _CC_NATIVE_TOOLS]
     mapped_noncc = {t: _NON_CC_TOOL_MAP[t] for t in all_tool_names if t in _NON_CC_TOOL_MAP}
-    unmapped = [t for t in all_tool_names if t not in _CC_NATIVE_TOOLS and t not in _NON_CC_TOOL_MAP]
+    unmapped = [
+        t for t in all_tool_names if t not in _CC_NATIVE_TOOLS and t not in _NON_CC_TOOL_MAP
+    ]
 
     # Adapt CC sessions (no tool name mapping).
     cc_written = _adapt_batch(
@@ -517,8 +539,10 @@ def main() -> None:
     print(f"Unmapped tool names (passed through): {unmapped}")
     print(f"CC-native tools confirmed present:    {cc_native_present}")
     print()
-    print("PATH A note: Will fire on CC sessions natively (CC Read tool produces "
-          "'File unchanged since last read')")
+    print(
+        "PATH A note: Will fire on CC sessions natively (CC Read tool produces "
+        "'File unchanged since last read')"
+    )
     print("PATH A note: UNAVAILABLE on non-CC sessions (no CC-proprietary verdict string)")
     print("PATH B note: Will fire on CC sessions where native Read output has \\d+\\t prefix")
     print("PATH B note: UNAVAILABLE on non-CC sessions without native line-numbered read output")

@@ -19,13 +19,14 @@ Outputs:
 Usage:
     python scripts/04_difficulty_analysis.py
 """
+
 from __future__ import annotations
 
 import json
 import math
 import pathlib
 import re
-from statistics import mean, stdev
+from statistics import stdev
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 TRACES_DIR = REPO_ROOT / "data" / "validation-corpus" / "traces_normalized"
@@ -34,6 +35,7 @@ OUT_DIR = REPO_ROOT / "data" / "validation-corpus" / "difficulty"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Proxy extractors ──────────────────────────────────────────────────────────
+
 
 def _patch_metrics(patch_diff: str | None) -> tuple[int, int]:
     """Return (lines_total, files_changed)."""
@@ -54,6 +56,7 @@ def _first_user_token_count(turns: list[dict]) -> int:
 
 
 # ── Statistics helpers ────────────────────────────────────────────────────────
+
 
 def _mean(xs: list[float]) -> float:
     return sum(xs) / len(xs) if xs else 0.0
@@ -84,11 +87,7 @@ def _auc_from_pairs(binary_y: list[int], scores: list[float]) -> float:
         return 0.5
     n_pos = len(pos_scores)
     n_neg = len(neg_scores)
-    concordant = sum(
-        (1 if p > n else 0.5 if p == n else 0)
-        for p in pos_scores
-        for n in neg_scores
-    )
+    concordant = sum((1 if p > n else 0.5 if p == n else 0) for p in pos_scores for n in neg_scores)
     return concordant / (n_pos * n_neg)
 
 
@@ -144,13 +143,12 @@ def _pearson_r(xs: list[float], ys: list[float]) -> float:
         return 0.0
     mx, my = _mean(xs), _mean(ys)
     num = sum((xi - mx) * (yi - my) for xi, yi in zip(xs, ys))
-    denom = math.sqrt(
-        sum((xi - mx) ** 2 for xi in xs) * sum((yi - my) ** 2 for yi in ys)
-    )
+    denom = math.sqrt(sum((xi - mx) ** 2 for xi in xs) * sum((yi - my) ** 2 for yi in ys))
     return round(num / denom, 4) if denom else 0.0
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     sessions = {
@@ -168,29 +166,30 @@ def main() -> None:
         tok = s.get("session_token_totals") or {}
         total_tokens = tok.get("total", 0) or 0
 
-        rows.append({
-            "session_id": sid,
-            "resolved": resolved,
-            "scaffold": s["scaffold"],
-            "domain": taxonomy.get(sid, {}).get("domain", "unknown"),
-            "p1_patch_lines": patch_lines,
-            "p2_files_changed": files_changed,
-            "p3_turn_count": turn_count,
-            "p4_desc_tokens": desc_tokens,
-            "total_tokens": total_tokens,
-        })
+        rows.append(
+            {
+                "session_id": sid,
+                "resolved": resolved,
+                "scaffold": s["scaffold"],
+                "domain": taxonomy.get(sid, {}).get("domain", "unknown"),
+                "p1_patch_lines": patch_lines,
+                "p2_files_changed": files_changed,
+                "p3_turn_count": turn_count,
+                "p4_desc_tokens": desc_tokens,
+                "total_tokens": total_tokens,
+            }
+        )
 
     n = len(rows)
     y = [r["resolved"] for r in rows]
     proxies = [
-        ("P1_patch_lines",  "Patch lines total (add+del)",  [r["p1_patch_lines"] for r in rows]),
-        ("P2_files_changed","Files changed in patch",        [r["p2_files_changed"] for r in rows]),
-        ("P3_turn_count",   "Session turn count",            [r["p3_turn_count"] for r in rows]),
-        ("P4_desc_tokens",  "Task description length (words)", [r["p4_desc_tokens"] for r in rows]),
+        ("P1_patch_lines", "Patch lines total (add+del)", [r["p1_patch_lines"] for r in rows]),
+        ("P2_files_changed", "Files changed in patch", [r["p2_files_changed"] for r in rows]),
+        ("P3_turn_count", "Session turn count", [r["p3_turn_count"] for r in rows]),
+        ("P4_desc_tokens", "Task description length (words)", [r["p4_desc_tokens"] for r in rows]),
     ]
 
-    print(f"Difficulty analysis on {n} sessions  "
-          f"({sum(y)} resolved = {sum(y)/n:.1%})\n")
+    print(f"Difficulty analysis on {n} sessions  ({sum(y)} resolved = {sum(y) / n:.1%})\n")
     print(f"{'Proxy':<28} {'r_pb':>6} {'AUC':>6} {'R²':>6}  Note")
     print("-" * 65)
 
@@ -202,9 +201,15 @@ def main() -> None:
         # Higher score = "harder" or "easier"?
         # Resolved sessions tend to have larger patches (if they solved it).
         # Turn count should be higher for harder (unresolved) sessions.
-        note = "higher = resolved" if name in ("P1_patch_lines", "P2_files_changed") else "higher = harder"
+        note = (
+            "higher = resolved"
+            if name in ("P1_patch_lines", "P2_files_changed")
+            else "higher = harder"
+        )
         print(f"  {label:<26} {rpb:>6.3f}  {auc:>5.3f}  {r2:>6.4f}  {note}")
-        proxy_results.append({"name": name, "label": label, "r_pb": rpb, "auc": auc, "mcfadden_r2": r2})
+        proxy_results.append(
+            {"name": name, "label": label, "r_pb": rpb, "auc": auc, "mcfadden_r2": r2}
+        )
 
     # Pairwise Pearson correlations between proxies
     print("\nPairwise Pearson r between proxies:")
@@ -212,13 +217,14 @@ def main() -> None:
     pairs = []
     pnames = [p[0] for p in proxies]
     for i, a in enumerate(pnames):
-        for b in pnames[i + 1:]:
+        for b in pnames[i + 1 :]:
             r = _pearson_r(proxy_vectors[a], proxy_vectors[b])
             print(f"  {a} × {b}: r={r:.3f}")
             pairs.append({"a": a, "b": b, "pearson_r": r})
 
     # Per-domain resolve rates (using taxonomy)
     from collections import defaultdict
+
     domain_stats: dict[str, dict[str, int]] = defaultdict(lambda: {"n": 0, "resolved": 0})
     for r in rows:
         domain_stats[r["domain"]]["n"] += 1

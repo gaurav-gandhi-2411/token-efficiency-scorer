@@ -9,10 +9,8 @@ Each fixture is the minimal digest slice needed to prove one behavioural propert
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from waste_detectors import WasteEvent, detect_redundant_read, detect_repeated_failed_retry
+from waste_detectors import detect_redundant_read, detect_repeated_failed_retry
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -21,7 +19,7 @@ from waste_detectors import WasteEvent, detect_redundant_read, detect_repeated_f
 ERR = "Exit code 1\nERROR: cannot find module 'playwright-core'\nRequire stack: /workspace/[eval]"
 ERR_TRANSIENT = "Exit code 1\nERROR: ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS — no capacity in zone us-central1-a"
 ERR_DIFFERENT = "Exit code 1\nERROR: cannot find module 'axios'\nRequire stack: /workspace/[eval]"
-ERR_SHORT = "Exit code 1"                    # < 20 chars with strip → not a qualifying error
+ERR_SHORT = "Exit code 1"  # < 20 chars with strip → not a qualifying error
 ERR_GREP = "grep: scraper/app.js: No such file or directory"
 ERR_GIT = "fatal: expected 'acknowledgments'"
 
@@ -112,7 +110,7 @@ def test_fires_with_read_tool_between() -> None:
     turns = [
         _ai(0, ["Bash"]),
         _tool(1, ERR),
-        _ai(2, ["Read"]),         # read-only: not a barrier
+        _ai(2, ["Read"]),  # read-only: not a barrier
         _tool(3, "file contents"),
         _ai(4, ["Bash"]),
         _tool(5, ERR),
@@ -192,7 +190,7 @@ def test_no_fire_with_write_between() -> None:
     turns = [
         _ai(0, ["Bash"]),
         _tool(1, ERR),
-        _ai(2, ["Write"]),        # Write barrier
+        _ai(2, ["Write"]),  # Write barrier
         _ai(3, ["Bash"]),
         _tool(4, ERR),
     ]
@@ -229,10 +227,10 @@ def test_no_fire_with_bash_install_success_between() -> None:
     turns = [
         _ai(0, ["Bash"]),
         _tool(1, ERR),
-        _ai(2, ["Bash"]),         # e.g. pip install playwright-core
+        _ai(2, ["Bash"]),  # e.g. pip install playwright-core
         _tool(3, STATE_INSTALL),  # install succeeded (state mutated)
         _ai(4, ["Bash"]),
-        _tool(5, ERR),            # still fails (bad install), but state DID change
+        _tool(5, ERR),  # still fails (bad install), but state DID change
     ]
     events = detect_repeated_failed_retry("s1", turns)
     assert events == []
@@ -309,7 +307,9 @@ def test_no_fire_on_rate_limit_error() -> None:
 
 def test_no_fire_on_gh_pr_checks_pending() -> None:
     """gh pr checks returns exit code 8 when checks are pending (CI-polling, not a fixable failure)."""
-    gh_pending = "Exit code 8\nAPI (Python 3.12)\tpending\t0\thttps://github.com/org/repo/actions/runs/123"
+    gh_pending = (
+        "Exit code 8\nAPI (Python 3.12)\tpending\t0\thttps://github.com/org/repo/actions/runs/123"
+    )
     turns = [
         _ai(0, ["Bash"]),
         _tool(1, gh_pending),
@@ -365,9 +365,9 @@ def test_no_fire_on_different_error_content() -> None:
     """
     turns = [
         _ai(0, ["Bash"]),
-        _tool(1, ERR),          # playwright-core
+        _tool(1, ERR),  # playwright-core
         _ai(2, ["Bash"]),
-        _tool(3, ERR_DIFFERENT), # axios — different full snippet
+        _tool(3, ERR_DIFFERENT),  # axios — different full snippet
     ]
     events = detect_repeated_failed_retry("s1", turns)
     assert events == []
@@ -377,7 +377,7 @@ def test_no_fire_on_trivially_short_error() -> None:
     """Error snippet shorter than 20 chars is not a qualifying error."""
     turns = [
         _ai(0, ["Bash"]),
-        _tool(1, ERR_SHORT),   # 'Exit code 1' = 11 chars
+        _tool(1, ERR_SHORT),  # 'Exit code 1' = 11 chars
         _ai(2, ["Bash"]),
         _tool(3, ERR_SHORT),
     ]
@@ -450,11 +450,15 @@ def test_proof_turns_are_interleaved_call_result() -> None:
 
 # Realistic file-content snippets (line-numbered, ≥80 chars)
 FILE_A = "1\timport type { NextRequest } from 'next/server';\n2\texport const runtime = 'nodejs';\n3\texport const dynamic = 'force-dynamic';\n4\tfunction sseHeaders(): HeadersInit {"
-FILE_B = "1\t\"\"\"\n2\tGallery candidate generator — 6 capability categories.\n3\tSaves every candidate + picks nothing automatically.\n4\t\"\"\"\n5\timport pathlib\n6\timport json"
+FILE_B = '1\t"""\n2\tGallery candidate generator — 6 capability categories.\n3\tSaves every candidate + picks nothing automatically.\n4\t"""\n5\timport pathlib\n6\timport json'
 FILE_UNCHANGED_HINT = "File unchanged since last read. The content from the earlier Read tool_result in this conversation is still current — refer to that instead of re-reading."
-FILE_UNCHANGED_WITH_PATH = "File unchanged since last read. The file C:\\repo\\src\\auth.py has not changed."
-SHORT_CONTENT = "1\tshort"                       # < 80 chars → not qualifying
-SYSTEM_REMINDER = "<system-reminder>Warning: the file exists but is shorter than the provided offset."
+FILE_UNCHANGED_WITH_PATH = (
+    "File unchanged since last read. The file C:\\repo\\src\\auth.py has not changed."
+)
+SHORT_CONTENT = "1\tshort"  # < 80 chars → not qualifying
+SYSTEM_REMINDER = (
+    "<system-reminder>Warning: the file exists but is shorter than the provided offset."
+)
 NOT_LINE_NUMBERED = "Loaded 200 sessions.\n\nBULK: openai/gpt-oss-120b..."  # no \d+\t prefix
 
 
@@ -551,9 +555,9 @@ def test_rr_path_b_fires_with_non_read_ai_turns_between() -> None:
         _ai(0, ["Read"]),
         _tool(1, FILE_A),
         _ai(2, [], snippet="Let me check another file first."),
-        _ai(3, ["Read"]),          # read a different file
+        _ai(3, ["Read"]),  # read a different file
         _tool(4, FILE_B),
-        _ai(5, ["Read"]),          # now re-read FILE_A
+        _ai(5, ["Read"]),  # now re-read FILE_A
         _tool(6, FILE_A),
     ]
     events = detect_redundant_read("s1", turns)
@@ -589,7 +593,7 @@ def test_rr_path_b_no_fire_with_edit_between() -> None:
     turns = [
         _ai(0, ["Read"]),
         _tool(1, FILE_A),
-        _ai(2, ["Edit"]),          # barrier
+        _ai(2, ["Edit"]),  # barrier
         _ai(3, ["Read"]),
         _tool(4, FILE_A),
     ]
@@ -747,12 +751,8 @@ def test_rr_path_b_evidence_fields_complete() -> None:
 # ---------------------------------------------------------------------------
 
 # Arrow-format file content fixtures (CC v2.1.38+, ≥80 chars)
-ARROW_CONTENT_A = (
-    "   1→def foo():\n   2→    return 42\n   3→\n   4→class Bar:" + "x" * 60
-)
-ARROW_CONTENT_B = (
-    "   1→def foo():\n   2→    return 99\n   3→\n   4→class Bar:" + "x" * 60
-)
+ARROW_CONTENT_A = "   1→def foo():\n   2→    return 42\n   3→\n   4→class Bar:" + "x" * 60
+ARROW_CONTENT_B = "   1→def foo():\n   2→    return 99\n   3→\n   4→class Bar:" + "x" * 60
 
 
 def test_rr_path_b_fires_on_arrow_format() -> None:
@@ -791,7 +791,7 @@ def test_rr_path_b_arrow_no_fire_with_edit_between() -> None:
     turns = [
         _ai(0, ["Read"]),
         _tool(1, ARROW_CONTENT_A),
-        _ai(2, ["Edit"]),          # barrier
+        _ai(2, ["Edit"]),  # barrier
         _ai(3, ["Read"]),
         _tool(4, ARROW_CONTENT_A),
     ]

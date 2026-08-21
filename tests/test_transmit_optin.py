@@ -17,13 +17,12 @@ Three layers of proof:
 
 import inspect
 import socket
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 from tes.corpus_client import CorpusConfig, contribute
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
-
 
 _FAKE_CONFIG = CorpusConfig(
     supabase_url="https://fake-project.supabase.co",
@@ -35,15 +34,30 @@ _FAKE_CONFIG = CorpusConfig(
 def _conn_with_one_session() -> object:
     conn = open_db(":memory:")
     result = ThreeAxisResult(
-        session_id="optin-test", task_type="feature-build", real_tokens=500,
-        scope_status="in_scope", baseline_available=True, p25=300, p75=800, median=500,
-        band_verdict="within_band", interpretation="", token_domain_of_validity="",
-        baseline_source="b2_corpus", judge_verdict=None, judge_score=None, judge_reasoning=None,
-        trajectory_domain_of_validity="", waste_event_count=0, waste_events=[],
-        waste_domain_of_validity="", session_cost_usd=None, cost_approximate=False,
+        session_id="optin-test",
+        task_type="feature-build",
+        real_tokens=500,
+        scope_status="in_scope",
+        baseline_available=True,
+        p25=300,
+        p75=800,
+        median=500,
+        band_verdict="within_band",
+        interpretation="",
+        token_domain_of_validity="",
+        baseline_source="b2_corpus",
+        judge_verdict=None,
+        judge_score=None,
+        judge_reasoning=None,
+        trajectory_domain_of_validity="",
+        waste_event_count=0,
+        waste_events=[],
+        waste_domain_of_validity="",
+        session_cost_usd=None,
+        cost_approximate=False,
         cost_domain_of_validity=None,
     )
-    mtime = datetime(2026, 6, 10, tzinfo=timezone.utc).timestamp()
+    mtime = datetime(2026, 6, 10, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-optin", turn_count=10)
     return conn
 
@@ -57,7 +71,9 @@ def test_no_httpx_call_when_consent_not_given() -> None:
     conn = _conn_with_one_session()
     with patch("tes.corpus_client.httpx.post") as mock_post:
         result = contribute(
-            conn, consent_given=False, contributor_id="a1b2c3d4-1234-4abc-89ab-1234567890ab",
+            conn,
+            consent_given=False,
+            contributor_id="a1b2c3d4-1234-4abc-89ab-1234567890ab",
             config=_FAKE_CONFIG,
         )
     mock_post.assert_not_called()
@@ -74,7 +90,10 @@ def test_no_socket_connect_when_consent_not_given() -> None:
 
     with patch.object(socket.socket, "connect", fail_on_connect):
         result = contribute(
-            conn, consent_given=False, contributor_id=None, config=_FAKE_CONFIG,
+            conn,
+            consent_given=False,
+            contributor_id=None,
+            config=_FAKE_CONFIG,
         )
     assert result.sent is False
 
@@ -136,9 +155,7 @@ def test_bare_tes_dashboard_launch_never_touches_corpus_client(monkeypatch) -> N
     monkeypatch.setattr(
         cc_module, "contribute", lambda *a, **k: called.__setitem__("contribute", True)
     )
-    monkeypatch.setattr(
-        cc_module, "withdraw", lambda *a, **k: called.__setitem__("withdraw", True)
-    )
+    monkeypatch.setattr(cc_module, "withdraw", lambda *a, **k: called.__setitem__("withdraw", True))
     # _run_serve is the bare-tes / `tes serve` entry point — never touches corpus_client.
     import tes.cli as cli_module
 
@@ -165,9 +182,7 @@ def test_corpus_config_from_env_requires_all_three_vars(monkeypatch) -> None:
     assert CorpusConfig.from_env() is None
 
 
-def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(
-    monkeypatch, capsys
-) -> None:
+def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(monkeypatch, capsys) -> None:
     """`tes corpus contribute` must check corpus availability BEFORE opening
     the store or showing the preview/consent screen — walking a user through
     a full "Send to the community corpus? [y/N]" prompt only to reveal
@@ -185,7 +200,9 @@ def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(
 
     import tes.cli as cli_module
 
-    ns = argparse.Namespace(command="corpus", corpus_command="contribute", db_path=None, anonymous=False)
+    ns = argparse.Namespace(
+        command="corpus", corpus_command="contribute", db_path=None, anonymous=False
+    )
     cli_module._run_corpus(ns)
 
     captured = capsys.readouterr()

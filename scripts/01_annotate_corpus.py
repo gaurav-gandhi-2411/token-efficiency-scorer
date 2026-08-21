@@ -24,6 +24,7 @@ Usage:
     python scripts/01_annotate_corpus.py --mode batch-submit [--limit N] [--force]
     python scripts/01_annotate_corpus.py --mode batch-poll --batch-id <id>
 """
+
 from __future__ import annotations
 
 import argparse
@@ -95,7 +96,7 @@ GROQ_BATCH_COST_PER_M_OUT: float = 0.30
 HAIKU_MODEL: str = "claude-haiku-4-5-20251001"
 HAIKU_COST_PER_M_IN: float = 0.80
 HAIKU_COST_PER_M_OUT: float = 4.00
-HAIKU_COST_PER_M_IN_CACHED: float = 0.08   # prompt-cache read rate
+HAIKU_COST_PER_M_IN_CACHED: float = 0.08  # prompt-cache read rate
 # Anthropic Batch API: 50% discount on sync rates
 ANTHROPIC_BATCH_COST_PER_M_IN: float = 0.40
 ANTHROPIC_BATCH_COST_PER_M_OUT: float = 2.00
@@ -251,12 +252,14 @@ per_turn_labels for each assistant/ai turn in order. Do not skip any.
 
 # ── Transcript formatting ─────────────────────────────────────────────────────
 
+
 def _format_turns(session: dict[str, Any]) -> tuple[str, list[int]]:
     """Serialize the session into a prompt transcript. Returns (text, shown_asst_indices)."""
     turns = sorted(session["turns"], key=lambda t: t["turn_index"])
 
     asst_turns = [
-        t for t in turns
+        t
+        for t in turns
         if t["role"] in ("assistant", "ai")
         and (len(t.get("content_text", "")) > 5 or len(t.get("tool_uses", [])) > 0)
     ][:MAX_ASST_TURNS_SHOWN]
@@ -297,7 +300,9 @@ def _format_turns(session: dict[str, Any]) -> tuple[str, list[int]]:
     return "\n".join(lines), shown_asst_indices
 
 
-def _build_groq_messages(session: dict[str, Any]) -> tuple[list[dict[str, str]], list[int]] | tuple[None, None]:
+def _build_groq_messages(
+    session: dict[str, Any],
+) -> tuple[list[dict[str, str]], list[int]] | tuple[None, None]:
     """Build the messages list for a Groq chat completion request.
 
     Returns (messages, shown_asst_indices) or (None, None) if the session has no
@@ -324,6 +329,7 @@ def _build_groq_messages(session: dict[str, Any]) -> tuple[list[dict[str, str]],
 
 
 # ── API calls ─────────────────────────────────────────────────────────────────
+
 
 def _call_groq(
     client: Any,
@@ -377,7 +383,9 @@ def _call_groq(
             if "context_length_exceeded" in err or "maximum context" in err.lower():
                 return {"error": "context_exceeded", "session_id": session["session_id"]}
             # 413 = Groq rate-limit (TPM exceeded); sleep and retry
-            is_rate_limit = "413" in err or "too large" in err.lower() or "rate_limit" in err.lower()
+            is_rate_limit = (
+                "413" in err or "too large" in err.lower() or "rate_limit" in err.lower()
+            )
             if attempt < 2:
                 sleep_s = RATE_LIMIT_SLEEP_SEC if is_rate_limit else 2 ** (attempt + 1)
                 print(f"    sleeping {sleep_s:.0f}s before retry…")
@@ -453,6 +461,7 @@ def _call_sonnet(
 
 # ── Cost tracking ─────────────────────────────────────────────────────────────
 
+
 def _estimate_cost(annotation: dict[str, Any], model: str) -> float:
     in_t = annotation.get("_input_tokens", 0)
     out_t = annotation.get("_output_tokens", 0)
@@ -472,7 +481,10 @@ def _estimate_cost_batch(input_tokens: int, output_tokens: int) -> float:
 
     Uses GROQ_BATCH_COST_PER_M_IN / OUT rather than the sync rates.
     """
-    return input_tokens * GROQ_BATCH_COST_PER_M_IN / 1e6 + output_tokens * GROQ_BATCH_COST_PER_M_OUT / 1e6
+    return (
+        input_tokens * GROQ_BATCH_COST_PER_M_IN / 1e6
+        + output_tokens * GROQ_BATCH_COST_PER_M_OUT / 1e6
+    )
 
 
 def _log_cost(
@@ -516,6 +528,7 @@ def _log_cost(
 
 # ── IAA computation ───────────────────────────────────────────────────────────
 
+
 def _cohen_kappa(a_labels: list[int], b_labels: list[int]) -> dict[str, Any]:
     n = len(a_labels)
     if n == 0:
@@ -533,9 +546,12 @@ def _cohen_kappa(a_labels: list[int], b_labels: list[int]) -> dict[str, Any]:
         "gpt_oss_pos_rate": round(pa, 3),
         "sonnet_pos_rate": round(pb, 3),
         "agreement_level": (
-            "substantial" if kappa >= 0.6
-            else "moderate" if kappa >= 0.4
-            else "fair" if kappa >= 0.2
+            "substantial"
+            if kappa >= 0.6
+            else "moderate"
+            if kappa >= 0.4
+            else "fair"
+            if kappa >= 0.2
             else "poor"
         ),
         "below_threshold": kappa < 0.6,
@@ -585,6 +601,7 @@ def compute_iaa(gpt_dir: pathlib.Path, son_dir: pathlib.Path) -> dict[str, Any]:
 
 
 # ── Batch API helpers ─────────────────────────────────────────────────────────
+
 
 def _build_batch_request_line(session: dict[str, Any]) -> dict[str, Any] | None:
     """Build a single JSONL request line for the Groq Batch API.
@@ -685,7 +702,9 @@ def _submit_batch(
             included_ids.append(s["session_id"])
 
     if skipped_no_turns:
-        print(f"  Note: {len(skipped_no_turns)} sessions skipped (no assistant turns): {skipped_no_turns}")
+        print(
+            f"  Note: {len(skipped_no_turns)} sessions skipped (no assistant turns): {skipped_no_turns}"
+        )
 
     if not lines:
         raise ValueError("No valid sessions to submit — all sessions had no assistant turns.")
@@ -752,25 +771,29 @@ def _submit_anthropic_batch(
             turn_text=turn_text,
         )
 
-        requests_list.append({
-            "custom_id": s["session_id"],
-            "params": {
-                "model": HAIKU_MODEL,
-                "max_tokens": 8192,
-                "system": [
-                    {
-                        "type": "text",
-                        "text": RUBRIC_SYSTEM + HAIKU_BATCH_COMPACT_INSTRUCTION,
-                        "cache_control": {"type": "ephemeral"},
-                    }
-                ],
-                "messages": [{"role": "user", "content": user_prompt}],
-            },
-        })
+        requests_list.append(
+            {
+                "custom_id": s["session_id"],
+                "params": {
+                    "model": HAIKU_MODEL,
+                    "max_tokens": 8192,
+                    "system": [
+                        {
+                            "type": "text",
+                            "text": RUBRIC_SYSTEM + HAIKU_BATCH_COMPACT_INSTRUCTION,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ],
+                    "messages": [{"role": "user", "content": user_prompt}],
+                },
+            }
+        )
         included_ids.append(s["session_id"])
 
     if skipped_no_turns:
-        print(f"  Note: {len(skipped_no_turns)} sessions skipped (no assistant turns): {skipped_no_turns}")
+        print(
+            f"  Note: {len(skipped_no_turns)} sessions skipped (no assistant turns): {skipped_no_turns}"
+        )
 
     if not requests_list:
         raise ValueError("No valid sessions to submit — all sessions had no assistant turns.")
@@ -814,12 +837,14 @@ def _poll_anthropic_batch(client: Any, batch_id: str) -> int:
 
     if status != "ended":
         print("  Batch not yet complete. Re-run batch-poll later.")
-        _append_batch_jobs_log({
-            "batch_id": batch_id,
-            "provider": "anthropic",
-            "status_last_seen": status,
-            "polled_at": datetime.now(UTC).isoformat(),
-        })
+        _append_batch_jobs_log(
+            {
+                "batch_id": batch_id,
+                "provider": "anthropic",
+                "status_last_seen": status,
+                "polled_at": datetime.now(UTC).isoformat(),
+            }
+        )
         return 2
 
     # Batch ended — download and process results
@@ -881,14 +906,16 @@ def _poll_anthropic_batch(client: Any, batch_id: str) -> int:
         turns_labeled = len(annotation.get("per_turn_labels", []))
         turns_shown = len(shown_indices) if shown_indices else 0
         if turns_shown > 0 and turns_labeled < turns_shown:
-            _append_skipped_log({
-                "session_id": sid,
-                "reason": "partial_coverage",
-                "turns_shown": turns_shown,
-                "turns_labeled": turns_labeled,
-                "batch_id": batch_id,
-                "timestamp": now.isoformat(),
-            })
+            _append_skipped_log(
+                {
+                    "session_id": sid,
+                    "reason": "partial_coverage",
+                    "turns_shown": turns_shown,
+                    "turns_labeled": turns_labeled,
+                    "batch_id": batch_id,
+                    "timestamp": now.isoformat(),
+                }
+            )
             errored_count += 1
             continue
 
@@ -900,15 +927,26 @@ def _poll_anthropic_batch(client: Any, batch_id: str) -> int:
             + cached_t * ANTHROPIC_BATCH_COST_PER_M_IN_CACHED / 1e6
             + out_t * ANTHROPIC_BATCH_COST_PER_M_OUT / 1e6
         )
-        _log_cost(sid, HAIKU_MODEL, in_t, out_t, cached_t, cost, mode="anthropic-batch", provider="anthropic")
+        _log_cost(
+            sid,
+            HAIKU_MODEL,
+            in_t,
+            out_t,
+            cached_t,
+            cost,
+            mode="anthropic-batch",
+            provider="anthropic",
+        )
         completed_count += 1
 
-    _append_batch_jobs_log({
-        "batch_id": batch_id,
-        "provider": "anthropic",
-        "status_last_seen": "ended",
-        "polled_at": now.isoformat(),
-    })
+    _append_batch_jobs_log(
+        {
+            "batch_id": batch_id,
+            "provider": "anthropic",
+            "status_last_seen": "ended",
+            "polled_at": now.isoformat(),
+        }
+    )
     print(
         f"  {completed_count} completed, {errored_count} errored, "
         f"{skipped_count} skipped (already existed)."
@@ -981,11 +1019,13 @@ def _poll_batch(client: Any, batch_id: str) -> int:
                 "Consider cancellation via Groq dashboard or implement batch-cancel."
             )
 
-        _append_batch_jobs_log({
-            "batch_id": batch_id,
-            "status_last_seen": status,
-            "polled_at": now.isoformat(),
-        })
+        _append_batch_jobs_log(
+            {
+                "batch_id": batch_id,
+                "status_last_seen": status,
+                "polled_at": now.isoformat(),
+            }
+        )
         return 0
 
     if status == "completed":
@@ -1043,16 +1083,22 @@ def _poll_batch(client: Any, batch_id: str) -> int:
                 out_t: int = usage.get("completion_tokens", 0)
 
                 # Reconstruct shown_indices by re-running the formatter (no stored value in batch)
-                _, shown_indices = _format_turns(
-                    next((s for s in _get_sessions_cache() if s["session_id"] == sid), {})
-                ) if sid else (None, [])
+                _, shown_indices = (
+                    _format_turns(
+                        next((s for s in _get_sessions_cache() if s["session_id"] == sid), {})
+                    )
+                    if sid
+                    else (None, [])
+                )
 
                 annotation["_model"] = GROQ_MODEL
                 annotation["_shown_turn_indices"] = shown_indices if shown_indices else []
                 annotation["_input_tokens"] = in_t
                 annotation["_output_tokens"] = out_t
 
-                out_path.write_text(json.dumps(annotation, indent=2, ensure_ascii=False), encoding="utf-8")
+                out_path.write_text(
+                    json.dumps(annotation, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
 
                 cost = _estimate_cost_batch(in_t, out_t)
                 _log_cost(sid, GROQ_MODEL, in_t, out_t, 0, cost, mode="batch")
@@ -1075,21 +1121,27 @@ def _poll_batch(client: Any, batch_id: str) -> int:
                 err_type = err_detail.get("type", "unknown_error")
                 err_msg = err_detail.get("message", str(err_body)[:200])
 
-                _append_skipped_log({
-                    "session_id": sid,
-                    "reason": f"{err_type}: {err_msg}",
-                    "projected_tokens": 0,
-                    "batch_id": batch_id,
-                    "timestamp": now.isoformat(),
-                })
+                _append_skipped_log(
+                    {
+                        "session_id": sid,
+                        "reason": f"{err_type}: {err_msg}",
+                        "projected_tokens": 0,
+                        "batch_id": batch_id,
+                        "timestamp": now.isoformat(),
+                    }
+                )
                 errored_count += 1
 
-        _append_batch_jobs_log({
-            "batch_id": batch_id,
-            "status_last_seen": "completed",
-            "polled_at": now.isoformat(),
-        })
-        print(f"  {completed_count} completed, {errored_count} errored, {skipped_count} skipped (already existed).")
+        _append_batch_jobs_log(
+            {
+                "batch_id": batch_id,
+                "status_last_seen": "completed",
+                "polled_at": now.isoformat(),
+            }
+        )
+        print(
+            f"  {completed_count} completed, {errored_count} errored, {skipped_count} skipped (already existed)."
+        )
         return 0
 
     # Terminal failure states
@@ -1097,24 +1149,27 @@ def _poll_batch(client: Any, batch_id: str) -> int:
     if status in terminal_states:
         error_info = getattr(batch, "errors", None) or getattr(batch, "error", None)
         print(
-            f"ERROR: batch {batch_id} in terminal state '{status}'.\n"
-            f"  error info: {error_info}",
+            f"ERROR: batch {batch_id} in terminal state '{status}'.\n  error info: {error_info}",
             file=sys.stderr,
         )
-        _append_batch_jobs_log({
-            "batch_id": batch_id,
-            "status_last_seen": status,
-            "polled_at": now.isoformat(),
-        })
+        _append_batch_jobs_log(
+            {
+                "batch_id": batch_id,
+                "status_last_seen": status,
+                "polled_at": now.isoformat(),
+            }
+        )
         return 2
 
     # Unknown status — treat as non-fatal
     print(f"  WARNING: unrecognized batch status '{status}' for {batch_id}.")
-    _append_batch_jobs_log({
-        "batch_id": batch_id,
-        "status_last_seen": status,
-        "polled_at": now.isoformat(),
-    })
+    _append_batch_jobs_log(
+        {
+            "batch_id": batch_id,
+            "status_last_seen": status,
+            "polled_at": now.isoformat(),
+        }
+    )
     return 0
 
 
@@ -1130,13 +1185,20 @@ def _get_sessions_cache() -> list[dict[str, Any]]:
 
 # ── Entrypoint ────────────────────────────────────────────────────────────────
 
+
 def main(args: argparse.Namespace) -> None:  # noqa: C901
     global _SESSIONS_CACHE  # noqa: PLW0603 — needed so _poll_batch can access sessions
 
     groq_key = os.environ.get("GROQ_API_KEY")
     anthr_key = os.environ.get("ANTHROPIC_API_KEY")
 
-    need_groq = args.mode in ("preflight", "full", "bulk-only", "batch-submit", "batch-poll") and not getattr(args, "dry_run", False)
+    need_groq = args.mode in (
+        "preflight",
+        "full",
+        "bulk-only",
+        "batch-submit",
+        "batch-poll",
+    ) and not getattr(args, "dry_run", False)
     need_sonnet = args.mode in ("full", "iaa-only") and not getattr(args, "dry_run", False)
     need_anthr_batch = args.mode in ("anthropic-batch-submit", "anthropic-batch-poll")
 
@@ -1157,16 +1219,17 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901
 
     if need_groq:
         from openai import OpenAI  # type: ignore[import]
+
         groq_client = OpenAI(api_key=groq_key, base_url="https://api.groq.com/openai/v1")
 
     if need_sonnet or need_anthr_batch:
         import anthropic  # type: ignore[import]
+
         anthr_client = anthropic.Anthropic(api_key=anthr_key)
 
     # Load corpus
     sessions: list[dict[str, Any]] = [
-        json.loads(f.read_text(encoding="utf-8"))
-        for f in sorted(TRACES_DIR.glob("*.json"))
+        json.loads(f.read_text(encoding="utf-8")) for f in sorted(TRACES_DIR.glob("*.json"))
     ]
     print(f"Loaded {len(sessions)} sessions.")
 
@@ -1238,7 +1301,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901
         print(f"  status     : {job['status_last_seen']}")
         print()
         print("RESUME COMMAND (record this externally):")
-        print(f"  python scripts/01_annotate_corpus.py --mode batch-poll --batch-id {job['batch_id']}")
+        print(
+            f"  python scripts/01_annotate_corpus.py --mode batch-poll --batch-id {job['batch_id']}"
+        )
         print("=" * 60)
         print()
 
@@ -1286,7 +1351,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901
         print(f"  status      : {job['status_last_seen']}")
         print()
         print("RESUME COMMAND (record this externally):")
-        print(f"  python scripts/01_annotate_corpus.py --mode anthropic-batch-poll --batch-id {job['batch_id']}")
+        print(
+            f"  python scripts/01_annotate_corpus.py --mode anthropic-batch-poll --batch-id {job['batch_id']}"
+        )
         print("=" * 60)
         sys.exit(0)
 
@@ -1297,7 +1364,9 @@ def main(args: argparse.Namespace) -> None:  # noqa: C901
 
     # ── Pre-flight ───────────────────────────────────────────────────────────
     if args.mode in ("preflight", "full"):
-        pf_pool = [s for s in sessions if (GPT_OSS_DIR / f"{s['session_id']}.json").exists() is False]
+        pf_pool = [
+            s for s in sessions if (GPT_OSS_DIR / f"{s['session_id']}.json").exists() is False
+        ]
         pf_sessions = rng.sample(pf_pool, k=min(PREFLIGHT_N, len(pf_pool)))
 
         print(f"\nPRE-FLIGHT: {GROQ_MODEL} on {len(pf_sessions)} sessions…")
@@ -1446,9 +1515,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         choices=[
-            "preflight", "full", "bulk-only", "iaa-only",
-            "batch-submit", "batch-poll",
-            "anthropic-batch-submit", "anthropic-batch-poll",
+            "preflight",
+            "full",
+            "bulk-only",
+            "iaa-only",
+            "batch-submit",
+            "batch-poll",
+            "anthropic-batch-submit",
+            "anthropic-batch-poll",
         ],
         default="full",
         help=(

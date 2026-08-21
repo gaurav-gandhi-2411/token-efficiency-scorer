@@ -1,10 +1,14 @@
 """Inspect CC-Bench trajectory format."""
-from __future__ import annotations
-import json
-from datasets import load_dataset, VerificationMode
 
-ds = load_dataset("zai-org/CC-Bench-trajectories", split="train",
-                  verification_mode=VerificationMode.NO_CHECKS)
+from __future__ import annotations
+
+import json
+
+from datasets import VerificationMode, load_dataset
+
+ds = load_dataset(
+    "zai-org/CC-Bench-trajectories", split="train", verification_mode=VerificationMode.NO_CHECKS
+)
 row = ds[0]
 print("Keys:", list(row.keys()))
 traj_raw = row.get("trajectory") or ""
@@ -17,7 +21,9 @@ try:
     print(f"\nParsed as JSON: type={type(parsed).__name__}")
     if isinstance(parsed, list):
         print(f"  num turns: {len(parsed)}")
-        print(f"  first turn keys: {list(parsed[0].keys()) if isinstance(parsed[0], dict) else type(parsed[0])}")
+        print(
+            f"  first turn keys: {list(parsed[0].keys()) if isinstance(parsed[0], dict) else type(parsed[0])}"
+        )
         print(f"  first turn: {str(parsed[0])[:200]}")
 except Exception as e:
     print(f"Not JSON: {e}")

@@ -19,7 +19,6 @@ OUTPUT_PATH: Path = ROOT / "data" / "layer1_outputs.jsonl"
 # Import after path constants so that any import errors surface immediately.
 from token_efficiency.layer1_features import (  # noqa: E402
     LayerOneFeatures,
-    compute_domain_p25_baselines,
     load_corpus,
 )
 from token_efficiency.trace_digest import (  # noqa: E402
@@ -51,9 +50,7 @@ def main() -> None:
     features_list: list[LayerOneFeatures] = load_corpus(TAXONOMY_PATH, ANNOTATIONS_DIR, TRACES_DIR)
 
     # Re-read taxonomy to get session_ids in order for trace/annotation loading.
-    taxonomy: list[dict[str, Any]] = json.loads(
-        TAXONOMY_PATH.read_text(encoding="utf-8")
-    )
+    taxonomy: list[dict[str, Any]] = json.loads(TAXONOMY_PATH.read_text(encoding="utf-8"))
     sid_to_row: dict[str, dict[str, Any]] = {row["session_id"]: row for row in taxonomy}
 
     # Ensure output directory exists.

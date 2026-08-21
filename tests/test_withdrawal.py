@@ -133,9 +133,10 @@ def test_reset_contributor_id_generates_new_uuid_locally(tmp_path: Path) -> None
     id_path = tmp_path / "contributor_id.txt"
     id_path.write_text(_VALID_UUID + "\n", encoding="utf-8")
 
-    with patch("tes.corpus_client.httpx.post") as mock_post, patch(
-        "tes.corpus_client.httpx.get"
-    ) as mock_get:
+    with (
+        patch("tes.corpus_client.httpx.post") as mock_post,
+        patch("tes.corpus_client.httpx.get") as mock_get,
+    ):
         new_id = reset_contributor_id(contributor_id_path=id_path)
 
     mock_post.assert_not_called()

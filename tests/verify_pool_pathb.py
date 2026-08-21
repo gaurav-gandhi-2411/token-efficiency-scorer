@@ -31,14 +31,20 @@ def load_b4_pathb() -> dict[str, list[dict]]:
             if not line:
                 continue
             r = json.loads(line)
-            pathb = [e for e in r.get("waste_events", []) if e.get("evidence", {}).get("path") == "B"]
+            pathb = [
+                e for e in r.get("waste_events", []) if e.get("evidence", {}).get("path") == "B"
+            ]
             if pathb:
                 b4[r["session_id"]] = pathb
     return b4
 
 
 def load_pool() -> list[dict]:
-    return [json.loads(line) for line in POOL_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [
+        json.loads(line)
+        for line in POOL_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def run_pathb_on_pool(pool: list[dict]) -> dict[str, list[dict]]:
@@ -63,8 +69,15 @@ def compare_events(b4_events: list[dict], new_events: list[dict]) -> list[str]:
     for i, (b4e, newe) in enumerate(zip(b4_events, new_events)):
         if b4e["turns"] != newe["turns"]:
             issues.append(f"event[{i}] turns: B4={b4e['turns']}, new={newe['turns']}")
-        for k in ("path", "gap", "call_1_turn", "result_1_turn", "call_2_turn", "result_2_turn",
-                  "content_snippet"):
+        for k in (
+            "path",
+            "gap",
+            "call_1_turn",
+            "result_1_turn",
+            "call_2_turn",
+            "result_2_turn",
+            "content_snippet",
+        ):
             b4v = b4e.get("evidence", {}).get(k)
             newv = newe.get("evidence", {}).get(k)
             if b4v != newv:

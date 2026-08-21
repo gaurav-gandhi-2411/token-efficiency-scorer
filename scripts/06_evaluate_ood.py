@@ -12,6 +12,7 @@ Metrics reported:
 Usage:
     python scripts/06_evaluate_ood.py
 """
+
 from __future__ import annotations
 
 import json
@@ -45,14 +46,31 @@ BACKTRACK_PATTERNS = [
 _BACKTRACK_RE = re.compile("|".join(BACKTRACK_PATTERNS), re.IGNORECASE)
 
 READ_TOOL_NAMES = {
-    "view_file", "read_file", "str_replace_editor", "open_file",
-    "cat", "view", "get_file_contents", "read", "bash",
+    "view_file",
+    "read_file",
+    "str_replace_editor",
+    "open_file",
+    "cat",
+    "view",
+    "get_file_contents",
+    "read",
+    "bash",
     "Read",  # Claude Code tool
 }
 WRITE_TOOL_NAMES = {
-    "str_replace_editor", "write_file", "edit_file", "create_file",
-    "insert_content", "replace_in_file", "sed", "patch", "apply_patch",
-    "write", "bash", "Write", "Edit",  # Claude Code tools
+    "str_replace_editor",
+    "write_file",
+    "edit_file",
+    "create_file",
+    "insert_content",
+    "replace_in_file",
+    "sed",
+    "patch",
+    "apply_patch",
+    "write",
+    "bash",
+    "Write",
+    "Edit",  # Claude Code tools
 }
 
 
@@ -86,7 +104,9 @@ def _is_write_tool(tool_name: str, tool_input: object) -> bool:
         cmd = tool_input.get("command", "") if isinstance(tool_input, dict) else ""
         return cmd not in ("view", "open", "scroll_down", "scroll_up", "")
     if tool_name == "bash":
-        cmd = str(tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input)
+        cmd = str(
+            tool_input.get("command", tool_input) if isinstance(tool_input, dict) else tool_input
+        )
         return any(op in cmd for op in [">", ">>", "tee ", "patch ", "sed -i"])
     return True
 
@@ -103,7 +123,10 @@ def _is_read_tool(tool_name: str, tool_input: object) -> bool:
 def compute_heuristics(turns: list[dict]) -> dict[str, list[dict]]:
     """Run all four heuristics. Returns per-turn results."""
     turn_results: dict[str, list[dict]] = {
-        "h1_retry": [], "h2_redundant_read": [], "h3_backtrack": [], "h4_tool_result_used": []
+        "h1_retry": [],
+        "h2_redundant_read": [],
+        "h3_backtrack": [],
+        "h4_tool_result_used": [],
     }
     call_history: dict[tuple, list[int]] = defaultdict(list)
     last_write: dict[str, int] = {}
@@ -162,7 +185,7 @@ def compute_heuristics(turns: list[dict]) -> dict[str, list[dict]]:
                 clean = rs.translate(str.maketrans("", "", string.whitespace))
                 check = (t["content_text"] + next_asst_text).replace(" ", "").replace("\n", "")
                 for start in range(0, min(len(clean) - 20, 500), 50):
-                    if clean[start:start + 20] in check:
+                    if clean[start : start + 20] in check:
                         h4 = True
                         break
         turn_results["h4_tool_result_used"].append({"turn_index": idx, "value": h4})
@@ -173,21 +196,49 @@ def compute_heuristics(turns: list[dict]) -> dict[str, list[dict]]:
 # ── Domain classifier (from 03_task_taxonomy) ────────────────────────────────
 
 DOMAIN_MAP: list[tuple[str, str]] = [
-    ("mypy", "type_checker"), ("pyflakes", "type_checker"), ("autopep8", "type_checker"),
-    ("black", "type_checker"), ("pylint", "type_checker"), ("ruff", "type_checker"),
-    ("cognitive_complexity", "type_checker"), ("wemake", "type_checker"),
-    ("numpy", "data_ml"), ("pandas", "data_ml"), ("scipy", "data_ml"),
-    ("sklearn", "data_ml"), ("monai", "data_ml"), ("pytorch", "data_ml"),
-    ("dask", "data_ml"), ("modin", "data_ml"), ("pennylane", "data_ml"),
-    ("django", "web_api"), ("flask", "web_api"), ("fastapi", "web_api"),
-    ("aiohttp", "web_api"), ("requests", "web_api"), ("httpx", "web_api"),
-    ("moto", "cloud_devops"), ("boto", "cloud_devops"), ("docker", "cloud_devops"),
-    ("hydra", "cloud_devops"), ("dvc", "cloud_devops"), ("xonsh", "cloud_devops"),
-    ("sqlalchemy", "db_orm"), ("sqlglot", "db_orm"), ("pymongo", "db_orm"),
-    ("networkx", "graph_geo"), ("geopandas", "graph_geo"), ("folium", "graph_geo"),
-    ("pytest", "testing_ci"), ("faker", "testing_ci"),
-    ("pydantic", "lib_general"), ("click", "lib_general"), ("rich", "lib_general"),
-    ("marshmallow", "lib_general"), ("pint", "lib_general"), ("pygame", "lib_general"),
+    ("mypy", "type_checker"),
+    ("pyflakes", "type_checker"),
+    ("autopep8", "type_checker"),
+    ("black", "type_checker"),
+    ("pylint", "type_checker"),
+    ("ruff", "type_checker"),
+    ("cognitive_complexity", "type_checker"),
+    ("wemake", "type_checker"),
+    ("numpy", "data_ml"),
+    ("pandas", "data_ml"),
+    ("scipy", "data_ml"),
+    ("sklearn", "data_ml"),
+    ("monai", "data_ml"),
+    ("pytorch", "data_ml"),
+    ("dask", "data_ml"),
+    ("modin", "data_ml"),
+    ("pennylane", "data_ml"),
+    ("django", "web_api"),
+    ("flask", "web_api"),
+    ("fastapi", "web_api"),
+    ("aiohttp", "web_api"),
+    ("requests", "web_api"),
+    ("httpx", "web_api"),
+    ("moto", "cloud_devops"),
+    ("boto", "cloud_devops"),
+    ("docker", "cloud_devops"),
+    ("hydra", "cloud_devops"),
+    ("dvc", "cloud_devops"),
+    ("xonsh", "cloud_devops"),
+    ("sqlalchemy", "db_orm"),
+    ("sqlglot", "db_orm"),
+    ("pymongo", "db_orm"),
+    ("networkx", "graph_geo"),
+    ("geopandas", "graph_geo"),
+    ("folium", "graph_geo"),
+    ("pytest", "testing_ci"),
+    ("faker", "testing_ci"),
+    ("pydantic", "lib_general"),
+    ("click", "lib_general"),
+    ("rich", "lib_general"),
+    ("marshmallow", "lib_general"),
+    ("pint", "lib_general"),
+    ("pygame", "lib_general"),
 ]
 
 
@@ -201,6 +252,7 @@ def classify_domain(instance_id: str) -> str:
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
+
 
 def main() -> None:
     ood_files = sorted(OOD_DIR.glob("*.json"))
@@ -257,13 +309,15 @@ def main() -> None:
                     (t for t in s["turns"] if t["turn_index"] == tr["turn_index"]), None
                 )
                 if orig_turn and len(h3_examples) < 5:
-                    h3_examples.append({
-                        "session_id": s["session_id"][:8],
-                        "scaffold": s["scaffold"],
-                        "ood_category": s.get("ood_task_category", ""),
-                        "turn_index": tr["turn_index"],
-                        "content_snippet": orig_turn["content_text"][:200],
-                    })
+                    h3_examples.append(
+                        {
+                            "session_id": s["session_id"][:8],
+                            "scaffold": s["scaffold"],
+                            "ood_category": s.get("ood_task_category", ""),
+                            "turn_index": tr["turn_index"],
+                            "content_snippet": orig_turn["content_text"][:200],
+                        }
+                    )
 
         session_reports.append(session_row)
 
@@ -271,8 +325,10 @@ def main() -> None:
     print("\n=== DOMAIN CLASSIFICATION ===")
     total_ood = len(ood_sessions)
     unknown_n = domain_counts.get("unknown", 0)
-    print(f"  Known domain:   {total_ood - unknown_n}/{total_ood} ({100*(total_ood-unknown_n)//max(total_ood,1)}%)")
-    print(f"  Unknown domain: {unknown_n}/{total_ood} ({100*unknown_n//max(total_ood,1)}%)")
+    print(
+        f"  Known domain:   {total_ood - unknown_n}/{total_ood} ({100 * (total_ood - unknown_n) // max(total_ood, 1)}%)"
+    )
+    print(f"  Unknown domain: {unknown_n}/{total_ood} ({100 * unknown_n // max(total_ood, 1)}%)")
     for d, cnt in sorted(domain_counts.items(), key=lambda x: -x[1]):
         print(f"    {d:<30} {cnt}")
 
@@ -287,11 +343,13 @@ def main() -> None:
     for key, counts in h_counts.items():
         rate = counts["positive"] / counts["total"] if counts["total"] else 0.0
         ood_firing[key] = rate
-        in_dist_prev = in_dist_results.get(heuristic_map.get(key, ""), None)
+        in_dist_prev = in_dist_results.get(heuristic_map.get(key, ""))
         in_str = f"{in_dist_prev:.3f}" if in_dist_prev is not None else "N/A"
         delta = f"{rate - in_dist_prev:+.3f}" if in_dist_prev is not None else "N/A"
-        print(f"  {key:<25}  OOD={rate:.3f}  in-dist={in_str}  delta={delta}  "
-              f"({counts['positive']}/{counts['total']} turns)")
+        print(
+            f"  {key:<25}  OOD={rate:.3f}  in-dist={in_str}  delta={delta}  "
+            f"({counts['positive']}/{counts['total']} turns)"
+        )
 
     print("\n=== H3 BACKTRACK EXAMPLES (OOD corpus) ===")
     if h3_examples:
@@ -303,10 +361,12 @@ def main() -> None:
 
     print("\n=== PER-SESSION SUMMARY ===")
     for r in session_reports:
-        print(f"  [{r['scaffold']:<15}] cat={r['ood_task_category'][:25]:<25} "
-              f"domain={r['domain']:<15} "
-              f"H1={r['h1_retry_rate']:.2f} H2={r['h2_redundant_read_rate']:.2f} "
-              f"H3={r['h3_backtrack_rate']:.2f} H4={r['h4_tool_result_used_rate']:.2f}")
+        print(
+            f"  [{r['scaffold']:<15}] cat={r['ood_task_category'][:25]:<25} "
+            f"domain={r['domain']:<15} "
+            f"H1={r['h1_retry_rate']:.2f} H2={r['h2_redundant_read_rate']:.2f} "
+            f"H3={r['h3_backtrack_rate']:.2f} H4={r['h4_tool_result_used_rate']:.2f}"
+        )
 
     # Write output
     out = {
@@ -316,7 +376,7 @@ def main() -> None:
         "heuristic_firing_rates": {
             k: {
                 "ood_rate": round(h_counts[k]["positive"] / max(h_counts[k]["total"], 1), 3),
-                "in_dist_prevalence": in_dist_results.get(heuristic_map.get(k, ""), None),
+                "in_dist_prevalence": in_dist_results.get(heuristic_map.get(k, "")),
                 "n_positive": h_counts[k]["positive"],
                 "n_total": h_counts[k]["total"],
             }

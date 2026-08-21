@@ -380,7 +380,9 @@ def check_price_table_staleness(
         if entry.get("retired"):
             continue
         as_of = str(entry.get("as_of") or table_as_of)
-        source_url = str(entry.get("source_url") or prices.get("source_url") or "<no source_url recorded>")
+        source_url = str(
+            entry.get("source_url") or prices.get("source_url") or "<no source_url recorded>"
+        )
         try:
             as_of_date = date.fromisoformat(as_of)
         except ValueError:

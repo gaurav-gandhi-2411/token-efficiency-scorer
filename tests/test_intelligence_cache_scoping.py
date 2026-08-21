@@ -18,14 +18,12 @@ unrelated test corpus into the real ~/.tes/intelligence_cache.json.
 from pathlib import Path
 
 import pytest
-
 from tes.intelligence.cache import (
     _cache_path,
     get_or_compute_intelligence,
     load_cache,
     save_cache,
 )
-
 
 # ---------------------------------------------------------------------------
 # UU2: db_path is a required parameter, not a defaultable one, on every

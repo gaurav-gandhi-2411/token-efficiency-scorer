@@ -29,18 +29,32 @@ from pathlib import Path
 #   httpx     → judge.py, intelligence/chat.py
 #   numpy     → intelligence/features.py, intelligence/anomaly.py, intelligence/chat.py
 #   sklearn   → intelligence/cluster.py  (install name: scikit-learn)
-DECLARED_IMPORT_NAMES: frozenset[str] = frozenset({
-    # flask>=3.0,<4 and its transitive deps
-    "flask", "werkzeug", "jinja2", "markupsafe", "click", "itsdangerous", "blinker",
-    # httpx>=0.27,<1 and its transitive deps
-    "httpx", "httpcore", "h11", "anyio", "certifi", "idna", "sniffio",
-    # numpy>=1.24,<3 (declared 0.7.1+)
-    "numpy",
-    # scikit-learn>=1.3,<2 (declared 0.7.1+) — top-level import name is 'sklearn'
-    "sklearn",
-    # colorama: transitive dep of click on Windows
-    "colorama",
-})
+DECLARED_IMPORT_NAMES: frozenset[str] = frozenset(
+    {
+        # flask>=3.0,<4 and its transitive deps
+        "flask",
+        "werkzeug",
+        "jinja2",
+        "markupsafe",
+        "click",
+        "itsdangerous",
+        "blinker",
+        # httpx>=0.27,<1 and its transitive deps
+        "httpx",
+        "httpcore",
+        "h11",
+        "anyio",
+        "certifi",
+        "idna",
+        "sniffio",
+        # numpy>=1.24,<3 (declared 0.7.1+)
+        "numpy",
+        # scikit-learn>=1.3,<2 (declared 0.7.1+) — top-level import name is 'sklearn'
+        "sklearn",
+        # colorama: transitive dep of click on Windows
+        "colorama",
+    }
+)
 
 # Internal tes package and future-annotations guard — not third-party
 _INTERNAL = frozenset({"tes", "__future__"})
@@ -64,7 +78,7 @@ def _top_level_imports(source: str) -> set[str]:
             for alias in node.names:
                 names.add(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom):
-            if node.level == 0 and node.module:   # absolute import only
+            if node.level == 0 and node.module:  # absolute import only
                 names.add(node.module.split(".")[0])
     return names
 

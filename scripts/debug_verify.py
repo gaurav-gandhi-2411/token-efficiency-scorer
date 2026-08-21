@@ -1,5 +1,7 @@
 """Quick verification that traces have content."""
+
 from __future__ import annotations
+
 import json
 import pathlib
 import random
@@ -21,5 +23,5 @@ for f in files[:5]:
     s = json.loads(f.read_text(encoding="utf-8"))
     for t in s["turns"]:
         if len(t["content_text"]) > 60:
-            print(f'  [{s["scaffold"]}] t{t["turn_index"]} {t["role"]}: {t["content_text"][:100]}')
+            print(f"  [{s['scaffold']}] t{t['turn_index']} {t['role']}: {t['content_text'][:100]}")
             break

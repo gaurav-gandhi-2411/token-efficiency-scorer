@@ -34,7 +34,7 @@ this module's own convention.
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 DEFAULT_WEEK_DAYS: int = 7
@@ -156,7 +156,9 @@ def compute_period_cost(
 
     by_project = sorted(
         (
-            ProjectCostBreakdown(project_label=label, total_usd=sum(costs), session_count=len(costs))
+            ProjectCostBreakdown(
+                project_label=label, total_usd=sum(costs), session_count=len(costs)
+            )
             for label, costs in totals_by_project.items()
         ),
         key=lambda b: b.total_usd,
@@ -200,10 +202,10 @@ def resolve_period(
     the same English words. ``--since <YYYY-MM-DD>`` is an explicit lower
     bound with no upper bound other than ``_now``.
     """
-    now = _now if _now is not None else datetime.now(timezone.utc)
+    now = _now if _now is not None else datetime.now(UTC)
     if since is not None:
         try:
-            start = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            start = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=UTC)
         except ValueError as exc:
             raise ValueError(f"--since must be YYYY-MM-DD, got {since!r}") from exc
         return start, now, f"since {since}"

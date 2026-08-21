@@ -18,7 +18,6 @@ Covered:
 import os
 
 import pytest
-
 import tes.cli as cli
 
 
