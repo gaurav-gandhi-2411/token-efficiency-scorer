@@ -6,13 +6,27 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, `0.12.2`, and `0.12.3` (confirmed live against PyPI's own JSON API; this note previously
-stopped enumerating at `0.10.2` for four releases running — corrected here rather than left
-standing, per the same "nothing re-checks this note against reality" gap RELEASING.md's own
+`0.12.1`, `0.12.2`, `0.12.3`, and `0.12.4` (confirmed live against PyPI's own JSON API; this note
+previously stopped enumerating at `0.10.2` for four releases running — corrected here rather than
+left standing, per the same "nothing re-checks this note against reality" gap RELEASING.md's own
 incident section already names). Versions `0.2.0` and `0.4.0` were built and tagged internally but
 never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
-published** — see its entry for why (corpus stays dormant). `0.12.3` is the **current published
+published** — see its entry for why (corpus stays dormant). `0.12.4` is the **current published
 release**.
+
+## [0.12.4] — SDK usage example crashed as published
+
+### Fixed
+- **The README's "SDK usage" code block, which becomes PyPI's own project description
+  verbatim, crashed on its first real line.** `adapt_session("path/to/session.jsonl")` passed a
+  bare string; `adapt_session`'s real signature takes a `Path` and calls `.stem` on it
+  internally, so the exact block published on `0.12.3`'s PyPI page raised
+  `AttributeError: 'str' object has no attribute 'stem'` if run verbatim. Fixed to
+  `adapt_session(Path("path/to/session.jsonl"))` with the missing `from pathlib import Path`
+  added. Verified by actually running the corrected block end to end against a real session
+  file, not just reading it for syntax. Every prior published version's PyPI page (`0.12.0`
+  through `0.12.3`) carries the broken block permanently — PyPI does not allow re-uploading a
+  version's metadata.
 
 ## [0.12.3] — ODC-BY attribution for the SWE-chat dataset; repo-wide ruff cleanup
 
