@@ -7,6 +7,23 @@ repos:
         language: system
         files: ^data/corpus_pool/|^data/pool_
         pass_filenames: false
+      # AQ3: uv-locked ruff, not the astral-sh/ruff-pre-commit mirror repo
+      # -- that mirror pins its own ruff version via a separate `rev:` tag
+      # that can drift from uv.lock's own pin over time (two sources of
+      # truth). `uv run ruff` always resolves to the exact version this
+      # repo has locked. Sibling adk-tracegauge hit CI failures on ruff
+      # findings a local run never caught three separate times before this
+      # existed -- same fix applied here before it recurs in this repo too.
+      - id: ruff-check
+        name: ruff check (uv-locked version)
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format (uv-locked version)
+        entry: uv run ruff format
+        language: system
+        types: [python]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
