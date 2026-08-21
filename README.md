@@ -453,13 +453,15 @@ I don't have that measured -- tracegauge hasn't collected that metric. The data 
 ## SDK usage
 
 ```python
+from pathlib import Path
+
 from tes import load_baselines, score_session, JudgeConfig
 from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH
 from tes.waste import detect_repeated_failed_retry, detect_redundant_read, build_waste_entry
 
 baselines = load_baselines(BUNDLED_BASELINES_PATH)
-record = adapt_session("path/to/session.jsonl")  # secrets redacted at ingestion
+record = adapt_session(Path("path/to/session.jsonl"))  # secrets redacted at ingestion
 
 session_id = record["session_id"]
 turns = record["digest"]["turns"]
