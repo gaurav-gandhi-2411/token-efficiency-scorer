@@ -114,10 +114,6 @@ class ContentLeakGuardError(Exception):
     """
 
 
-class CorpusNotConfigured(Exception):
-    """Raised when no CorpusConfig is available (no production corpus yet)."""
-
-
 # ---------------------------------------------------------------------------
 # Send-time content-free re-verification (two-pass, on the ACTUAL POST bytes)
 # ---------------------------------------------------------------------------
@@ -443,7 +439,6 @@ def reset_contributor_id(contributor_id_path: Path = _CONTRIBUTOR_ID_FILE) -> st
 __all__ = [
     "CorpusConfig",
     "ContentLeakGuardError",
-    "CorpusNotConfigured",
     "ContributeResult",
     "WithdrawResult",
     "verify_payload_content_free",

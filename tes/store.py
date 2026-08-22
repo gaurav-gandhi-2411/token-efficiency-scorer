@@ -543,46 +543,6 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
         return None
 
 
-def backfill_turn_counts(db_path: Path | str) -> dict[str, int]:
-    """Populate turn_count for all sessions where it is currently NULL.
-
-    Reads each session's source JSONL file and counts turns using the same
-    logic as adapt_session().  Returns a summary dict:
-        {"updated": N, "missing_source": M, "errors": E}
-
-    UU2: db_path is required, not defaulted. Currently unreferenced by any
-    caller (found during the UU2 write-path audit) -- hardened for
-    consistency with the rest of that audit rather than left as the one
-    exception, in case a future caller reaches for it.
-    """
-    conn = open_db(db_path)
-    rows = conn.execute(
-        "SELECT session_id, source_path FROM sessions WHERE turn_count IS NULL AND source_path IS NOT NULL"
-    ).fetchall()
-
-    updated = 0
-    missing = 0
-    errors = 0
-
-    for session_id, source_path in rows:
-        tc = _count_turns_from_jsonl(source_path)
-        if tc is None:
-            missing += 1
-        else:
-            try:
-                conn.execute(
-                    "UPDATE sessions SET turn_count = ? WHERE session_id = ?",
-                    (tc, session_id),
-                )
-                updated += 1
-            except Exception:
-                errors += 1
-
-    conn.commit()
-    conn.close()
-    return {"updated": updated, "missing_source": missing, "errors": errors}
-
-
 def backfill_waste(
     db_path: Path | str | None = None,
     prices: dict | None = None,
@@ -777,7 +737,6 @@ __all__ = [
     "file_hash",
     "needs_scoring",
     "upsert_session",
-    "backfill_turn_counts",
     "backfill_waste",
     "backfill_cost",
     "get_session",
