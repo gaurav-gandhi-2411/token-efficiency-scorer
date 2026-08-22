@@ -82,7 +82,8 @@ class TestSystemPromptConstraints:
 
 class TestChatContextStructure:
     @pytest.fixture(scope="class")
-    def context(self):
+    @classmethod
+    def context(cls):
         return build_chat_context("What kind of sessions do I run?")
 
     def test_context_has_required_keys(self, context):
@@ -312,7 +313,8 @@ class TestContextFormatUnambiguous:
     """
 
     @pytest.fixture(scope="class")
-    def intel_summary(self) -> str:
+    @classmethod
+    def intel_summary(cls) -> str:
         """UU1: format_intelligence_summary() is a pure dict -> str function --
         this class is a Q2-regression guard on its FORMATTING contract, which
         needs no real corpus at all. It used to call get_or_compute_intelligence()
