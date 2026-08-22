@@ -1,0 +1,72 @@
+name: Price table correction
+description: A model's price in tes/data/prices.json is stale, wrong, or missing.
+labels: ["price-table"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This package refuses to price a model it can't verify a rate for (unresolvable models
+        return `priced=False, total_usd=0.0` rather than a guessed price) -- if a rate here is
+        wrong, it either means the vendor changed pricing since `as_of`, or the entry was wrong
+        when it was added. Either way, this is exactly the report this template exists for.
+        There's no automated price-scraping in this repo by design -- a human checking the
+        actual pricing page, like you're about to, is the whole mechanism.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What's wrong?
+      options:
+        - A model's price is stale (source now shows a different rate)
+        - A model's price was wrong when added (never matched the source)
+        - A model is missing entirely (should be in the table, isn't)
+        - Something else about pricing (cache multipliers, retired-model handling, etc.)
+    validations:
+      required: true
+
+  - type: input
+    id: model-key
+    attributes:
+      label: Model key (or the model string you observed, if it's missing)
+      description: e.g. "claude-sonnet-5", or the raw string you observed if this model isn't in the table at all.
+      placeholder: "claude-sonnet-5"
+    validations:
+      required: true
+
+  - type: input
+    id: source-url
+    attributes:
+      label: Source URL for the current, correct rate
+      description: The vendor's own live pricing page -- this becomes the entry's source_url.
+      placeholder: "https://platform.claude.com/docs/en/about-claude/pricing"
+    validations:
+      required: true
+
+  - type: input
+    id: checked-on
+    attributes:
+      label: Date you checked the source (YYYY-MM-DD)
+      description: This becomes the entry's as_of -- see the staleness guard (tes/cost.py's check_price_table_staleness) for why this date matters.
+      placeholder: "2026-08-22"
+    validations:
+      required: true
+
+  - type: textarea
+    id: rates
+    attributes:
+      label: Correct input/output rates (USD per million tokens)
+      description: Cache-read/write rates too if you have them -- prices.json's cache_multipliers are relative to each model's own input rate.
+      placeholder: |
+        input_usd_per_mtok: 10.00
+        output_usd_per_mtok: 50.00
+        cache read/write multipliers (if known): 0.1x / 1.25x / 2.0x
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else worth noting
+      description: Retirement status, promotional/time-limited rates, context-length tiering, anything that doesn't fit the fields above.
+    validations:
+      required: false
