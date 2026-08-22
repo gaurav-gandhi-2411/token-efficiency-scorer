@@ -147,7 +147,8 @@ class TestFeatureExtraction:
 
 class TestClusteringValidity:
     @pytest.fixture(scope="class")
-    def real_result(self):
+    @classmethod
+    def real_result(cls):
         """UU1: skip (not fail) when the real corpus can't support a
         clustering-quality check right now -- this fixture feeds every test
         in this class, so the skip happens once here rather than repeated in

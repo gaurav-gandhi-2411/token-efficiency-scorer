@@ -33,7 +33,8 @@ from tes.intelligence.chat import (
 
 class TestUserMessageBuilder:
     @pytest.fixture(scope="class")
-    def user_msg(self):
+    @classmethod
+    def user_msg(cls):
         ctx = build_chat_context("What kind of sessions do I run?")
         return _build_user_message(ctx)
 
@@ -138,7 +139,8 @@ class TestUserMessageBuilder:
 
 class TestApiPayloadContent:
     @pytest.fixture(scope="class")
-    def captured_payload(self):
+    @classmethod
+    def captured_payload(cls):
         """Capture the actual JSON payload sent to Anthropic."""
         config = ChatApiConfig(api_key="sk-ant-test-key")
         captured: list[dict] = []
