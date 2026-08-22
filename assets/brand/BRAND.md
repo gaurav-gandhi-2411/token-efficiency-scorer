@@ -92,14 +92,29 @@ Reused, not reinvented, per context:
   First-pass kerning — a candidate for a manual pass once approved.
 - `badge.svg` — compact horizontal README badge, 168×28, self-contained
   ground so it holds next to shields.io badges on any README background.
-- `og-preview.svg` — 1200×630 link-unfurl preview (GitHub/Slack/social).
+- `og-preview.svg` — 1280×640 link-unfurl preview (GitHub/Slack/social).
+  Direction B composition: motif left (dominates), outlined wordmark +
+  tagline right. Every character in the wordmark/tagline is a real path
+  traced from this repo's own bundled font files (`tes/web/static/fonts/`)
+  via `fontTools`, not a live `<text>` element — this rasterization
+  environment's SVG renderer does not do real font-family matching (proven
+  during the original AU1 rasterization: identical `font_extents`
+  regardless of the requested font name), so text is treated as a shape
+  problem, not a typography problem, upstream of ever reaching a
+  rasterizer. The bundled font subsets cover alphanumerics + space only
+  (63 glyphs, no punctuation) — the hyphen and period needed here are
+  hand-drawn as trivial geometric shapes (a rectangle, a filled circle),
+  everything else is a real glyph outline.
 - `og-preview.png` — 1280×640 PNG export of the above, uploaded via repo
   Settings → General → Social preview (GitHub serves this PNG directly;
-  it doesn't render the SVG). `og-preview-conservative.png` is a
-  maximally-stripped re-encode (RGB, 8-bit, no alpha/interlace/ICC
-  profile, IHDR+IDAT+IEND only) kept as a fallback upload if the primary
-  PNG's social-preview asset ever 404s again — see AU1 in git history for
-  the diagnosis.
+  it doesn't render the SVG). RGB truecolor, 8-bit, no alpha, no
+  interlacing, no ICC profile, exactly IHDR+IDAT+IEND — this is now the
+  maximally-conservative structure by construction (previously a separate
+  `og-preview-conservative.png` fallback existed for this; consolidated
+  away since there is no longer a "less conservative" primary to fall
+  back from). Whether this resolves the AU1 404 is tracked separately, not
+  a property of the file itself — see git history (AU1, BR2, BS1) for the
+  live diagnosis.
 
 None of these are referenced by any shipped template yet.
 
