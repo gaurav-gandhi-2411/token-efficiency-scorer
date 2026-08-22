@@ -63,6 +63,12 @@ This document describes the actual flow, written after running it for real for `
      block crashed with `AttributeError: 'str' object has no attribute 'stem'` on the very
      first real line — found via a cross-repo examples/config-block audit, not by anyone
      actually running the block before it shipped.
+   - **Any pin of THIS package's version inside a sibling repo's docs is not this repo's job to
+     catch, but this repo's own version pins (in reproduction instructions, quick-start blocks,
+     the SDK example) get exactly this same re-check every time.** Real cross-repo incident
+     (BL2): `agentgauge`'s two academic papers both cited `agentgauge-harness==0.5.2` in their
+     reproduction instructions a full release after `0.5.3` shipped — same failure mode this
+     bullet exists to prevent here, just in a different repo.
 3. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
    version-bumped code. Merge once green.
 4. **Tag the merged commit and push the tag:**
