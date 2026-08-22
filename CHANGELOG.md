@@ -6,13 +6,31 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, `0.12.2`, `0.12.3`, and `0.12.4` (confirmed live against PyPI's own JSON API; this note
-previously stopped enumerating at `0.10.2` for four releases running — corrected here rather than
-left standing, per the same "nothing re-checks this note against reality" gap RELEASING.md's own
-incident section already names). Versions `0.2.0` and `0.4.0` were built and tagged internally but
-never published to PyPI. `0.9.0` is built, tested, and committed, but **deliberately not
-published** — see its entry for why (corpus stays dormant). `0.12.4` is the **current published
-release**.
+`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, and `0.13.0` (confirmed live against PyPI's own JSON API;
+this note previously stopped enumerating at `0.10.2` for four releases running — corrected here
+rather than left standing, per the same "nothing re-checks this note against reality" gap
+RELEASING.md's own incident section already names). Versions `0.2.0` and `0.4.0` were built and
+tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
+**deliberately not published** — see its entry for why (corpus stays dormant). `0.13.0` is the
+**current published release**.
+
+## [0.13.0] — dead-code removal, a real public API change
+
+### Removed
+- **`tes.corpus_client.CorpusNotConfigured`** and **`tes.store.backfill_turn_counts`**, both
+  exported in their module's `__all__` but never actually raised or called anywhere in the
+  codebase (confirmed exhaustively — source, tests, scripts, docs — before removal; issues #35
+  and #36). `CorpusNotConfigured` was documented as "raised when no CorpusConfig is available,"
+  but `contribute()`/`withdraw()` always used a Result-object pattern
+  (`ContributeResult`/`WithdrawResult` with a `.reason` string) for this and every other failure
+  mode instead — the exception was vestigial, not a real code path. `backfill_turn_counts` was
+  self-documented as having zero callers since the write-path audit that hardened it.
+  **This is a real public API removal, not a behavior change** — anyone who imported either name
+  directly gets an `ImportError` starting with this release; anyone who didn't (everyone, as far
+  as this repo's own history can tell) sees no difference. Minor version bump (`0.13.0`, not a
+  patch) per semver: this repo's earlier `0.10.2` precedent changed the *behavior* of an existing,
+  still-present function (still a patch under semver's own guidance for bug fixes); this instead
+  deletes exported names outright, the more conservative call for an actual name-removal.
 
 ## [0.12.4] — SDK usage example crashed as published
 
