@@ -8,11 +8,13 @@ and window/N, and that no false-certainty phrasing ("you will spend") ever appea
 
 import re
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from tes.budget import compute_budget_projection
 from tes.store import open_db
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
 def _insert_session(

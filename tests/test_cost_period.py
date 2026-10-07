@@ -11,7 +11,7 @@ vice versa, must be included/excluded by source_mtime only).
 """
 
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -22,6 +22,8 @@ from tes.cost_period import (
     resolve_period,
 )
 from tes.store import open_db
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
 def _insert_session(

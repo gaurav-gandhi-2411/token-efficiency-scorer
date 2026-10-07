@@ -10,7 +10,7 @@ no plan configured, and a window with zero priced sessions.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -21,6 +21,8 @@ from tes.plan import (
     prorated_plan_cost,
     resolve_plan_config_path,
 )
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
 def _dt(y: int, m: int, d: int) -> datetime:

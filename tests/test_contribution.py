@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
-from datetime import UTC
+from datetime import timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +19,8 @@ from tes.contribution import (
     build_contribution_payload,
     get_or_create_contributor_id,
 )
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
 # _week_bucket_from_mtime

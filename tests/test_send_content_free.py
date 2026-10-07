@@ -15,7 +15,7 @@ Two things, both required:
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,6 +28,8 @@ from tes.corpus_client import (
 )
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # Same planted-secret set as tests/test_contribution_content_free.py — the
 # send-time guard must hold to the same standard as the P7 build-time guard.

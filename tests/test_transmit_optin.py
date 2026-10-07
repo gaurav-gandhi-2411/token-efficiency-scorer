@@ -17,12 +17,14 @@ Three layers of proof:
 
 import inspect
 import socket
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 from tes.corpus_client import CorpusConfig, contribute
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 _FAKE_CONFIG = CorpusConfig(
     supabase_url="https://fake-project.supabase.co",
