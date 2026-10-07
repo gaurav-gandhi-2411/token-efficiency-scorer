@@ -16,7 +16,17 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 
 ## [Unreleased]
 
-### Changed (packaging only; no code change)
+### Fixed
+- **The package imports on Python 3.10 again.** 0.12.3, 0.12.4 and 0.13.0 fail on 3.10 with
+  `ImportError: cannot import name 'UTC' from 'datetime'` (also the `tes` console script) although
+  `requires-python` is `>=3.10`; 0.12.2 and earlier import fine (checked on the published wheels, Python
+  3.10.20). Cause: ruff's `target-version` was `py311`, so the 2026-08-21 lint pass (#45) rewrote
+  `timezone.utc` to `datetime.UTC` (3.11+); CI only ran 3.11. Seven modules now use
+  `UTC = timezone.utc`, ruff targets `py310`, and a new `python-compat` CI job runs the suite on 3.10,
+  3.12, 3.13 and 3.14. Anyone on 3.10 should pin `tracegauge<=0.12.2` until the next release.
+- Added the `Programming Language :: Python :: 3.14` classifier (the 3.14 leg is green).
+
+### Changed (packaging only)
 - **The package is now marked typed** (`tes/py.typed`, classifier `Typing :: Typed`). Verified with mypy on
   a consumer snippet: against 0.13.0 mypy reports `module is installed, but missing library stubs or py.typed
   marker`; with the marker it type-checks the consumer against `tes`'s annotations and flags a deliberate

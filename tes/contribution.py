@@ -11,10 +11,12 @@ import re
 import sqlite3
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import tes
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
 # Module constants

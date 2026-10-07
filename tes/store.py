@@ -19,10 +19,12 @@ import hashlib
 import json
 import os
 import sqlite3
-from datetime import UTC
+from datetime import timezone
 from pathlib import Path
 
 from tes.score import ThreeAxisResult
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
 class TrajectoryRenderState(enum.Enum):
