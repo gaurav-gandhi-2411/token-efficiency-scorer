@@ -14,6 +14,20 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 **deliberately not published** — see its entry for why (corpus stays dormant). `0.13.0` is the
 **current published release**.
 
+## [Unreleased]
+
+### Changed (packaging only; no code change)
+- **The package is now marked typed** (`tes/py.typed`, classifier `Typing :: Typed`). Verified with mypy on
+  a consumer snippet: against 0.13.0 mypy reports `module is installed, but missing library stubs or py.typed
+  marker`; with the marker it type-checks the consumer against `tes`'s annotations and flags a deliberate
+  mistake. The package itself is not mypy-strict clean (125 errors in `tes` with its dependencies installed, 75
+  of them bare-generic `type-arg`); the marker promises inline annotations, not strict correctness.
+- **The sdist** no longer ships `tests/` (several tests read repo-level `scripts/`, `corpus/` and `data/`
+  files an sdist does not contain, so they could only fail there) and now includes `CHANGELOG.md`,
+  `PRIVACY.md`, `DATA_SOURCES.md` and `SECURITY.md` (146 -> 83 files).
+- Added the `Topic :: Software Development :: Testing` and `Topic :: Scientific/Engineering :: Artificial
+  Intelligence` classifiers; tagged the 14 untagged README code fences as `text`.
+
 ## [0.13.0] — dead-code removal, a real public API change
 
 ### Removed

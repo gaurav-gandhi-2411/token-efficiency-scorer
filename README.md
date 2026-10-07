@@ -196,7 +196,7 @@ Total spend, session count, and a per-project breakdown for a period — distinc
 
 Real output, from the published `tracegauge==0.11.0` artifact, four real seeded sessions across two projects (one older than the 7-day window):
 
-```
+```text
 ──────────────────────────────────────────────────────────────────────
 COST -- last 7 days
 ──────────────────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ By project:
 
 `tes cost --month` against the same data correctly picks up the older session too:
 
-```
+```text
 ──────────────────────────────────────────────────────────────────────
 COST -- last 30 days
 ──────────────────────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ By project:
 
 Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output, published `0.11.0`:
 
-```
+```text
 Total: $2.50  (1 session)
   (1 additional session in this period have no cost data yet -- excluded from the total above, not counted as $0)
 ```
@@ -239,14 +239,14 @@ Total: $2.50  (1 session)
 
 Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known:
 
-```
+```text
 Priced coverage: 50% of sessions, 100% of tokens
   Unpriced model(s): claude-future-9
 ```
 
 A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete:
 
-```
+```text
 Priced coverage: 40% of sessions, 85% of tokens
   Unpriced model(s): gpt-6-preview
   (some unpriced sessions predate model tracking -- can't name their model)
@@ -270,7 +270,7 @@ tes cost --week --roi --plan-config /path/to/plan.json   # override the default 
 
 Real output, this session's own transcript scored fresh and compared against a real 7-day-window `plan.json`:
 
-```
+```text
 Plan: Claude Max ($46.67 for this window)
 ROI: $496.29 API-equivalent / $46.67 plan cost = 10.6x
   (API-equivalent value at measured token rates, not a bill you'd actually pay under a flat plan.)
@@ -294,7 +294,7 @@ Corpus-wide, from `Edit`/`Write`/`MultiEdit`/`NotebookEdit` tool-call payloads r
 
 Real output, this session's own transcript:
 
-```
+```text
 291 edit operation(s) across 1 session(s) with impact data
   +14235 / -1994 lines
   66% of additions are from Write/NotebookEdit calls, whose payload never carries the file's PRIOR content -- additions are exact, but a full-file rewrite looks identical to a brand-new file, so this fraction is inherently uncertain in that specific way.
@@ -324,7 +324,7 @@ tes budget --window-days 30
 
 A rolling-window spend PROJECTION — distinct from `tes cost`'s period REPORT above. `tes cost` answers "what did I actually spend"; `tes budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output, published `tracegauge==0.11.0`, a real 365-day window against real session data:
 
-```
+```text
 ──────────────────────────────────────────────────────────────────────
 BUDGET / PACE
 ──────────────────────────────────────────────────────────────────────
@@ -336,7 +336,7 @@ At this pace (~$5604.50 so far across 841 sessions, 70.1 of 365 days) you're tre
 
 At the default 7-day window, with no cost data that recent, `tes budget` says so plainly rather than fabricating a projection from stale data:
 
-```
+```text
 No sessions with cost data in the last 7 days -- nothing to project yet.
 ```
 
@@ -352,7 +352,7 @@ A one-shot check of whatever Claude Code session is currently being written unde
 
 Real output, published `tracegauge==0.11.0`, against a genuinely active session on this machine (redaction warnings are the adapter finding and stripping real secret-shaped strings from the transcript before scoring — the tool's own redaction-on-by-default behavior, not an error):
 
-```
+```text
 [adapter] WARNING: redacted 1 occurrence(s) of pattern 'anthropic_key'
 [adapter] WARNING: redacted 3 occurrence(s) of pattern 'generic_key_assignment'
 ...
@@ -384,7 +384,7 @@ Requires **30+ content sessions**. Attribution fractions (the features clusterin
 
 **If you're upgrading from `0.11.0` or earlier: read this before running `tes patterns`.** Sessions scored before this version cannot be backfilled — their attribution was never persisted, and recovering it now would require re-reading the original transcript file, which for most real setups no longer exists (transcripts age out, get cleaned up, or move). There is no partial recovery either: the fractions clustering needs (context re-send/growth, output, waste) aren't derivable from anything else this tool stores about a session — checked directly, not assumed (the closest available data, `waste_events`, records dollar cost per detected event, not the raw token breakdown clustering needs, and covers only 1 of the 4 features either way). **Concretely, on the machine this was measured on: 321 of 321 previously-scored content sessions (100%) are permanently unusable for clustering post-upgrade — the pattern corpus starts over at 0 and rebuilds only from sessions scored from this version forward.** Your own numbers will differ, but the mechanism is the same: nothing is lost or corrupted, `tes score`/`tes patterns`/`tes ask` on already-scored sessions keep working exactly as before this upgrade — only the *clustering* feature specifically restarts its corpus. If a legacy session's file is confirmed unreachable, the tool says so plainly rather than guessing:
 
-```
+```text
 Not enough content sessions for pattern analysis yet (12 < 30 needed) -- 8 previously-scored session(s) can't count because their original transcript file no longer exists on disk (scored before this version started saving what it needs at score time; those specific sessions can't be recovered -- re-scoring requires the same file, which is gone). Your pattern corpus rebuilds from sessions scored from now on; nothing else to do.
 ```
 
@@ -392,7 +392,7 @@ Not enough content sessions for pattern analysis yet (12 < 30 needed) -- 8 previ
 
 **A real, live result** — 38 real Claude Code sessions, scored fresh this session (`tes score --no-judge` against two real project directories, `--recompute`), demonstrating the score-time-persistence fix directly: `[features] extracted 38 / 39 sessions (persisted=38, stubs=1, no_source=0, failed=0)` — every one of those 38 came from the database, zero source-file re-reads. `k=3`, silhouette `0.479` (above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs):
 
-```
+```text
 ARCHETYPES (measured behavioral patterns -- not quality labels):
 
   [0] medium high context re-send sessions
@@ -423,7 +423,7 @@ A conversational explainer, constrained by construction to answer only from the 
 
 Real output, published `0.11.0`, local Ollama, against real session data:
 
-```
+```text
 Looking up your session data...
 
 From your measured data, 12.8% of content sessions (41 out of 321) have detected waste, totaling 74 waste events. However, there is not enough content sessions for detailed pattern analysis yet (less than 30 sessions needed for patterns to emerge). As your session corpus grows, tracegauge will provide more insights into waste patterns.
@@ -433,7 +433,7 @@ From your measured data, 12.8% of content sessions (41 out of 321) have detected
 
 The constraint is real, not just a system-prompt claim — asking something genuinely unmeasured gets refused rather than answered with a plausible-sounding guess:
 
-```
+```text
 $ tes ask "How much of my token spend is context re-send versus actual output?"
 
 I don't have that measured -- tracegauge hasn't collected that metric. The data provided includes total token counts and cost metrics, but not a breakdown between context re-send and actual output tokens. You may need to analyze token usage patterns or use additional tools to differentiate between these categories.
