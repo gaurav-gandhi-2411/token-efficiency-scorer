@@ -85,6 +85,33 @@ jobs:
           uv run pytest \
             --deselect=tests/test_watcher_incremental.py::test_failure_isolation_continues_scan
 
+  # The classifiers claim Python 3.10-3.13 while lint-and-test only ever ran 3.11 (audit D8,
+  # 2026-10-07). This runs the same suite on the other versions, plus 3.14, which has no classifier
+  # yet: add it only once this leg is green. It is a SEPARATE job, not a matrix on lint-and-test,
+  # because renaming that job's check to "lint-and-test (3.11)" would orphan the required check
+  # "lint-and-test" and block every merge. Make it a required check once it has been green a while.
+  python-compat:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --python ${{ matrix.python-version }}
+
+      - name: Unit tests
+        run: |
+          uv run pytest \
+            --deselect=tests/test_watcher_incremental.py::test_failure_isolation_continues_scan
+
   manifest-provenance:
     # 2026-08-05 audit: a metric in .portfolio/metrics.json without a
     # committed artifact behind it can silently drift from what the portfolio
