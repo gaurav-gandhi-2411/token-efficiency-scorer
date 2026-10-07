@@ -28,9 +28,11 @@ and the chat/dashboard shows an honest "still building your pattern library" mes
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 if TYPE_CHECKING:
     from tes.intelligence.anomaly import AnomalyResult

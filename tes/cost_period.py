@@ -34,8 +34,10 @@ this module's own convention.
 
 import sqlite3
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 DEFAULT_WEEK_DAYS: int = 7
 DEFAULT_MONTH_DAYS: int = 30

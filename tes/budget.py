@@ -24,7 +24,9 @@ column (unlike `scored_at`'s ISO-string column), so this module compares
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 DEFAULT_WINDOW_DAYS: int = 7
 _MIN_DAYS_OBSERVED: float = (

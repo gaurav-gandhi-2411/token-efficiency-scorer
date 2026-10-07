@@ -11,11 +11,13 @@ Tests VALUE leakage, not just key leakage.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from tes.contribution import build_contribution_payload
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # Sensitive strings that must NEVER appear in the serialized payload
 PLANTED_SECRETS = [
