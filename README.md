@@ -1,11 +1,11 @@
 # tracegauge
 
-![tracegauge](assets/brand/badge.svg)
+![tracegauge](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/raw/master/assets/brand/badge.svg)
 
-Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tes corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](PRIVACY.md).
+Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tes corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md).
 
 [![CI](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml/badge.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
 [![PyPI](https://img.shields.io/pypi/v/tracegauge.svg)](https://pypi.org/project/tracegauge/)
 
@@ -14,7 +14,7 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 > `claude-sonnet-4-6`'s rate); they now return an explicit unpriced result instead
 > (`priced=False`, `total_usd=0.0`). If you call `tes.cost.compute_turn_cost`/
 > `compute_session_cost` directly and read `total_usd`, see the `[0.10.2]` entry in
-> [CHANGELOG.md](CHANGELOG.md) for the exact migration path if you're upgrading from
+> [CHANGELOG.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/CHANGELOG.md) for the exact migration path if you're upgrading from
 > `0.10.1` or earlier.
 
 ---
@@ -28,7 +28,7 @@ tracegauge is feature-complete — the current release bundles the full validate
 - **Deterministic waste detection** — frozen, observable-invariant detectors (repeated-failed-retry, redundant-read) with proof turns and per-event wasted cost. No LLM judgment, no false-positive guessing.
 - **Trajectory judge** — purposefulness verdict from a local Ollama model ($0, GPU) *or* an opt-in API judge that sends snippets to your model provider only on explicit per-session consent. Renders UNAVAILABLE as a complete, expected state when no judge is configured.
 - **Diagnostic dashboard** — `tes serve` runs a localhost-only (`127.0.0.1`) web dashboard that auto-scores finished sessions and shows the three axes, attribution, and waste with every domain-of-validity caveat carried to the surface. No composite/blended score — each axis stands on its own.
-- **Community baseline (built, not yet active)** — `tes corpus contribute` would send content-free session aggregates (numbers and categories only — see [PRIVACY.md](PRIVACY.md)) to a tracegauge-operated community corpus, and in return `tes corpus` would show your context-efficiency percentile against other opted-in developers, alongside — never replacing — your own self-baseline. The code, the content-free guard, the consent flow, and `tes corpus withdraw` are all built and tested (755 tests green), but **no corpus is currently provisioned** — until one is, `tes corpus contribute` sends nothing, by construction (see PRIVACY.md).
+- **Community baseline (built, not yet active)** — `tes corpus contribute` would send content-free session aggregates (numbers and categories only — see [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md)) to a tracegauge-operated community corpus, and in return `tes corpus` would show your context-efficiency percentile against other opted-in developers, alongside — never replacing — your own self-baseline. The code, the content-free guard, the consent flow, and `tes corpus withdraw` are all built and tested, but **no corpus is currently provisioned** — until one is, `tes corpus contribute` sends nothing, by construction (see PRIVACY.md).
 
 Local by default: scoring and the dashboard make zero external network calls. The only working egress today is the opt-in API judge (your key, your consent, per session). The community corpus contribution above would be a second opt-in egress path once activated — see PRIVACY.md.
 
@@ -84,7 +84,7 @@ Read this before installing. These are not caveats to hide — they're the hones
 
 **Corpus caveat (token baselines).** The token economy baselines are derived from one developer's 75 quality-gated Claude Code sessions, skewed toward high-intensity infrastructure and ML-ops work (GCP, Cloud Run, training pipelines). B5 generalization validation across 172 independent developers (1,053 SWE-chat CC sessions) found the generalizable repeated-failed-retry rate is ~1.4% — versus 6.6% in the calibration pool, which is a high-waste infra outlier. A developer doing ordinary coding work may score below-band on the token axis without being inefficient; the baseline encodes "efficient under expert prompting on heavy infra work," not a universal reference.
 
-> Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). See [DATA_SOURCES.md](DATA_SOURCES.md) for the full attribution and what was derived from it.
+> Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). See [DATA_SOURCES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/DATA_SOURCES.md) for the full attribution and what was derived from it.
 
 **No human accuracy validation.** The trajectory judge (Qwen3-30B) is coherence-validated against a reference LLM (Spearman ρ ≈ 0.79), not calibrated to human expert labels. Positive verdicts (MUCH_BETTER/BETTER) are cross-model corroborated at 84–96%. Negative verdicts (WORSE/MUCH_WORSE) are model-dependent — treat them as a signal to review, not a ground truth.
 
@@ -94,7 +94,7 @@ Read this before installing. These are not caveats to hide — they're the hones
 
 **Local by default.** All scoring is local. No telemetry, no phone-home, no external network calls from scoring or the dashboard (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration. The only thing that currently leaves your machine is opt-in and separate from scoring: the API judge (your key, your consent). A second opt-in path, community corpus contribution, is built but not active — see below.
 
-**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. This command itself never transmits anything — the file is yours; the tool never reads it back or uploads it. A separate, further opt-in command, `tes corpus contribute`, is built to send that same content-free data to a tracegauge community corpus in exchange for a cross-developer baseline — but **no corpus is currently provisioned**, so that command sends nothing regardless of consent. See [PRIVACY.md](PRIVACY.md) for the complete field list, the send-time re-verification, the withdrawal path, and the dormancy notice.
+**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. This command itself never transmits anything — the file is yours; the tool never reads it back or uploads it. A separate, further opt-in command, `tes corpus contribute`, is built to send that same content-free data to a tracegauge community corpus in exchange for a cross-developer baseline — but **no corpus is currently provisioned**, so that command sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md) for the complete field list, the send-time re-verification, the withdrawal path, and the dormancy notice.
 
 ---
 
@@ -489,13 +489,13 @@ The scoring components were validated through a five-phase credibility arc (B1�
 - **Token baselines (B2):** 75 quality-gated CC sessions, 5 task types, scope gates at per-type p10 turn floor. See [research/08-baselines.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/08-baselines.md).
 - **Trajectory judge (B3):** Cross-model corroboration. Positive verdicts: 84% strict / 96% top-2. Negative verdicts model-dependent. No human gold. See [research/09-cross-model.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/09-cross-model.md).
 - **Deterministic waste (B4):** RFR fired 12/181 pool sessions (6.6%). RR fired 20/181 (11.0%). Observable-invariant boundary documented. See [research/10-deterministic-waste.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/10-deterministic-waste.md).
-- **Generalization (B5):** RFR and PATH-A validated across 172 developers (1,053 SWE-chat CC sessions — [ODC-BY licensed, see DATA_SOURCES.md](DATA_SOURCES.md)). Rate gap (6.6% pool vs 1.4% SWE-chat) explained by corpus characterization — pool is a high-waste infra outlier. Cross-agent generalization inconclusive (parquet lacks tool_result rows for OpenCode/Codex). See [research/11-generalization.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md).
+- **Generalization (B5):** RFR and PATH-A validated across 172 developers (1,053 SWE-chat CC sessions — [ODC-BY licensed, see DATA_SOURCES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/DATA_SOURCES.md)). Rate gap (6.6% pool vs 1.4% SWE-chat) explained by corpus characterization — pool is a high-waste infra outlier. Cross-agent generalization inconclusive (parquet lacks tool_result rows for OpenCode/Codex). See [research/11-generalization.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md).
 
 ---
 
 ## License
 
-[AGPL-3.0-only](LICENSE) — free to use and self-host; any modified version distributed as a network service must publish its source under the same license. Exception: `tes/cost.py` and `tes/_digest.py` are additionally available under [Apache-2.0](LICENSE-APACHE). This lets downstream packages — e.g. [adk-tracegauge](https://github.com/gaurav-gandhi-2411/adk-tracegauge) — depend on the cost-computation module without inheriting AGPL's copyleft terms. Every other file in this repository remains AGPL-3.0-only.
+[AGPL-3.0-only](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE) — free to use and self-host; any modified version distributed as a network service must publish its source under the same license. Exception: `tes/cost.py` and `tes/_digest.py` are additionally available under [Apache-2.0](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE-APACHE). This lets downstream packages — e.g. [adk-tracegauge](https://github.com/gaurav-gandhi-2411/adk-tracegauge) — depend on the cost-computation module without inheriting AGPL's copyleft terms. Every other file in this repository remains AGPL-3.0-only.
 
 ---
 
@@ -505,5 +505,3 @@ The scoring components were validated through a five-phase credibility arc (B1�
 - **Smaller judge:** a laptop-runnable quantized model for the trajectory axis (requires a new B3-equivalent corroboration run, not a swap).
 - **Cross-agent support:** adapters for OpenCode, Codex, Aider once tool_result data is available for re-validation.
 - **`tes install-hook`:** explicit opt-in SessionEnd hook for zero-latency scoring (modifies `~/.claude/settings.json` only on user request).
-
-Recommended user follow-ups (not built): register `tracegauge.dev`; lawyer review of AGPL terms before any commercial raise.
