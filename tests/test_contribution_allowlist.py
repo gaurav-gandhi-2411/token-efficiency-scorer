@@ -6,11 +6,13 @@ Any extra key = test failure. Proves the field-by-field construction invariant.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from tes.contribution import ALLOWED_FIELDS, build_contribution_payload
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
 def _make_conn():

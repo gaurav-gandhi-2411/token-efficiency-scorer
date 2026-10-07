@@ -11,7 +11,7 @@ Tests:
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,6 +23,8 @@ from tes.contribution import (
 )
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
 # Helpers

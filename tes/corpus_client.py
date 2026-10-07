@@ -30,7 +30,7 @@ import re
 import sys
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +44,8 @@ from tes.contribution import (
     ALLOWED_FIELDS,
     build_contribution_payload,
 )
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
 # Configuration
