@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.store import open_db
 from tes.watcher import WatcherConfig, _scan_once
@@ -83,11 +84,22 @@ def test_incremental_rescores_on_change(tmp_path: Path) -> None:
     assert count_2 == 1, f"Expected 1 re-scored after file change, got {count_2}"
 
 
-def test_failure_isolation_continues_scan(tmp_path: Path) -> None:
+@pytest.mark.parametrize("reverse", [False, True], ids=["alphabetical-scan", "reversed-scan"])
+def test_failure_isolation_continues_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, reverse: bool
+) -> None:
     """A corrupt session raises inside adapt_session but does not abort the scan cycle.
 
     sess-A and sess-C are scored successfully; sess-B raises → skipped.
     _scan_once must return 2 and must not propagate the exception.
+
+    adapt_session is faked BY FILE NAME, never by call position, and the scan order is forced both
+    ways. The original version returned records from a positional side_effect list, which only
+    lines up where rglob() happens to list files alphabetically (Windows/NTFS). On Linux the
+    directory order is arbitrary (observed: C, A, B): the record carrying session_id "sess-A" was
+    returned for file sess-C and stored under "sess-A", then needs_scoring("sess-A", same hash)
+    skipped the real sess-A file, so only 1 session was scored. That cannot happen with the real
+    adapt_session, which always returns session_id == the file's stem.
     """
     conn = open_db(tmp_path / "tes.db")
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
@@ -95,12 +107,23 @@ def test_failure_isolation_continues_scan(tmp_path: Path) -> None:
     cc_dir = tmp_path / "projects" / "proj-iso"
     cc_dir.mkdir(parents=True)
 
-    # Create three JSONL files; content is arbitrary — adapt_session is mocked.
+    # Three identical JSONL files; content is arbitrary — adapt_session is faked.
     for stem in ("sess-A", "sess-B", "sess-C"):
         (cc_dir / f"{stem}.jsonl").write_bytes(b'{"type":"test"}')
 
-    record_a = _make_minimal_record("sess-A")
-    record_c = _make_minimal_record("sess-C")
+    records = {"sess-A": _make_minimal_record("sess-A"), "sess-C": _make_minimal_record("sess-C")}
+
+    def fake_adapt_session(path: Path) -> dict:
+        if path.stem == "sess-B":
+            raise Exception("corrupt")
+        return records[path.stem]
+
+    real_rglob = Path.rglob
+
+    def ordered_rglob(self: Path, pattern: str):
+        return iter(sorted(real_rglob(self, pattern), reverse=reverse))
+
+    monkeypatch.setattr(Path, "rglob", ordered_rglob)
 
     config = WatcherConfig(
         cc_path=tmp_path / "projects",
@@ -108,14 +131,13 @@ def test_failure_isolation_continues_scan(tmp_path: Path) -> None:
         db_path=tmp_path / "tes.db",
     )
 
-    # Second call (sess-B) raises; first and third succeed.
-    side_effects = [record_a, Exception("corrupt"), record_c]
-
-    with patch("tes.watcher.adapt_session", side_effect=side_effects):
+    with patch("tes.watcher.adapt_session", side_effect=fake_adapt_session):
         # Must not raise
         scored = _scan_once(config, conn, baselines, _now=time.time() + 999)
 
     assert scored == 2, f"Expected 2 scored (A and C), got {scored}"
+    stored = {row[0] for row in conn.execute("SELECT session_id FROM sessions")}
+    assert stored == {"sess-A", "sess-C"}
 
 
 def test_stability_window_skips_recent_files(tmp_path: Path) -> None:
