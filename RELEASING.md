@@ -10,15 +10,12 @@ This document describes the actual flow, written after running it for real for `
 
 ## The flow
 
-1. **Bump the version** in exactly two places (`grep -rn "^version" pyproject.toml` plus a
-   search for any hardcoded version assertions in `tests/` first — see the gotcha below,
-   there was a third place on this exact release):
-   - `pyproject.toml`: `[project].version`
-   - `tests/test_packaging.py`: `test_package_name_is_tracegauge` asserts
-     `meta["Version"] == "..."` literally — **this is not derived from anything, it's a
-     hardcoded string that silently goes stale if you forget it.** It will fail loudly in CI
-     if you do, which is the whole reason it's worth calling out here rather than just
-     fixing it quietly each time.
+1. **Bump the version** in `pyproject.toml` (`[project].version`), then run `uv lock` so
+   `uv.lock`'s own entry follows, and add the `CHANGELOG.md` entry. `tests/test_version_consistency.py`
+   fails if pyproject, the installed metadata, `uv.lock` and the CHANGELOG's newest release heading
+   disagree. (Until 0.14.0 `tests/test_packaging.py` asserted the version as a literal string that
+   silently went stale; that literal is gone, so there is nothing to hunt for. Still search `tests/`
+   for any new hardcoded version before releasing.)
    - Add a `CHANGELOG.md` entry documenting what shipped and why, following the existing
      format (a note at the top of the file tracks which versions were actually published to
      PyPI vs. built-but-held).

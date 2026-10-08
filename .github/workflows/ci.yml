@@ -89,7 +89,8 @@ jobs:
   # 2026-10-07; its first run found the package did not import on 3.10, see CHANGELOG). This runs
   # the same suite on every other claimed version. It is a SEPARATE job, not a matrix on lint-and-test,
   # because renaming that job's check to "lint-and-test (3.11)" would orphan the required check
-  # "lint-and-test" and block every merge. Make it a required check once it has been green a while.
+  # "lint-and-test" and block every merge. The legs are covered by the required aggregate check
+  # "python-compat (every leg)" below.
   python-compat:
     runs-on: ubuntu-latest
     strategy:
@@ -111,6 +112,24 @@ jobs:
         run: |
           uv run pytest \
             --deselect=tests/test_watcher_incremental.py::test_failure_isolation_continues_scan
+
+  # One check that is red if ANY python-compat leg is red. The legs are named "python-compat (3.10)" etc.;
+  # requiring each by name would go stale the day a version is added or dropped, and a leg that is not
+  # required cannot block a merge (adk-tracegauge found this on its first bot-opened PR, 2026-10-08: every
+  # required check green, a new leg red, the merge gate "eligible"). This name is stable, so it can be a
+  # required check that covers every leg, present and future.
+  python-compat-all:
+    name: python-compat (every leg)
+    if: ${{ always() }}
+    needs: [python-compat]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every python-compat leg passed
+        env:
+          COMPAT_RESULT: ${{ needs.python-compat.result }}
+        run: |
+          echo "python-compat (all legs): $COMPAT_RESULT"
+          [ "$COMPAT_RESULT" = "success" ]
 
   manifest-provenance:
     # 2026-08-05 audit: a metric in .portfolio/metrics.json without a
