@@ -1,16 +1,135 @@
 name: Release
 
+# Tag-triggered publish to PyPI (Trusted Publishing / OIDC). The publish job REFUSES to run unless
+# three preflight jobs pass, modelled on adk-tracegauge's and agentgauge's release.yml:
+#
+#   preflight-version   pyproject.toml, uv.lock and CHANGELOG.md's top release heading agree on the
+#                       version; on a tag push the tag equals it; the version is not already on PyPI
+#                       (scripts/check_release_version.py -- anything it cannot determine is a refusal)
+#   preflight-build     the wheel and sdist this release would publish build, pass `twine check`, and
+#                       a fresh non-editable install of the wheel reports that version
+#   gate-canary         the latest SCHEDULED pypi-canary run on master is green and recent
+#
+# `workflow_dispatch` runs the same preflights against the chosen ref and NEVER publishes (the
+# publish job is `if: github.event_name == 'push'`): run it on master before tagging. Why: 0.12.3 to
+# 0.13.0 were released importing fine on 3.11 and not at all on 3.10, 0.11.0 shipped with no README
+# section, and the version lives in a place a hardcoded test assertion once went stale in. A check
+# that reports changes nothing; a check that blocks does. There is no override input, deliberately.
+
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  preflight-version:
+    name: Refuse to release when the tag and the version sources disagree
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      EVENT: ${{ github.event_name }}
+      REF_NAME: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: pyproject, uv.lock, CHANGELOG, the tag, and PyPI
+        run: |
+          if [ "$EVENT" = "push" ]; then
+            python scripts/check_release_version.py --pypi --tag "$REF_NAME"
+          else
+            python scripts/check_release_version.py --pypi
+          fi
+
+  preflight-build:
+    name: Refuse to release artifacts that do not build, check or install
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv --quiet
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: twine check
+        run: uvx twine check dist/*.whl dist/*.tar.gz
+
+      - name: A fresh, non-editable install of the wheel runs and reports the version
+        run: |
+          set -euo pipefail
+          expected=$(python scripts/check_release_version.py | sed 's/^release version OK: //')
+          python -m venv "$RUNNER_TEMP/verify"
+          "$RUNNER_TEMP/verify/bin/pip" install --quiet dist/*.whl
+          got=$("$RUNNER_TEMP/verify/bin/tes" --version)
+          echo "expected $expected; installed wheel says: $got"
+          case "$got" in *"$expected"*) ;; *) echo "::error::the installed wheel reports '$got', not $expected"; exit 1;; esac
+
+  gate-canary:
+    name: Refuse to release while the latest scheduled pypi-canary run is red or stale
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: The latest SCHEDULED canary run on master must be recent and green
+        # Only `schedule` runs on `master` count: a manual dispatch can turn the latest run green
+        # without anything being fixed. Cancelled/skipped runs carry no signal. The canary is daily
+        # and GitHub starts scheduled runs late and sometimes drops one, so the window is 3 days.
+        # No qualifying run inside the window is a refusal, not a pass.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANARY_EVENT: schedule
+          CANARY_BRANCH: master
+          CANARY_MAX_AGE_DAYS: "3"
+        run: |
+          set -euo pipefail
+          runs=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow pypi-canary.yml --event "$CANARY_EVENT" --branch "$CANARY_BRANCH" --status completed --limit 20 --json conclusion,createdAt,url,event,headBranch)
+          RUNS="$runs" python3 - <<'PY'
+          import json, os, sys
+          from datetime import datetime, timezone
+
+          event, branch = os.environ["CANARY_EVENT"], os.environ["CANARY_BRANCH"]
+          max_age = float(os.environ["CANARY_MAX_AGE_DAYS"])
+          runs = [r for r in json.loads(os.environ["RUNS"]) if r["conclusion"] in ("success", "failure")]
+          if not runs:
+              print(f"::error::no completed pypi-canary run with event={event} on branch {branch}; it cannot vouch for this release")
+              sys.exit(1)
+          latest = max(runs, key=lambda r: r["createdAt"])
+          age = (datetime.now(timezone.utc) - datetime.fromisoformat(latest["createdAt"].replace("Z", "+00:00"))).total_seconds() / 86400
+          print(f"latest qualifying canary run: {latest} (age {age:.2f} days, limit {max_age:g})")
+          if latest["conclusion"] != "success":
+              print(f"::error::the latest {event} pypi-canary run on {branch} is '{latest['conclusion']}' ({latest['url']}); a manual green re-run does not clear it -- fix the cause and wait for the next scheduled run")
+              sys.exit(1)
+          if age > max_age:
+              print(f"::error::the latest {event} pypi-canary run on {branch} is {age:.1f} days old (limit {max_age:g}); a scheduled run was missed")
+              sys.exit(1)
+          print("canary gate: OK")
+          PY
+
   publish:
+    # Only a tag push publishes. A workflow_dispatch run stops after the preflights above.
+    if: github.event_name == 'push'
+    needs: [preflight-version, preflight-build, gate-canary]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
