@@ -6,15 +6,17 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, and `0.13.0` (confirmed live against PyPI's own JSON API;
+`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, `0.13.0`, and `0.14.0` (confirmed live against PyPI's own JSON API;
 this note previously stopped enumerating at `0.10.2` for four releases running — corrected here
 rather than left standing, per the same "nothing re-checks this note against reality" gap
 RELEASING.md's own incident section already names). Versions `0.2.0` and `0.4.0` were built and
 tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
-**deliberately not published** — see its entry for why (corpus stays dormant). `0.13.0` is the
+**deliberately not published** — see its entry for why (corpus stays dormant). `0.14.0` is the
 **current published release**.
 
 ## [Unreleased]
+
+## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 
 ### Fixed
 - **The package imports on Python 3.10 again.** 0.12.3, 0.12.4 and 0.13.0 fail on 3.10 with
@@ -23,7 +25,10 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
   3.10.20). Cause: ruff's `target-version` was `py311`, so the 2026-08-21 lint pass (#45) rewrote
   `timezone.utc` to `datetime.UTC` (3.11+); CI only ran 3.11. Seven modules now use
   `UTC = timezone.utc`, ruff targets `py310`, and a new `python-compat` CI job runs the suite on 3.10,
-  3.12, 3.13 and 3.14. Anyone on 3.10 should pin `tracegauge<=0.12.2` until the next release.
+  3.12, 3.13 and 3.14. On 3.10 install 0.14.0 or later, or pin `tracegauge<=0.12.2`.
+- **`tes.community_baseline` could not be imported on Python 3.10 in any release from 0.10.0 on** (same
+  `datetime.UTC` import). Nothing else in the package imports that module, so `import tes` and the CLI were
+  unaffected before 0.12.3 (checked on the published wheels, Python 3.10.20).
 - Added the `Programming Language :: Python :: 3.14` classifier (the 3.14 leg is green).
 
 ### Changed (packaging only)

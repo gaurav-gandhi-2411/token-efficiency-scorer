@@ -17,6 +17,12 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 > [CHANGELOG.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/CHANGELOG.md) for the exact migration path if you're upgrading from
 > `0.10.1` or earlier.
 
+> **Note — Python 3.10: 0.12.3, 0.12.4 and 0.13.0 do not import on Python 3.10** (`ImportError: cannot import
+> name 'UTC' from 'datetime'`, also from the `tes` command). 0.14.0 fixes it; on 3.10 install 0.14.0 or later,
+> or pin `tracegauge<=0.12.2`. Python 3.11+ was never affected. See the
+> `[0.14.0]` entry in
+> [CHANGELOG.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/CHANGELOG.md).
+
 ---
 
 ## Features
