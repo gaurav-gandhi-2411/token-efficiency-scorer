@@ -67,7 +67,8 @@ def test_package_name_is_tracegauge() -> None:
 
     meta = metadata("tracegauge")
     assert meta["Name"] == "tracegauge"
-    assert meta["Version"] == "0.14.0"
+    # The version is deliberately not asserted here as a literal (it went stale on every release);
+    # tests/test_version_consistency.py compares it with pyproject.toml, uv.lock and CHANGELOG.md.
     # PEP 639: setuptools>=70 with license = "AGPL-3.0-only" (SPDX string) emits
     # "License-Expression" in the METADATA file. Fall back to "License" for older
     # build backends that may use the legacy classifier-based field.
