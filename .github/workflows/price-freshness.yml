@@ -28,6 +28,14 @@ name: Price table freshness
 # days stale with zero CI signal). A vendor page fetch failure or
 # structural change fails this step loudly, distinct from a genuine price
 # mismatch -- see scripts/check_price_table_vs_vendor.py's own docstring.
+#
+# 2026-10-09: that step used to walk only OUR keys (via a hand-kept name map)
+# and compare only input/output, so a model the page lists but the table lacks
+# (claude-opus-5-5, claude-sonnet-5-5) and the cache-hit columns went
+# unchecked. It now derives the model list from the page, compares cache
+# columns and tiers, and fails closed on an unparseable page. The always-on
+# companion guard is tests/test_transcript_models_priced.py (runs in ci.yml);
+# the real-transcript scan is a pre-release step, see RELEASING.md.
 
 on:
   schedule:
@@ -62,3 +70,12 @@ jobs:
 
       - name: Check price table against Anthropic's own published page
         run: uv run python scripts/check_price_table_vs_vendor.py
+
+      # Advisory only (continue-on-error): LiteLLM's community price file (MIT, fetched at
+      # runtime, never vendored) often lists a new Claude model before this table does. A
+      # warning here means "go read the official page", never "copy LiteLLM into prices.json" --
+      # the official page above is the only source of truth. A fetch failure is a visible
+      # warning, not a pass.
+      - name: Cross-check against LiteLLM (advisory, non-fatal)
+        continue-on-error: true
+        run: uv run python scripts/check_prices_vs_litellm.py --strict
