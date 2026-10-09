@@ -7,6 +7,8 @@ These helpers format dollar amounts and baseline-relative framing for
 both the CLI (format_human) and the web dashboard templates.
 """
 
+from collections.abc import Iterable
+
 
 def format_cost_usd(usd: float | None) -> str:
     """Format dollar amount for display.
@@ -16,6 +18,33 @@ def format_cost_usd(usd: float | None) -> str:
     if usd is None:
         return "—"
     return f"${usd:.2f}"
+
+
+def format_unpriced(models: Iterable[str]) -> str:
+    """'unpriced (model-a, model-b)' -- the display form for models missing from the price table."""
+    return f"unpriced ({', '.join(sorted(set(models)))})"
+
+
+def format_cost_display(
+    usd: float | None,
+    unpriced_models: Iterable[str] = (),
+    decimals: int = 2,
+    approx: bool = False,
+) -> str:
+    """Format a $ cost, never showing a misleading '$0.00' for turns that could not be priced.
+
+    * no unpriced models  -> '$X.XX' ('—' for None), '~' prefixed when ``approx``
+    * only unpriced turns -> 'unpriced (model)'   (usd is 0 or None: nothing was priced)
+    * partial pricing     -> '$X.XX + unpriced (model)'  (priced subtotal, not a total)
+    """
+    models = sorted(set(unpriced_models))
+    if not models:
+        if usd is None:
+            return "—"
+        return f"{'~' if approx else ''}${usd:.{decimals}f}"
+    if not usd:
+        return format_unpriced(models)
+    return f"{'~' if approx else ''}${usd:.{decimals}f} + {format_unpriced(models)}"
 
 
 def format_cost_vs_baseline(
@@ -82,6 +111,8 @@ def format_price_provenance(prices: dict) -> str:
 
 __all__ = [
     "format_cost_usd",
+    "format_unpriced",
+    "format_cost_display",
     "format_cost_vs_baseline",
     "format_cost_pct_vs_baseline",
     "format_price_provenance",

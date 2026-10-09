@@ -31,8 +31,10 @@ from tes.store import (
 )
 from tes.waste import build_waste_entry
 from tes.web.cost_format import (
+    format_cost_display,
     format_cost_pct_vs_baseline,
     format_price_provenance,
+    format_unpriced,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,7 +68,9 @@ def _compute_session_attribution(
         return None
 
 
-def _build_attribution_takeaway(attr: AttributionResult) -> str:
+def _build_attribution_takeaway(
+    attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
+) -> str:
     """Deterministic takeaway with data-gated actionable hints (multiple can fire).
 
     Hint rules checked in order — each fires independently:
@@ -81,6 +85,11 @@ def _build_attribution_takeaway(attr: AttributionResult) -> str:
     """
     total_usd = attr.total_usd
     if total_usd == 0:
+        if unpriced_models:
+            return (
+                f"Cost is {format_unpriced(unpriced_models)} — token bucket counts "
+                "available in attribution table."
+            )
         return "No cost data — token bucket counts available in attribution table."
 
     def pct(v: float) -> int:
@@ -228,9 +237,10 @@ def _stored_attribution_line(session: dict) -> str | None:
     waste_usd = sum(e.get("wasted_cost_usd") or 0 for e in waste_events)
     n_events = session.get("waste_event_count", 0) or 0
 
+    total = format_cost_display(float(cost_usd), session.get("unpriced_models") or ())
     if n_events > 0:
-        return f"${float(cost_usd):.2f} total · waste ${waste_usd:.2f} ({n_events} event{'s' if n_events != 1 else ''})"
-    return f"${float(cost_usd):.2f} total · no waste detected"
+        return f"{total} total · waste ${waste_usd:.2f} ({n_events} event{'s' if n_events != 1 else ''})"
+    return f"{total} total · no waste detected"
 
 
 # Historical anchor: B2-era scored sessions among content sessions (turn_count > 0).
@@ -332,6 +342,9 @@ def _per_type_status(conn: sqlite3.Connection, self_bl_state) -> list[dict]:
 def create_app(config: ServerConfig) -> Flask:
     """Create and configure the Flask dashboard application."""
     app = Flask(__name__, template_folder="templates")
+    # W1A D7: templates never format a $ by hand -- unpriced models must show as
+    # "unpriced (<model>)", not "$0.00".
+    app.jinja_env.filters["cost_display"] = format_cost_display
 
     baselines_path = config.cc_baselines_path or BUNDLED_BASELINES_PATH
     _b2 = load_baselines(baselines_path)
@@ -446,7 +459,11 @@ def create_app(config: ServerConfig) -> Flask:
 
         # Attribution — requires source JSONL file; gracefully returns None if unavailable.
         attribution = _compute_session_attribution(session, _prices)
-        attribution_takeaway = _build_attribution_takeaway(attribution) if attribution else None
+        attribution_takeaway = (
+            _build_attribution_takeaway(attribution, session.get("unpriced_models") or ())
+            if attribution
+            else None
+        )
         attribution_rows = _build_attribution_rows(attribution) if attribution else None
 
         return render_template(

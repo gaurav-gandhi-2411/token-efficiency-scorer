@@ -48,6 +48,8 @@ class ProjectCostBreakdown:
     project_label: str
     total_usd: float
     session_count: int
+    # Models whose turns are missing from total_usd for sessions in this project (W1A D7).
+    unpriced_models: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -72,6 +74,11 @@ class PeriodCostReport:
     token_priced: int = 0
     unpriced_models: list[str] = field(default_factory=list)
     unpriced_models_incomplete: bool = False
+
+    @property
+    def priced(self) -> bool:
+        """True iff no session in the window has turns excluded for lack of a price."""
+        return not self.unpriced_models
 
     @property
     def session_coverage_pct(self) -> float | None:
@@ -138,8 +145,11 @@ def compute_period_cost(
     token_priced = sum(r["real_tokens"] or 0 for r in priced)
 
     missing_rows = [r for r in rows if r["session_cost_usd"] is None]
+    # W1A D7: a session whose model is missing from the price table is stored with
+    # session_cost_usd = 0.0 (or a priced-turns-only subtotal), NOT NULL, so it used to look
+    # fully priced. Name its models from EVERY row, not just the NULL-cost ones.
     named_models: set[str] = set()
-    for r in missing_rows:
+    for r in rows:
         raw = r["cost_unpriced_models"]
         if raw:
             named_models.update(raw.split(","))
@@ -152,14 +162,22 @@ def compute_period_cost(
     unpriced_models_incomplete = any(not r["cost_unpriced_models"] for r in missing_rows)
 
     totals_by_project: dict[str, list[float]] = {}
+    unpriced_by_project: dict[str, set[str]] = {}
     for r in priced:
         label = _project_label_from_source_path(r["source_path"])
         totals_by_project.setdefault(label, []).append(float(r["session_cost_usd"]))
+        if r["cost_unpriced_models"]:
+            unpriced_by_project.setdefault(label, set()).update(
+                r["cost_unpriced_models"].split(",")
+            )
 
     by_project = sorted(
         (
             ProjectCostBreakdown(
-                project_label=label, total_usd=sum(costs), session_count=len(costs)
+                project_label=label,
+                total_usd=sum(costs),
+                session_count=len(costs),
+                unpriced_models=sorted(unpriced_by_project.get(label, ())),
             )
             for label, costs in totals_by_project.items()
         ),

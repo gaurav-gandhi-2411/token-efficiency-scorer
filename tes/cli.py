@@ -49,6 +49,7 @@ from tes.waste import (
     build_waste_entry,
 )
 from tes.watcher import DEFAULT_CC_PATH
+from tes.web.cost_format import format_cost_display, format_unpriced
 
 # Load price table once at import time — prices don't change between sessions in a run.
 _PRICES: dict = load_price_table()
@@ -987,9 +988,14 @@ def _run_cost(
         return
 
     print(
-        f"\nTotal: ${report.total_usd:.2f}  ({report.session_count} session"
-        f"{'s' if report.session_count != 1 else ''})"
+        f"\nTotal: {format_cost_display(report.total_usd, report.unpriced_models)}  "
+        f"({report.session_count} session{'s' if report.session_count != 1 else ''})"
     )
+    if report.unpriced_models:
+        print(
+            "  (priced subtotal only: turns of the unpriced model(s) below are NOT in this "
+            "figure -- the real total is higher)"
+        )
     if report.sessions_missing_cost:
         print(
             f"  ({report.sessions_missing_cost} additional session"
@@ -1001,22 +1007,25 @@ def _run_cost(
     if report.by_project:
         print("\nBy project:")
         for b in report.by_project:
+            amount = format_cost_display(b.total_usd, b.unpriced_models)
             print(
-                f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
+                f"  {b.project_label:<40}  {amount:>8}  ({b.session_count} session"
                 f"{'s' if b.session_count != 1 else ''})"
             )
 
     # XX1.3: unpriced coverage -- always shown, not gated behind --roi.
     sess_cov = report.session_coverage_pct
     tok_cov = report.token_coverage_pct
-    if sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0)):
-        print(
-            f"\nPriced coverage: {sess_cov:.0f}% of sessions"
-            + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else "")
-        )
+    if report.unpriced_models or (
+        sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0))
+    ):
+        if sess_cov is not None:
+            print(
+                f"\nPriced coverage: {sess_cov:.0f}% of sessions"
+                + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else "")
+            )
         if report.unpriced_models:
-            models_str = ", ".join(report.unpriced_models)
-            print(f"  Unpriced model(s): {models_str}")
+            print(f"  {format_unpriced(report.unpriced_models)}")
         if report.unpriced_models_incomplete:
             print("  (some unpriced sessions predate model tracking -- can't name their model)")
 
@@ -1066,6 +1075,11 @@ def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
         "  (API-equivalent value at measured token rates, not a bill you'd "
         "actually pay under a flat plan.)"
     )
+    if report.unpriced_models:
+        print(
+            f"  (API-equivalent excludes {format_unpriced(report.unpriced_models)} -- "
+            "the multiple is a floor.)"
+        )
 
 
 def _run_monitor(
@@ -1097,7 +1111,8 @@ def _run_monitor(
         return
 
     print(f"Session: {live.session_id}  ({live.task_type})")
-    print(f"  ~${live.live_cost_usd:.2f} (estimated, in progress)")
+    live_cost = format_cost_display(live.live_cost_usd, live.live_unpriced_models, approx=True)
+    print(f"  {live_cost} (estimated, in progress)")
     print(f"  ~{live.live_context_tokens:,} context tokens (estimated, in progress)")
     print(f"  {live.live_resend_ratio * 100:.0f}% context re-send (measured)")
     print(f"\n{live.domain_of_validity}")

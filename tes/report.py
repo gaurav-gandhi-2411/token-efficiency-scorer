@@ -12,7 +12,13 @@ import textwrap
 from typing import Any
 
 from tes.score import ThreeAxisResult
-from tes.web.cost_format import format_cost_usd, format_cost_vs_baseline, format_price_provenance
+from tes.web.cost_format import (
+    format_cost_display,
+    format_cost_usd,
+    format_cost_vs_baseline,
+    format_price_provenance,
+    format_unpriced,
+)
 
 _WIDTH = 76
 _BORDER = "═" * _WIDTH
@@ -144,14 +150,35 @@ def format_human(
         except Exception:
             provenance_line = "Prices: see ~/.tes/prices.json or bundled tes/data/prices.json"
 
-        cost_str = format_cost_usd(result.session_cost_usd)
-        vs_str = format_cost_vs_baseline(result.session_cost_usd, baseline_cost_band)
+        cost_str = format_cost_display(result.session_cost_usd, result.unpriced_models)
+        # A partial/absent total is not comparable with a fully-priced baseline.
+        vs_str = (
+            "not comparable: includes unpriced turns"
+            if result.unpriced_models
+            else format_cost_vs_baseline(result.session_cost_usd, baseline_cost_band)
+        )
 
-        if baseline_cost_band is not None:
+        if baseline_cost_band is not None or result.unpriced_models:
             lines.append(f"  Cost:  {cost_str}  ({vs_str})")
         else:
             lines.append(f"  Cost:  {cost_str}  (no baseline cost comparison yet)")
         lines.append(f"         {provenance_line}")
+        if result.unpriced_models:
+            lines.append(
+                f"         [{format_unpriced(result.unpriced_models)}: these models are not in the "
+                "price table, so their turns are EXCLUDED from the figure above — the true "
+                "cost is higher. Add them via TES_PRICE_TABLE or ~/.tes/prices.json.]"
+            )
+        if result.subagent_count:
+            # With unpriced models in play the subagent figure is a priced-part subtotal.
+            sub_cost = format_cost_usd(result.subagent_cost_usd) + (
+                " (priced part)" if result.unpriced_models else ""
+            )
+            lines.append(
+                f"         Includes {result.subagent_count} subagent transcript(s): "
+                f"{result.subagent_tokens:,} tokens, {sub_cost} "
+                "(counted here, not in the TOKEN ECONOMY verdict above)."
+            )
         if result.cost_approximate:
             lines.append(
                 "         [APPROXIMATE: some turns had an unresolvable model and are "
