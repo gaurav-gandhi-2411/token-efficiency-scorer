@@ -289,6 +289,7 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
 
         by_model: dict[str, list[int]] = {}
         stu_by_model: dict[str, dict[str, int]] = {}
+        requests_by_model: dict[str, int] = {}
         for model, counts, stu in per_message.values():
             if not any(counts):
                 continue  # zero-usage records (e.g. synthetic client-side messages)
@@ -296,6 +297,7 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
             for i, c in enumerate(counts):
                 acc[i] += c
             message_count += 1
+            requests_by_model[model] = requests_by_model.get(model, 0) + 1
             tot = stu_by_model.setdefault(model, {})
             for k, v in stu.items():
                 tot[k] = tot.get(k, 0) + v
@@ -315,6 +317,7 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
                     "cache_creation": cache_cr,
                     "model": model,
                     "server_tool_use": stu_by_model.get(model) or None,
+                    "request_count": requests_by_model[model],
                 }
             )
 

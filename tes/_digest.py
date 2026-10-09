@@ -46,6 +46,10 @@ class TurnDigest:
     # computation (tes.cost) reads this to warn that server-side tool
     # billing is not reflected in total_usd, never to price it.
     server_tool_use: dict[str, int] | None = None
+    # API requests this turn stands for: 1 for a real turn, >1 for an aggregated subagent
+    # turn (tes.adapt.collect_subagent_usage). tes.cost needs it because tiered models
+    # bill per request, which an aggregate no longer shows.
+    request_count: int = 1
 
 
 @dataclass
