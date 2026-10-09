@@ -84,6 +84,19 @@ class SessionCost:
     # server-side tool usage is excluded from total_usd — see
     # TurnCost.server_tool_warning. Empty list when no turn detected any.
     server_tool_warnings: list[str] = field(default_factory=list)
+    # Subagent roll-up (W1A D6): total_usd INCLUDES subagent_usd; the split is exposed so the
+    # breakdown stays visible. subagent_turn_costs is kept apart from turn_costs because
+    # turn_costs is indexed by main-chain turn_index (waste costing joins on it).
+    subagent_usd: float = 0.0
+    subagent_turn_costs: list[TurnCost] = field(default_factory=list)
+    # Raw model ids of every turn (main or subagent) that could not be priced -- the
+    # machine-readable twin of approximate_reasons. Empty iff every turn priced.
+    unpriced_models: list[str] = field(default_factory=list)
+
+    @property
+    def priced(self) -> bool:
+        """True iff every turn resolved against the price table (total_usd is complete)."""
+        return not self.unpriced_models
 
 
 def load_price_table(path: str | Path | None = None) -> dict[str, Any]:
@@ -288,20 +301,42 @@ def compute_session_cost(
             continue
         turn_costs.append(compute_turn_cost(turn, prices, cache_duration))
 
+    # Subagent turns (digest.subagent_turns) are priced like any other AI turn but kept in
+    # their own list; see SessionCost.subagent_turn_costs.
+    subagent_turn_costs = [
+        compute_turn_cost(t, prices, cache_duration) for t in digest.subagent_turns
+    ]
+
     ai_turn_count = len(turn_costs)
     approximate_turn_count = sum(1 for tc in turn_costs if tc.is_approximate)
 
-    # Session-level approximate flag: threshold is STRICTLY greater than the pct.
+    # Session-level approximate flag: threshold is STRICTLY greater than the pct, over main
+    # turns (unchanged). Subagent turns are few, aggregated and large, so a turn-count
+    # percentage is meaningless for them: ANY unpriced subagent usage marks the session
+    # approximate, because a whole agent's spend is missing from the total.
     session_approximate = False
     if ai_turn_count > 0:
         pct = approximate_turn_count / ai_turn_count * 100
         session_approximate = pct > approximate_threshold_pct
+    if any(tc.is_approximate for tc in subagent_turn_costs):
+        session_approximate = True
 
+    all_turn_costs = turn_costs + subagent_turn_costs
     approximate_reasons = list(
-        {tc.approximate_reason for tc in turn_costs if tc.approximate_reason}
+        {tc.approximate_reason for tc in all_turn_costs if tc.approximate_reason}
     )
     server_tool_warnings = list(
-        {tc.server_tool_warning for tc in turn_costs if tc.server_tool_warning}
+        {tc.server_tool_warning for tc in all_turn_costs if tc.server_tool_warning}
+    )
+    # A zero-token turn (e.g. Claude Code's "<synthetic>" client-side messages) costs nothing
+    # whatever its model, so it must not make a session look unpriced.
+    ai_turns = [t for t in digest.turns if t.role == "ai"] + list(digest.subagent_turns)
+    unpriced_models = sorted(
+        {
+            tc.model_key
+            for tc, t in zip(all_turn_costs, ai_turns, strict=True)
+            if not tc.priced and (t.token_count_input or t.token_count_output)
+        }
     )
 
     # total_usd sums ONLY confidently-priced turns (priced=True) -- an
@@ -310,7 +345,8 @@ def compute_session_cost(
     # this total is a floor, not the true total -- approximate/
     # approximate_reasons is the loud, always-checked signal of that (0.10.2
     # S1 fix; pre-0.10.2 this summed wrongly-guessed dollar amounts instead).
-    total_usd = sum(tc.total_usd for tc in turn_costs)
+    subagent_usd = sum(tc.total_usd for tc in subagent_turn_costs)
+    total_usd = sum(tc.total_usd for tc in turn_costs) + subagent_usd
 
     domain_of_validity = (
         f"Computed from measured tokens at per-turn, per-model rates (prices as of {price_table_date}; "
@@ -337,6 +373,9 @@ def compute_session_cost(
         ai_turn_count=ai_turn_count,
         approximate_turn_count=approximate_turn_count,
         server_tool_warnings=server_tool_warnings,
+        subagent_usd=subagent_usd,
+        subagent_turn_costs=subagent_turn_costs,
+        unpriced_models=unpriced_models,
     )
 
 

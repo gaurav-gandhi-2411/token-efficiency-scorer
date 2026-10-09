@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from tes._digest import SessionDigest, TurnDigest
+from tes.discovery import SUBAGENTS_DIRNAME, is_subagent_path
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -205,6 +206,131 @@ def _parse_server_tool_use(usage: dict[str, Any]) -> dict[str, int] | None:
     return counts or None
 
 
+def _message_dedup_key(msg: dict[str, Any]) -> str:
+    """Key identifying the API response an assistant record belongs to.
+
+    Claude Code writes one assistant record per content block (thinking / text /
+    tool_use), each repeating the response's ``usage``; streaming partials of one response
+    can also differ in ``output_tokens``. Records of one response share ``message.id``.
+    Falls back to ``requestId`` then ``uuid`` (unique, so never merged) when absent.
+    """
+    message = msg.get("message")
+    mid = message.get("id") if isinstance(message, dict) else None
+    return str(mid or msg.get("requestId") or msg.get("uuid") or id(msg))
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Parse a JSONL file, skipping blank/malformed lines (a live file may end mid-write)."""
+    out: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
+    """Roll up the usage of a session's subagent transcripts, or None if it has none.
+
+    Layout (verified on real Claude Code data): the parent ``<project>/<sid>.jsonl`` has a
+    sibling directory ``<project>/<sid>/subagents/agent-<agentId>.jsonl``; the parent's own
+    transcript records the launch (``toolUseResult.agentId``) but NOT the subagent's token
+    usage, so adding the subagent files to the parent does not double count.
+
+    Every record in a subagent file has ``isSidechain: true``, which is why the main-chain
+    adapter reads them as empty. Here each API response is counted once (records sharing a
+    ``message.id`` are merged by taking the per-field maximum, see ``_message_dedup_key``).
+
+    Returns ``{"file_count", "message_count", "real_tokens", "billed_tokens", "turns"}`` where
+    ``turns`` are one TurnDigest-shaped dict per (subagent file, model) -- cost and
+    attribution are linear in tokens, so aggregating per model loses nothing.
+    """
+    if is_subagent_path(session_path):
+        return None
+    sub_dir = session_path.with_suffix("") / SUBAGENTS_DIRNAME
+    if not sub_dir.is_dir():
+        return None
+
+    turns: list[dict[str, Any]] = []
+    file_count = 0
+    message_count = 0
+    for agent_file in sorted(sub_dir.glob("agent-*.jsonl")):
+        try:
+            records = _read_jsonl(agent_file)
+        except OSError:
+            continue
+        # message key -> (model, [input, cache_creation, cache_read, output], server_tool_use)
+        per_message: dict[str, tuple[str, list[int], dict[str, int]]] = {}
+        for rec in records:
+            if rec.get("type") != "assistant":
+                continue
+            message = rec.get("message")
+            if not isinstance(message, dict):
+                continue
+            usage = message.get("usage")
+            if not isinstance(usage, dict):
+                continue
+            counts = list(_parse_usage(usage))
+            stu = _parse_server_tool_use(usage) or {}
+            key = _message_dedup_key(rec)
+            if key in per_message:
+                model, prev, prev_stu = per_message[key]
+                counts = [max(a, b) for a, b in zip(prev, counts, strict=True)]
+                stu = {k: max(prev_stu.get(k, 0), stu.get(k, 0)) for k in {*prev_stu, *stu}}
+                per_message[key] = (model or str(message.get("model", "")), counts, stu)
+            else:
+                per_message[key] = (str(message.get("model", "")), counts, stu)
+
+        by_model: dict[str, list[int]] = {}
+        stu_by_model: dict[str, dict[str, int]] = {}
+        for model, counts, stu in per_message.values():
+            if not any(counts):
+                continue  # zero-usage records (e.g. synthetic client-side messages)
+            acc = by_model.setdefault(model, [0, 0, 0, 0])
+            for i, c in enumerate(counts):
+                acc[i] += c
+            message_count += 1
+            tot = stu_by_model.setdefault(model, {})
+            for k, v in stu.items():
+                tot[k] = tot.get(k, 0) + v
+        if not by_model:
+            continue
+        file_count += 1
+        for model, (inp, cache_cr, cache_rd, out) in sorted(by_model.items()):
+            turns.append(
+                {
+                    "role": "ai",
+                    "tool_names": [],
+                    "content_snippet": "",
+                    "token_count_input": inp + cache_cr + cache_rd,
+                    "token_count_output": out,
+                    "cache_read": cache_rd,
+                    "h2_duplicate": False,
+                    "cache_creation": cache_cr,
+                    "model": model,
+                    "server_tool_use": stu_by_model.get(model) or None,
+                }
+            )
+
+    if not turns:
+        return None
+    billed = sum(t["token_count_input"] + t["token_count_output"] for t in turns)
+    real = sum(t["token_count_input"] - t["cache_read"] + t["token_count_output"] for t in turns)
+    return {
+        "file_count": file_count,
+        "message_count": message_count,
+        "real_tokens": real,
+        "billed_tokens": billed,
+        "turns": turns,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -373,6 +499,14 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     cache_hit_rate: float = sum_cache_read / max(1, total_billed)
     turn_count: int = len(turns)
 
+    # Subagent spend: kept OUT of `turns` (waste detectors, judge text and the verdict's
+    # real_tokens stay main-chain only) and carried on the digest for cost/attribution.
+    subagent = collect_subagent_usage(session_path)
+    subagent_turns: list[TurnDigest] = []
+    if subagent is not None:
+        for i, t in enumerate(subagent["turns"]):
+            subagent_turns.append(TurnDigest(turn_index=turn_count + i, **t))
+
     digest = SessionDigest(
         session_id=session_id,
         domain="unknown",
@@ -385,6 +519,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         output_tokens_available=True,
         task_description=task_description,
         turns=turns,
+        subagent_turns=subagent_turns,
+        subagent_count=subagent["file_count"] if subagent else 0,
     )
 
     return {
@@ -403,7 +539,12 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         "token_economy_available": False,
         "domain_inferred": "fallback_unknown",
         "edit_operations": edit_operations,
+        "subagent_usage": (
+            {k: v for k, v in subagent.items() if k != "turns"}
+            if subagent
+            else {"file_count": 0, "message_count": 0, "real_tokens": 0, "billed_tokens": 0}
+        ),
     }
 
 
-__all__ = ["adapt_session"]
+__all__ = ["adapt_session", "collect_subagent_usage"]

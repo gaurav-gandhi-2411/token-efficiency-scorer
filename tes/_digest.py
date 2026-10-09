@@ -21,7 +21,7 @@ wheel does not depend on the repo's src/ tree.
 These are internal to the tes package — not part of the public API.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -63,6 +63,13 @@ class SessionDigest:
     output_tokens_available: bool  # True when per-turn output tokens are recorded
     task_description: str  # first user turn content, first 800 chars
     turns: list[TurnDigest]  # all turns, ordered by turn_index
+    # Subagent usage rolled up into this (parent) session: one AI-role TurnDigest per
+    # (subagent file, model). Deliberately NOT part of `turns` -- waste detection, the judge
+    # text and the real_tokens verdict stay main-chain; tes.cost and tes.attribution add
+    # these on top. Empty for sessions without subagents and for records stored before
+    # this field existed.
+    subagent_turns: list[TurnDigest] = field(default_factory=list)
+    subagent_count: int = 0  # number of subagent transcripts that contributed usage
 
 
 def reconstruct_digest(d: dict) -> SessionDigest:
@@ -72,9 +79,10 @@ def reconstruct_digest(d: dict) -> SessionDigest:
     defaulting the field to False when absent (safe: swe_agent sessions lack it).
     """
     turns = [TurnDigest(**t) for t in d["turns"]]
-    fields = {k: v for k, v in d.items() if k != "turns"}
+    subagent_turns = [TurnDigest(**t) for t in d.get("subagent_turns", [])]
+    fields = {k: v for k, v in d.items() if k not in ("turns", "subagent_turns")}
     fields.setdefault("output_tokens_available", False)
-    return SessionDigest(**fields, turns=turns)
+    return SessionDigest(**fields, turns=turns, subagent_turns=subagent_turns)
 
 
 def digest_to_text(digest: SessionDigest) -> str:
