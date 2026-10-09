@@ -14,6 +14,11 @@ tagged internally but never published to PyPI. `0.9.0` is built, tested, and com
 **deliberately not published** — see its entry for why (corpus stays dormant). `0.14.0` is the
 **current published release**.
 
+`0.12.3`, `0.12.4` and `0.13.0` are **yanked** on PyPI (reason: "ImportError on Python 3.10 (datetime.UTC); fixed in
+0.14.0"): they do not import on Python 3.10 and are fixed in `0.14.0`. A yank hides a version from unpinned and range
+installs (`pip install tracegauge`, `tracegauge<0.14`) but not from an exact pin: `pip install tracegauge==0.13.0`
+still installs, with pip's yanked-release warning. Checked against the real index on 2026-10-09.
+
 ## [Unreleased]
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
