@@ -250,3 +250,42 @@ def test_legacy_digest_dict_without_subagent_fields_still_loads() -> None:
     digest = reconstruct_digest(legacy)
     assert digest.subagent_turns == []
     assert digest.subagent_count == 0
+
+
+def test_cli_score_shows_subagent_breakdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import tes.cli as cli
+
+    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    parent = _make_session(tmp_path)
+    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge"])
+    cli.main()
+    human = capsys.readouterr().out
+    assert "Includes 2 subagent transcript(s)" in human
+
+    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge", "--json"])
+    cli.main()
+    out = capsys.readouterr().out
+    data = json.loads(out[out.index("{") :])
+    assert data["subagent_count"] == 2
+    assert data["subagent_tokens"] > 0
+    assert data["subagent_cost_usd"] > 0
+    assert data["session_cost_usd"] > data["subagent_cost_usd"]  # total includes the split
+    assert data["real_tokens_incl_subagents"] == data["real_tokens"] + data["subagent_tokens"]
+
+
+def test_explicit_subagent_file_scores_without_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An explicit path to a subagent transcript still works (it just has no main chain)."""
+    import tes.cli as cli
+
+    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    agent = _make_session(tmp_path).with_suffix("") / "subagents" / "agent-aaa.jsonl"
+    monkeypatch.setattr("sys.argv", ["tes", "score", str(agent), "--no-judge", "--json"])
+    cli.main()
+    out = capsys.readouterr().out
+    data = json.loads(out[out.index("{") :])
+    assert data["session_id"] == "agent-aaa"
+    assert data["subagent_count"] == 0  # a subagent file is never rolled up into itself
