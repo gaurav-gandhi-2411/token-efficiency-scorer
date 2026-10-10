@@ -210,6 +210,9 @@ class ImpactReport:
     untested_tool_shape_operations: int  # ops from MultiEdit/NotebookEdit specifically
     top_files: list[FileChurn]
     top_directories: list[FileChurn]
+    # Rows the caller left out because they predate the current accounting (tes.legacy). Not the
+    # same as sessions_legacy (no edit_operations column); the caller filters, this only carries.
+    legacy_rows_excluded: int = 0
 
     @property
     def prior_content_unknown_pct(self) -> float | None:
@@ -234,14 +237,17 @@ def _directory_of(path: str) -> str:
     return normalized[:idx] if idx > 0 else "."
 
 
-def compute_impact_report(rows: list[dict[str, Any]], top_n: int = 10) -> ImpactReport:
+def compute_impact_report(
+    rows: list[dict[str, Any]], top_n: int = 10, legacy_rows_excluded: int = 0
+) -> ImpactReport:
     """Aggregate persisted edit_operations across session rows (from
     tes.store.list_sessions) into a corpus-wide report.
 
     ``rows`` entries need only an ``edit_operations`` key (the raw
     JSON-or-None column value) -- this function does not touch the
     database or any source file, so it works identically whether the rows
-    came from the real store or an isolated scratch one.
+    came from the real store or an isolated scratch one. ``legacy_rows_excluded`` is carried onto
+    the report: filtering legacy rows out (``tes.legacy.partition_legacy``) is the caller's job.
     """
     sessions_with_data = 0
     sessions_legacy = 0
@@ -326,6 +332,7 @@ def compute_impact_report(rows: list[dict[str, Any]], top_n: int = 10) -> Impact
         untested_tool_shape_operations=untested_tool_shape_operations,
         top_files=top_files,
         top_directories=top_directories,
+        legacy_rows_excluded=legacy_rows_excluded,
     )
 
 

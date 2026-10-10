@@ -37,6 +37,7 @@ from typing import Any
 import httpx
 
 from tes.intelligence.cache import format_intelligence_summary, get_or_compute_intelligence
+from tes.legacy import LEGACY_ROW_LABEL
 from tes.web.cost_format import format_cost_display
 
 # ---------------------------------------------------------------------------
@@ -150,6 +151,7 @@ def build_chat_context(
     """
     import numpy as np
 
+    from tes.legacy import partition_legacy
     from tes.store import list_sessions, open_db, resolve_db_path
 
     resolved_db_path = resolve_db_path(db_path)
@@ -158,8 +160,12 @@ def build_chat_context(
     )
 
     conn = open_db(resolved_db_path)
-    rows = list_sessions(conn, limit=5000, offset=0)
+    all_rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
+    # Legacy rows (pre-0.15 accounting, tokens and dollars overcounted ~2x) are left out of every
+    # corpus number the model sees; they are counted, and a legacy session the user asks about by
+    # id is still described, but labelled (see _summarize_session).
+    rows, legacy_excluded = partition_legacy(all_rows)
 
     # --- Corpus-level stats (metrics only) ---
     content_rows = [r for r in rows if r.get("real_tokens", 0) > 0]
@@ -177,7 +183,9 @@ def build_chat_context(
     type_counts = Counter(r["task_type"] for r in rows)
 
     corpus_stats: dict[str, Any] = {
-        "total_sessions_in_store": len(rows),
+        "total_sessions_in_store": len(all_rows),
+        "current_sessions": len(rows),
+        "legacy_rows_excluded": legacy_excluded,
         "content_sessions": len(content_rows),
         "task_type_counts": dict(type_counts),
         "cost_usd": {
@@ -237,7 +245,10 @@ def _summarize_session(row: dict) -> dict[str, Any]:
     """
     waste_events = row.get("waste_events") or []
     waste_types = list({e.get("detector", "unknown") for e in waste_events})
+    from tes.legacy import is_legacy_row
+
     return {
+        "legacy": is_legacy_row(row),
         "session_id_prefix": row["session_id"][:8] + "...",  # partial ID only
         "task_type": row.get("task_type"),
         "scored_at": row.get("scored_at"),
@@ -272,8 +283,18 @@ def _build_user_message(context: dict[str, Any]) -> str:
     lines = [
         "=== MEASURED SESSION DATA (your context for answering) ===",
         "",
-        f"CORPUS: {corpus['total_sessions_in_store']} total sessions in store; "
+        f"CORPUS: {corpus.get('current_sessions', corpus['total_sessions_in_store'])} "
+        "current sessions; "
         f"{corpus['content_sessions']} content sessions (real_tokens > 0).",
+        *(
+            [
+                f"{corpus.get('legacy_rows_excluded', 0)} further sessions in the store are LEGACY "
+                f"({LEGACY_ROW_LABEL}; scored before 0.15). They are excluded from every number "
+                "below; do not estimate them."
+            ]
+            if corpus.get("legacy_rows_excluded")
+            else []
+        ),
         f"Task type breakdown: {corpus['task_type_counts']}",
         "",
         "COST (content sessions with cost data):",
@@ -298,6 +319,11 @@ def _build_user_message(context: dict[str, Any]) -> str:
         lines += [
             "",
             f"SPECIFIC SESSION (partial ID: {s['session_id_prefix']}*):",
+            *(
+                [f"  LEGACY SESSION ({LEGACY_ROW_LABEL}): its tokens and cost are ~2x too high."]
+                if s.get("legacy")
+                else []
+            ),
             f"  task_type: {s['task_type']}  scored: {s['scored_at']}",
             f"  real_tokens: {s['real_tokens']:,}  turn_count: {s['turn_count']}  "
             f"  cost: {_cost_label(s['session_cost_usd'], s.get('unpriced_models'))}",

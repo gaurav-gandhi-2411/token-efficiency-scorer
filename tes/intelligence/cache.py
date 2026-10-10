@@ -220,18 +220,28 @@ def get_or_compute_intelligence(
     from tes.intelligence.anomaly import detect_anomalies
     from tes.intelligence.cluster import run_clustering
     from tes.intelligence.features import build_feature_matrix
+    from tes.legacy import partition_legacy
     from tes.store import list_sessions, open_db
 
     conn = open_db(db_path)
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
 
+    # Legacy rows (pre-0.15 accounting: attribution fractions were built from overcounted usage)
+    # never enter the clustering; they are counted so every surface can say how many were left out.
+    rows, legacy_excluded = partition_legacy(rows)
     total_session_count = len(rows)
 
     # Check cache validity
     if not force_recompute:
         cached = load_cache(db_path)
-        if cached and is_cache_fresh(cached, total_session_count):
+        # A cache written before the legacy count was recorded, or when it was different (a
+        # rescore moved rows across), was built from another population: recompute.
+        if (
+            cached
+            and cached.get("legacy_rows_excluded") == legacy_excluded
+            and is_cache_fresh(cached, total_session_count)
+        ):
             if verbose:
                 print(
                     f"[intelligence] Using cached results ({cached.get('n_sessions')} sessions, "
@@ -269,6 +279,10 @@ def get_or_compute_intelligence(
                 f"({n_content} < {MIN_CONTENT_FOR_CACHE} needed). "
                 "Patterns will be available as your session corpus grows."
             )
+        if legacy_excluded:
+            from tes.legacy import excluded_note
+
+            status += " " + excluded_note(legacy_excluded, "this analysis")
         cache_dict: dict[str, Any] = {
             "valid": False,
             "reason": "not_enough_sessions",
@@ -276,6 +290,7 @@ def get_or_compute_intelligence(
             "n_content_sessions_needed": MIN_CONTENT_FOR_CACHE,
             "status": status,
             "domain_of_validity": "n/a — minimum corpus size not reached",
+            "legacy_rows_excluded": legacy_excluded,
         }
         save_cache(cache_dict, total_session_count, db_path)
         return load_cache(db_path) or cache_dict  # reload so caller sees stamps too
@@ -284,6 +299,7 @@ def get_or_compute_intelligence(
     anomalies = detect_anomalies(features, X, result)
 
     cache_dict = build_cache_from_results(result, anomalies)
+    cache_dict["legacy_rows_excluded"] = legacy_excluded
     save_cache(cache_dict, total_session_count, db_path)
 
     if verbose:

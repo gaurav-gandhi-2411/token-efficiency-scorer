@@ -220,6 +220,7 @@ def impact_payload(report: ImpactReport, top_n: int) -> dict[str, Any]:
         untested_tool_shape_pct=report.untested_tool_shape_pct,
         top_files=churn(report.top_files),
         top_directories=churn(report.top_directories),
+        legacy_rows_excluded=report.legacy_rows_excluded,
     )
 
 
@@ -294,5 +295,6 @@ def patterns_payload(cache: dict[str, Any]) -> dict[str, Any]:
         status=cache.get("status", "Pattern analysis unavailable."),
         n_sessions=cache.get("n_sessions"),
         domain_of_validity=cache.get("domain_of_validity"),
+        legacy_rows_excluded=int(cache.get("legacy_rows_excluded") or 0),
         analysis=cache if valid else None,
     )
