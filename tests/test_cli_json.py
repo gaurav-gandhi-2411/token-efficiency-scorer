@@ -310,3 +310,212 @@ def test_impact_json_shape_empty_store(
     assert doc["sessions_with_data"] == 0
     assert doc["top_files"] == []
     assert doc["prior_content_unknown_pct"] is None
+
+
+# ----------------------------------------------------------------------------- monitor
+
+MONITOR_KEYS = {
+    "schema_version",
+    "command",
+    "status",
+    "active",
+    "cc_path",
+    "source_path",
+    "session_id",
+    "task_type",
+    "live_cost_usd",
+    "priced",
+    "unpriced_models",
+    "live_context_tokens",
+    "live_resend_ratio",
+    "context_resend_dominant",
+    "ai_turn_count",
+    "domain_of_validity",
+    "alarm",
+}
+ALARM_KEYS = {"message", "resend_pct", "baseline_p75_tokens", "plan_type"}
+
+
+def _stub_monitor(monkeypatch: pytest.MonkeyPatch, live: Any, baseline: Any) -> None:
+    import tes.live_monitor as lm
+    import tes.self_baseline as sb
+
+    monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
+    monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
+    monkeypatch.setattr(sb, "load_or_compute", lambda *a, **k: baseline)
+
+
+def test_monitor_json_alarm_fired_exits_3_with_alarm_object(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_alarm_measured import _live, _self_baseline_active
+
+    _stub_monitor(monkeypatch, _live(), _self_baseline_active())
+    code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
+    doc = _doc(out)
+    assert code == 3
+    assert set(doc) == MONITOR_KEYS
+    assert doc["status"] == "ok"
+    assert doc["active"] is True
+    assert doc["priced"] is True
+    assert set(doc["alarm"]) == ALARM_KEYS
+    assert doc["alarm"]["resend_pct"] == 92
+
+
+def test_monitor_json_no_alarm_exits_0_with_null_alarm(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_alarm_measured import _live, _self_baseline_building
+
+    _stub_monitor(monkeypatch, _live(), _self_baseline_building())
+    code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
+    doc = _doc(out)
+    assert code == 0
+    assert set(doc) == MONITOR_KEYS
+    assert doc["alarm"] is None
+    assert doc["live_cost_usd"] == 8.10
+
+
+def test_monitor_json_unpriced_fields(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_alarm_measured import _live, _self_baseline_building
+
+    live = _live()
+    live.live_unpriced_models = [UNPRICED]
+    _stub_monitor(monkeypatch, live, _self_baseline_building())
+    doc = _doc(_run(monkeypatch, capsys, "monitor", "--json")[1])
+    assert doc["priced"] is False
+    assert doc["unpriced_models"] == [UNPRICED]
+
+
+def test_monitor_json_no_active_session_has_full_key_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, out, _ = _run(monkeypatch, capsys, "monitor", "--json", "--cc-path", str(tmp_path))
+    doc = _doc(out)
+    assert code == 0
+    assert set(doc) == MONITOR_KEYS
+    assert doc["status"] == "no_active_session"
+    assert doc["active"] is False
+    assert doc["alarm"] is None
+    assert doc["session_id"] is None
+
+
+def test_monitor_json_insufficient_data(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.test_alarm_measured import _self_baseline_building
+
+    _stub_monitor(monkeypatch, None, _self_baseline_building())
+    code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
+    doc = _doc(out)
+    assert code == 0
+    assert set(doc) == MONITOR_KEYS
+    assert doc["status"] == "insufficient_data"
+    assert doc["active"] is True
+    assert doc["source_path"].endswith("active.jsonl")
+
+
+# ----------------------------------------------------------------------------- patterns
+
+PATTERNS_KEYS = {
+    "schema_version",
+    "command",
+    "valid",
+    "status",
+    "n_sessions",
+    "domain_of_validity",
+    "analysis",
+}
+
+
+def test_patterns_json_not_enough_sessions(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, out, _ = _run(monkeypatch, capsys, "patterns", "--json")
+    doc = _doc(out)  # strict: no "Computing session patterns..." banner on stdout
+    assert code == 0
+    assert set(doc) == PATTERNS_KEYS
+    assert doc["valid"] is False
+    assert doc["analysis"] is None
+    assert doc["n_sessions"] == 0
+
+
+def test_patterns_json_valid_analysis_is_passed_through(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import tes.intelligence.cache as cache_mod
+
+    fake = {
+        "valid": True,
+        "k": 3,
+        "n_sessions": 40,
+        "status": "ok",
+        "domain_of_validity": "dov",
+        "archetypes": [],
+        "anomaly_count": 2,
+    }
+    monkeypatch.setattr(cache_mod, "get_or_compute_intelligence", lambda **k: fake)
+    code, out, _ = _run(monkeypatch, capsys, "patterns", "--json")
+    doc = _doc(out)
+    assert code == 0
+    assert set(doc) == PATTERNS_KEYS
+    assert doc["valid"] is True
+    assert doc["analysis"] == fake
+
+
+def test_patterns_missing_extra_prints_one_line_hint_and_exits_1(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tes.patterns_extra import PATTERNS_EXTRA_HINT, PatternsExtraMissing
+
+    def _missing() -> None:
+        raise PatternsExtraMissing(PATTERNS_EXTRA_HINT)
+
+    monkeypatch.setattr(cli, "require_patterns_extra", _missing)
+    for argv in (["patterns"], ["patterns", "--json"]):
+        code, out, err = _run(monkeypatch, capsys, *argv)
+        assert code == 1
+        assert out == ""
+        assert err.strip().count("\n") == 0  # one line
+        assert "tracegauge[patterns]" in err
+
+
+def test_require_patterns_extra_passes_when_deps_import() -> None:
+    from tes.patterns_extra import require_patterns_extra
+
+    require_patterns_extra()  # numpy, scikit-learn, scipy are installed in the test env
+
+
+def test_require_patterns_extra_raises_when_a_dep_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import importlib
+
+    from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
+
+    real = importlib.import_module
+
+    def _fake(name: str, *a: Any, **k: Any) -> Any:
+        if name == "sklearn":
+            raise ImportError("No module named 'sklearn'")
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(importlib, "import_module", _fake)
+    with pytest.raises(PatternsExtraMissing, match=r"tracegauge\[patterns\]"):
+        require_patterns_extra()
+
+
+# ----------------------------------------------------------------------------- score
+
+
+def test_score_json_carries_schema_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path / "proj" / "s.jsonl", PRICED)
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    doc = _doc(out)
+    assert list(doc)[0] == "schema_version"
+    assert doc["schema_version"] == SCHEMA_VERSION
+    assert {"priced", "unpriced_models", "lever_hint"} <= set(doc)

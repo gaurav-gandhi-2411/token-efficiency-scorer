@@ -133,6 +133,12 @@ self-baseline computation (it falls back to the 20-turn minimum).
   `tes monitor` exits 3 when the alarm fires (it exited 0). `cost`, `budget` and `impact` exit 1 when the store
   cannot be opened (they exited 0). `monitor` with no active session stays 0. Every success path is unchanged.
   All codes are in `docs/EXIT_CODES.md` and each command's `--help` epilog.
+* **`--json` on every reporting command:** `cost`, `budget`, `monitor`, `impact` and `patterns` join `score`.
+  Each document opens with `schema_version` (1) and `command`, has a fixed key set (null, never absent), puts
+  only the document on stdout (hints and errors on stderr) and carries `priced` / `unpriced_models` where USD is
+  involved. `score --json` gains `schema_version` and `lever_hint`. Keys are documented in `docs/JSON_OUTPUT.md`
+  and pinned by `tests/test_cli_json.py`. `tes patterns` now checks its dependencies through
+  `require_patterns_extra()` and prints a one-line install hint if they are missing (they are still core today).
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 
