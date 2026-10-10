@@ -21,12 +21,36 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [Unreleased]
 
-### Draft for 0.15.0 (not released; rename to `## [0.15.0]` when the version is bumped) — token and cost totals were counted once per content block (~2.4x too high)
+## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (~2.4x too high)
 
-Drafted on branch `w1a-first-run`; `pyproject.toml` still says 0.14.0 and nothing here is published. (This is a `###` block under Unreleased, not a numbered heading, because `scripts/check_release_version.py` requires the first `## [x.y.z]` heading to equal the pyproject version.) Every number
-below was measured on this branch; the commands and raw outputs are in the W1A reports, not asserted from memory.
+### BREAKING: read before upgrading
 
-#### BREAKING: `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them change
+1. **Usage is deduplicated per `message.id`, so token counts drop ~2.4x on affected sessions, and the shipped
+   bands are rebuilt.** `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them
+   change (measured: 35,895,367 -> 14,889,709 tokens, x2.41, on 10 seeded sessions; per-session factor 1.0x to
+   4.0x). The bundled `tes/data/cc_baselines.json` is a re-baseline (71 ungated sessions, `adapter_version` 2),
+   not a correction. New bands (tokens, p25 / median / p75): ml-eval n=13: 1,335,924 / 1,515,851 / 2,796,600;
+   debug-fix n=19: 397,878 / 802,486 / 3,381,684; infra-deploy n=15: 376,422 / 1,577,905 / 3,119,425;
+   research-recon n=16: 411,052 / 620,842 / 1,194,136; feature-build n=8 is inactive (below the minimum of 10)
+   and reports no band. Anything you published or stored from an earlier version is on the old scale.
+2. **numpy and scikit-learn moved to the `[patterns]` extra; the core install is flask + httpx.** `tes patterns`
+   and `tes ask` now need `pip install "tracegauge[patterns]"`; without it they print that one-line hint and
+   exit 1.
+3. **New exit codes** (see `docs/EXIT_CODES.md`): 1 = bad usage or nothing to do (no sessions found, store
+   cannot be opened), 3 = the `tes monitor` alarm fired (it exited 0 before), 4 = a session could not be read or
+   scored (`tes score` printed `[ERROR]` and exited 0 before). Scripts that treated every exit as success must
+   handle these.
+4. **Rows written by older versions are labelled legacy and excluded until `tes rescore`.** They are left out of
+   the self-baselines, the alarm pool, `budget`, `cost` totals, `impact`, `patterns`, `ask` and contribution
+   exports; nothing is deleted. `tes rescore` re-scores those whose source transcript still exists; where the
+   transcript is gone the row cannot be corrected. See `docs/UPGRADING.md`.
+
+The details, measurements and the remaining changes of this release follow.
+
+Every number
+below was measured on the release branch; the commands and raw outputs are in the W1A reports, not asserted from memory.
+
+### BREAKING: `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them change
 
 **Claude Code writes one assistant JSONL record per content block (thinking, text, each tool_use) of an API
 response, and every one of those records repeats the response's full `usage`. `tes.adapt.adapt_session` added the
@@ -105,7 +129,7 @@ self-baseline computation (it falls back to the 20-turn minimum).
   files) is on the old scale. `scripts/adapters/claudecode_adapter.py` (the frozen research adapter) still sums per
   record by design; use `tes.adapt` for any number that ships.
 
-#### Added / Fixed on the same branch (separate commits, each independently reviewable)
+### Added / Fixed on the same branch (separate commits, each independently reviewable)
 
 * **Prices:** `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-mythos-5-1`, `claude-haiku-5-5`
   added from the vendor pricing page (retrieved 2026-10-09); before this, 84,140 assistant turns in the local
