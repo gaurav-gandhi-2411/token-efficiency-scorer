@@ -31,6 +31,7 @@ from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.cost_period import PeriodCostReport
+from tes.discovery import iter_session_files
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
@@ -109,7 +110,7 @@ def _recent_sessions(cc_path: Path, limit: int | None = None) -> list[tuple[Path
     if not cc_path.exists():
         return []
     found: list[tuple[Path, float]] = []
-    for p in cc_path.rglob("*.jsonl"):
+    for p in iter_session_files(cc_path):
         try:
             found.append((p, p.stat().st_mtime))
         except OSError:

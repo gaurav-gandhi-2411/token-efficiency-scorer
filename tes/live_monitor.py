@@ -22,6 +22,7 @@ from tes.adapt import adapt_session
 from tes.attribution import compute_attribution
 from tes.classify import classify_session
 from tes.cost import compute_session_cost, load_price_table
+from tes.discovery import iter_session_files
 from tes.waste import build_waste_entry
 
 LIVE_ESTIMATE_DOV: str = (
@@ -69,7 +70,7 @@ def find_active_session(
         return None
 
     candidates: list[tuple[Path, float]] = []
-    for p in cc_path.rglob("*.jsonl"):
+    for p in iter_session_files(cc_path):
         try:
             mtime = p.stat().st_mtime
         except OSError:
