@@ -211,6 +211,17 @@ self-baseline computation (it falls back to the 20-turn minimum).
   overcounted about 2x, and the contribution builder would have written it into a file others can read. The preview
   and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports
   nothing and says why. `ContributionManifest` gains `legacy_rows_excluded` (default 0).
+- **README / PyPI page corrected where this release made it false or stale** (the published entries below are left
+  as history): the quickstart text (it now shows one REPEATED-FAILED-RETRY finding, and the
+  unmeasured "0.7s" timing is replaced by the conditions-labelled figures in `docs/INSTALL.md`), the optional
+  `tracegauge[patterns]` extra, the bundled baseline (71 ungated sessions, feature-build inactive; was "75
+  quality-gated"), the cache-read multiplier, the attribution and lever-hint examples, the `Priced coverage`
+  examples (regenerated from the 0.15.0 build), `tes budget` filtering on `source_mtime` (true since 0.12.1; the README
+  still said it was not fixed), and the alarm (p85 of recent same-era sessions, exit code 3). Dollar examples that
+  came from 0.11.0 stay as real output of that version and carry a scale caveat with the ledger's order-of-magnitude
+  values; none was re-priced or invented. `CURRENT_STATE.md`, `research/08` and `research/13` carry dated
+  supersession notes, `docs/audit/COMPETITIVE_GAP_ANALYSIS.md` an erratum, and `docs/digest_schema.md` the two
+  `usage_records` fields.
 - **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript:** `adapt_session`
   returns zero usage for an empty, garbage or truncated file instead of raising, and the default `backfill-waste`
   path (and `backfill_cost`) trusted it, replacing the row's `real_tokens`/cost with zeros and stamping it current.

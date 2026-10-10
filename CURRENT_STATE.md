@@ -5,6 +5,18 @@ coach built, held). Read this BEFORE planning. This supersedes the 0.9.0-only
 snapshot below (kept for its own record; 0.9.0's corpus stays dormant, untouched
 by this phase).
 
+> **Correction, 0.15.0 draft (2026-10-10).** This snapshot is history and is not rewritten;
+> two things in it are now wrong or stale. (1) Every token and dollar figure here that came
+> from a main-chain transcript (for example the ~$43.93 / ~2.21M-context-token live alarm and
+> the 247,339 vs. p75 447,157 tokens silence proof below) was counted once per content block of
+> each API response: about 2.4x too high in tokens and 2.26x in cost (measured; see the
+> CHANGELOG 0.15.0 draft). The originals cannot be recomputed (the transcripts and store rows
+> are gone); the corrected-numbers ledger's order-of-magnitude equivalents are about $19.4,
+> and 247,339 -> ~103k and p75 -> ~186k tokens (UNVERIFIED). (2) The live alarm described here
+> (magnitude gate = the self-baseline p75) was replaced: it now compares against the p85 of
+> your own sessions from the last 30 days in the same model era, and `tes monitor` exits 3
+> when the alarm fires (`docs/ALARM.md`, `docs/EXIT_CODES.md`).
+
 ---
 
 ## Iteration status: 0.10.0 DONE — Live Monitor & Cost Alarm (coach HELD); LIVE on PyPI

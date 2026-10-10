@@ -106,7 +106,12 @@ in `tes/patterns_extra.py` is the single check.
 ## `score`
 
 The full result (see `tes/score.py::ThreeAxisResult`), now with `schema_version` as the first key and
-`lever_hint` (a string when a data-gated cost lever fires, else `null`; the same function and
-thresholds as the dashboard's takeaway). `priced` / `unpriced_models` are as above.
+`lever_hint` (a string only when an absolute finding fires, else `null`: detected waste of at least
+$0.50, or at least 10% of cost and $0.05, or output at 40% of cost or more; "context dominates" is never
+one) and `cost_breakdown` (additive, informational, `null` when attribution was unavailable):
+`{label, total_usd, priced, unpriced_models, buckets, note}` where `buckets` is the five entries
+`context_resend`, `context_growth`, `output`, `fresh_input`, `waste`, each `{key, label, usd, share_pct,
+tokens}`; `usd` sums to `total_usd` (priced turns only), `share_pct` is of that total (`null` when nothing was
+priced) and `note` says so when models are unpriced. `priced` / `unpriced_models` are as above.
 `cost_models` (additive) lists the price-table keys of the priced turns; the human cost note uses it to name
 the cache-read multiplier each model was billed at.
