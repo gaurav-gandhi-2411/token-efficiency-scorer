@@ -36,6 +36,21 @@ from tes._digest import SessionDigest, TurnDigest
 #: deliberately conservative round number). See check_price_table_staleness.
 STALE_THRESHOLD_DAYS = 90
 
+#: Model ids that Claude Code writes for client-side messages that never reached the API
+#: (e.g. "<synthetic>" stubs). They cost nothing by definition, so they are explicit zero-cost
+#: entries -- never "unknown model", never counted as unpriced. Kept in code, not prices.json,
+#: because a user-supplied price override must not be able to give them a price.
+NON_MODEL_IDS: frozenset[str] = frozenset({"<synthetic>"})
+
+#: Billing dimensions that cannot be derived from a transcript and are therefore NOT modelled.
+#: Surfaced in SessionCost.domain_of_validity so a total is never read as more exact than it is.
+UNMODELLED_BILLING = (
+    "Not modelled (not derivable from transcripts): fast mode (premium per-token rates on "
+    "supported Opus models), inference_geo data-residency uplift (1.1x on 4.6+ models), "
+    "Batch discount (0.5x) and server-tool charges such as web search; a session that used "
+    "any of these is billed differently from the total shown."
+)
+
 
 @dataclass
 class TurnCost:
@@ -66,6 +81,10 @@ class TurnCost:
     # that total_usd is missing real, known-nonzero cost. Empty string when
     # no server-side tool usage was detected on this turn.
     server_tool_warning: str = ""
+    # Non-empty iff this turn was priced with a known simplification (currently: a tiered model
+    # whose per-request prompt size is unknowable for an aggregated subagent turn, priced at
+    # the base tier -> a floor). Distinct from unpriced: the turn IS in total_usd.
+    pricing_caveat: str = ""
 
 
 @dataclass
@@ -92,6 +111,8 @@ class SessionCost:
     # Raw model ids of every turn (main or subagent) that could not be priced -- the
     # machine-readable twin of approximate_reasons. Empty iff every turn priced.
     unpriced_models: list[str] = field(default_factory=list)
+    # Distinct pricing simplifications applied to priced turns (see TurnCost.pricing_caveat).
+    pricing_caveats: list[str] = field(default_factory=list)
 
     @property
     def priced(self) -> bool:
@@ -180,6 +201,50 @@ def _resolve_model(model_str: str, prices: dict[str, Any]) -> tuple[str | None, 
     return None, True, reason
 
 
+def cache_read_multiplier(model_entry: dict[str, Any], prices: dict[str, Any]) -> float:
+    """Cache-hit price as a multiple of the model's input rate.
+
+    A model entry may carry its own ``cache_read_multiplier`` (0.05 for Opus/Sonnet 5.5, 0.025
+    for Fable/Mythos 5.1); otherwise the table-wide ``cache_multipliers.read`` (0.1) applies.
+    Entries without the field are unchanged, so older price tables keep their exact results.
+    """
+    own = model_entry.get("cache_read_multiplier")
+    if isinstance(own, int | float) and not isinstance(own, bool):
+        return float(own)
+    return float(prices["cache_multipliers"]["read"])
+
+
+def _select_rates(turn: TurnDigest, entry: dict[str, Any]) -> tuple[float, float, str]:
+    """Return ``(input_rate, output_rate, pricing_caveat)`` for ``turn``.
+
+    Honours an optional ``long_context`` tier (``threshold_prompt_tokens`` plus its own
+    input/output rates): the tier is chosen per API request by prompt size (input + cache
+    reads + cache writes = ``token_count_input``). A main-chain turn is one request, so it is
+    exact. An aggregated subagent turn (``request_count`` > 1) sums many requests, so the tier
+    is only knowable when even the summed prompt is within the threshold; otherwise the base
+    rate is used and the caveat says the figure is a floor.
+    """
+    input_rate = float(entry["input_usd_per_mtok"])
+    output_rate = float(entry["output_usd_per_mtok"])
+    tier = entry.get("long_context")
+    if not isinstance(tier, dict):
+        return input_rate, output_rate, ""
+    threshold = int(tier["threshold_prompt_tokens"])
+    if turn.request_count <= 1:
+        if turn.token_count_input > threshold:
+            return float(tier["input_usd_per_mtok"]), float(tier["output_usd_per_mtok"]), ""
+        return input_rate, output_rate, ""
+    if turn.token_count_input <= threshold:
+        return input_rate, output_rate, ""
+    caveat = (
+        f"{turn.model}: aggregated subagent usage ({turn.request_count} requests, "
+        f"{turn.token_count_input} prompt tokens) priced at the base tier because the "
+        f"per-request prompt size (>{threshold} tokens bills at the long-context rate) is "
+        "not recoverable from the aggregate; this part of the total is a floor."
+    )
+    return input_rate, output_rate, caveat
+
+
 def _server_tool_warning(turn: TurnDigest) -> str:
     """Return a non-empty warning iff ``turn`` carries detected server-side
     tool usage (e.g. Claude's web_search server tool, billed at $10/1,000
@@ -228,8 +293,24 @@ def compute_turn_cost(
     whether the model itself resolved — the model resolving doesn't mean the
     turn's total is complete.
     """
-    model_key, is_approximate, approximate_reason = _resolve_model(turn.model, prices)
     server_tool_warning = _server_tool_warning(turn)
+    if turn.model.strip() in NON_MODEL_IDS:
+        # Not a billed API response: an explicit zero, priced=True so it is never "unpriced".
+        return TurnCost(
+            turn_index=turn.turn_index,
+            model_key=turn.model.strip(),
+            is_approximate=False,
+            approximate_reason="",
+            fresh_tokens=0,
+            fresh_cost=0.0,
+            cache_read_cost=0.0,
+            cache_creation_cost=0.0,
+            output_cost=0.0,
+            total_usd=0.0,
+            priced=True,
+            server_tool_warning=server_tool_warning,
+        )
+    model_key, is_approximate, approximate_reason = _resolve_model(turn.model, prices)
 
     if model_key is None:
         # Cost genuinely unknown for this turn -- never substitute the
@@ -249,16 +330,17 @@ def compute_turn_cost(
             server_tool_warning=server_tool_warning,
         )
 
-    input_rate: float = prices["models"][model_key]["input_usd_per_mtok"]
-    output_rate: float = prices["models"][model_key]["output_usd_per_mtok"]
+    entry: dict[str, Any] = prices["models"][model_key]
+    input_rate, output_rate, pricing_caveat = _select_rates(turn, entry)
     cache_mult: dict[str, float] = prices["cache_multipliers"]
+    read_mult = cache_read_multiplier(entry, prices)
 
     write_mult = cache_mult["write_1hr"] if cache_duration == "1hr" else cache_mult["write_5min"]
 
     fresh_tokens = max(0, turn.token_count_input - turn.cache_read - turn.cache_creation)
 
     fresh_cost = fresh_tokens * input_rate / 1_000_000
-    cache_read_cost = turn.cache_read * (input_rate * cache_mult["read"]) / 1_000_000
+    cache_read_cost = turn.cache_read * (input_rate * read_mult) / 1_000_000
     cache_creation_cost = turn.cache_creation * (input_rate * write_mult) / 1_000_000
     output_cost = turn.token_count_output * output_rate / 1_000_000
     total = fresh_cost + cache_read_cost + cache_creation_cost + output_cost
@@ -276,6 +358,7 @@ def compute_turn_cost(
         total_usd=total,
         priced=True,
         server_tool_warning=server_tool_warning,
+        pricing_caveat=pricing_caveat,
     )
 
 
@@ -328,8 +411,9 @@ def compute_session_cost(
     server_tool_warnings = list(
         {tc.server_tool_warning for tc in all_turn_costs if tc.server_tool_warning}
     )
-    # A zero-token turn (e.g. Claude Code's "<synthetic>" client-side messages) costs nothing
-    # whatever its model, so it must not make a session look unpriced.
+    pricing_caveats = sorted({tc.pricing_caveat for tc in all_turn_costs if tc.pricing_caveat})
+    # A zero-token turn costs nothing whatever its model id, so it must not make a session
+    # look unpriced ("<synthetic>" is additionally an explicit zero in compute_turn_cost).
     ai_turns = [t for t in digest.turns if t.role == "ai"] + list(digest.subagent_turns)
     unpriced_models = sorted(
         {
@@ -351,7 +435,9 @@ def compute_session_cost(
     domain_of_validity = (
         f"Computed from measured tokens at per-turn, per-model rates (prices as of {price_table_date}; "
         "bundled — override with TES_PRICE_TABLE env var or ~/.tes/prices.json). "
-        "Cache creation defaults to 5-min rate (1.25x input); cache read at 0.1x input. "
+        "Cache creation defaults to 5-min rate (1.25x input); cache read at 0.1x input unless "
+        "the model has its own cache_read_multiplier (0.05x Opus/Sonnet 5.5, 0.025x Fable/"
+        "Mythos 5.1). "
         "Output at full rate. A turn whose model string does not resolve against the "
         "price table is EXCLUDED from total_usd (never priced at a guessed/default "
         "rate, as of 0.10.2) — session flagged approximate when >"
@@ -359,6 +445,7 @@ def compute_session_cost(
         "are unresolved this way; see approximate_reasons for the specific model(s) "
         "and remedy. Server-side tool usage (e.g. web search) detected but not priced "
         "is flagged separately in server_tool_warnings, regardless of approximate. "
+        f"{UNMODELLED_BILLING} "
         "API-equivalent token cost; flat-plan users' marginal cost differs. "
         "Cost annotates the token axis — not a score, not part of a composite."
     )
@@ -376,6 +463,7 @@ def compute_session_cost(
         subagent_usd=subagent_usd,
         subagent_turn_costs=subagent_turn_costs,
         unpriced_models=unpriced_models,
+        pricing_caveats=pricing_caveats,
     )
 
 
@@ -436,6 +524,9 @@ def check_price_table_staleness(
 
 
 __all__ = [
+    "NON_MODEL_IDS",
+    "UNMODELLED_BILLING",
+    "cache_read_multiplier",
     "TurnCost",
     "SessionCost",
     "STALE_THRESHOLD_DAYS",

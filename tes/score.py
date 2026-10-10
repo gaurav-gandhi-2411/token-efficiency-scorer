@@ -168,6 +168,10 @@ class ThreeAxisResult:
     # (e.g. web search) detected but not reflected in session_cost_usd. Empty
     # list when none detected. See tes.cost.SessionCost.server_tool_warnings.
     cost_server_tool_warnings: list[str] = field(default_factory=list)
+    # Pricing simplifications applied to turns that ARE in session_cost_usd (e.g. a tiered
+    # model's long-context tier not recoverable from an aggregated subagent turn).
+    # See tes.cost.SessionCost.pricing_caveats.
+    cost_pricing_caveats: list[str] = field(default_factory=list)
 
     # --- attribution fractions (RR1: persisted at score time so tes.intelligence
     # can cluster ANY scored session regardless of whether its source JSONL is
@@ -487,6 +491,7 @@ def score_session(
     cost_approx = session_cost.approximate if session_cost else False
     cost_dov = session_cost.domain_of_validity if session_cost else ""
     cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
+    cost_pricing_caveats = session_cost.pricing_caveats if session_cost else []
 
     # XX1.3: pull the raw unresolved model name(s) out of
     # approximate_reasons (e.g. "unknown model 'foo-bar-2026' — cost
@@ -569,6 +574,7 @@ def score_session(
         cost_approximate=cost_approx,
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
+        cost_pricing_caveats=cost_pricing_caveats,
         cost_unpriced_models=cost_unpriced_models,
         priced=session_cost is not None and not unpriced_models_list,
         unpriced_models=unpriced_models_list,

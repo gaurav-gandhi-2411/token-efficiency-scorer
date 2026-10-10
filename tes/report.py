@@ -187,6 +187,8 @@ def format_human(
             )
         for warning in result.cost_server_tool_warnings:
             lines.append(f"         [NOT PRICED: {warning}]")
+        for caveat in result.cost_pricing_caveats:
+            lines.append(f"         [FLOOR: {caveat}]")
 
     lines.append("")
     lines.append(

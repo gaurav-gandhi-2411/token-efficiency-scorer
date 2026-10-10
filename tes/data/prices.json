@@ -1,101 +1,152 @@
 {
-  "as_of": "2026-08-15",
+  "as_of": "2026-10-09",
   "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
-  "note": "Per-million-token USD rates. Cache multipliers are relative to each model's input rate. Every active (non-retired) entry below was re-verified live against source_url on 2026-08-15 (Phase 6 T1 fix for the S1 audit finding that claude-opus-5/claude-sonnet-5 were missing and silently fell through to a stale default-model rate — see CHANGELOG.md 0.10.2). Each model entry carries its own 'as_of'/'source_url' for the staleness guard (tes/cost.py's check_price_table_staleness, ported from adk-tracegauge's STALE_THRESHOLD_DAYS concept) — an entry without its own 'as_of' inherits the table-level date above. Retired models (marked 'retired': true) are exempt from the staleness guard: Anthropic no longer changes pricing for a retired model, so 'is this stale' doesn't apply — they're kept only to price historical sessions recorded before retirement, and their rates are the last-published figures at time of retirement, not re-verified against a live page that no longer lists them.",
+  "note": "Per-million-token USD rates. Cache multipliers are relative to each model's input rate. Every active (non-retired) entry below was re-verified on 2026-10-09 against source_url's markdown export (input, output, 5m/1h cache write and cache-hit columns, via scripts/check_price_table_vs_vendor.py; per-model cache_read_multiplier = the page's 0.05x / 0.025x footnotes; long_context = Haiku 5.5's >100k-prompt tier), after an earlier pass on 2026-08-15 (Phase 6 T1 fix for the S1 audit finding that claude-opus-5/claude-sonnet-5 were missing and silently fell through to a stale default-model rate — see CHANGELOG.md 0.10.2). Each model entry carries its own 'as_of'/'source_url' for the staleness guard (tes/cost.py's check_price_table_staleness, ported from adk-tracegauge's STALE_THRESHOLD_DAYS concept) — an entry without its own 'as_of' inherits the table-level date above. Retired models (marked 'retired': true) are exempt from the staleness guard: Anthropic no longer changes pricing for a retired model, so 'is this stale' doesn't apply — they're kept only to price historical sessions recorded before retirement, and their rates are the last-published figures at time of retirement, not re-verified against a live page that no longer lists them.",
   "cache_multipliers": {
     "read": 0.1,
     "write_5min": 1.25,
     "write_1hr": 2.0
   },
   "models": {
+    "claude-fable-5-1": {
+      "input_usd_per_mtok": 10.0,
+      "output_usd_per_mtok": 50.0,
+      "cache_read_multiplier": 0.025,
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09. Cache hits are 0.025x base input ($0.25/MTok), not the table-wide 0.1x (page footnote 1)."
+    },
+    "claude-mythos-5-1": {
+      "input_usd_per_mtok": 10.0,
+      "output_usd_per_mtok": 50.0,
+      "cache_read_multiplier": 0.025,
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09. Limited availability. Cache hits are 0.025x base input ($0.25/MTok), not the table-wide 0.1x (page footnote 1)."
+    },
+    "claude-opus-5-5": {
+      "input_usd_per_mtok": 4.0,
+      "output_usd_per_mtok": 20.0,
+      "cache_read_multiplier": 0.05,
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09. Cache hits are 0.05x base input ($0.20/MTok), not the table-wide 0.1x (page footnote 2). Fast mode ($8/$40) is not modelled: it cannot be derived from a transcript's model id."
+    },
+    "claude-sonnet-5-5": {
+      "input_usd_per_mtok": 2.0,
+      "output_usd_per_mtok": 10.0,
+      "cache_read_multiplier": 0.05,
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09. Cache hits are 0.05x base input ($0.10/MTok), not the table-wide 0.1x (page footnote 2)."
+    },
+    "claude-haiku-5-5": {
+      "input_usd_per_mtok": 0.10,
+      "output_usd_per_mtok": 0.50,
+      "long_context": {
+        "threshold_prompt_tokens": 100000,
+        "input_usd_per_mtok": 0.50,
+        "output_usd_per_mtok": 2.50
+      },
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09. Tiered per request: prompts over 100,000 tokens (input + cache reads + cache writes) are billed at the long_context rates; cache multipliers are unchanged (0.1x read, 1.25x/2x write)."
+    },
     "claude-fable-5": {
       "input_usd_per_mtok": 10.0,
       "output_usd_per_mtok": 50.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Added 2026-08-15 (0.10.2, S1 fix). Anthropic's most capable widely released model. Cache-hit rate $1.00/Mtok = exactly 0.1x base input."
     },
     "claude-mythos-5": {
       "input_usd_per_mtok": 10.0,
       "output_usd_per_mtok": 50.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Added 2026-08-15 (0.10.2, S1 fix). Same capabilities/pricing as claude-fable-5; limited availability (Project Glasswing). Cache-hit rate $1.00/Mtok = exactly 0.1x base input."
     },
     "claude-opus-5": {
       "input_usd_per_mtok": 5.0,
       "output_usd_per_mtok": 25.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Added 2026-08-15 (0.10.2, S1 fix) — this is the S1 audit's mainline finding: this model was previously MISSING from the table entirely and fell through to the claude-sonnet-4-6 default rate ($3/$15), undercharging every real Opus-5 call to ~60% of true cost. Current Claude flagship for complex agentic/coding work. Cache-hit rate $0.50/Mtok = exactly 0.1x base input."
     },
     "claude-sonnet-5": {
       "input_usd_per_mtok": 2.0,
       "output_usd_per_mtok": 10.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Added 2026-08-15 (0.10.2, S1 fix) — the S1 audit's mainline finding: this model was previously MISSING from the table entirely and fell through to the claude-sonnet-4-6 default rate ($3/$15), overcharging every real Sonnet-5 call by 50%. $2/$10 was announced as introductory pricing through 2026-08-31 with a scheduled increase to $3/$15 on 2026-09-01 — platform.claude.com's own dated note (id claude-sonnet-5-introductory-pricing), re-fetched 2026-08-15, states that increase 'will not occur' and $2/$10 'is now the standard price'. Deliberately no promo_until/standard_rate fields: this is a settled standard rate, not an active promo, despite the historical 'introductory pricing' language. The 90-day staleness guard still forces a routine re-check regardless. Cache-hit rate $0.20/Mtok = exactly 0.1x base input."
     },
     "claude-opus-4-8": {
       "input_usd_per_mtok": 5.0,
       "output_usd_per_mtok": 25.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged. Cache-hit rate $0.50/Mtok = exactly 0.1x base input."
     },
     "claude-opus-4-7": {
       "input_usd_per_mtok": 5.0,
       "output_usd_per_mtok": 25.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged."
     },
     "claude-opus-4-6": {
       "input_usd_per_mtok": 5.0,
       "output_usd_per_mtok": 25.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged."
     },
     "claude-opus-4-5": {
       "input_usd_per_mtok": 5.0,
       "output_usd_per_mtok": 25.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged."
     },
     "claude-opus-4-1": {
       "input_usd_per_mtok": 15.0,
       "output_usd_per_mtok": 75.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged. Retired except on Bedrock/Google Cloud, but still listed with active pricing on the current page (not marked 'retired' here since it's still resolvable and priced)."
     },
     "claude-opus-4": {
       "input_usd_per_mtok": 15.0,
       "output_usd_per_mtok": 75.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged. Retired except on Google Cloud, but still listed with active pricing on the current page."
     },
     "claude-sonnet-4-6": {
       "input_usd_per_mtok": 3.0,
       "output_usd_per_mtok": 15.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged. NOTE: this entry is no longer used as a silent fallback for unresolved model strings (0.10.2 fix, S1) — it is priced only when a turn's own model string actually resolves to it."
     },
     "claude-sonnet-4-5": {
       "input_usd_per_mtok": 3.0,
       "output_usd_per_mtok": 15.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged."
+    },
+    "claude-sonnet-4": {
+      "input_usd_per_mtok": 3.0,
+      "output_usd_per_mtok": 15.0,
+      "as_of": "2026-10-09",
+      "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "note": "Added 2026-10-09 as an explicit entry (previously resolved to claude-sonnet-4-5 by prefix, same rate). Retired except on Bedrock/Google Cloud but still listed with pricing on the page."
     },
     "claude-haiku-4-5": {
       "input_usd_per_mtok": 1.0,
       "output_usd_per_mtok": 5.0,
-      "as_of": "2026-08-15",
+      "as_of": "2026-10-09",
       "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
       "note": "Re-verified 2026-08-15, unchanged."
     },

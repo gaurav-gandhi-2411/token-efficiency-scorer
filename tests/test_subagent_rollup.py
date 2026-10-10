@@ -289,3 +289,11 @@ def test_explicit_subagent_file_scores_without_crashing(
     data = json.loads(out[out.index("{") :])
     assert data["session_id"] == "agent-aaa"
     assert data["subagent_count"] == 0  # a subagent file is never rolled up into itself
+
+
+def test_aggregated_turn_records_how_many_requests_it_stands_for(tmp_path: Path) -> None:
+    # Tiered models bill per request, so cost needs the count the aggregate would hide:
+    # agent aaa made 2 distinct responses (s1 split over 3 records, s2 over 2), agent bbb made 1.
+    usage = collect_subagent_usage(_make_session(tmp_path))
+    assert usage is not None
+    assert sorted(t["request_count"] for t in usage["turns"]) == [1, 2]
