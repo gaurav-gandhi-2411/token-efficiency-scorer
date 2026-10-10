@@ -28,6 +28,15 @@ below was measured on this branch; the commands and raw outputs are in the W1A r
 
 #### Added / Fixed on the same branch (separate commits, each independently reviewable)
 
+* **Prices:** `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-mythos-5-1`, `claude-haiku-5-5`
+  added from the vendor pricing page (retrieved 2026-10-09); before this, 84,140 assistant turns in the local
+  transcripts were unpriced and counted as $0. Optional per-model `cache_read_multiplier` (0.05x Opus/Sonnet 5.5,
+  0.025x Fable/Mythos 5.1; 0.1x elsewhere), Haiku 5.5 long-context tier, `<synthetic>` as an explicit zero-cost
+  non-model, and `claude-sonnet-4` as its own entry. The 13 legacy entries were re-verified and are unchanged. CI now
+  derives the model list and the cache columns from the vendor page (the previous check never looked at either, which
+  is why it passed while five models were missing), fails when a model id seen in real transcripts has no price, and
+  runs an advisory LiteLLM cross-check. Not modelled and stated in the domain of validity: fast mode, `inference_geo`
+  uplift, Batch discount, server tools.
 * **Subagent roll-up:** subagent transcripts (`<session>/subagents/agent-*.jsonl`, every record `isSidechain: true`)
   are no longer scored as separate empty sessions (they scored 0 tokens / UNAVAILABLE and were picked by `tes score`,
   `--pick`, the watcher and the live monitor because they were the newest file); their usage is rolled into the
