@@ -39,9 +39,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 TOKEN_DOMAIN_OF_VALIDITY: str = (
-    "Calibrated to a high-waste infra/ML-ops corpus (1 developer, 75 quality-gated "
-    "sessions; B2 report). Scope-gated by per-task-type p10 turn floor. Verdict is "
-    "relative to quality-certified sessions of the same task type. "
+    "Calibrated to a high-waste infra/ML-ops corpus (1 developer, ungated sessions, "
+    "usage counted once per API response; eval/manifest.json). Scope-gated by "
+    "per-task-type p10 turn floor. Verdict is relative to the typical sessions of "
+    "this one developer for the same task type, not to quality-certified runs. "
     "Baseline reflects high-intensity infra work (corpus characterization: report 11); "
     "ordinary coding sessions may read below-band without being inefficient — "
     "interpret with the trajectory verdict. "

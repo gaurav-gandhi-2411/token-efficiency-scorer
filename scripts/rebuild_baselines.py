@@ -354,7 +354,9 @@ def _read_eval_ids(selection_path: Path, key: str) -> set[str]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    # newline="\n": write_text would translate "\n" to CRLF on Windows, so the same payload hashed
+    # differently per platform (the shipped cc_baselines.json is LF in git).
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str] | None = None) -> int:
