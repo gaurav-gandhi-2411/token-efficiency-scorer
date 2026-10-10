@@ -21,6 +21,19 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [Unreleased]
 
+### Draft for 0.15.0 (not released; rename to `## [0.15.0]` when the version is bumped) — token and cost totals were counted once per content block (~2.4x too high)
+
+Drafted on branch `w1a-first-run`; `pyproject.toml` still says 0.14.0 and nothing here is published. (This is a `###` block under Unreleased, not a numbered heading, because `scripts/check_release_version.py` requires the first `## [x.y.z]` heading to equal the pyproject version.) Every number
+below was measured on this branch; the commands and raw outputs are in the W1A reports, not asserted from memory.
+
+#### Added / Fixed on the same branch (separate commits, each independently reviewable)
+
+* **Subagent roll-up:** subagent transcripts (`<session>/subagents/agent-*.jsonl`, every record `isSidechain: true`)
+  are no longer scored as separate empty sessions (they scored 0 tokens / UNAVAILABLE and were picked by `tes score`,
+  `--pick`, the watcher and the live monitor because they were the newest file); their usage is rolled into the
+  parent session's cost and attribution (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`), while
+  `real_tokens` and waste detection stay main-chain so the verdict axis is unchanged by it.
+
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 
 ### Fixed
