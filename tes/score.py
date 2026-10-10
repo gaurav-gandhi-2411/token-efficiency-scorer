@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 from tes.baselines import compute_real_tokens, load_baselines
 from tes.classify import classify_session
+from tes.web.cost_format import cost_is_known
 
 if TYPE_CHECKING:
     from tes.attribution import AttributionResult
@@ -194,6 +195,10 @@ class ThreeAxisResult:
     # cost_approximate only trips past a >25% unresolved-turn threshold, `priced` on any). ---
     priced: bool = False
     unpriced_models: list[str] = field(default_factory=list)
+    # False when session_cost_usd is a placeholder 0.0 / null rather than a measurement (no turn
+    # could be priced). Additive JSON key; session_cost_usd itself stays numeric (see
+    # docs/JSON_OUTPUT.md).
+    cost_known: bool = False
 
     # --- subagent roll-up (W1A D6). session_cost_usd and the attribution fractions already
     # INCLUDE subagent usage; these expose the split. subagent_tokens is in real_tokens units
@@ -595,6 +600,7 @@ def score_session(
         cost_unpriced_models=cost_unpriced_models,
         priced=session_cost is not None and not unpriced_models_list,
         unpriced_models=unpriced_models_list,
+        cost_known=cost_is_known(cost_usd, unpriced_models_list),
         subagent_tokens=subagent_tokens,
         subagent_cost_usd=session_cost.subagent_usd if session_cost else None,
         subagent_count=subagent_count,

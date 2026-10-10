@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tes.score import ThreeAxisResult
+from tes.web.cost_format import cost_is_known
 
 if TYPE_CHECKING:
     from tes._digest import SessionDigest
@@ -833,6 +834,7 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
     # W1A D7: machine-readable pricing status derived from the persisted unpriced model ids.
     d["unpriced_models"] = [m for m in (d.get("cost_unpriced_models") or "").split(",") if m]
     d["priced"] = d.get("session_cost_usd") is not None and not d["unpriced_models"]
+    d["cost_known"] = cost_is_known(d.get("session_cost_usd"), d["unpriced_models"])
     return d
 
 
