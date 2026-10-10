@@ -21,7 +21,8 @@ open the store at the same moment.
 | `budget` | excluded from the pace and projection. `--json` carries `legacy_rows_excluded` (legacy sessions with a cost in the window); text says how many were left out. If every session in the window is legacy there is no projection, not a legacy one. |
 | `cost` (periods, per-project, coverage) | excluded from `total_usd`, `session_count`, `by_project` and token coverage. They appear once, on a separate line labelled `legacy (pre-0.15 accounting, overcounted ~2x)`, never added to the corrected total. `--json`: `legacy_rows_excluded` and a `legacy` object `{label, session_count, total_usd, included_in_total_usd: false}`. |
 | `cost --roi` | built on the corrected total only, so the multiple is a floor; it says so when legacy rows were excluded. |
-| `impact`, `patterns`, `ask`, dashboard session list, `export-contribution` | **not filtered in this release.** They read per-session fields (edit operations, attribution fractions, the list itself) and still show legacy rows with their original numbers. |
+| `export-contribution` (and `tes corpus contribute`, which uses the same builder) | **excluded.** A legacy row would write an overcounted `real_tokens` into a file others may read. The preview and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports nothing and says so. |
+| `impact`, `patterns`, `ask`, dashboard session list | **not filtered in this release** (re-checked against the code: none of them calls the legacy predicate). They read per-session fields (edit operations, attribution fractions, the list itself) and still show legacy rows with their original numbers. |
 
 Only `schema_version` 1 keys were added; none were removed or renamed.
 

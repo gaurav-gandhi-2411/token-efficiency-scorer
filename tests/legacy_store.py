@@ -44,6 +44,18 @@ def insert_row(
     conn.commit()
 
 
+def stamp_current(conn: sqlite3.Connection) -> None:
+    """Mark every row in `conn` as scored by the current accounting (not legacy).
+
+    Fixtures that build rows through ``upsert_session`` without an adapter result carry no
+    versions, so they would be legacy; this stamps them the way a real score would.
+    """
+    conn.execute(
+        "UPDATE sessions SET adapter_version = ?, cost_version = ?", (ADAPTER_VERSION, COST_VERSION)
+    )
+    conn.commit()
+
+
 @dataclass(frozen=True)
 class MixedStore:
     """A store holding every kind of row the upgrade path must handle."""

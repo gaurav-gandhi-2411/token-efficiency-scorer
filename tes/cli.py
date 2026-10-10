@@ -2100,7 +2100,14 @@ def main() -> None:
             sys.exit(1)
 
         if payload.manifest.row_count == 0:
-            print("No sessions found in store. Run `tes score` or `tes serve` first.")
+            if payload.manifest.legacy_rows_excluded:
+                print(
+                    f"No current sessions to export: {payload.manifest.legacy_rows_excluded} "
+                    "legacy session(s) were left out (overcounted ~2x). "
+                    "Run `tes rescore` or score new sessions."
+                )
+            else:
+                print("No sessions found in store. Run `tes score` or `tes serve` first.")
             conn.close()
             sys.exit(0)
 
@@ -2140,6 +2147,8 @@ def main() -> None:
                     fh.write(json.dumps(row) + "\n")
             print(f"\nWritten: {out_path}")
             print(f"  {payload.manifest.row_count} row(s)")
+            if payload.manifest.legacy_rows_excluded:
+                print(f"  {payload.manifest.legacy_rows_excluded} legacy session(s) left out")
             print("  Open the file to inspect it. Nothing has been transmitted.")
         except Exception as exc:
             print(f"[ERROR] Failed to write file: {exc}", file=sys.stderr)

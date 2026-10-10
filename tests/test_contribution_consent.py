@@ -24,6 +24,8 @@ from tes.contribution import (
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
 
+from tests.legacy_store import stamp_current
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
@@ -67,6 +69,7 @@ def _make_conn_with_session(session_id: str = "consent-test-session") -> object:
     )
     mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/session.jsonl", mtime, "hash-consent", turn_count=30)
+    stamp_current(conn)
     return conn
 
 

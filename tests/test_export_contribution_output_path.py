@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 import tes.cli as cli
 
+from tests.legacy_store import stamp_current
+
 
 def _insert_minimal_session(conn: sqlite3.Connection, session_id: str) -> None:
     """Minimal-but-valid session row with real cost data, so
@@ -43,6 +45,7 @@ def _insert_minimal_session(conn: sqlite3.Connection, session_id: str) -> None:
         (session_id,),
     )
     conn.commit()
+    stamp_current(conn)
 
 
 @pytest.fixture
