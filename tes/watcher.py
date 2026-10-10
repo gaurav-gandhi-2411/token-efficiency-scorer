@@ -210,7 +210,7 @@ def _check_live_alarm(
     self_baseline,
     prices: dict,
     db_path: Path | None = None,
-    baselines: dict | None = None,
+    baselines: dict[str, Any] | None = None,
 ) -> None:
     """One-shot live-monitor + alarm check for the currently active session.
 
