@@ -257,9 +257,9 @@ def test_stored_attribution_line_never_prints_zero_waste_dollars_for_unpriced() 
     assert priced == "$0.00 total · waste $0.00 (2 events)"  # genuinely priced: $0 is real
 
 
-def test_takeaway_does_not_claim_no_waste_when_turns_were_unpriced() -> None:
+def test_breakdown_does_not_claim_no_waste_when_turns_were_unpriced() -> None:
     from tes.attribution import AttributionResult
-    from tes.takeaway import build_attribution_takeaway
+    from tes.takeaway import build_cost_breakdown
 
     attr = AttributionResult(
         session_id="s",
@@ -280,10 +280,14 @@ def test_takeaway_does_not_claim_no_waste_when_turns_were_unpriced() -> None:
         rfr_waste_tokens=0,
         rfr_waste_usd=0.0,
     )
-    assert "no detectable waste" in build_attribution_takeaway(attr)
-    text = build_attribution_takeaway(attr, [UNPRICED])
-    assert "no detectable waste" not in text
-    assert f"unpriced ({UNPRICED})" in text
+    priced = build_cost_breakdown(attr)
+    assert priced["priced"] is True and priced["note"] == ""
+    partial = build_cost_breakdown(attr, [UNPRICED])
+    # a $0.00 waste bucket next to unpriced turns must say the dollars are a priced subtotal
+    assert partial["priced"] is False
+    assert partial["note"].startswith("Priced part only")
+    assert f"unpriced ({UNPRICED})" in partial["note"]
+    assert "true cost is higher" in partial["note"]
 
 
 # --------------------------------------------------------------------------- budget / live

@@ -32,7 +32,7 @@ from tes.store import (
     resolve_db_path,
     trajectory_render_state,
 )
-from tes.takeaway import build_attribution_takeaway
+from tes.takeaway import build_lever_hint
 from tes.waste import build_waste_entry
 from tes.web.cost_format import (
     format_cost_display,
@@ -406,11 +406,9 @@ def create_app(config: ServerConfig) -> Flask:
 
         # Attribution — requires source JSONL file; gracefully returns None if unavailable.
         attribution = _compute_session_attribution(session, _prices)
-        attribution_takeaway = (
-            build_attribution_takeaway(attribution, session.get("unpriced_models") or ())
-            if attribution
-            else None
-        )
+        unpriced = session.get("unpriced_models") or ()
+        # An absolute finding (waste above its threshold, output >= 40%) or None.
+        attribution_takeaway = build_lever_hint(attribution, unpriced) if attribution else None
         attribution_rows = _build_attribution_rows(attribution) if attribution else None
 
         return render_template(

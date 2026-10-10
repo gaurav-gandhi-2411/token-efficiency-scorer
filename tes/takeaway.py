@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-"""tes/takeaway.py -- the deterministic, data-gated cost takeaway and lever hint.
+"""tes/takeaway.py -- the deterministic cost breakdown and the (rare) absolute cost findings.
 
 One implementation shared by the dashboard (tes/web/server.py) and the CLI `score` command, so the
-two surfaces can never disagree about when a lever fires (previously this lived in the web module
-and the CLI printed nothing).
+two surfaces can never disagree.
+
+Two different things, deliberately kept apart:
+
+* the COST BREAKDOWN (:func:`build_cost_breakdown`) is informational: dollars and shares per
+  bucket. It is not a finding. In Claude Code every turn re-reads the whole context, so re-send
+  plus context growth is the bulk of the cost of nearly every session (69 to 99.5 percent of cost
+  on each of one developer's 76 priced sessions, W1A diag 4a); "context dominates" therefore says
+  nothing about any one session and is no longer offered as a lever.
+* a FINDING (:func:`build_lever_hint`) is an absolute, deterministic rule that can be false for a
+  session: detected waste above a dollar threshold (the proof turns are in the waste section) or
+  output at 40 percent of cost or more. A quiet session gets no finding.
 """
 
 from typing import Any
@@ -20,126 +30,60 @@ BREAKDOWN_NOTE = (
     "every session's cost; it is shown for reference, not as something to fix."
 )
 
+# Waste lever thresholds (absolute; unchanged since 0.10): >= $0.50 catches large-session waste
+# regardless of share, >= 10 percent of cost AND >= $0.05 catches small-session waste. Below both
+# is rounding noise.
+_WASTE_ABS_USD = 0.50
+_WASTE_REL_PCT = 10
+_WASTE_REL_FLOOR_USD = 0.05
+# Output lever threshold (absolute): output is at least 40 percent of the priced cost.
+_OUTPUT_PCT = 40
+
 
 def _waste_usd(attr: AttributionResult) -> float:
     return attr.rr_waste_usd + attr.rfr_waste_usd
 
 
-def _takeaway_parts(
-    attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
-) -> tuple[str, list[str]]:
-    """Return (description, hints): the cost description and the lever hints that fired.
+def _hints(attr: AttributionResult) -> list[str]:
+    """The findings that fire for ``attr`` (each rule independent; waste first). Empty = quiet.
 
-    Deterministic takeaway with data-gated actionable hints (multiple can fire).
-
-    Hint rules checked in order — each fires independently:
-      1. Waste lever  : waste_usd >= 0.50  OR  (waste_pct >= 10 AND waste_usd >= 0.05)
-                        → "$X.XX in detectable waste; see the waste events for exact proof turns."
-                        Threshold keeps sub-$0.50 rounding-noise sessions silent.
-      2. Context lever: context_pct (re-send + growth) >= 60% of total cost
-                        → "a long context drove most of the cost; checkpointing or /compact reduces re-send."
-      3. Output lever : output_pct >= 40% AND context_pct < 60%
-                        → "output was a large cost share; shorter responses or fewer regenerations reduce this."
-      No hint fires   → description only (no dominant lever — correct to stay quiet).
+    1. Waste : waste_usd >= 0.50  OR  (waste share >= 10% AND waste_usd >= 0.05)
+    2. Output: output share of cost >= 40%
     """
-    total_usd = attr.total_usd
-    if total_usd == 0:
-        if unpriced_models:
-            return (
-                f"Cost is {format_unpriced(unpriced_models)} — token bucket counts "
-                "available in attribution table.",
-                [],
-            )
-        return "No cost data — token bucket counts available in attribution table.", []
-
-    def pct(v: float) -> int:
-        return round(v / total_usd * 100)
-
-    resend_pct = pct(attr.context_resend_usd)
-    growth_pct = pct(attr.context_growth_usd)
-    output_pct = pct(attr.output_usd)
-    context_pct = resend_pct + growth_pct
-    waste_usd = attr.rr_waste_usd + attr.rfr_waste_usd
-    waste_pct = pct(waste_usd)
-
-    parts: list[str] = []
-    if context_pct > 0:
-        parts.append(f"context ({resend_pct}% re-send + {growth_pct}% growth)")
-    if output_pct > 0:
-        parts.append(f"output ({output_pct}%)")
-
-    cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
-    if waste_usd > 0.001:
-        waste_str = f"; detectable waste ${waste_usd:.2f}"
-        if unpriced_models:
-            waste_str += f" + {format_unpriced(unpriced_models)}"
-    elif unpriced_models:
-        # Waste on the unpriced turns has no dollar value, so "no detectable waste" would overstate.
-        waste_str = f"; waste cost on {format_unpriced(unpriced_models)} turns not priced"
-    else:
-        waste_str = "; no detectable waste"
-
-    # Data-gated hints — each checked independently, waste first
+    total = attr.total_usd
+    if total == 0:
+        return []
+    waste_usd = _waste_usd(attr)
+    waste_pct = round(waste_usd / total * 100)
+    output_pct = round(attr.output_usd / total * 100)
     hints: list[str] = []
-
-    # Waste lever: real waste, not rounding noise
-    # Absolute: >= $0.50 catches large-session waste regardless of share
-    # Relative: >= 10% share AND >= $0.05 catches small-session disproportionate waste
-    if waste_usd >= 0.50 or (waste_pct >= 10 and waste_usd >= 0.05):
+    if waste_usd >= _WASTE_ABS_USD or (
+        waste_pct >= _WASTE_REL_PCT and waste_usd >= _WASTE_REL_FLOOR_USD
+    ):
         hints.append(
-            f"${waste_usd:.2f} in detectable waste; see the waste events for exact proof turns."
+            f"${waste_usd:.2f} ({waste_pct}% of the priced cost) in detectable waste; see the "
+            "waste events for exact proof turns."
         )
-
-    # Context lever: context is the majority of cost
-    if context_pct >= 60:
+    if output_pct >= _OUTPUT_PCT:
         hints.append(
-            "a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."
+            f"Output was {output_pct}% of the priced cost; shorter responses or fewer "
+            "regenerations reduce this."
         )
-    elif output_pct >= 40:
-        # Output lever: only when context is not already dominant
-        hints.append(
-            "output was a large cost share; shorter responses or fewer regenerations reduce this."
-        )
-
-    return cost_desc + waste_str + ".", hints
-
-
-def build_attribution_takeaway(
-    attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
-) -> str:
-    """The dashboard's takeaway sentence: description plus any lever hints (see _takeaway_parts)."""
-    description, hints = _takeaway_parts(attr, unpriced_models)
-    if not hints:
-        return description
-
-    # First hint: " — "; subsequent: " Also, "
-    hint_text = " — " + hints[0]
-    for h in hints[1:]:
-        hint_text += " Also, " + h
-
-    return description + hint_text
+    return hints
 
 
 def build_lever_hint(
     attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
 ) -> str | None:
-    """The CLI's lever hint: the takeaway sentence, but only when a lever actually fires.
+    """The finding sentence, or None when no absolute rule fires (the usual case).
 
-    Same thresholds as the dashboard (one implementation). Returns None when no lever fires, so
-    a quiet session prints nothing. When nothing could be priced, the $-based levers cannot be
-    evaluated; saying nothing would read as "no lever", so say that they are unavailable instead.
-    When pricing is partial, the shares are of the priced subtotal; the hint says so.
+    Never about context: see the module docstring. With pricing partial, the shares are of the
+    priced part only and the sentence says so.
     """
-    if attr.total_usd == 0 and unpriced_models:
-        return (
-            f"Cost levers unavailable: cost is {format_unpriced(unpriced_models)}, so waste, "
-            "context and output shares cannot be computed in $. Add the model(s) to "
-            "TES_PRICE_TABLE or ~/.tes/prices.json."
-        )
-    _, hints = _takeaway_parts(attr, unpriced_models)
+    hints = _hints(attr)
     if not hints:
         return None
-    text = build_attribution_takeaway(attr, unpriced_models)
+    text = " Also, ".join(hints)
     if unpriced_models:
         text += f" (shares are of the priced part only; {format_unpriced(unpriced_models)})"
     return text
