@@ -617,3 +617,16 @@ def test_zero_token_stubs_excluded_from_scope_floor_p10(tmp_path: Path) -> None:
         f"scope_floor == MIN_MEANINGFUL_TURNS={MIN_MEANINGFUL_TURNS}: guard fired when it "
         "should not have — zero-token stubs are still in the p10 computation."
     )
+
+
+def test_inactive_corpus_cell_with_null_scope_gate_does_not_crash(tmp_path: Path) -> None:
+    """A corpus cell below the activation minimum ships p10_turns=None; the floor falls back."""
+    b2 = {
+        "scope_gates": {"feature-build": {"p10_turns": None}},
+        "types": {"feature-build": {"available": False, "n": 8}},
+    }
+    db_path = _make_test_db(tmp_path, {"feature-build": _waste_free_sessions([100, 200])})
+    state = compute_self_baselines(db_path, b2)
+    bl = state.by_type["feature-build"]
+    assert bl.source == "building"
+    assert bl.scope_floor == MIN_MEANINGFUL_TURNS

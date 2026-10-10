@@ -244,7 +244,9 @@ def compute_self_baselines(
     types_info: dict = b2_baselines.get("types", {})
 
     for task_type in b2_baselines.get("scope_gates", {}):
-        b2_floor: int = scope_gates.get(task_type, {}).get("p10_turns", MIN_MEANINGFUL_TURNS)
+        # An inactive corpus cell (too few sessions to band) ships p10_turns=None, which
+        # .get(key, default) would return as-is; treat it as "no corpus floor".
+        b2_floor: int = scope_gates.get(task_type, {}).get("p10_turns") or MIN_MEANINGFUL_TURNS
 
         # --- Step 0: compute scope_floor first — needed for the lean-subset query ---
         scope_floor = _compute_scope_floor(conn, task_type, b2_floor, min_meaningful_turns)
