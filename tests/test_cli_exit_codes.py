@@ -191,3 +191,91 @@ def test_monitor_without_active_session_exits_zero(
         cli.main()
     assert exc.value.code == EXIT_OK
     assert "No active session" in capsys.readouterr().out
+
+
+# ----------------------------------------------------------------------------- every documented case
+
+DOC = Path(__file__).resolve().parent.parent / "docs" / "EXIT_CODES.md"
+
+
+@pytest.fixture
+def hermetic_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """main() in-process with the store, home and judge all redirected under tmp_path."""
+    home = tmp_path / "home"
+    home.mkdir()
+    for var in ("HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"):
+        monkeypatch.setenv(var, str(home))
+    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
+    monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
+    return tmp_path
+
+
+def _main_code(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> int:
+    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    try:
+        code = cli.main()
+    except SystemExit as exc:
+        code = exc.code  # type: ignore[assignment]
+    return int(code or 0)
+
+
+def test_every_row_of_exit_codes_md_matches_behaviour(
+    hermetic_cli: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    t = hermetic_cli
+    good = _good(t / "p" / "ok.jsonl")
+    bad = _corrupt(t / "p" / "bad.jsonl")
+    empty = t / "empty"
+    empty.mkdir()
+    isdir_db = t / "isdir.db"
+    isdir_db.mkdir()
+    # (documented code, the doc row it comes from, argv)
+    cases: list[tuple[int, str, list[str]]] = [
+        (0, "scored, nothing notable", ["score", str(good), "--no-judge"]),
+        (0, "monitor with no active session", ["monitor", "--cc-path", str(empty)]),
+        (1, "path not found", ["score", str(t / "nope.jsonl"), "--no-judge"]),
+        (1, "no .jsonl files found", ["score", str(empty), "--no-judge"]),
+        (
+            1,
+            "--judge with --no-judge (our own check)",
+            ["score", str(good), "--judge", "--no-judge"],
+        ),
+        (1, "a bad --since", ["cost", "--since", "notadate"]),
+        (1, "store cannot be opened: cost", ["cost", "--week", "--db-path", str(isdir_db)]),
+        (1, "store cannot be opened: budget", ["budget", "--db-path", str(isdir_db)]),
+        (1, "store cannot be opened: impact", ["impact", "--db-path", str(isdir_db)]),
+        (2, "unknown flag", ["score", str(good), "--bogus"]),
+        (2, "missing value", ["budget", "--window-days"]),
+        (2, "missing required choice", ["cost"]),
+        (2, "argparse mutually exclusive flags", ["cost", "--week", "--since", "2026-01-01"]),
+        (4, "a session cannot be parsed", ["score", str(bad), "--no-judge"]),
+    ]
+    for want, why, argv in cases:
+        got = _main_code(monkeypatch, argv)
+        capsys.readouterr()
+        assert got == want, f"{why}: `tes {' '.join(argv)}` exited {got}, EXIT_CODES.md says {want}"
+
+
+def test_monitor_alarm_row_of_exit_codes_md(
+    hermetic_cli: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _monitor(monkeypatch, hermetic_cli, _live(), _threshold_active()) == 3
+
+
+def test_exit_codes_md_describes_the_two_contradictory_flag_cases() -> None:
+    text = DOC.read_text(encoding="utf-8")
+    rows = {
+        int(cells[0]): row
+        for row in text.splitlines()
+        if row.startswith("| ")
+        and (cells := [c.strip() for c in row.strip("|").split("|")])
+        and cells[0].isdigit()
+    }
+    assert set(rows) == {0, 1, 2, 3, 4}
+    assert "--judge --no-judge" in rows[1]
+    assert "contradictory" not in rows[1]  # the old, wrong claim: argparse conflicts are code 2
+    assert "mutually exclusive" in rows[2]
