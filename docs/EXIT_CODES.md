@@ -7,8 +7,8 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
 | Code | Meaning | Commands |
 |---:|---|---|
 | 0 | OK. Includes "scored, nothing notable", "no alarm", and `monitor` with no active session. | all |
-| 1 | Bad usage or nothing to do: path not found, no `.jsonl` files / no sessions found, contradictory flags, a bad `--since`, or the store (`tes.db`) cannot be opened. | all |
-| 2 | Command-line usage error (unknown flag, missing argument). Reported by argparse; we never use 2 ourselves. | all |
+| 1 | Bad usage or nothing to do: path not found, no `.jsonl` files / no sessions found, `score --judge --no-judge` (checked by our own code), a bad `--since` value, or the store (`tes.db`) cannot be opened. | all |
+| 2 | Command-line usage error reported by argparse: unknown flag, missing argument or value, a missing required choice (`cost` with none of `--week`/`--month`/`--since`), or flags argparse itself declares mutually exclusive (`cost --week --since ...`). We never use 2 ourselves. | all |
 | 3 | The `monitor` alarm fired for the active session. | `monitor` |
 | 4 | At least one session could not be read or parsed (for example a file that is not valid UTF-8). | `score` |
 
@@ -30,6 +30,10 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
   your own baseline for that task type is built).
 * **Store errors** (`cost`, `budget`, `impact`: cannot open `~/.tes/tes.db`) used to print
   `[ERROR]` and exit 0. They now exit 1.
+* **"Contradictory flags" is two different codes.** Flags argparse declares mutually exclusive
+  (`cost --week --since D`) exit 2; `score --judge --no-judge` is rejected by our own check and
+  exits 1. Both print the reason on stderr. `tests/test_cli_exit_codes.py` runs every case in this
+  document.
 * Success paths are unchanged: every command that exited 0 on success still does.
 
 ## Examples
