@@ -204,3 +204,26 @@ def test_freeze_manifest_excludes_active_and_empty_and_stores_no_paths(tmp_path:
     assert rb.verify_sources(m, tmp_path) == {"hash_match": 2, "missing": 0, "hash_mismatch": 0}
     (proj / "old1.jsonl").write_text("changed\n", encoding="utf-8")
     assert rb.verify_sources(m, tmp_path)["hash_mismatch"] == 1
+
+
+def test_build_writes_lf_only_so_the_hash_is_platform_independent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression (verifier 1 #9): `build` wrote CRLF on Windows, so the sha256 of
+    cc_baselines.json differed by platform. The bytes must be LF-only and equal the committed file."""
+    import hashlib
+
+    out = tmp_path / "cc_baselines.json"
+    monkeypatch.setattr(rb, "BASELINES_PATH", out)
+    assert rb.main(["build"]) == 0
+
+    built = out.read_bytes()
+    assert b"\r" not in built
+    # Compare to the committed file with any checkout-time CRLF translation undone (a Windows
+    # working tree with core.autocrlf=true holds CRLF; git's blob is LF).
+    committed = (rb.REPO_ROOT / "tes" / "data" / "cc_baselines.json").read_bytes()
+    committed = committed.replace(b"\r\n", b"\n")
+    assert hashlib.sha256(built).hexdigest() == hashlib.sha256(committed).hexdigest()
+    payload = json.loads(built)
+    manifest = json.loads(rb.MANIFEST_PATH.read_text(encoding="utf-8"))
+    assert payload["provenance"]["manifest_sha256"] == rb.manifest_sha256(manifest)
