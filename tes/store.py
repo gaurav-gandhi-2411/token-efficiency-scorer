@@ -198,6 +198,19 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
         conn.commit()
 
+    # W1A D6: subagent roll-up. session_cost_usd already INCLUDES subagent spend; these
+    # expose the split (subagent_tokens in real_tokens units). NULL for rows scored before
+    # this migration -- indistinguishable from "no subagents" until the session is re-scored.
+    subagent_cols = {
+        "subagent_tokens": "ALTER TABLE sessions ADD COLUMN subagent_tokens INTEGER",
+        "subagent_cost_usd": "ALTER TABLE sessions ADD COLUMN subagent_cost_usd REAL",
+        "subagent_count": "ALTER TABLE sessions ADD COLUMN subagent_count INTEGER",
+    }
+    for col_name, alter_sql in subagent_cols.items():
+        if col_name not in existing_cols:
+            conn.execute(alter_sql)
+            conn.commit()
+
     return conn
 
 
@@ -271,7 +284,8 @@ def upsert_session(
                 turn_count,
                 session_cost_usd, cost_approximate, cost_domain_of_validity,
                 context_resend_pct, context_growth_pct, output_pct, waste_pct,
-                cost_unpriced_models, edit_operations
+                cost_unpriced_models, edit_operations,
+                subagent_tokens, subagent_cost_usd, subagent_count
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -284,7 +298,8 @@ def upsert_session(
                 ?,
                 ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?
+                ?, ?,
+                ?, ?, ?
             )
             """,
             (
@@ -323,6 +338,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
             ),
         )
 
@@ -344,7 +362,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -382,6 +401,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
@@ -402,7 +424,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -435,6 +458,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
@@ -457,7 +483,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -495,6 +522,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
@@ -652,12 +682,15 @@ def backfill_cost(
             session_cost = compute_session_cost(digest, prices)
             conn.execute(
                 "UPDATE sessions SET "
-                "  session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ? "
+                "  session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
+                "  cost_unpriced_models = ?, subagent_cost_usd = ? "
                 "WHERE session_id = ?",
                 (
                     session_cost.total_usd,
                     int(session_cost.approximate),
                     session_cost.domain_of_validity,
+                    ",".join(session_cost.unpriced_models) or None,
+                    session_cost.subagent_usd,
                     session_id,
                 ),
             )
@@ -687,6 +720,9 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
         d["judge_verdict"] and d["judge_source_hash"] and d["judge_source_hash"] != d["source_hash"]
     )
     d["cost_approximate"] = bool(d.get("cost_approximate", 0))
+    # W1A D7: machine-readable pricing status derived from the persisted unpriced model ids.
+    d["unpriced_models"] = [m for m in (d.get("cost_unpriced_models") or "").split(",") if m]
+    d["priced"] = d.get("session_cost_usd") is not None and not d["unpriced_models"]
     return d
 
 

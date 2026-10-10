@@ -184,6 +184,22 @@ class ThreeAxisResult:
     # session priced cleanly or cost wasn't computed at all. ---
     cost_unpriced_models: str | None = None
 
+    # --- explicit pricing status (W1A D7). `priced` is True iff a cost was computed and every
+    # turn's model resolved; `unpriced_models` lists the model ids that did not. Machine-
+    # readable twins of cost_unpriced_models / cost_approximate (kept for back-compat:
+    # cost_approximate only trips past a >25% unresolved-turn threshold, `priced` on any). ---
+    priced: bool = False
+    unpriced_models: list[str] = field(default_factory=list)
+
+    # --- subagent roll-up (W1A D6). session_cost_usd and the attribution fractions already
+    # INCLUDE subagent usage; these expose the split. subagent_tokens is in real_tokens units
+    # (input - cache_read + output). real_tokens itself stays main-chain only so the
+    # baseline-calibrated verdict is unchanged; real_tokens_incl_subagents is the sum. ---
+    subagent_tokens: int = 0
+    subagent_cost_usd: float | None = None
+    subagent_count: int = 0
+    real_tokens_incl_subagents: int = 0
+
     # --- code impact (XX2.2: persisted at score time, same RR1 lesson --
     # tool_use.input.old_string/new_string/file_path are only readable
     # while the source transcript still exists). JSON-encoded list of
@@ -478,13 +494,22 @@ def score_session(
     # regex over an already-computed, in-memory list, not a new lookup.
     _unpriced_models: list[str] = []
     if session_cost is not None:
-        for reason in session_cost.approximate_reasons:
-            m = re.search(r"unknown model '([^']*)'", reason)
-            if m:
-                _unpriced_models.append(m.group(1))
-            elif "empty model string" in reason:
-                _unpriced_models.append("(empty)")
-    cost_unpriced_models = ",".join(sorted(set(_unpriced_models))) or None
+        if session_cost.unpriced_models:
+            _unpriced_models = list(session_cost.unpriced_models)
+        else:
+            # SessionCost built without unpriced_models (older callers/fixtures).
+            for reason in session_cost.approximate_reasons:
+                m = re.search(r"unknown model '([^']*)'", reason)
+                if m:
+                    _unpriced_models.append(m.group(1))
+                elif "empty model string" in reason:
+                    _unpriced_models.append("(empty)")
+    unpriced_models_list = sorted(set(_unpriced_models))
+    cost_unpriced_models = ",".join(unpriced_models_list) or None
+
+    _sub_usage: dict[str, int] = record.get("subagent_usage") or {}
+    subagent_tokens = int(_sub_usage.get("real_tokens", 0))
+    subagent_count = int(_sub_usage.get("file_count", 0))
 
     # XX2.2: persist whatever tes.adapt already extracted from tool_use
     # blocks in its single pass over the source JSONL -- "edit_operations"
@@ -545,6 +570,12 @@ def score_session(
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
         cost_unpriced_models=cost_unpriced_models,
+        priced=session_cost is not None and not unpriced_models_list,
+        unpriced_models=unpriced_models_list,
+        subagent_tokens=subagent_tokens,
+        subagent_cost_usd=session_cost.subagent_usd if session_cost else None,
+        subagent_count=subagent_count,
+        real_tokens_incl_subagents=real_tokens + subagent_tokens,
         edit_operations=edit_operations_json,
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,

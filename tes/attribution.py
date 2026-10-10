@@ -89,6 +89,12 @@ class AttributionResult:
     # --- domain of validity — always populated ---
     domain_of_validity: str
 
+    # --- subagent roll-up (W1A D6): the share of total_billed_tokens / total_usd that came
+    # from subagent transcripts. Already INCLUDED in the buckets and totals above (as clean
+    # turns -- waste detection is main-chain only); exposed so the split stays visible. ---
+    subagent_billed_tokens: int = 0
+    subagent_usd: float = 0.0
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -165,8 +171,12 @@ def compute_attribution(
     # -----------------------------------------------------------------------
     # Step 1: Identify all AI turns and pre-compute per-turn costs
     # -----------------------------------------------------------------------
-    ai_turns = [t for t in digest.turns if t.role == "ai"]
-    ai_turn_index_set: frozenset[int] = frozenset(t.turn_index for t in ai_turns)
+    main_ai_turns = [t for t in digest.turns if t.role == "ai"]
+    ai_turn_index_set: frozenset[int] = frozenset(t.turn_index for t in main_ai_turns)
+    # Subagent turns follow the main turns in turn_index (see tes.adapt), so they can never
+    # collide with a waste proof turn, and are always classified clean.
+    ai_turns = main_ai_turns + list(digest.subagent_turns)
+    subagent_index_set: frozenset[int] = frozenset(t.turn_index for t in digest.subagent_turns)
 
     # Map turn_index → TurnCost (computed once, reused for all buckets)
     turn_cost_map: dict[int, TurnCost] = {}
@@ -208,6 +218,8 @@ def compute_attribution(
 
     total_billed_tokens: int = 0
     real_tokens: int = 0
+    subagent_billed_tokens: int = 0
+    subagent_usd: float = 0.0
 
     for turn in ai_turns:
         idx = turn.turn_index
@@ -215,7 +227,12 @@ def compute_attribution(
 
         billed = turn.token_count_input + turn.token_count_output
         total_billed_tokens += billed
-        real_tokens += (turn.token_count_input - turn.cache_read) + turn.token_count_output
+        if idx in subagent_index_set:
+            subagent_billed_tokens += billed
+            subagent_usd += tc.total_usd
+        else:
+            # real_tokens feeds the baseline-calibrated verdict: main chain only.
+            real_tokens += (turn.token_count_input - turn.cache_read) + turn.token_count_output
 
         if idx in rfr_waste_ai_turns:
             # B2: retry-loop waste
@@ -268,6 +285,8 @@ def compute_attribution(
         total_usd=total_usd,
         real_tokens=real_tokens,
         domain_of_validity=_DOMAIN_OF_VALIDITY,
+        subagent_billed_tokens=subagent_billed_tokens,
+        subagent_usd=subagent_usd,
     )
 
 
