@@ -42,6 +42,19 @@ do not lower it to make a PR pass. `omit` keeps `tests/`, `scripts/` and `notebo
 
 Reproduce locally: `uv sync --frozen && uv run pytest --cov=tes --cov-report=term-missing`.
 
+Measured totals (the number depends on the platform and on the commit; none of these is a CI run, and the CI leg
+that enforces the floor, ubuntu py3.12, has not run on GitHub yet for this branch):
+
+| total | statements | platform | commit |
+|---|---|---|---|
+| 82.19% | 3959 / 4817 | Linux, CPython 3.12.3 (WSL Ubuntu) | 1bd67e9 |
+| 82.17% | 3958 / 4817 | Windows 11, CPython 3.13.5 | 3ceb223 and a few later commits |
+| 83.13% | 4026 / 4843 | Windows 11, CPython 3.13.5 | ef1de9f (after the W1A-l tests) |
+
+The Windows and Linux totals differed by one statement at the same code, so expect a Linux figure within about a
+statement of the Windows one at the same commit; the Linux number at ef1de9f was not re-measured. The floor of 82
+leaves about 1.1 points of margin on the newest Windows figure.
+
 ## Platform-sensitive spots reviewed
 
 Windows runs the suite locally; macOS is only covered by CI and static review. Reviewed and found portable:
