@@ -74,6 +74,13 @@ class SessionDigest:
     # this field existed.
     subagent_turns: list[TurnDigest] = field(default_factory=list)
     subagent_count: int = 0  # number of subagent transcripts that contributed usage
+    # Usage de-duplication (adapter_version 2): Claude Code writes one assistant record per
+    # content block of an API response, each repeating the response's usage; tes.adapt counts
+    # each distinct message.id once. usage_records = main-chain assistant records that carried
+    # a usage dict; usage_records_deduped = distinct responses among them (0/0 on digests
+    # stored before this field existed). duplicates = usage_records - usage_records_deduped.
+    usage_records: int = 0
+    usage_records_deduped: int = 0
 
 
 def reconstruct_digest(d: dict) -> SessionDigest:

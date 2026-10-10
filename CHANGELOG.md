@@ -26,6 +26,85 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 Drafted on branch `w1a-first-run`; `pyproject.toml` still says 0.14.0 and nothing here is published. (This is a `###` block under Unreleased, not a numbered heading, because `scripts/check_release_version.py` requires the first `## [x.y.z]` heading to equal the pyproject version.) Every number
 below was measured on this branch; the commands and raw outputs are in the W1A reports, not asserted from memory.
 
+#### BREAKING: `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them change
+
+**Claude Code writes one assistant JSONL record per content block (thinking, text, each tool_use) of an API
+response, and every one of those records repeats the response's full `usage`. `tes.adapt.adapt_session` added the
+usage of every record, so each response was counted once per content block.** Checked against ccusage, which dedupes
+by `message.id` + `requestId`, and against the data: on 81 live transcripts there are 64,080 main-chain records for
+31,140 distinct `message.id`s, and in 23,553 multi-record groups the usage differed in 0.
+
+Measured effect of the fix (old = per-record sum, new = each `message.id` once):
+
+| population | records / responses | real_tokens old -> new | main-chain cost old -> new |
+|---|---|---|---|
+| 10 seeded sessions | 5,781 / 2,720 | 35,895,367 -> 14,889,709 (x2.41) | $645.90 -> $285.71 (x2.26) |
+| Phase 0 set B (50 sessions) | 32,761 / 14,962 | 172,756,805 -> 69,748,076 (x2.48) | new: $1,328.60 |
+| all 81 live transcripts | 64,080 / 31,140 | 320,198,282 -> 133,842,530 (x2.39) | not measured |
+
+Per-session factor ranges from **1.0x** (a session with one block per response) to **4.0x** (measured minimum and
+maximum over both sets). Three consequences:
+
+* Every `real_tokens`, `total_tokens`, `session_cost_usd`, attribution bucket, `tes cost`, `tes budget`, ROI figure
+  and live-monitor estimate that came from a main-chain transcript was too high by that factor. Subagent usage
+  (added on this branch) was already counted once per response.
+* **The bundled baseline is rebuilt, and it is a re-baseline, not a correction.** The old
+  `tes/data/cc_baselines.json` (75 quality-gated sessions, per-record usage) cannot be corrected: its raw sessions
+  are gone (0 of 75 on disk) and old-scale cells cannot be kept on the new scale. It is replaced by bands built with
+  `adapter_version` 2 from a new frozen population: 71 of the 81 main (non-subagent) Claude Code sessions of one
+  developer (5 still being written and 5 with no usage excluded), **not quality-gated** (no judge verdict was used;
+  the old gate was `MUCH_BETTER` only), listed by id, task type, turns, tokens, size, mtime and sha256 in
+  `eval/manifest.json` (no transcript text, no paths). `scripts/rebuild_baselines.py build` regenerates the file from
+  that manifest alone, byte for byte (seed 42; 95% bootstrap CIs on p25/median/p75 are in the file under `ci95`,
+  provenance under `provenance`). Active cells: ml-eval 13, debug-fix 19, infra-deploy 15, research-recon 16 sessions.
+  **feature-build (n=8, below the activation minimum of 10) is inactive** and reports no token band; it is not padded
+  with the old bands or an estimate. Corrected bands are higher, not lower, than the old ones for most cells
+  (median ml-eval 646,026 -> 1,515,851, infra-deploy 698,512 -> 1,577,905, debug-fix 524,989 -> 802,486,
+  research-recon 718,627 -> 620,842): this developer's recent sessions are long agentic runs (median 821 turns,
+  992,235 tokens), not the shorter June pool.
+  **Limitation, read before trusting a verdict.** The bands describe one developer's typical work, which is heavy on
+  infrastructure and agent orchestration; they are small-n (13 to 19 per cell, p75 CI up to 4.3x wide) and the
+  sessions are not independent. A percentile band built from your own sessions puts roughly a quarter of those same
+  sessions above its p75 by construction, so "above_p75" here means "heavier than a typical session of this
+  developer", not "wasteful" and not "heavier than other developers". On the 50 Phase 0 set-B sessions, scored with
+  each session left out of its own bands (leave-one-out): above_p75 10 / within_band 20 / below_p25 3 / unavailable 17
+  (above_p75 20% of 50, Wilson 95% 11% to 33%); against bands from only the 23 included sessions disjoint from set B, just
+  debug-fix reaches n=10, so 42 of 50 are unavailable. For comparison, Phase 0 (old accounting, old bands) was
+  above_p75 36 / within_band 3 / below_p25 2 / unavailable 9, and corrected tokens against the OLD bands 24 / 12 / 5 / 9:
+  the Phase 0 skew is not reproduced against bands built from the same developer's current sessions (it came from
+  comparing them with an older, quality-gated pool on a different scale). Re-baseline on a wider, multi-developer population before reading a verdict as an absolute
+  statement.
+* **Your own stored self-baselines are discarded, not silently reused.** Rows written by older versions carry no
+  `adapter_version` and are ignored by the self-baseline (a type shows "building" with a count of excluded rows).
+  `tes backfill-waste` re-scores them from the source transcript when it still exists; where the transcript is gone
+  (the usual case for old sessions) the stored aggregate cannot be corrected. On a copy of the Phase 0 store,
+  1,452 of 1,452 rows were stale and none could be refreshed, so all five task types fall back from `self` to
+  `building`.
+
+**What did not change.** Waste detection: the detectors read tool names and result snippets only. REPEATED-FAILED-
+RETRY and REDUNDANT-READ event counts and proof turns are identical before and after on the 50 set-B sessions (3
+events in total, all identical); per-event `wasted_cost_usd` is also identical there, because a flagged turn already
+carried exactly one response's usage, so waste as a share of the (now smaller) total goes up. `turn_count` and `edit_operations` are unchanged: turns are still one per record, only usage is deduped. The
+bundled scope gates (`p10_turns`) are re-derived with the new baseline (ml-eval 66, debug-fix 56, infra-deploy 68,
+research-recon 143, none for the inactive feature-build); an inactive cell's null gate no longer crashes the
+self-baseline computation (it falls back to the 20-turn minimum).
+
+**Migration.**
+
+* `adapt_session` returns `adapter_version: 2` and `usage_dedupe` (`usage_records`, `usage_records_deduped`,
+  `duplicate_usage_records`); the same three counts are on `SessionDigest` (`usage_records`, `usage_records_deduped`)
+  and `ThreeAxisResult` (`tes score --json`). A digest or row without them was produced by the old accounting.
+* SDK callers that sum `turn.token_count_input` / `token_count_output` themselves: a response now charges its tokens
+  on ONE turn (the last record holding a `tool_use`, else the last record); its sibling content-block turns carry 0.
+  Sums per session are right; per-turn values are not "tokens of this record". With parallel tool calls in one
+  response only the last tool_use turn holds the tokens, so a waste event on an earlier sibling is charged $0
+  (the session totals are unaffected).
+* The SQLite store gains `adapter_version` and `duplicate_usage_records` columns (additive, idempotent). A store from
+  an older version is read-compatible; run `tes backfill-waste` to re-score the rows whose transcripts still exist.
+* Anything you published or stored from an earlier version (cost reports, ROI, dashboards, exported contribution
+  files) is on the old scale. `scripts/adapters/claudecode_adapter.py` (the frozen research adapter) still sums per
+  record by design; use `tes.adapt` for any number that ships.
+
 #### Added / Fixed on the same branch (separate commits, each independently reviewable)
 
 * **Prices:** `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-mythos-5-1`, `claude-haiku-5-5`
@@ -42,6 +121,11 @@ below was measured on this branch; the commands and raw outputs are in the W1A r
   `--pick`, the watcher and the live monitor because they were the newest file); their usage is rolled into the
   parent session's cost and attribution (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`), while
   `real_tokens` and waste detection stay main-chain so the verdict axis is unchanged by it.
+* **JSONL reader no longer drops records containing U+2028/U+2029/U+0085:** transcripts were read with
+  `str.splitlines()`, which also breaks lines on those characters (and `\x0b`, `\x0c`, `\x1c`-`\x1e`) inside JSON
+  strings, so the fragments failed `json.loads` and the record was silently skipped; JSONL lines end only at `\n`.
+  On the local transcripts 1 of 1,005 files lost 3 records (one subagent message, 145,906 billed tokens). Fixed in
+  `tes.adapt` (both readers), `tes.store` turn counting and the two `scripts/adapters/claudecode_adapter.py` readers.
 * **Unpriced models are shown, not hidden:** a session whose models are not in the price table prints
   `unpriced (<model>)` instead of `$0.00`; JSON gains `priced` and `unpriced_models`.
 

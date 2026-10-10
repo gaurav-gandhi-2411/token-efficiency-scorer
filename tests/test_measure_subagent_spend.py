@@ -39,7 +39,8 @@ def test_dedupe_counts_each_message_once_and_measure_separates_subagents(tmp_pat
     assert len(_deduped_main_turns(parent)) == 2
 
     pop = measure([parent], "t", load_price_table())
-    assert pop.main_adapter.output == 5 * 3 + 7  # what the adapter totals today (inflated)
+    # the adapter dedupes per message.id too now (it used to total 5 * 3 + 7 here)
+    assert pop.main_adapter.output == 5 + 7
     assert pop.main_deduped.output == 5 + 7
     assert pop.sub.output == 20  # counted once
     assert pop.sub.files == 1
