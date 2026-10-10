@@ -2,8 +2,12 @@ from __future__ import annotations
 
 # NOTE (2026-10): this FROZEN research adapter still sums usage per assistant RECORD, which
 # over-counts ~2.4x on current Claude Code transcripts (one record per content block, each
-# repeating the response's usage). Its logic is left unchanged on purpose: published research
-# artifacts (pool_adapted.jsonl, B5) were produced with it. Anything that ships numbers
+# repeating the response's usage). Its logic is left unchanged on purpose, with ONE deliberate
+# exception (commit 5aadc5e): transcripts are now split into lines with .split("\n") instead of
+# .splitlines() (in adapt_session and _load_existing_ids), because splitlines() also breaks on a
+# raw U+2028/U+2029/U+0085 inside a JSON string and silently dropped that record. For input
+# without those characters the output is identical (1 of 1,005 local transcripts had any); the
+# published research artifacts (pool_adapted.jsonl, B5) predate the change. Anything that ships numbers
 # (baselines, scores, cost) must use tes.adapt.adapt_session, which counts each message.id once.
 
 """claudecode_adapter.py — Convert Claude Code session JSONL transcripts to layer1_outputs format.
