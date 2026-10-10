@@ -47,6 +47,8 @@ from tes.json_out import (
     cost_roi_payload,
     emit,
     impact_payload,
+    monitor_payload,
+    patterns_payload,
 )
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
@@ -58,6 +60,7 @@ from tes.judge import (
     score_trajectory,
     score_trajectory_api,
 )
+from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.report import format_human, format_json
 from tes.score import ThreeAxisResult, score_session
 from tes.waste import (
@@ -721,17 +724,30 @@ def _run_patterns(
     *,
     db_path: str | None = None,
     force_recompute: bool = False,
-) -> None:
+    json_mode: bool = False,
+) -> int:
     """Show the ML pattern analysis for the session corpus."""
+    try:
+        require_patterns_extra()
+    except PatternsExtraMissing as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
     from tes.intelligence.cache import get_or_compute_intelligence
     from tes.store import resolve_db_path
 
-    print("Computing session patterns...", flush=True)
+    # verbose output goes to stdout; --json must leave stdout as the one document.
+    if not json_mode:
+        print("Computing session patterns...", flush=True)
     cache = get_or_compute_intelligence(
         db_path=resolve_db_path(db_path),
         force_recompute=force_recompute,
-        verbose=True,
+        verbose=not json_mode,
     )
+
+    if json_mode:
+        emit(patterns_payload(cache))
+        return EXIT_OK
 
     if not cache.get("valid"):
         print(f"\n{cache.get('status', 'Pattern analysis unavailable.')}")
@@ -739,7 +755,7 @@ def _run_patterns(
             print(
                 f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)"
             )
-        return
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -781,6 +797,7 @@ def _run_patterns(
     print(
         "\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language."
     )
+    return EXIT_OK
 
 
 def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool = False) -> int:
@@ -1149,8 +1166,13 @@ def _run_monitor(
     db_path: str | None = None,
     stability_window: int = 300,
     plan_type: str = "usage_based",
+    json_mode: bool = False,
 ) -> int:
-    """Handle `tes monitor` — one-shot live check of the currently active session."""
+    """Handle `tes monitor` — one-shot live check of the currently active session.
+
+    Returns EXIT_ALARM when the alarm fires, else EXIT_OK (including "no active session": an
+    idle machine is not a failure for a hook that calls this between sessions).
+    """
     from tes.alarm import AlarmConfig, check_alarm
     from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
     from tes.live_monitor import find_active_session, score_live_session
@@ -1160,16 +1182,32 @@ def _run_monitor(
     cc_path = _resolve_cc_path(cc_path_arg)
     active = find_active_session(cc_path, stability_window)
     if active is None:
-        print(
-            f"No active session detected under {cc_path} "
-            f"(nothing modified in the last {stability_window}s)."
-        )
+        if json_mode:
+            emit(monitor_payload("no_active_session", str(cc_path)))
+        else:
+            print(
+                f"No active session detected under {cc_path} "
+                f"(nothing modified in the last {stability_window}s)."
+            )
         return EXIT_OK
 
     live = score_live_session(active, _PRICES)
     if live is None:
-        print(f"Active session found ({active.name}) but not enough data to score yet.")
+        if json_mode:
+            emit(monitor_payload("insufficient_data", str(cc_path), source_path=str(active)))
+        else:
+            print(f"Active session found ({active.name}) but not enough data to score yet.")
         return EXIT_OK
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    self_bl = load_or_compute(resolved_db, baselines)
+    config = AlarmConfig(enabled=True, plan_type=plan_type)
+    alarm = check_alarm(live, self_bl, config)
+
+    if json_mode:
+        emit(monitor_payload("ok", str(cc_path), live=live, alarm=alarm))
+        return EXIT_ALARM if alarm is not None else EXIT_OK
 
     print(f"Session: {live.session_id}  ({live.task_type})")
     live_cost = format_cost_display(live.live_cost_usd, live.live_unpriced_models, approx=True)
@@ -1178,11 +1216,6 @@ def _run_monitor(
     print(f"  {live.live_resend_ratio * 100:.0f}% context re-send (measured)")
     print(f"\n{live.domain_of_validity}")
 
-    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
-    baselines = load_baselines(BUNDLED_BASELINES_PATH)
-    self_bl = load_or_compute(resolved_db, baselines)
-    config = AlarmConfig(enabled=True, plan_type=plan_type)
-    alarm = check_alarm(live, self_bl, config)
     if alarm is not None:
         print(f"\n[ALARM] {alarm.message}")
         return EXIT_ALARM
@@ -1520,6 +1553,12 @@ def main() -> None:
         action="store_true",
         help="Force re-computation even if a fresh cache exists.",
     )
+    patterns_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, valid, status, analysis) instead of text.",
+    )
 
     impact_p = sub.add_parser(
         "impact",
@@ -1731,6 +1770,12 @@ def main() -> None:
         choices=["usage_based", "max"],
         help="Billing plan, for alarm display emphasis only (default: usage_based).",
     )
+    monitor_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, status, live figures, alarm) instead of text.",
+    )
 
     args = parser.parse_args()
     if args.command is None:
@@ -1833,6 +1878,7 @@ def main() -> None:
                 db_path=args.db_path,
                 stability_window=args.stability_window,
                 plan_type=args.plan_type,
+                json_mode=args.json_mode,
             )
         )
 
@@ -1919,11 +1965,13 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "patterns":
-        _run_patterns(
-            db_path=args.db_path,
-            force_recompute=args.recompute,
+        sys.exit(
+            _run_patterns(
+                db_path=args.db_path,
+                force_recompute=args.recompute,
+                json_mode=args.json_mode,
+            )
         )
-        sys.exit(0)
 
     if args.command == "impact":
         sys.exit(_run_impact(db_path=args.db_path, top_n=args.top_n, json_mode=args.json_mode))

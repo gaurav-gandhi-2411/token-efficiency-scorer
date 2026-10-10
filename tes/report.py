@@ -11,6 +11,7 @@ import json
 import textwrap
 from typing import Any
 
+from tes.json_out import SCHEMA_VERSION as JSON_SCHEMA_VERSION
 from tes.score import ThreeAxisResult
 from tes.web.cost_format import (
     format_cost_display,
@@ -210,5 +211,8 @@ def format_human(
 
 def format_json(result: ThreeAxisResult) -> str:
     """Serialize the full ThreeAxisResult to indented JSON."""
-    d: dict[str, Any] = dataclasses.asdict(result)
+    d: dict[str, Any] = {
+        "schema_version": JSON_SCHEMA_VERSION,
+        **dataclasses.asdict(result),
+    }
     return json.dumps(d, indent=2, ensure_ascii=False)

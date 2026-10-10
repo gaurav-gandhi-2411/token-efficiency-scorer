@@ -20,9 +20,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from tes.alarm import AlarmResult
     from tes.budget import BudgetProjection
     from tes.cost_period import PeriodCostReport
     from tes.impact import ImpactReport
+    from tes.live_monitor import LiveSessionState
 
 SCHEMA_VERSION = 1
 
@@ -176,4 +178,70 @@ def impact_payload(report: ImpactReport, top_n: int) -> dict[str, Any]:
         untested_tool_shape_pct=report.untested_tool_shape_pct,
         top_files=churn(report.top_files),
         top_directories=churn(report.top_directories),
+    )
+
+
+# ----------------------------------------------------------------------------- monitor
+
+
+def monitor_payload(
+    status: str,
+    cc_path: str,
+    live: LiveSessionState | None = None,
+    alarm: AlarmResult | None = None,
+    source_path: str | None = None,
+) -> dict[str, Any]:
+    """`tes monitor --json`.
+
+    status: "no_active_session" | "insufficient_data" | "ok". Session fields are null unless
+    status is "ok". `alarm` is null when none fired (exit code 0) and an object when it did
+    (exit code 3).
+    """
+    return envelope(
+        "monitor",
+        status=status,
+        active=status != "no_active_session",
+        cc_path=cc_path,
+        source_path=live.source_path if live is not None else source_path,
+        session_id=live.session_id if live else None,
+        task_type=live.task_type if live else None,
+        live_cost_usd=live.live_cost_usd if live else None,
+        priced=live.live_priced if live else None,
+        unpriced_models=list(live.live_unpriced_models) if live else [],
+        live_context_tokens=live.live_context_tokens if live else None,
+        live_resend_ratio=live.live_resend_ratio if live else None,
+        context_resend_dominant=live.context_resend_dominant if live else None,
+        ai_turn_count=live.ai_turn_count if live else None,
+        domain_of_validity=live.domain_of_validity if live else None,
+        alarm=(
+            {
+                "message": alarm.message,
+                "resend_pct": alarm.resend_pct,
+                "baseline_p75_tokens": alarm.baseline_p75_tokens,
+                "plan_type": alarm.plan_type,
+            }
+            if alarm is not None
+            else None
+        ),
+    )
+
+
+# ----------------------------------------------------------------------------- patterns
+
+
+def patterns_payload(cache: dict[str, Any]) -> dict[str, Any]:
+    """`tes patterns --json`.
+
+    The fixed envelope keys are `valid`, `status`, `n_sessions`, `domain_of_validity` and
+    `analysis`; `analysis` is the intelligence cache exactly as `tes patterns` reads it
+    (archetypes, k, silhouette, anomaly_count ...) when valid, else null.
+    """
+    valid = bool(cache.get("valid"))
+    return envelope(
+        "patterns",
+        valid=valid,
+        status=cache.get("status", "Pattern analysis unavailable."),
+        n_sessions=cache.get("n_sessions"),
+        domain_of_validity=cache.get("domain_of_validity"),
+        analysis=cache if valid else None,
     )
