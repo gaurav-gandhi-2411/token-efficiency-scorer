@@ -94,6 +94,23 @@ This document describes the actual flow, written after running it for real for `
    burns the version number permanently and breaks every pinned install of it. If a release
    has a real problem, ship a new version that supersedes it — that's what versioning is for.
 
+## Pre-release price check (local, needs real transcripts)
+
+CI cannot see real transcripts, so before tagging run both price checks locally:
+
+```
+python scripts/check_transcript_models_priced.py     # every model id in ~/.claude/projects must price
+python scripts/check_price_table_vs_vendor.py        # table vs Anthropic's page (needs network)
+```
+
+The first exits 1 and lists any model id found in your transcripts that `tes/data/prices.json`
+cannot resolve (exit 2 = nothing could be scanned; `<synthetic>` is excluded by design). Fix a
+miss by adding the model from the official pricing page, then add its id to
+`tests/fixtures/transcript_models/` so the always-on CI test keeps guarding it. Not modelled by
+design, because a transcript cannot show them: fast mode, `inference_geo` data-residency uplift,
+the Batch discount and server-tool charges. Haiku 5.5's over-100k-prompt tier is exact for main
+turns and reported as a floor for aggregated subagent usage.
+
 ## The tag-must-match-pyproject gotcha
 
 `pyproject.toml` has no dynamic versioning (no `setuptools-scm`, no `hatch-vcs`) — the
