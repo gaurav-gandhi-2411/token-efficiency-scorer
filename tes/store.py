@@ -223,6 +223,10 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # rows; `tes backfill-waste` refreshes them from the source transcript. Additive, idempotent.
     dedupe_cols = {
         "adapter_version": "ALTER TABLE sessions ADD COLUMN adapter_version INTEGER",
+        # tes.adapt.COST_VERSION: NULL/older = cache writes priced all at the 5-minute rate
+        # (1h writes under-priced); `tes backfill-waste` re-prices such rows. Separate from
+        # adapter_version because real_tokens (and so the baselines) did not change.
+        "cost_version": "ALTER TABLE sessions ADD COLUMN cost_version INTEGER",
         "duplicate_usage_records": (
             "ALTER TABLE sessions ADD COLUMN duplicate_usage_records INTEGER"
         ),
@@ -553,10 +557,11 @@ def upsert_session(
         )
 
     conn.execute(
-        "UPDATE sessions SET adapter_version = ?, duplicate_usage_records = ?, "
-        "dominant_model = ? WHERE session_id = ?",
+        "UPDATE sessions SET adapter_version = ?, cost_version = ?, "
+        "duplicate_usage_records = ?, dominant_model = ? WHERE session_id = ?",
         (
             result.adapter_version,
+            result.cost_version,
             result.duplicate_usage_records,
             result.dominant_model,
             result.session_id,
@@ -645,8 +650,8 @@ def _refresh_usage_columns(
         "session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
         "cost_unpriced_models = ?, subagent_tokens = ?, subagent_cost_usd = ?, "
         "subagent_count = ?, context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, "
-        "waste_pct = ?, adapter_version = ?, duplicate_usage_records = ?, dominant_model = ? "
-        "WHERE session_id = ?",
+        "waste_pct = ?, adapter_version = ?, cost_version = ?, duplicate_usage_records = ?, "
+        "dominant_model = ? WHERE session_id = ?",
         (
             r.real_tokens,
             r.scope_status,
@@ -670,6 +675,7 @@ def _refresh_usage_columns(
             out_pct,
             waste_pct,
             r.adapter_version,
+            r.cost_version,
             r.duplicate_usage_records,
             r.dominant_model,
             r.session_id,
@@ -684,8 +690,8 @@ def backfill_waste(
     """Re-run frozen detectors on all accessible sessions; embed per-event costs.
 
     Also refreshes the usage-derived columns (real_tokens, cost, verdict band, attribution) of
-    rows produced by the pre-dedupe adapter (adapter_version NULL/older), counted in
-    ``refreshed``; rows already current are left as they were.
+    rows produced by the pre-dedupe adapter (adapter_version NULL/older) or priced before
+    1-hour cache writes were split out (cost_version NULL/older), counted in ``refreshed``; rows already current are left as they were.
 
     Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
     scored before waste detection was wired show waste_event_count=0 in the store).
@@ -696,7 +702,7 @@ def backfill_waste(
     processed with 0 detected events, "missing_source" = source file not accessible.
     """
     from tes._digest import reconstruct_digest
-    from tes.adapt import ADAPTER_VERSION, adapt_session
+    from tes.adapt import ADAPTER_VERSION, COST_VERSION, adapt_session
     from tes.cost import compute_session_cost, load_price_table
     from tes.waste import annotate_waste_costs, build_waste_entry
 
@@ -705,7 +711,7 @@ def backfill_waste(
 
     conn = open_db(db_path)
     rows = conn.execute(
-        "SELECT session_id, source_path, adapter_version FROM sessions "
+        "SELECT session_id, source_path, adapter_version, cost_version FROM sessions "
         "WHERE source_path IS NOT NULL"
     ).fetchall()
 
@@ -739,7 +745,10 @@ def backfill_waste(
             waste_events = waste_entry["waste_events"]
             annotate_waste_costs(waste_events, per_turn_cost)
 
-            if row["adapter_version"] != ADAPTER_VERSION:
+            if (
+                row["adapter_version"] != ADAPTER_VERSION
+                or (row["cost_version"] or 0) != COST_VERSION
+            ):
                 _refresh_usage_columns(conn, record, waste_entry, sc, digest, prices)
                 refreshed += 1
 
