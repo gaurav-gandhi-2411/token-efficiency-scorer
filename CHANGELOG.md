@@ -218,6 +218,19 @@ self-baseline computation (it falls back to the 20-turn minimum).
   were left out; the dashboard lists legacy rows with a `legacy: overcounted, not comparable` badge and a banner, shows
   the same label on the session page and never compares a legacy cost with the baseline. A pattern cache built before
   the count existed is recomputed. Per-command table in `docs/UPGRADING.md`.
+- **"Context dominates" is no longer presented as a finding; the cost is shown as an informational breakdown:**
+  the lever rule (context re-send + growth >= 60% of cost) fired on 76 of 76 audited sessions, always as "context"
+  (context was 69 to 99.5% of cost on every one of them, because Claude Code re-reads the whole context each turn),
+  so it told the user nothing about any particular session. `tes score` now prints a COST BREAKDOWN (dollars and
+  share of priced cost for context re-send, context growth, output, fresh input and detected waste; priced part
+  only, with a note naming unpriced models) and the dashboard session page shows the same table. The LEVER section
+  and `lever_hint` remain, but only for absolute findings that can be false for a session: detected waste
+  (>= $0.50, or >= 10% of cost and >= $0.05, proof turns in the waste section) or output >= 40% of cost; they did
+  not fire on the audited data, so the usual `lever_hint` is `null`. The "cost levers unavailable" text for
+  unpriced models is replaced by the breakdown's own "Not computed" note. `score --json` gains `cost_breakdown`
+  (additive; `schema_version` stays 1). No distribution-relative rule ships. Method and numbers: the W1A diag 4a/4b
+  report. The quickstart regression test now requires the verdict, the waste finding with proof turns and the
+  breakdown, and still fails on UNAVAILABLE or 0 waste events.
 - **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
   printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
   now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption
