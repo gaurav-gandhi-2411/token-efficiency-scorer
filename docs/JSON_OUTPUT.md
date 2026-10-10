@@ -89,11 +89,14 @@ in `docs/ALARM.md`. Live figures are estimates for an in-progress session.
 `untested_tool_shape_operations`, `untested_tool_shape_pct`, `top_files` and `top_directories`
 (each `[{path,edits,additions,deletions,sessions_touched}]`). The two `_pct` fields qualify the
 totals (a full-file rewrite looks like a new file; MultiEdit/NotebookEdit extraction is unverified
-on real data) and are `null` when their denominator is zero.
+on real data) and are `null` when their denominator is zero. `legacy_rows_excluded` (additive) is the
+number of stored sessions scored before 0.15 that were left out of every figure; it is not
+`sessions_legacy` (sessions that predate edit-operation tracking).
 
 ## `patterns [--recompute]`
 
-`valid`, `status`, `n_sessions`, `domain_of_validity`, `analysis`. `analysis` is `null` when
+`valid`, `status`, `n_sessions`, `domain_of_validity`, `legacy_rows_excluded` (additive: stored sessions
+scored before 0.15 that the analysis left out; `n_sessions` counts current sessions only), `analysis`. `analysis` is `null` when
 `valid` is false (for example, not enough content sessions yet); otherwise it is the cached
 analysis as `tes patterns` reads it (`k`, `silhouette`, `archetypes`, `anomaly_count`,
 `anomaly_pct`, ...). If the pattern-analysis dependencies are not installed the command prints a
