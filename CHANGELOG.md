@@ -207,6 +207,13 @@ self-baseline computation (it falls back to the 20-turn minimum).
   command prints `rescored / skipped (source missing) / failed` and exits 4 when any row failed (it exited 0
   whatever happened). A row due a refresh whose cost cannot be computed is a failure too, not a row stamped
   current without a cost.
+- **Legacy rows are marked on `impact`, `patterns`, `ask` and the dashboard, and excluded from their aggregates:**
+  after the upgrade these surfaces still mixed pre-0.15 rows (tokens and dollars ~2x too high) into their figures.
+  `impact` and `patterns` now leave legacy rows out and say how many (text, and additive `legacy_rows_excluded` in
+  `--json`; `schema_version` stays 1); `ask` builds its context from current rows only and tells the model how many
+  were left out; the dashboard lists legacy rows with a `legacy: overcounted, not comparable` badge and a banner, shows
+  the same label on the session page and never compares a legacy cost with the baseline. A pattern cache built before
+  the count existed is recomputed. Per-command table in `docs/UPGRADING.md`.
 - **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
   printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
   now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption
