@@ -16,12 +16,17 @@ pool, budget, cost/ROI) and counted, so the exclusion is always visible.
 A store missing either column fails closed: every row is legacy.
 """
 
+import json
+import os
 import sqlite3
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
+NO_NOTICE_ENV = "TES_NO_NOTICE"  # =1 silences the one-time legacy-rows notice
+NOTICE_META_KEY = "legacy_notice"  # meta-table key holding the last-shown marker
 # Label used wherever a historical (uncorrected) dollar figure is still shown.
 LEGACY_LABEL = "legacy (pre-0.15 accounting, overcounted ~2x)"
 
@@ -116,8 +121,107 @@ def census(conn: sqlite3.Connection, *, check_sources: bool = True) -> LegacyCen
     return LegacyCensus(total, len(sources), rescorable, len(sources) - rescorable)
 
 
+# ---------------------------------------------------------------------------- first-run notice
+
+
+def notice_text(c: LegacyCensus) -> str:
+    """The one-time upgrade notice (stderr). Names the counts and the one command that fixes it."""
+    lines = [
+        f"tracegauge: {c.legacy} of {c.total} stored session(s) were scored by an older "
+        "version (usage counted once per content block, ~2x too high; 1-hour cache writes "
+        "under-priced).",
+        "  They are kept as-is but excluded from baselines, the alarm, `tes budget` and "
+        "`tes cost` totals.",
+        f"  rescorable (transcript still on disk): {c.rescorable}",
+        f"  unrecoverable (transcript gone):       {c.unrecoverable}",
+    ]
+    if c.rescorable:
+        lines.append(
+            "  Fix the rescorable ones with:  tes rescore   (preview: tes rescore --dry-run)"
+        )
+    else:
+        lines.append(
+            "  `tes rescore` has nothing to recover here; new sessions rebuild your baselines."
+        )
+    lines.append(f"  (shown once; silence with {NO_NOTICE_ENV}=1 or `tes --quiet ...`)")
+    return "\n".join(lines)
+
+
+def _read_marker(conn: sqlite3.Connection) -> dict[str, Any] | None:
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key = ?", (NOTICE_META_KEY,)).fetchone()
+    except sqlite3.OperationalError:  # no meta table yet (pre-migration store)
+        return None
+    if row is None:
+        return None
+    try:
+        value = json.loads(row[0])
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _write_marker(conn: sqlite3.Connection, version: str, legacy: int) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    conn.execute(
+        "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)",
+        (NOTICE_META_KEY, json.dumps({"version": version, "legacy": legacy})),
+    )
+    conn.commit()
+
+
+def maybe_notify(
+    db_path: Path | str | None,
+    *,
+    quiet: bool = False,
+    stream: TextIO | None = None,
+) -> bool:
+    """Print the legacy-rows notice if it is due; return whether it was printed.
+
+    Due when the store has legacy rows AND (no marker yet, or the marker is from another tes
+    version, or there are more legacy rows than when it was last shown). Never creates a store,
+    never raises and never waits: a locked or unwritable store just means no notice (or, if the
+    marker cannot be saved, the notice again next time). Falling legacy counts (after a rescore)
+    lower the marker silently so rows that turn legacy later re-trigger it.
+    """
+    if quiet or os.environ.get(NO_NOTICE_ENV, "").strip() not in ("", "0"):
+        return False
+    from tes import __version__  # noqa: PLC0415
+    from tes.store import resolve_db_path  # noqa: PLC0415
+
+    out = stream if stream is not None else sys.stderr
+    try:
+        path = resolve_db_path(db_path)
+        if not path.exists():
+            return False
+        conn = sqlite3.connect(path, timeout=0.25)
+        try:
+            legacy = count_legacy(conn)
+            marker = _read_marker(conn)
+            shown_for = int(marker.get("legacy", 0)) if marker else 0
+            due = legacy > 0 and (
+                marker is None or marker.get("version") != __version__ or legacy > shown_for
+            )
+            if not due:
+                if marker is not None and legacy < shown_for:
+                    _write_marker(conn, __version__, legacy)
+                return False
+            text = notice_text(census(conn))
+            try:
+                _write_marker(conn, __version__, legacy)
+            except sqlite3.Error:
+                pass  # read-only/locked store: show anyway, it will simply be due again
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError, ValueError):
+        return False
+    print(text, file=out)
+    return True
+
+
 __all__ = [
     "LEGACY_LABEL",
+    "NO_NOTICE_ENV",
     "LegacyCensus",
     "census",
     "count_legacy",
@@ -125,5 +229,7 @@ __all__ = [
     "is_legacy_row",
     "legacy_clause",
     "legacy_sources",
+    "maybe_notify",
+    "notice_text",
     "source_readable",
 ]
