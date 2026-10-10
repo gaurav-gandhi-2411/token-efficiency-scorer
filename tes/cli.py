@@ -899,6 +899,12 @@ def _run_ask(
     force_recompute: bool = False,
 ) -> None:
     """Handle `tes ask "<question>"` — the conversational explainer."""
+    try:
+        require_patterns_extra()
+    except PatternsExtraMissing as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+
     from tes.intelligence.chat import (
         CHAT_EGRESS_NOTICE,
         ChatApiConfig,

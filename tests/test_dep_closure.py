@@ -47,14 +47,14 @@ DECLARED_IMPORT_NAMES: frozenset[str] = frozenset(
         "certifi",
         "idna",
         "sniffio",
-        # numpy>=1.24,<3 (declared 0.7.1+)
-        "numpy",
-        # scikit-learn>=1.3,<2 (declared 0.7.1+) — top-level import name is 'sklearn'
-        "sklearn",
         # colorama: transitive dep of click on Windows
         "colorama",
     }
 )
+
+# Optional `patterns` extra (numpy, scikit-learn; scipy arrives via scikit-learn). Only
+# tes/intelligence may import these; everything else must run on the core dependencies.
+PATTERNS_EXTRA_IMPORT_NAMES: frozenset[str] = frozenset({"numpy", "sklearn", "scipy"})
 
 # Internal tes package and future-annotations guard — not third-party
 _INTERNAL = frozenset({"tes", "__future__"})
@@ -104,7 +104,10 @@ def test_all_tes_imports_are_declared() -> None:
     scanned: list[str] = []
     for py_file in sorted(tes_dir.rglob("*.py")):
         source = py_file.read_text(encoding="utf-8")
-        all_imports |= _top_level_imports(source)
+        found = _top_level_imports(source)
+        if "intelligence" in py_file.relative_to(tes_dir).parts:
+            found -= PATTERNS_EXTRA_IMPORT_NAMES  # checked separately below
+        all_imports |= found
         scanned.append(str(py_file.relative_to(tes_dir.parent)))
 
     external = all_imports - stdlib - _INTERNAL
@@ -117,3 +120,16 @@ def test_all_tes_imports_are_declared() -> None:
         "Then run the clean-gate: conda create --no-default-packages + pip install wheel.\n"
         "This guards against clean-install ModuleNotFoundError (the 0.7.0 regression)."
     )
+
+
+def test_extra_only_packages_are_imported_only_by_tes_intelligence() -> None:
+    """numpy/scikit-learn/scipy are the optional `patterns` extra; core must not import them."""
+    tes_dir = Path(__file__).parent.parent / "tes"
+    offenders: dict[str, set[str]] = {}
+    for py_file in sorted(tes_dir.rglob("*.py")):
+        if "intelligence" in py_file.relative_to(tes_dir).parts:
+            continue
+        hit = _top_level_imports(py_file.read_text(encoding="utf-8")) & PATTERNS_EXTRA_IMPORT_NAMES
+        if hit:
+            offenders[str(py_file.relative_to(tes_dir.parent))] = hit
+    assert not offenders, f"core modules import the optional patterns extra: {offenders}"

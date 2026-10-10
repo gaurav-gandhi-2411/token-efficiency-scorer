@@ -20,6 +20,7 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import load_price_table
 from tes.intelligence.cache import get_or_compute_intelligence
 from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
+from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.self_baseline import compute_baseline_cost_band, load_or_compute
 from tes.store import (
     _SORT_COLUMN_WHITELIST,
@@ -470,6 +471,11 @@ def create_app(config: ServerConfig) -> Flask:
     def patterns() -> str:
         from tes.store import resolve_db_path
 
+        try:
+            require_patterns_extra()
+        except PatternsExtraMissing as exc:
+            return render_template("extra_missing.html", feature="Session patterns", hint=str(exc))
+
         cache = get_or_compute_intelligence(db_path=resolve_db_path(config.db_path))
         ollama_available = _check_ollama()
         api_key_available = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -533,6 +539,11 @@ def create_app(config: ServerConfig) -> Flask:
         if not question:
             return jsonify({"error": "No question provided."}), 400
         question = question[:500]  # length cap — no runaway prompts
+
+        try:
+            require_patterns_extra()
+        except PatternsExtraMissing as exc:
+            return jsonify({"error": str(exc), "needs_extra": "patterns"}), 501  # type: ignore[return-value]  # as the other /ask returns
 
         db_path_str = str(config.db_path) if config.db_path else None
 

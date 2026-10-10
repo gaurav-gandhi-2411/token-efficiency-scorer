@@ -32,6 +32,12 @@ keywords = ["claude-code", "llm", "token-efficiency", "coding-agent", "ai-tools"
 dependencies = [
     "flask>=3.0,<4",
     "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+# Only tes/intelligence (`tes patterns`, `tes ask`, the dashboard /patterns and /ask routes) imports
+# these; scipy comes in through scikit-learn. Kept out of core so `uvx tracegauge` stays small and fast.
+patterns = [
     "numpy>=1.24,<3",
     "scikit-learn>=1.3,<2",
 ]
@@ -41,6 +47,10 @@ dependencies = [
 # lint/type-check/test were only ever run against a global/conda environment,
 # never reproducibly. Needed to make CI (added this same change) actually work.
 dev = [
+    # The test suite exercises the `patterns` extra (same pins); core-only behaviour is tested with
+    # the imports blocked in a subprocess (tests/test_core_without_extras.py).
+    "numpy>=1.24,<3",
+    "scikit-learn>=1.3,<2",
     "ruff>=0.16.10,<1",
     "mypy>=2.4.0,<3",
     # >=9.0.3: GHSA (pytest vulnerable tmpdir handling), fixed in 9.0.3.
