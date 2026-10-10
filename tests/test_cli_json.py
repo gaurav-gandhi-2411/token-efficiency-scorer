@@ -36,6 +36,8 @@ COST_KEYS = {
     "token_priced",
     "tokens_unpriced",
     "sessions_unpriced",
+    "legacy_rows_excluded",
+    "legacy",
     "by_project",
     "roi",
 }
@@ -68,6 +70,7 @@ BUDGET_KEYS = {
     "cost_known",
     "priced",
     "unpriced_models",
+    "legacy_rows_excluded",
     "message",
 }
 IMPACT_KEYS = {

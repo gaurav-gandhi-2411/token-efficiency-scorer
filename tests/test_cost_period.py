@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.cli import _project_label
 from tes.cost_period import (
     _project_label_from_source_path,
@@ -53,7 +54,7 @@ def _insert_session(
             trajectory_domain_of_validity, judge_source_hash,
             waste_event_count, waste_events, waste_domain_of_validity,
             turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity,
-            cost_unpriced_models
+            cost_unpriced_models, adapter_version, cost_version
         ) VALUES (
             ?, 'infra-deploy', ?, ?, 'hash', ?,
             '["token"]', ?, 'in_scope', 1,
@@ -62,10 +63,20 @@ def _insert_session(
             '', NULL,
             0, '[]', '',
             30, ?, 0, '',
-            ?
+            ?, ?, ?
         )
         """,
-        (session_id, source_path, source_mtime, scored_at, real_tokens, cost_usd, unpriced_models),
+        (
+            session_id,
+            source_path,
+            source_mtime,
+            scored_at,
+            real_tokens,
+            cost_usd,
+            unpriced_models,
+            ADAPTER_VERSION,
+            COST_VERSION,
+        ),
     )
     conn.commit()
 
