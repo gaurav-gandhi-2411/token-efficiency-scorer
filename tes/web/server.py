@@ -159,9 +159,15 @@ def _stored_attribution_line(session: dict) -> str | None:
     waste_usd = sum(e.get("wasted_cost_usd") or 0 for e in waste_events)
     n_events = session.get("waste_event_count", 0) or 0
 
-    total = format_cost_display(float(cost_usd), session.get("unpriced_models") or ())
+    unpriced = session.get("unpriced_models") or ()
+    total = format_cost_display(float(cost_usd), unpriced)
     if n_events > 0:
-        return f"{total} total · waste ${waste_usd:.2f} ({n_events} event{'s' if n_events != 1 else ''})"
+        plural = "s" if n_events != 1 else ""
+        if unpriced and waste_usd <= 0:
+            # Nothing priced: "$0.00" would read as free waste. Say how many events, not what.
+            return f"{total} total · {n_events} waste event{plural} (waste cost unpriced)"
+        waste = format_cost_display(waste_usd, unpriced)
+        return f"{total} total · waste {waste} ({n_events} event{plural})"
     return f"{total} total · no waste detected"
 
 

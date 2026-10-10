@@ -1103,6 +1103,12 @@ def _run_cost(
             )
         if report.unpriced_models:
             print(f"  {format_unpriced(report.unpriced_models)}")
+            print(
+                f"  ({report.sessions_unpriced} session"
+                f"{'s' if report.sessions_unpriced != 1 else ''} not fully priced, "
+                f"{report.tokens_unpriced:,} tokens: a session with any unpriced turn "
+                "counts as unpriced in full)"
+            )
         if report.unpriced_models_incomplete:
             print("  (some unpriced sessions predate model tracking -- can't name their model)")
 

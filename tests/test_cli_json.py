@@ -24,6 +24,7 @@ COST_KEYS = {
     "command",
     "period",
     "total_usd",
+    "cost_known",
     "priced",
     "unpriced_models",
     "unpriced_models_incomplete",
@@ -33,10 +34,19 @@ COST_KEYS = {
     "token_coverage_pct",
     "token_total",
     "token_priced",
+    "tokens_unpriced",
+    "sessions_unpriced",
     "by_project",
     "roi",
 }
-COST_PROJECT_KEYS = {"project", "total_usd", "session_count", "priced", "unpriced_models"}
+COST_PROJECT_KEYS = {
+    "project",
+    "total_usd",
+    "session_count",
+    "cost_known",
+    "priced",
+    "unpriced_models",
+}
 ROI_KEYS = {
     "status",
     "plan_names",
@@ -55,6 +65,7 @@ BUDGET_KEYS = {
     "days_observed",
     "total_usd_so_far",
     "projected_usd_for_window",
+    "cost_known",
     "priced",
     "unpriced_models",
     "message",
@@ -184,6 +195,16 @@ def test_cost_json_unpriced_is_not_a_zero_total(
     assert doc["priced"] is False
     assert doc["unpriced_models"] == [UNPRICED]
     assert doc["by_project"][0]["priced"] is False
+    # The numeric 0.0 is a placeholder for an unknown cost: cost_known says so (verifier 1 #4c).
+    assert doc["total_usd"] == 0.0
+    assert doc["cost_known"] is False
+    assert doc["by_project"][0]["cost_known"] is False
+    # Coverage must not claim the unpriced session as priced (verifier 1 #4b).
+    assert doc["sessions_unpriced"] == 1
+    assert doc["token_priced"] < doc["token_total"]
+    assert doc["tokens_unpriced"] == doc["token_total"] - doc["token_priced"] > 0
+    assert doc["session_coverage_pct"] == 0.0
+    assert doc["token_coverage_pct"] == 0.0
 
 
 def test_cost_json_empty_period_still_has_the_full_key_set(
@@ -280,6 +301,16 @@ def test_budget_json_unpriced(
     doc = _doc(_run(monkeypatch, capsys, "budget", "--json")[1])
     assert doc["priced"] is False
     assert doc["unpriced_models"] == [UNPRICED]
+    assert doc["cost_known"] is True  # one session priced: a floor, not a placeholder
+
+
+def test_budget_json_all_unpriced_cost_is_flagged_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _score_into_store(monkeypatch, capsys, tmp_path, UNPRICED)
+    doc = _doc(_run(monkeypatch, capsys, "budget", "--json")[1])
+    assert doc["total_usd_so_far"] == 0.0
+    assert doc["cost_known"] is False
 
 
 # ----------------------------------------------------------------------------- impact
@@ -324,6 +355,7 @@ MONITOR_KEYS = {
     "session_id",
     "task_type",
     "live_cost_usd",
+    "cost_known",
     "priced",
     "unpriced_models",
     "live_context_tokens",
@@ -387,6 +419,10 @@ def test_monitor_json_unpriced_fields(
     doc = _doc(_run(monkeypatch, capsys, "monitor", "--json")[1])
     assert doc["priced"] is False
     assert doc["unpriced_models"] == [UNPRICED]
+    assert doc["cost_known"] is True  # priced subtotal of 8.10: a floor
+    live.live_cost_usd = 0.0
+    doc = _doc(_run(monkeypatch, capsys, "monitor", "--json")[1])
+    assert doc["cost_known"] is False
 
 
 def test_monitor_json_no_active_session_has_full_key_set(
@@ -518,4 +554,16 @@ def test_score_json_carries_schema_version(
     doc = _doc(out)
     assert list(doc)[0] == "schema_version"
     assert doc["schema_version"] == SCHEMA_VERSION
-    assert {"priced", "unpriced_models", "lever_hint"} <= set(doc)
+    assert {"priced", "unpriced_models", "lever_hint", "cost_known"} <= set(doc)
+    assert doc["cost_known"] is True
+
+
+def test_score_json_unpriced_session_cost_is_flagged_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path / "proj" / "u.jsonl", UNPRICED)
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    doc = _doc(out)
+    assert doc["session_cost_usd"] == 0.0  # stays numeric, documented in JSON_OUTPUT.md
+    assert doc["priced"] is False
+    assert doc["cost_known"] is False

@@ -14,6 +14,15 @@ The contract, pinned by `tests/test_cli_json.py` (exact key sets) and implemente
 * **Money is never silently partial.** Where a USD figure can be incomplete the document carries
   `priced` (bool) and `unpriced_models` (list of model ids missing from the price table). When
   `priced` is `false` the figure covers the priced turns only: it is a floor, never a true total.
+  **Unpriced rows keep a numeric USD of `0.0`** (changing it to `null` would break consumers that
+  sum it, and bump `schema_version`), so the number alone cannot tell "free" from "unknown". The
+  additive boolean `cost_known` does: it is `false` exactly when the figure is a placeholder (models
+  are unpriced and nothing at all was priced, or no cost was computed) and `true` otherwise,
+  including for a partly priced figure (known, but a floor: see `priced`). It appears on `score`
+  (`session_cost_usd`), `cost` (`total_usd` and each `by_project` row), `budget`
+  (`total_usd_so_far`, `projected_usd_for_window`; `null` when `available` is false) and `monitor`
+  (`live_cost_usd`; `null` unless `status` is `ok`). Consumers must read `cost_known` (or `priced`)
+  before treating a `0.0` as a price. This is a new key, so `schema_version` stays `1`.
   `cost` also reports `sessions_missing_cost` (sessions in the window with no cost stored yet; they
   are not in `total_usd` and are not counted as $0).
 
@@ -21,8 +30,16 @@ The contract, pinned by `tests/test_cli_json.py` (exact key sets) and implemente
 
 `period{label,start,end}`, `total_usd`, `priced`, `unpriced_models`, `unpriced_models_incomplete`,
 `session_count`, `sessions_missing_cost`, `session_coverage_pct`, `token_coverage_pct`,
-`token_total`, `token_priced`, `by_project[{project,total_usd,session_count,priced,unpriced_models}]`,
-`roi`.
+`token_total`, `token_priced`, `tokens_unpriced`, `sessions_unpriced`,
+`by_project[{project,total_usd,session_count,priced,unpriced_models}]`, `roi`.
+
+Coverage counts a session as priced only when none of its turns used an unpriced model.
+`sessions_unpriced` is the number of sessions in the window that are not fully priced (an unpriced
+model among their turns, or no cost stored); `token_priced` is the tokens of fully priced sessions
+and `tokens_unpriced = token_total - token_priced`. The store keeps no per-model token split, so a
+session with one unpriced turn moves all its tokens to `tokens_unpriced` (an upper bound on the
+tokens that could not be priced). `session_coverage_pct` and `token_coverage_pct` follow the same
+rule, so they are below 100 whenever `priced` is `false`.
 
 `roi` is `null` unless `--roi` is passed; otherwise `{status, plan_names, plan_cost_usd,
 api_equivalent_usd, multiple, is_floor, error}` where `status` is `ok`, `no_plan`,

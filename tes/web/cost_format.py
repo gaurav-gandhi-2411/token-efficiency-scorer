@@ -25,6 +25,18 @@ def format_unpriced(models: Iterable[str]) -> str:
     return f"unpriced ({', '.join(sorted(set(models)))})"
 
 
+def cost_is_known(usd: float | None, unpriced_models: Iterable[str] = ()) -> bool:
+    """False when a USD figure is a placeholder rather than a measurement.
+
+    That is: no cost was computed (None), or models are unpriced and nothing at all was priced
+    (the stored 0.0 means "unknown", not "free"). A partly priced figure is known-but-a-floor
+    (`priced` is false for it); a genuinely priced $0.00 is known.
+    """
+    if usd is None:
+        return False
+    return not (list(unpriced_models) and not usd)
+
+
 def format_cost_display(
     usd: float | None,
     unpriced_models: Iterable[str] = (),
@@ -110,6 +122,7 @@ def format_price_provenance(prices: dict) -> str:
 
 
 __all__ = [
+    "cost_is_known",
     "format_cost_usd",
     "format_unpriced",
     "format_cost_display",

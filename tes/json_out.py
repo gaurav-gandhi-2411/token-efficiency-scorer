@@ -19,6 +19,8 @@ import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from tes.web.cost_format import cost_is_known
+
 if TYPE_CHECKING:
     from tes.alarm import AlarmResult
     from tes.budget import BudgetProjection
@@ -91,6 +93,7 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
             "end": _iso(report.period_end),
         },
         total_usd=report.total_usd,
+        cost_known=cost_is_known(report.total_usd, report.unpriced_models),
         priced=report.priced,
         unpriced_models=list(report.unpriced_models),
         unpriced_models_incomplete=report.unpriced_models_incomplete,
@@ -100,11 +103,14 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
         token_coverage_pct=report.token_coverage_pct,
         token_total=report.token_total,
         token_priced=report.token_priced,
+        tokens_unpriced=report.tokens_unpriced,
+        sessions_unpriced=report.sessions_unpriced,
         by_project=[
             {
                 "project": b.project_label,
                 "total_usd": b.total_usd,
                 "session_count": b.session_count,
+                "cost_known": cost_is_known(b.total_usd, b.unpriced_models),
                 "priced": not b.unpriced_models,
                 "unpriced_models": list(b.unpriced_models),
             }
@@ -128,6 +134,7 @@ def budget_payload(projection: BudgetProjection | None, window_days: int) -> dic
             days_observed=None,
             total_usd_so_far=None,
             projected_usd_for_window=None,
+            cost_known=None,
             priced=None,
             unpriced_models=[],
             message=f"No sessions with cost data in the last {window_days} days.",
@@ -140,6 +147,7 @@ def budget_payload(projection: BudgetProjection | None, window_days: int) -> dic
         days_observed=projection.days_observed,
         total_usd_so_far=projection.total_usd_so_far,
         projected_usd_for_window=projection.projected_usd_for_window,
+        cost_known=cost_is_known(projection.total_usd_so_far, projection.unpriced_models),
         priced=projection.priced,
         unpriced_models=list(projection.unpriced_models),
         message=projection.message,
@@ -206,6 +214,7 @@ def monitor_payload(
         session_id=live.session_id if live else None,
         task_type=live.task_type if live else None,
         live_cost_usd=live.live_cost_usd if live else None,
+        cost_known=(cost_is_known(live.live_cost_usd, live.live_unpriced_models) if live else None),
         priced=live.live_priced if live else None,
         unpriced_models=list(live.live_unpriced_models) if live else [],
         live_context_tokens=live.live_context_tokens if live else None,

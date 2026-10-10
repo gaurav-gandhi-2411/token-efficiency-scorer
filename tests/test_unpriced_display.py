@@ -214,6 +214,8 @@ def test_cli_cost_period_names_unpriced_models(
     out = capsys.readouterr().out
     assert f"unpriced ({UNPRICED})" in out
     assert "priced subtotal only" in out
+    assert "Priced coverage: 50% of sessions" in out  # 1 of 2 sessions fully priced
+    assert "Priced coverage: 100%" not in out
 
 
 def test_cli_cost_period_fully_unpriced_total_is_not_zero_dollars(
@@ -229,6 +231,59 @@ def test_cli_cost_period_fully_unpriced_total_is_not_zero_dollars(
     out = capsys.readouterr().out
     assert f"Total: unpriced ({UNPRICED})" in out
     assert "$0.00" not in out
+    # Coverage is truthful: the only session is unpriced, so nothing is covered (was 100%/100%).
+    assert "Priced coverage: 0% of sessions, 0% of tokens" in out
+    assert "Priced coverage: 100%" not in out
+
+
+def test_stored_attribution_line_never_prints_zero_waste_dollars_for_unpriced() -> None:
+    from tes.web.server import _stored_attribution_line
+
+    ev = [{"wasted_cost_usd": 0.0}] * 2
+    base = {"session_cost_usd": 0.0, "waste_events": ev, "waste_event_count": 2}
+    line = _stored_attribution_line({**base, "unpriced_models": [UNPRICED]})
+    assert line == f"unpriced ({UNPRICED}) total · 2 waste events (waste cost unpriced)"
+    partial = _stored_attribution_line(
+        {
+            **base,
+            "session_cost_usd": 1.0,
+            "waste_events": [{"wasted_cost_usd": 0.04}],
+            "unpriced_models": [UNPRICED],
+        }
+    )
+    assert partial is not None
+    assert f"waste $0.04 + unpriced ({UNPRICED})" in partial
+    priced = _stored_attribution_line({**base, "unpriced_models": []})
+    assert priced == "$0.00 total · waste $0.00 (2 events)"  # genuinely priced: $0 is real
+
+
+def test_takeaway_does_not_claim_no_waste_when_turns_were_unpriced() -> None:
+    from tes.attribution import AttributionResult
+    from tes.takeaway import build_attribution_takeaway
+
+    attr = AttributionResult(
+        session_id="s",
+        real_tokens=600,
+        domain_of_validity="test",
+        total_billed_tokens=1000,
+        total_usd=1.0,
+        context_resend_tokens=500,
+        context_resend_usd=0.5,
+        context_growth_tokens=0,
+        context_growth_usd=0.0,
+        output_tokens=100,
+        output_usd=0.5,
+        fresh_input_tokens=400,
+        fresh_input_usd=0.0,
+        rr_waste_tokens=0,
+        rr_waste_usd=0.0,
+        rfr_waste_tokens=0,
+        rfr_waste_usd=0.0,
+    )
+    assert "no detectable waste" in build_attribution_takeaway(attr)
+    text = build_attribution_takeaway(attr, [UNPRICED])
+    assert "no detectable waste" not in text
+    assert f"unpriced ({UNPRICED})" in text
 
 
 # --------------------------------------------------------------------------- budget / live
@@ -286,10 +341,22 @@ def test_dashboard_renders_unpriced(
     assert rows["full"]["unpriced_models"] == [UNPRICED]
     assert rows["ok"]["priced"] is True
 
+    # Give the all-unpriced session a waste event (its wasted_cost_usd is 0 because nothing
+    # could be priced); the list must not print "waste $0.00" for it (verifier 1 #4a).
+    conn = open_db(cli_env)
+    conn.execute(
+        "UPDATE sessions SET waste_event_count = 1, waste_events = ? WHERE session_id = 'full'",
+        (json.dumps([{"detector": "REDUNDANT-READ", "turns": [1, 2], "wasted_cost_usd": 0.0}]),),
+    )
+    conn.commit()
+    conn.close()
+
     app = create_app(ServerConfig(db_path=cli_env))
     app.config["TESTING"] = True
     with app.test_client() as c:
         listing = c.get("/").get_data(as_text=True)
+        assert "waste $0.00" not in listing
+        assert "1 waste event (waste cost unpriced)" in listing
         assert f"unpriced ({UNPRICED})" in listing
         assert f"+ unpriced ({UNPRICED})" in listing  # the partially priced row
         detail = c.get("/session/full").get_data(as_text=True)
