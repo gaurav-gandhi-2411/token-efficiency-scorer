@@ -112,6 +112,15 @@ Post-correction, all medians are in the 500-720K range — consistent with real 
 | research-recon | 12 | 362,790 | 718,627 | 1,339,625 | 0.63 |
 | feature-build | 12 | 424,780 | 711,859 | 803,514 | 0.43 |
 
+> **Note, 0.15.0 draft (2026-10-10).** These bands are on the old scale (each API response's
+> usage counted once per content block) and describe the June research pool. They are not the
+> shipped bands and were never rescaled (the raw sessions are gone). The bundled baseline since
+> 0.15.0 is a different, ungated 71-session population on the corrected scale (p25 / median /
+> p75): ml-eval 1,335,924 / 1,515,851 / 2,796,600 (n 13), debug-fix 397,878 / 802,486 /
+> 3,381,684 (n 19), infra-deploy 376,422 / 1,577,905 / 3,119,425 (n 15), research-recon
+> 411,052 / 620,842 / 1,194,136 (n 16); feature-build is inactive (n 8). Source:
+> `eval/manifest.json`, `tes/data/cc_baselines.json`.
+
 ---
 
 ## 6. Task Taxonomy and Classifier

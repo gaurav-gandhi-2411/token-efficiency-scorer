@@ -6,6 +6,18 @@ spec.md (0.10.0). This is the mandatory hold: the action layer
 the grounding design was reviewed before a line of `coach.py`/`alarm.py`/
 `budget.py` was written.
 
+> **Superseded in part, 0.15.0 draft (2026-10-10).** This is the 0.10.0 design record and is
+> kept as written. The alarm it specifies (decision 4 and section 2.2: magnitude gate = the
+> type's self-baseline `p75`, silent while that baseline is `building`) is no longer what
+> ships. The gate is now the **p85 of the user's own sessions from the last 30 days in the
+> same model era** (current-accounting rows only, at least 10 sessions per tier, falling back
+> to the bundled band's upper bound, otherwise the alarm is disabled), still combined with the
+> re-send cause gate, and `tes monitor` exits **3** when the alarm fires (`docs/ALARM.md`,
+> `docs/EXIT_CODES.md`). The store-derived dollar and count figures in this document (~$2.60,
+> 74 above-p75 sessions, ~$4.10 vs ~$1.30, ~$2.85, ~$3.20) were measured on a store counted
+> once per content block, about 2.26x too high in cost; they cannot be recomputed (the rows
+> are gone). The amounts in the section 2 message examples are illustrative, not measurements.
+
 ## Review decisions (all four recommendations approved as proposed)
 
 1. **H4 (compaction-timing habit) deferred** — ship H1–H3 now; investigate the

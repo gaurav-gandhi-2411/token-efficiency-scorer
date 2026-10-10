@@ -66,6 +66,8 @@ Reconstructed by `_reconstruct_digest()` in `layer2_judge.py` before calling the
 | `output_tokens_available` | bool | **required** | Whether output tokens are logged per-turn |
 | `task_description` | string | **required** | First user-role turn content, truncated to 800 chars. Fed directly to judge prompt. |
 | `turns` | list[TurnDigest] | **required** | All turns in order; system turns are included but skipped in rendering |
+| `usage_records` | int | optional | Main-chain assistant records that carried a `usage` object (0 on digests stored before adapter_version 2) |
+| `usage_records_deduped` | int | optional | Distinct API responses among them, each counted once; `usage_records - usage_records_deduped` is the number of repeated content-block records (0 on older digests) |
 
 ---
 
