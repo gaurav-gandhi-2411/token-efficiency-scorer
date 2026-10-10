@@ -24,7 +24,8 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
 * **`monitor` exits 3 only when the alarm fires.** "No active session" and "not enough data to
   score yet" exit 0 on purpose: a SessionEnd hook or cron job that runs `tes monitor` between
   sessions must not read an idle machine as a failure, and a distinct "nothing to monitor" code
-  would make `tes monitor && ...` chains fail on every idle run. There is no `--fail-on-alarm` flag:
+  would make `tes monitor && ...` chains fail on every idle run. With `--json`, the document says which case it was
+  (`"status": "no_active_session"`, `"active": false`, `"alarm": null`). There is no `--fail-on-alarm` flag:
   the alarm already is the failure condition, and it is itself data-gated (it stays silent until
   your own baseline for that task type is built).
 * **Store errors** (`cost`, `budget`, `impact`: cannot open `~/.tes/tes.db`) used to print
@@ -38,6 +39,8 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
 tracegauge score ./transcripts --no-judge --json > scores.json
 case $? in 0) ;; 4) echo "some transcripts did not parse" ;; *) exit 1 ;; esac
 
-# act on the alarm in a hook or cron job
-tracegauge monitor; [ $? -eq 3 ] && notify-send "tracegauge: session alarm"
+# act on the alarm in a hook or cron job (monitor.json then holds the alarm object)
+tracegauge monitor --json > monitor.json; [ $? -eq 3 ] && notify-send "tracegauge: session alarm"
 ```
+
+Machine-readable output of every command: [JSON_OUTPUT.md](JSON_OUTPUT.md).
