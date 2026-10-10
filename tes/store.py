@@ -21,8 +21,13 @@ import os
 import sqlite3
 from datetime import timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from tes.score import ThreeAxisResult
+
+if TYPE_CHECKING:
+    from tes._digest import SessionDigest
+    from tes.cost import SessionCost
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -596,11 +601,11 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
 
 def _refresh_usage_columns(
     conn: sqlite3.Connection,
-    record: dict,
-    waste_entry: dict,
-    session_cost: object,
-    digest: object,
-    prices: dict,
+    record: dict[str, Any],
+    waste_entry: dict[str, Any],
+    session_cost: SessionCost | None,
+    digest: SessionDigest | None,
+    prices: dict[str, Any],
 ) -> None:
     """Re-derive every usage-derived column of one row from a freshly adapted record.
 
