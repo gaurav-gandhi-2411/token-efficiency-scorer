@@ -2,10 +2,10 @@ from __future__ import annotations
 
 """tes/patterns_extra.py -- the single place that knows what `tes patterns` needs installed.
 
-Today numpy and scikit-learn are core dependencies, so the check passes. A later item moves them
-(with scipy) to the `[patterns]` extra; the CLI already calls require_patterns_extra() before it
-touches tes.intelligence (whose package __init__ imports sklearn eagerly), so that move only has
-to edit pyproject.toml, not the call sites.
+numpy and scikit-learn (scipy comes with it) are the optional `[patterns]` extra. Every consumer calls
+require_patterns_extra() BEFORE it runs tes.intelligence work: `tes patterns`, `tes ask`, and the
+dashboard /patterns and /ask routes. tes.intelligence itself imports lazily, so importing it (as the
+CLI and the dashboard do at startup) never needs the extra.
 """
 
 import importlib
