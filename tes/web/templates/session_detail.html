@@ -10,6 +10,16 @@
   &middot; <span style="color:var(--tick);">{{ session.source_path }}</span>
 </p>
 
+{% if is_legacy %}
+<div class="caveat" id="legacy-banner">
+  <strong>{{ legacy_label }}.</strong> This session was scored before 0.15: the tokens, cost and
+  verdict stored for it count each response's usage once per content block (about 2x too high) and
+  are not compared with your baseline. {% if attribution %}The attribution below is recomputed from
+  the transcript with the current accounting. {% endif %}<code>tes rescore</code> replaces the stored
+  figures when the transcript still exists.
+</div>
+{% endif %}
+
 {# ── Takeaway ────────────────────────────────────────────────────── #}
 {% if attribution_takeaway %}
 <div class="takeaway">{{ attribution_takeaway }}</div>
@@ -386,6 +396,8 @@
               {% else %}
                 <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
               {% endif %}
+            {% elif is_legacy %}
+              <span class="badge badge-unavailable">{{ legacy_label }}: not compared</span>
             {% else %}
               <span class="badge badge-unavailable">no baseline yet</span>
             {% endif %}
