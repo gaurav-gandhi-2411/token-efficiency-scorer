@@ -49,6 +49,7 @@ from tes.json_out import (
     impact_payload,
     monitor_payload,
     patterns_payload,
+    rescore_payload,
 )
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
@@ -981,6 +982,52 @@ def _run_ask(
         print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
 
 
+def _run_rescore(
+    *,
+    db_path: str | None = None,
+    dry_run: bool = False,
+    limit: int | None = None,
+    json_mode: bool = False,
+) -> int:
+    """Handle `tes rescore` -- re-score LEGACY rows from their source transcripts.
+
+    Rows whose transcript is gone are left exactly as they are (counted, never touched). Exit 4
+    when any readable row failed to re-score (the others still were), 1 when there is no usable
+    store, else 0.
+    """
+    from tes.store import backfill_waste, resolve_db_path
+
+    resolved = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    if limit is not None and limit < 1:
+        print("[ERROR] --limit must be at least 1.", file=sys.stderr)
+        return EXIT_USAGE
+    if not resolved.exists():
+        print(f"[ERROR] No TES store at {resolved}.", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        summary = backfill_waste(resolved, only_legacy=True, dry_run=dry_run, limit=limit)
+    except Exception as exc:
+        print(f"[ERROR] Cannot rescore the TES store: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    if json_mode:
+        emit(rescore_payload(summary, dry_run=dry_run, limit=limit))
+        return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
+
+    verb = "would be rescored" if dry_run else "rescored"
+    print(
+        f"{'DRY RUN -- nothing written. ' if dry_run else ''}Legacy sessions: {summary['legacy_rows']}"
+    )
+    print(f"  {verb}:{' ' * (24 - len(verb))}{summary['refreshed']}")
+    print(f"  skipped (source missing):  {summary['missing_source']}")
+    print(f"  failed (parse error):      {summary['errors']}")
+    if limit is not None:
+        print(f"  not attempted (--limit):   {summary['not_attempted']}")
+    if summary["missing_source"]:
+        print("  Rows whose transcript is gone were left exactly as they were.")
+    return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
+
+
 def _run_budget(
     *,
     db_path: str | None = None,
@@ -1411,6 +1458,46 @@ def main() -> None:
         dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+
+    rescore_p = sub.add_parser(
+        "rescore",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
+        help="Re-score legacy (pre-0.15 accounting) sessions from their source transcripts.",
+        description=(
+            "Re-score every stored session written before usage de-duplication / 1-hour cache "
+            "pricing whose source transcript still exists, with the current adapter and price "
+            "table. Rows whose transcript is gone are left untouched (and stay excluded from "
+            "baselines, the alarm, budget and cost totals). Idempotent: a second run changes "
+            "nothing. Waste events are re-detected for the rescored rows; judge verdicts are kept."
+        ),
+    )
+    rescore_p.add_argument(
+        "--db-path",
+        default=None,
+        dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    rescore_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Compute and report what would change; open the store read-only and write nothing.",
+    )
+    rescore_p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Re-score at most N sessions this run (most recently written first).",
+    )
+    rescore_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (counts) instead of text.",
     )
 
     serve_p = sub.add_parser(
@@ -1884,6 +1971,16 @@ def main() -> None:
         total_processed = summary["updated"] + summary["no_waste"]
         print(f"  Total processed: {total_processed}")
         sys.exit(0)
+
+    if args.command == "rescore":
+        sys.exit(
+            _run_rescore(
+                db_path=args.db_path,
+                dry_run=args.dry_run,
+                limit=args.limit,
+                json_mode=args.json_mode,
+            )
+        )
 
     if args.command == "serve":
         _run_serve(

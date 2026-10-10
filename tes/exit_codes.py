@@ -17,6 +17,7 @@ EXIT_USAGE = 1
 # on it (`tes monitor || notify`). Distinct from 1 so "alarm" is never confused with "error".
 EXIT_ALARM = 3
 # `tes score`: at least one session could not be read/parsed (the rest were still scored).
+# `tes rescore`: at least one legacy row's transcript could not be re-scored (the rest were).
 EXIT_ADAPT_ERROR = 4
 
 EXIT_CODES_HEADING = "Exit codes:"
@@ -26,7 +27,10 @@ _DESCRIPTIONS: dict[int, str] = {
     EXIT_USAGE: "bad usage, path not found, no sessions found, or the store cannot be opened",
     2: "command-line usage error (reported by argparse)",
     EXIT_ALARM: "monitor: the cost/context alarm fired",
-    EXIT_ADAPT_ERROR: "score: at least one session could not be parsed (others still scored)",
+    EXIT_ADAPT_ERROR: (
+        "score: at least one session could not be parsed (others still scored); "
+        "rescore: same for a legacy row (the others are still rescored)"
+    ),
 }
 
 
