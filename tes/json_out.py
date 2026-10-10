@@ -19,6 +19,7 @@ import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from tes.legacy import LEGACY_LABEL
 from tes.web.cost_format import cost_is_known
 
 if TYPE_CHECKING:
@@ -106,6 +107,13 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
         token_priced=report.token_priced,
         tokens_unpriced=report.tokens_unpriced,
         sessions_unpriced=report.sessions_unpriced,
+        legacy_rows_excluded=report.legacy_rows_excluded,
+        legacy={
+            "label": LEGACY_LABEL,
+            "session_count": report.legacy_rows_excluded,
+            "total_usd": report.legacy_total_usd,
+            "included_in_total_usd": False,
+        },
         by_project=[
             {
                 "project": b.project_label,
@@ -124,7 +132,9 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
 # ----------------------------------------------------------------------------- budget
 
 
-def budget_payload(projection: BudgetProjection | None, window_days: int) -> dict[str, Any]:
+def budget_payload(
+    projection: BudgetProjection | None, window_days: int, legacy_rows_excluded: int = 0
+) -> dict[str, Any]:
     """`tes budget --json`. `available` is false (fields null) when the window has no cost data."""
     if projection is None:
         return envelope(
@@ -138,6 +148,7 @@ def budget_payload(projection: BudgetProjection | None, window_days: int) -> dic
             cost_known=None,
             priced=None,
             unpriced_models=[],
+            legacy_rows_excluded=legacy_rows_excluded,
             message=f"No sessions with cost data in the last {window_days} days.",
         )
     return envelope(
@@ -151,6 +162,7 @@ def budget_payload(projection: BudgetProjection | None, window_days: int) -> dic
         cost_known=cost_is_known(projection.total_usd_so_far, projection.unpriced_models),
         priced=projection.priced,
         unpriced_models=list(projection.unpriced_models),
+        legacy_rows_excluded=legacy_rows_excluded,
         message=projection.message,
     )
 

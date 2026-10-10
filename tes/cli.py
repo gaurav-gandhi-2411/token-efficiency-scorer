@@ -60,6 +60,7 @@ from tes.judge import (
     score_trajectory,
     score_trajectory_api,
 )
+from tes.legacy import LEGACY_LABEL
 from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.report import format_human, format_json
 from tes.score import ThreeAxisResult, score_session
@@ -987,7 +988,7 @@ def _run_budget(
     json_mode: bool = False,
 ) -> int:
     """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
-    from tes.budget import compute_budget_projection
+    from tes.budget import compute_budget_projection, legacy_rows_excluded_in_window
     from tes.store import open_db, resolve_db_path
 
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
@@ -998,16 +999,28 @@ def _run_budget(
         return EXIT_USAGE
 
     projection = compute_budget_projection(conn, window_days=window_days)
+    legacy_excluded = legacy_rows_excluded_in_window(conn, window_days)
     conn.close()
 
     if json_mode:
-        emit(budget_payload(projection, window_days))
+        emit(budget_payload(projection, window_days, legacy_excluded))
         return EXIT_OK
+
+    legacy_note = (
+        f"({legacy_excluded} legacy session{'s' if legacy_excluded != 1 else ''} in this window "
+        "left out: pre-0.15 accounting overcounted ~2x. `tes rescore` recovers those whose "
+        "transcript still exists.)"
+        if legacy_excluded
+        else ""
+    )
 
     if projection is None:
         print(
-            f"No sessions with cost data in the last {window_days} days — nothing to project yet."
+            f"No sessions with current cost data in the last {window_days} days — "
+            "nothing to project yet."
         )
+        if legacy_note:
+            print(legacy_note)
         return EXIT_OK
 
     sep = "─" * 70
@@ -1015,6 +1028,8 @@ def _run_budget(
     print("BUDGET / PACE")
     print(sep)
     print(f"\n{projection.message}\n")
+    if legacy_note:
+        print(f"{legacy_note}\n")
     print(sep)
     return EXIT_OK
 
@@ -1062,7 +1077,11 @@ def _run_cost(
     print(f"COST -- {report.period_label}")
     print(sep)
 
-    if report.session_count == 0 and report.sessions_missing_cost == 0:
+    if (
+        report.session_count == 0
+        and report.sessions_missing_cost == 0
+        and report.legacy_rows_excluded == 0
+    ):
         print(
             f"\nNo sessions found in this period ({report.period_start.date()} "
             f"to {report.period_end.date()})."
@@ -1085,6 +1104,14 @@ def _run_cost(
             f"{'s' if report.sessions_missing_cost != 1 else ''} in this period "
             f"{'have' if report.sessions_missing_cost != 1 else 'has'} no cost "
             "data yet -- excluded from the total above, not counted as $0)"
+        )
+
+    if report.legacy_rows_excluded:
+        n = report.legacy_rows_excluded
+        print(
+            f"\n{LEGACY_LABEL}: ${report.legacy_total_usd:,.2f} across {n} session"
+            f"{'s' if n != 1 else ''} -- NOT included in the total above; shown only as history. "
+            "`tes rescore` recovers those whose transcript still exists."
         )
 
     if report.by_project:
@@ -1161,6 +1188,11 @@ def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
         f"ROI: ${result.api_equivalent_usd:.2f} API-equivalent / "
         f"${result.plan_cost_usd:.2f} plan cost = {result.multiple:.1f}x"
     )
+    if report.legacy_rows_excluded:
+        print(
+            f"  (corrected spend only: {report.legacy_rows_excluded} legacy session(s) are "
+            "excluded, so the multiple is a floor.)"
+        )
     print(
         "  (API-equivalent value at measured token rates, not a bill you'd "
         "actually pay under a flat plan.)"

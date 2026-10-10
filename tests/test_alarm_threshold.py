@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes.adapt import ADAPTER_VERSION
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
 from tes.alarm_baseline import (
     DEFAULT_PERCENTILE,
@@ -61,14 +61,15 @@ def _insert(
         "scored_at, axes_scored, real_tokens, scope_status, baseline_available, band_verdict, "
         "interpretation, token_domain_of_validity, trajectory_domain_of_validity, "
         "waste_event_count, waste_events, waste_domain_of_validity, adapter_version, "
-        "dominant_model) VALUES (?, ?, 'x', ?, 'h', 't', '[]', ?, 'in_scope', 1, 'within_band', "
-        "'i', 'd', 'd', 0, '[]', 'd', ?, ?)",
+        "cost_version, dominant_model) VALUES (?, ?, 'x', ?, 'h', 't', '[]', ?, "
+        "'in_scope', 1, 'within_band', 'i', 'd', 'd', 0, '[]', 'd', ?, ?, ?)",
         (
             sid,
             kw.get("task_type", "infra-deploy"),
             kw.get("mtime", NOW - DAY),
             tokens,
             version,
+            COST_VERSION if version is not None else None,
             kw.get("model"),
         ),
     )

@@ -26,6 +26,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from tes.legacy import current_clause, legacy_clause
 from tes.web.cost_format import format_unpriced
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
@@ -62,15 +63,20 @@ def compute_budget_projection(
 
     Returns None when there are no sessions with cost data in the window —
     silence rather than a fabricated $0 projection (nothing to project).
+
+    LEGACY rows (tes.legacy: scored before usage de-duplication / 1-hour cache pricing) are
+    excluded: their dollars are overcounted ~2x, so folding them into a pace would project a
+    spend rate that never happened. Use :func:`legacy_rows_excluded_in_window` for their count.
     """
     now = _now if _now is not None else datetime.now(UTC)
     window_start = now - timedelta(days=window_days)
 
+    current_sql, current_params = current_clause(conn)
     rows = conn.execute(
         "SELECT source_mtime, session_cost_usd, cost_unpriced_models FROM sessions "
-        "WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? "
+        f"WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? AND {current_sql} "  # noqa: S608
         "ORDER BY source_mtime ASC",
-        (window_start.timestamp(),),
+        (window_start.timestamp(), *current_params),
     ).fetchall()
 
     if not rows:
@@ -125,8 +131,25 @@ def compute_budget_projection(
     )
 
 
+def legacy_rows_excluded_in_window(
+    conn: sqlite3.Connection,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    _now: datetime | None = None,
+) -> int:
+    """Legacy rows with cost data inside the window that the projection leaves out."""
+    now = _now if _now is not None else datetime.now(UTC)
+    legacy_sql, legacy_params = legacy_clause(conn)
+    row = conn.execute(
+        "SELECT COUNT(*) FROM sessions "
+        f"WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? AND {legacy_sql}",  # noqa: S608
+        ((now - timedelta(days=window_days)).timestamp(), *legacy_params),
+    ).fetchone()
+    return int(row[0])
+
+
 __all__ = [
     "DEFAULT_WINDOW_DAYS",
     "BudgetProjection",
     "compute_budget_projection",
+    "legacy_rows_excluded_in_window",
 ]

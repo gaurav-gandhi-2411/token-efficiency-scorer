@@ -11,6 +11,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.budget import compute_budget_projection
 from tes.store import open_db
 
@@ -40,7 +41,8 @@ def _insert_session(
             baseline_source, judge_verdict, judge_score, judge_reasoning,
             trajectory_domain_of_validity, judge_source_hash,
             waste_event_count, waste_events, waste_domain_of_validity,
-            turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity
+            turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity,
+            adapter_version, cost_version
         ) VALUES (
             ?, 'infra-deploy', '/fake/path.jsonl', ?, 'hash', ?,
             '["token"]', 1000, 'in_scope', 1,
@@ -48,10 +50,17 @@ def _insert_session(
             'self', NULL, NULL, NULL,
             '', NULL,
             0, '[]', '',
-            30, ?, 0, ''
+            30, ?, 0, '', ?, ?
         )
         """,
-        (session_id, source_mtime_dt.timestamp(), scored_at_dt.isoformat(), cost_usd),
+        (
+            session_id,
+            source_mtime_dt.timestamp(),
+            scored_at_dt.isoformat(),
+            cost_usd,
+            ADAPTER_VERSION,
+            COST_VERSION,
+        ),
     )
     conn.commit()
 

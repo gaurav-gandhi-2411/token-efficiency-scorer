@@ -37,6 +37,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from tes.legacy import current_clause, legacy_clause
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 DEFAULT_WEEK_DAYS: int = 7
@@ -79,6 +81,11 @@ class PeriodCostReport:
     # moves ALL its tokens to the unpriced side (an upper bound on the unpriced tokens; the
     # store keeps no per-model token split).
     sessions_unpriced: int = 0
+    # LEGACY rows (tes.legacy) in the period are NOT in any figure above: their dollars come from
+    # the pre-0.15 accounting (usage counted ~2x). They are reported on their own line, never
+    # summed into total_usd. legacy_total_usd sums only those with a stored cost.
+    legacy_rows_excluded: int = 0
+    legacy_total_usd: float = 0.0
 
     @property
     def priced(self) -> bool:
@@ -140,12 +147,23 @@ def compute_period_cost(
 
     A SINGLE matching session (LL3.4) is handled with no special case at
     all -- ``by_project`` just has one entry with ``session_count=1``.
+
+    LEGACY rows (tes.legacy) are excluded from every figure above and counted in
+    ``legacy_rows_excluded`` / ``legacy_total_usd`` so the caller can show them on a clearly
+    separate line; ``total_usd`` (and so the ROI built on it) is the corrected spend only.
     """
+    current_sql, current_params = current_clause(conn)
     rows = conn.execute(
         "SELECT source_path, session_cost_usd, real_tokens, cost_unpriced_models "
-        "FROM sessions WHERE source_mtime >= ? AND source_mtime < ?",
-        (period_start.timestamp(), period_end.timestamp()),
+        f"FROM sessions WHERE source_mtime >= ? AND source_mtime < ? AND {current_sql}",  # noqa: S608
+        (period_start.timestamp(), period_end.timestamp(), *current_params),
     ).fetchall()
+    legacy_sql, legacy_params = legacy_clause(conn)
+    legacy_n, legacy_usd = conn.execute(
+        "SELECT COUNT(*), COALESCE(SUM(session_cost_usd), 0.0) FROM sessions "
+        f"WHERE source_mtime >= ? AND source_mtime < ? AND {legacy_sql}",  # noqa: S608
+        (period_start.timestamp(), period_end.timestamp(), *legacy_params),
+    ).fetchone()
 
     priced = [r for r in rows if r["session_cost_usd"] is not None]
     missing = len(rows) - len(priced)
@@ -210,6 +228,8 @@ def compute_period_cost(
         unpriced_models=sorted(named_models),
         unpriced_models_incomplete=unpriced_models_incomplete,
         sessions_unpriced=len(rows) - len(fully_priced),
+        legacy_rows_excluded=int(legacy_n),
+        legacy_total_usd=float(legacy_usd),
     )
 
 
