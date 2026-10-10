@@ -201,6 +201,9 @@ class ThreeAxisResult:
     # could be priced). Additive JSON key; session_cost_usd itself stays numeric (see
     # docs/JSON_OUTPUT.md).
     cost_known: bool = False
+    # Price-table keys of the priced turns (main + subagent), so the cost note can state the
+    # cache-read multiplier each model was actually billed at. Additive JSON key.
+    cost_models: list[str] = field(default_factory=list)
 
     # --- subagent roll-up (W1A D6). session_cost_usd and the attribution fractions already
     # INCLUDE subagent usage; these expose the split. subagent_tokens is in real_tokens units
@@ -249,6 +252,21 @@ class ThreeAxisResult:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _priced_model_keys(session_cost: SessionCost | None) -> list[str]:
+    """Distinct price-table keys of the turns that were priced (main chain and subagents)."""
+    if session_cost is None:
+        return []
+    turns = [*session_cost.turn_costs, *session_cost.subagent_turn_costs]
+    # <synthetic> stubs are zero-cost non-models: naming a multiplier for them would be noise.
+    return sorted(
+        {
+            tc.model_key
+            for tc in turns
+            if tc.priced and tc.model_key and tc.model_key != "<synthetic>"
+        }
+    )
 
 
 def _lean_judgment(judge_verdict: str | None) -> str:
@@ -610,6 +628,7 @@ def score_session(
         priced=session_cost is not None and not unpriced_models_list,
         unpriced_models=unpriced_models_list,
         cost_known=cost_is_known(cost_usd, unpriced_models_list),
+        cost_models=_priced_model_keys(session_cost),
         subagent_tokens=subagent_tokens,
         subagent_cost_usd=session_cost.subagent_usd if session_cost else None,
         subagent_count=subagent_count,

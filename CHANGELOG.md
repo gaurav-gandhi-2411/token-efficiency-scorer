@@ -168,6 +168,12 @@ self-baseline computation (it falls back to the 20-turn minimum).
   field or a bill-changing value (`speed: fast`, `inference_geo: us`, a non-standard `service_tier`) has no pricing
   rule. Not modelled, with their count in set B: web search (0 non-zero records), fast mode and data residency (every
   record that carries the field says standard / not_available; 41,611 subagent records carry no `speed` at all).
+- **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
+  printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
+  now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption
+  (`cache writes 1.25x (5m) / 2.00x (1h) by the transcript's tier, unspecified assumed 5m`). The dashboard, which spans
+  sessions, lists the default and the models that override it. `score --json` gains `cost_models` (additive; the
+  price-table keys of the priced turns). Pricing itself is unchanged: only what the note says.
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 

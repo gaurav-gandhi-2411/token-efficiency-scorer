@@ -8,6 +8,7 @@ both the CLI (format_human) and the web dashboard templates.
 """
 
 from collections.abc import Iterable
+from typing import Any
 
 
 def format_cost_usd(usd: float | None) -> str:
@@ -104,19 +105,71 @@ def format_cost_pct_vs_baseline(
     return round((cost_usd - med) / med * 100)
 
 
-def format_price_provenance(prices: dict) -> str:
+def _fmt_mult(mult: float) -> str:
+    """'0.10', '0.05', '0.025', '1.25', '2.00': two decimals, a third only when it is not zero."""
+    text = f"{mult:.3f}"
+    return text[:-1] if text.endswith("0") else text
+
+
+def _model_read_multiplier(model_key: str, prices: dict[str, Any]) -> float:
+    """Cache-read multiplier ``model_key`` is billed at (own override, else the table default)."""
+    default = float(prices.get("cache_multipliers", {}).get("read", 0.1))
+    entry = prices.get("models", {}).get(model_key)
+    own = entry.get("cache_read_multiplier") if isinstance(entry, dict) else None
+    if isinstance(own, int | float) and not isinstance(own, bool):
+        return float(own)
+    return default
+
+
+def format_price_provenance(prices: dict, model_keys: Iterable[str] | None = None) -> str:
     """Return a one-line price provenance string for display.
 
-    Format: 'Prices as of 2026-06-09 · cache read 0.10× · creation 1.25× · output full rate'
+    Format: 'Prices as of 2026-10-09 · cache read 0.05× (claude-opus-5-5) · cache writes
+    1.25× (5m) / 2.00× (1h) by the transcript's tier, unspecified assumed 5m · output full rate'
+
+    With ``model_keys`` (the resolved price-table keys of the priced turns) it names the read
+    multiplier actually applied to each model. Without them (the dashboard list, which spans
+    sessions) it states the table default and lists the models that override it.
     """
     as_of: str = prices.get("as_of", "unknown")
     cache_mults: dict = prices.get("cache_multipliers", {})
-    read_mult: float = cache_mults.get("read", 0.1)
-    write_mult: float = cache_mults.get("write_5min", 1.25)
+    default_read: float = cache_mults.get("read", 0.1)
+    write_5m: float = cache_mults.get("write_5min", 1.25)
+    write_1h: float = cache_mults.get("write_1hr", 2.0)
+    if model_keys is not None:
+        groups: dict[float, list[str]] = {}
+        for key in sorted(set(model_keys)):
+            groups.setdefault(_model_read_multiplier(key, prices), []).append(key)
+        if len(groups) == 1:
+            ((mult, keys),) = groups.items()
+            read_part = f"cache read {_fmt_mult(mult)}× ({', '.join(keys)})"
+        elif groups:
+            read_part = "cache read " + "; ".join(
+                f"{_fmt_mult(m)}× ({', '.join(k)})" for m, k in sorted(groups.items())
+            )
+        else:
+            read_part = f"cache read {_fmt_mult(default_read)}×"
+    else:
+        overrides: dict[float, list[str]] = {}
+        for key, entry in sorted(prices.get("models", {}).items()):
+            mult = _model_read_multiplier(key, prices)
+            if isinstance(entry, dict) and mult != default_read:
+                overrides.setdefault(mult, []).append(key)
+        read_part = f"cache read {_fmt_mult(default_read)}× by default"
+        if overrides:
+            read_part += (
+                " ("
+                + "; ".join(
+                    f"{_fmt_mult(m)}× on {', '.join(k)}"
+                    for m, k in sorted(overrides.items(), reverse=True)
+                )
+                + ")"
+            )
     return (
         f"Prices as of {as_of} · "
-        f"cache read {read_mult:.2f}× · "
-        f"creation {write_mult:.2f}× · "
+        f"{read_part} · "
+        f"cache writes {_fmt_mult(write_5m)}× (5m) / {_fmt_mult(write_1h)}× (1h) by the transcript's tier, "
+        f"unspecified assumed 5m · "
         f"output full rate"
     )
 

@@ -147,7 +147,7 @@ def format_human(
             from tes.cost import load_price_table  # noqa: PLC0415
 
             _prices = load_price_table()
-            provenance_line = format_price_provenance(_prices)
+            provenance_line = format_price_provenance(_prices, result.cost_models)
         except Exception:
             provenance_line = "Prices: see ~/.tes/prices.json or bundled tes/data/prices.json"
 
@@ -163,7 +163,14 @@ def format_human(
             lines.append(f"  Cost:  {cost_str}  ({vs_str})")
         else:
             lines.append(f"  Cost:  {cost_str}  (no baseline cost comparison yet)")
-        lines.append(f"         {provenance_line}")
+        lines.append(
+            textwrap.fill(
+                provenance_line,
+                width=_WIDTH,
+                initial_indent=" " * 9,
+                subsequent_indent=" " * 11,
+            )
+        )
         if result.unpriced_models:
             lines.append(
                 f"         [{format_unpriced(result.unpriced_models)}: these models are not in the "

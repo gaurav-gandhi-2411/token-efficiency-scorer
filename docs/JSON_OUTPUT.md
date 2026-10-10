@@ -84,3 +84,5 @@ in `tes/patterns_extra.py` is the single check.
 The full result (see `tes/score.py::ThreeAxisResult`), now with `schema_version` as the first key and
 `lever_hint` (a string when a data-gated cost lever fires, else `null`; the same function and
 thresholds as the dashboard's takeaway). `priced` / `unpriced_models` are as above.
+`cost_models` (additive) lists the price-table keys of the priced turns; the human cost note uses it to name
+the cache-read multiplier each model was billed at.
