@@ -507,7 +507,7 @@ def score_session(
     unpriced_models_list = sorted(set(_unpriced_models))
     cost_unpriced_models = ",".join(unpriced_models_list) or None
 
-    _sub_usage: dict = record.get("subagent_usage") or {}
+    _sub_usage: dict[str, int] = record.get("subagent_usage") or {}
     subagent_tokens = int(_sub_usage.get("real_tokens", 0))
     subagent_count = int(_sub_usage.get("file_count", 0))
 
