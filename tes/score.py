@@ -228,6 +228,9 @@ class ThreeAxisResult:
     # duplicate_usage_records = usage_records - usage_records_deduped. adapter_version is None
     # for a record that did not come from tes.adapt (e.g. a pool_adapted.jsonl fixture). ---
     adapter_version: int | None = None
+    # tes.adapt.COST_VERSION of the adapter that priced this record (None = not from tes.adapt
+    # or scored before cost versioning, i.e. every cache write priced at the 5-minute rate).
+    cost_version: int | None = None
     usage_records: int = 0
     usage_records_deduped: int = 0
     duplicate_usage_records: int = 0
@@ -613,6 +616,7 @@ def score_session(
         real_tokens_incl_subagents=real_tokens + subagent_tokens,
         edit_operations=edit_operations_json,
         adapter_version=record.get("adapter_version"),
+        cost_version=record.get("cost_version"),
         usage_records=int(_usage_dedupe.get("usage_records", 0)),
         usage_records_deduped=int(_usage_dedupe.get("usage_records_deduped", 0)),
         duplicate_usage_records=int(_usage_dedupe.get("duplicate_usage_records", 0)),

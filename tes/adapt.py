@@ -181,6 +181,30 @@ def _parse_usage(usage: dict[str, Any]) -> tuple[int, int, int, int]:
     )
 
 
+def _parse_cache_tiers(usage: dict[str, Any]) -> tuple[int, int]:
+    """Return ``(cache_creation_1h, cache_creation_tier_known)`` from a usage dict.
+
+    ``usage.cache_creation.{ephemeral_5m_input_tokens, ephemeral_1h_input_tokens}`` is a
+    subset breakdown of ``cache_creation_input_tokens``: ``1h`` tokens are billed at the
+    1-hour write rate (2x input), ``5m`` at 1.25x. ``known`` is how many of the record's
+    cache-write tokens the breakdown accounts for (all of them on real data: 5m + 1h ==
+    cache_creation_input_tokens held on 100% of the records checked, see CHANGELOG); a record
+    without the breakdown reports ``(0, 0)`` so its writes stay of *unspecified* tier and
+    tes.cost prices them at the 5-minute rate (the documented conservative default). Both
+    values are clamped to ``cache_creation_input_tokens`` so a malformed breakdown can never
+    price more write tokens than the record billed.
+    """
+    total = int(usage.get("cache_creation_input_tokens", 0))
+    raw = usage.get("cache_creation")
+    if not isinstance(raw, dict) or not (
+        "ephemeral_5m_input_tokens" in raw or "ephemeral_1h_input_tokens" in raw
+    ):
+        return 0, 0
+    five = max(0, int(raw.get("ephemeral_5m_input_tokens") or 0))
+    hour = max(0, int(raw.get("ephemeral_1h_input_tokens") or 0))
+    return min(hour, total), min(five + hour, total)
+
+
 def _parse_server_tool_use(usage: dict[str, Any]) -> dict[str, int] | None:
     """Extract ``usage.server_tool_use`` counts (e.g. ``{"web_search_requests": 2}``)
     from a raw Claude API usage dict, when present and non-empty.
@@ -227,6 +251,14 @@ def _message_dedup_key(msg: dict[str, Any]) -> str:
 #   2 = each distinct message.id counted once (per-field max over its records)
 ADAPTER_VERSION: int = 2
 
+# Bumped whenever the *cost* computed from a record changes without moving real_tokens, so
+# stored session_cost_usd rows can be recognised as stale and re-scored by `tes backfill-waste`.
+# Kept apart from ADAPTER_VERSION on purpose: that one gates self_baseline/alarm_baseline and the
+# shipped baseline provenance, and real_tokens did not change here.
+#   1 = every cache write priced at the 5-minute rate
+#   2 = cache writes split by usage.cache_creation into 5-minute and 1-hour (2x input) tiers
+COST_VERSION: int = 2
+
 
 def _has_tool_use(content: list[Any]) -> bool:
     return any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
@@ -239,7 +271,7 @@ def _collapse_main_chain_usage(
 
     Returns ``(carriers, stats)``. ``carriers`` maps the index (into ``messages``) of ONE
     record per response -- the *carrier* -- to ``([input, cache_creation, cache_read,
-    output], server_tool_use)``: the per-field maximum over all records sharing the
+    output, cache_creation_1h, tier_known], server_tool_use)``: the per-field maximum over all records sharing the
     response's ``_message_dedup_key`` (on real data every record of a response repeats an
     identical usage, so max == first == last; max is also the safe choice for streaming
     partials whose ``output_tokens`` grow). Every other record of the response is a
@@ -268,9 +300,11 @@ def _collapse_main_chain_usage(
             usage_records += 1
         g = groups.setdefault(
             _message_dedup_key(msg),
-            {"counts": [0, 0, 0, 0], "stu": {}, "last": i, "tool": None, "has_usage": False},
+            {"counts": [0] * 6, "stu": {}, "last": i, "tool": None, "has_usage": False},
         )
-        g["counts"] = [max(a, b) for a, b in zip(g["counts"], _parse_usage(usage), strict=True)]
+        # counts = [input, cache_creation, cache_read, output, cache_creation_1h, tier_known]
+        row = [*_parse_usage(usage), *_parse_cache_tiers(usage)]
+        g["counts"] = [max(a, b) for a, b in zip(g["counts"], row, strict=True)]
         stu = _parse_server_tool_use(usage) or {}
         g["stu"] = {k: max(g["stu"].get(k, 0), stu.get(k, 0)) for k in {*g["stu"], *stu}}
         g["last"] = i
@@ -336,7 +370,8 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
             records = _read_jsonl(agent_file)
         except OSError:
             continue
-        # message key -> (model, [input, cache_creation, cache_read, output], server_tool_use)
+        # message key -> (model, [input, cache_creation, cache_read, output, cache_creation_1h,
+        # tier_known], server_tool_use)
         per_message: dict[str, tuple[str, list[int], dict[str, int]]] = {}
         for rec in records:
             if rec.get("type") != "assistant":
@@ -347,7 +382,7 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
             usage = message.get("usage")
             if not isinstance(usage, dict):
                 continue
-            counts = list(_parse_usage(usage))
+            counts = [*_parse_usage(usage), *_parse_cache_tiers(usage)]
             stu = _parse_server_tool_use(usage) or {}
             key = _message_dedup_key(rec)
             if key in per_message:
@@ -362,9 +397,9 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
         stu_by_model: dict[str, dict[str, int]] = {}
         requests_by_model: dict[str, int] = {}
         for model, counts, stu in per_message.values():
-            if not any(counts):
+            if not any(counts[:4]):
                 continue  # zero-usage records (e.g. synthetic client-side messages)
-            acc = by_model.setdefault(model, [0, 0, 0, 0])
+            acc = by_model.setdefault(model, [0] * 6)
             for i, c in enumerate(counts):
                 acc[i] += c
             message_count += 1
@@ -375,7 +410,7 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
         if not by_model:
             continue
         file_count += 1
-        for model, (inp, cache_cr, cache_rd, out) in sorted(by_model.items()):
+        for model, (inp, cache_cr, cache_rd, out, cache_1h, tier_known) in sorted(by_model.items()):
             turns.append(
                 {
                     "role": "ai",
@@ -389,6 +424,8 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
                     "model": model,
                     "server_tool_use": stu_by_model.get(model) or None,
                     "request_count": requests_by_model[model],
+                    "cache_creation_1h": cache_1h,
+                    "cache_creation_tier_known": tier_known,
                 }
             )
 
@@ -476,8 +513,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             # Usage is charged once per API response, on its carrier record (see
             # _collapse_main_chain_usage); sibling content-block records get zero usage.
-            counts, stu = usage_carriers.get(msg_idx, ([0, 0, 0, 0], {}))
-            inp, cache_cr, cache_rd, out = counts
+            counts, stu = usage_carriers.get(msg_idx, ([0] * 6, {}))
+            inp, cache_cr, cache_rd, out, cache_1h, tier_known = counts
             server_tool_use = stu or None
             model_str: str = message.get("model", "")
 
@@ -507,6 +544,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                     cache_creation=cache_cr,
                     model=model_str,
                     server_tool_use=server_tool_use,
+                    cache_creation_1h=cache_1h,
+                    cache_creation_tier_known=tier_known,
                 )
             )
             turn_index += 1
@@ -620,6 +659,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         "domain_inferred": "fallback_unknown",
         "edit_operations": edit_operations,
         "adapter_version": ADAPTER_VERSION,
+        "cost_version": COST_VERSION,
         "usage_dedupe": usage_stats,
         "subagent_usage": (
             {k: v for k, v in subagent.items() if k != "turns"}
@@ -629,4 +669,4 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     }
 
 
-__all__ = ["ADAPTER_VERSION", "adapt_session", "collect_subagent_usage"]
+__all__ = ["ADAPTER_VERSION", "COST_VERSION", "adapt_session", "collect_subagent_usage"]

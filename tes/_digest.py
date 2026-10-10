@@ -50,6 +50,14 @@ class TurnDigest:
     # turn (tes.adapt.collect_subagent_usage). tes.cost needs it because tiered models
     # bill per request, which an aggregate no longer shows.
     request_count: int = 1
+    # Cache-write tier split (usage.cache_creation.ephemeral_{5m,1h}_input_tokens, a subset
+    # breakdown of cache_creation). cache_creation_1h = tokens written with the 1-hour TTL
+    # (billed 2x input); cache_creation_tier_known = tokens of cache_creation covered by a
+    # transcript record that carried the breakdown. The rest (cache_creation -
+    # cache_creation_tier_known) is of unspecified tier and is priced at the 5-minute rate,
+    # the documented conservative default. Both 0 on records stored before this field existed.
+    cache_creation_1h: int = 0
+    cache_creation_tier_known: int = 0
 
 
 @dataclass

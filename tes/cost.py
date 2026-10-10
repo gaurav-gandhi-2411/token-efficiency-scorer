@@ -85,6 +85,11 @@ class TurnCost:
     # whose per-request prompt size is unknowable for an aggregated subagent turn, priced at
     # the base tier -> a floor). Distinct from unpriced: the turn IS in total_usd.
     pricing_caveat: str = ""
+    # Cache-write tokens priced at the 1-hour rate (2x input) / cache-write tokens whose tier
+    # the transcript did not specify and that were therefore priced at the 5-minute rate (the
+    # conservative default; a floor). cache_creation_cost covers both tiers.
+    cache_write_1h_tokens: int = 0
+    cache_write_unspecified_tokens: int = 0
 
 
 @dataclass
@@ -113,6 +118,11 @@ class SessionCost:
     unpriced_models: list[str] = field(default_factory=list)
     # Distinct pricing simplifications applied to priced turns (see TurnCost.pricing_caveat).
     pricing_caveats: list[str] = field(default_factory=list)
+    # Session totals (main + subagent) of TurnCost.cache_write_1h_tokens and
+    # TurnCost.cache_write_unspecified_tokens -- the latter is the part of the cache-write
+    # spend that "assumes 5m where unspecified".
+    cache_write_1h_tokens: int = 0
+    cache_write_unspecified_tokens: int = 0
 
     @property
     def priced(self) -> bool:
@@ -277,12 +287,20 @@ def _server_tool_warning(turn: TurnDigest) -> str:
 def compute_turn_cost(
     turn: TurnDigest,
     prices: dict[str, Any],
-    cache_duration: str = "5min",
+    cache_duration: str | None = None,
 ) -> TurnCost:
     """Compute the dollar cost for a single AI turn.
 
-    ``cache_duration`` controls which cache-creation multiplier is used:
-    ``"5min"`` (default) or ``"1hr"``.
+    Cache writes are priced per tier from the turn's own split: ``turn.cache_creation_1h``
+    tokens at the 1-hour multiplier (2x input), the rest at the 5-minute one (1.25x). Writes
+    whose tier the transcript did not specify (``cache_creation`` beyond
+    ``cache_creation_tier_known``, e.g. a record without ``usage.cache_creation``) are priced
+    at the 5-minute rate -- the conservative default -- and counted in
+    ``TurnCost.cache_write_unspecified_tokens``. A turn built without the split fields (any
+    caller of the pre-split API) therefore prices exactly as before.
+
+    ``cache_duration`` overrides the split: ``"5min"`` / ``"1hr"`` prices EVERY cache write at
+    that multiplier (the pre-split behaviour); ``None`` (default) uses the split.
 
     When ``turn.model`` does not resolve against ``prices`` (see
     ``_resolve_model``), this returns a TurnCost with ``priced=False``,
@@ -335,13 +353,26 @@ def compute_turn_cost(
     cache_mult: dict[str, float] = prices["cache_multipliers"]
     read_mult = cache_read_multiplier(entry, prices)
 
-    write_mult = cache_mult["write_1hr"] if cache_duration == "1hr" else cache_mult["write_5min"]
+    created = max(0, turn.cache_creation)
+    if cache_duration == "1hr":
+        tokens_1h = created
+    elif cache_duration == "5min":
+        tokens_1h = 0
+    else:
+        tokens_1h = min(max(0, turn.cache_creation_1h), created)
+    tokens_5m = created - tokens_1h
+    unspecified = (
+        0 if cache_duration is not None else created - min(turn.cache_creation_tier_known, created)
+    )
 
     fresh_tokens = max(0, turn.token_count_input - turn.cache_read - turn.cache_creation)
 
     fresh_cost = fresh_tokens * input_rate / 1_000_000
     cache_read_cost = turn.cache_read * (input_rate * read_mult) / 1_000_000
-    cache_creation_cost = turn.cache_creation * (input_rate * write_mult) / 1_000_000
+    cache_creation_cost = (
+        tokens_5m * (input_rate * cache_mult["write_5min"])
+        + tokens_1h * (input_rate * cache_mult["write_1hr"])
+    ) / 1_000_000
     output_cost = turn.token_count_output * output_rate / 1_000_000
     total = fresh_cost + cache_read_cost + cache_creation_cost + output_cost
 
@@ -359,13 +390,15 @@ def compute_turn_cost(
         priced=True,
         server_tool_warning=server_tool_warning,
         pricing_caveat=pricing_caveat,
+        cache_write_1h_tokens=tokens_1h,
+        cache_write_unspecified_tokens=unspecified,
     )
 
 
 def compute_session_cost(
     digest: SessionDigest,
     prices: dict[str, Any] | None = None,
-    cache_duration: str = "5min",
+    cache_duration: str | None = None,
 ) -> SessionCost:
     """Compute the aggregated dollar cost for a full session.
 
@@ -432,10 +465,16 @@ def compute_session_cost(
     subagent_usd = sum(tc.total_usd for tc in subagent_turn_costs)
     total_usd = sum(tc.total_usd for tc in turn_costs) + subagent_usd
 
+    all_writes = sum(t.cache_creation for t in ai_turns)
+    unspecified_writes = sum(tc.cache_write_unspecified_tokens for tc in all_turn_costs)
+
     domain_of_validity = (
         f"Computed from measured tokens at per-turn, per-model rates (prices as of {price_table_date}; "
         "bundled — override with TES_PRICE_TABLE env var or ~/.tes/prices.json). "
-        "Cache creation defaults to 5-min rate (1.25x input); cache read at 0.1x input unless "
+        "Cache writes are split by the transcript's usage.cache_creation: 1-hour writes at 2x "
+        "input, 5-minute at 1.25x; writes whose tier is unspecified are assumed 5-minute "
+        f"({unspecified_writes} of {all_writes} cache-write tokens in this session). "
+        "Cache read at 0.1x input unless "
         "the model has its own cache_read_multiplier (0.05x Opus/Sonnet 5.5, 0.025x Fable/"
         "Mythos 5.1). "
         "Output at full rate. A turn whose model string does not resolve against the "
@@ -464,6 +503,8 @@ def compute_session_cost(
         subagent_turn_costs=subagent_turn_costs,
         unpriced_models=unpriced_models,
         pricing_caveats=pricing_caveats,
+        cache_write_1h_tokens=sum(tc.cache_write_1h_tokens for tc in all_turn_costs),
+        cache_write_unspecified_tokens=unspecified_writes,
     )
 
 
