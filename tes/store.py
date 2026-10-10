@@ -545,7 +545,7 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
     if not p.exists():
         return None
     try:
-        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
         turn_count = 0
         for line in lines:
             line = line.strip()

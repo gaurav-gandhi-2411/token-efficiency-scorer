@@ -293,7 +293,7 @@ def _collapse_main_chain_usage(
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     """Parse a JSONL file, skipping blank/malformed lines (a live file may end mid-write)."""
     out: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").split("\n"):
         line = line.strip()
         if not line:
             continue
@@ -429,7 +429,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     """
     session_id: str = session_path.stem
 
-    raw_lines: list[str] = session_path.read_text(encoding="utf-8").splitlines()
+    raw_lines: list[str] = session_path.read_text(encoding="utf-8").split("\n")
     messages: list[dict[str, Any]] = []
     for line in raw_lines:
         line = line.strip()

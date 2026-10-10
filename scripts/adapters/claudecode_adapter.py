@@ -176,7 +176,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     """
     session_id: str = session_path.stem
 
-    raw_lines: list[str] = session_path.read_text(encoding="utf-8").splitlines()
+    raw_lines: list[str] = session_path.read_text(encoding="utf-8").split("\n")
     messages: list[dict[str, Any]] = []
     for line in raw_lines:
         line = line.strip()
@@ -360,7 +360,7 @@ def _load_existing_ids(output_path: Path) -> set[str]:
     if not output_path.exists():
         return set()
     existing: set[str] = set()
-    for line in output_path.read_text(encoding="utf-8").splitlines():
+    for line in output_path.read_text(encoding="utf-8").split("\n"):
         line = line.strip()
         if not line:
             continue
