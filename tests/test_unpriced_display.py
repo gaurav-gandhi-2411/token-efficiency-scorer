@@ -214,6 +214,8 @@ def test_cli_cost_period_names_unpriced_models(
     out = capsys.readouterr().out
     assert f"unpriced ({UNPRICED})" in out
     assert "priced subtotal only" in out
+    assert "Priced coverage: 50% of sessions" in out  # 1 of 2 sessions fully priced
+    assert "Priced coverage: 100%" not in out
 
 
 def test_cli_cost_period_fully_unpriced_total_is_not_zero_dollars(
@@ -229,6 +231,9 @@ def test_cli_cost_period_fully_unpriced_total_is_not_zero_dollars(
     out = capsys.readouterr().out
     assert f"Total: unpriced ({UNPRICED})" in out
     assert "$0.00" not in out
+    # Coverage is truthful: the only session is unpriced, so nothing is covered (was 100%/100%).
+    assert "Priced coverage: 0% of sessions, 0% of tokens" in out
+    assert "Priced coverage: 100%" not in out
 
 
 # --------------------------------------------------------------------------- budget / live

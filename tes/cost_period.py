@@ -74,6 +74,11 @@ class PeriodCostReport:
     token_priced: int = 0
     unpriced_models: list[str] = field(default_factory=list)
     unpriced_models_incomplete: bool = False
+    # Sessions that are NOT fully priced: an unpriced model among their turns, or no cost stored.
+    # token_priced counts only fully priced sessions, so a session with even one unpriced turn
+    # moves ALL its tokens to the unpriced side (an upper bound on the unpriced tokens; the
+    # store keeps no per-model token split).
+    sessions_unpriced: int = 0
 
     @property
     def priced(self) -> bool:
@@ -81,9 +86,13 @@ class PeriodCostReport:
         return not self.unpriced_models
 
     @property
+    def tokens_unpriced(self) -> int:
+        return self.token_total - self.token_priced
+
+    @property
     def session_coverage_pct(self) -> float | None:
         total = self.session_count + self.sessions_missing_cost
-        return 100.0 * self.session_count / total if total else None
+        return 100.0 * (total - self.sessions_unpriced) / total if total else None
 
     @property
     def token_coverage_pct(self) -> float | None:
@@ -142,7 +151,10 @@ def compute_period_cost(
     missing = len(rows) - len(priced)
 
     token_total = sum(r["real_tokens"] or 0 for r in rows)
-    token_priced = sum(r["real_tokens"] or 0 for r in priced)
+    # A session with ANY unpriced model is not fully priced, even though its stored cost is a
+    # non-NULL priced-turns subtotal (or 0.0): counting it as priced made coverage read 100%.
+    fully_priced = [r for r in priced if not r["cost_unpriced_models"]]
+    token_priced = sum(r["real_tokens"] or 0 for r in fully_priced)
 
     missing_rows = [r for r in rows if r["session_cost_usd"] is None]
     # W1A D7: a session whose model is missing from the price table is stored with
@@ -197,6 +209,7 @@ def compute_period_cost(
         token_priced=token_priced,
         unpriced_models=sorted(named_models),
         unpriced_models_incomplete=unpriced_models_incomplete,
+        sessions_unpriced=len(rows) - len(fully_priced),
     )
 
 

@@ -21,8 +21,16 @@ The contract, pinned by `tests/test_cli_json.py` (exact key sets) and implemente
 
 `period{label,start,end}`, `total_usd`, `priced`, `unpriced_models`, `unpriced_models_incomplete`,
 `session_count`, `sessions_missing_cost`, `session_coverage_pct`, `token_coverage_pct`,
-`token_total`, `token_priced`, `by_project[{project,total_usd,session_count,priced,unpriced_models}]`,
-`roi`.
+`token_total`, `token_priced`, `tokens_unpriced`, `sessions_unpriced`,
+`by_project[{project,total_usd,session_count,priced,unpriced_models}]`, `roi`.
+
+Coverage counts a session as priced only when none of its turns used an unpriced model.
+`sessions_unpriced` is the number of sessions in the window that are not fully priced (an unpriced
+model among their turns, or no cost stored); `token_priced` is the tokens of fully priced sessions
+and `tokens_unpriced = token_total - token_priced`. The store keeps no per-model token split, so a
+session with one unpriced turn moves all its tokens to `tokens_unpriced` (an upper bound on the
+tokens that could not be priced). `session_coverage_pct` and `token_coverage_pct` follow the same
+rule, so they are below 100 whenever `priced` is `false`.
 
 `roi` is `null` unless `--roi` is passed; otherwise `{status, plan_names, plan_cost_usd,
 api_equivalent_usd, multiple, is_floor, error}` where `status` is `ok`, `no_plan`,

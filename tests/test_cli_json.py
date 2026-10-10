@@ -33,6 +33,8 @@ COST_KEYS = {
     "token_coverage_pct",
     "token_total",
     "token_priced",
+    "tokens_unpriced",
+    "sessions_unpriced",
     "by_project",
     "roi",
 }
@@ -184,6 +186,12 @@ def test_cost_json_unpriced_is_not_a_zero_total(
     assert doc["priced"] is False
     assert doc["unpriced_models"] == [UNPRICED]
     assert doc["by_project"][0]["priced"] is False
+    # Coverage must not claim the unpriced session as priced (verifier 1 #4b).
+    assert doc["sessions_unpriced"] == 1
+    assert doc["token_priced"] < doc["token_total"]
+    assert doc["tokens_unpriced"] == doc["token_total"] - doc["token_priced"] > 0
+    assert doc["session_coverage_pct"] == 0.0
+    assert doc["token_coverage_pct"] == 0.0
 
 
 def test_cost_json_empty_period_still_has_the_full_key_set(

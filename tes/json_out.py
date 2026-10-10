@@ -100,6 +100,8 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
         token_coverage_pct=report.token_coverage_pct,
         token_total=report.token_total,
         token_priced=report.token_priced,
+        tokens_unpriced=report.tokens_unpriced,
+        sessions_unpriced=report.sessions_unpriced,
         by_project=[
             {
                 "project": b.project_label,
