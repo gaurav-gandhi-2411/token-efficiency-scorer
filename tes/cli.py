@@ -41,6 +41,13 @@ from tes.exit_codes import (
     ExitCodeHelpFormatter,
     epilog,
 )
+from tes.json_out import (
+    budget_payload,
+    cost_payload,
+    cost_roi_payload,
+    emit,
+    impact_payload,
+)
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
@@ -776,7 +783,7 @@ def _run_patterns(
     )
 
 
-def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> int:
+def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool = False) -> int:
     """Handle `tes impact` -- corpus-wide code-impact reconstruction from
     persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
     counts only; AB3.2: the untested-tool-shape and prior-content-unknown
@@ -797,6 +804,10 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> int:
     conn.close()
 
     report = compute_impact_report(rows, top_n=top_n)
+
+    if json_mode:
+        emit(impact_payload(report, top_n))
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -950,6 +961,7 @@ def _run_budget(
     *,
     db_path: str | None = None,
     window_days: int = 7,
+    json_mode: bool = False,
 ) -> int:
     """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
     from tes.budget import compute_budget_projection
@@ -964,6 +976,10 @@ def _run_budget(
 
     projection = compute_budget_projection(conn, window_days=window_days)
     conn.close()
+
+    if json_mode:
+        emit(budget_payload(projection, window_days))
+        return EXIT_OK
 
     if projection is None:
         print(
@@ -988,6 +1004,7 @@ def _run_cost(
     since: str | None = None,
     roi: bool = False,
     plan_config: str | None = None,
+    json_mode: bool = False,
 ) -> int:
     """Handle `tes cost` -- a period-scoped spend REPORT (total, session
     count, per-project breakdown), distinct from `tes budget`'s rolling
@@ -1012,6 +1029,10 @@ def _run_cost(
 
     report = compute_period_cost(conn, period_start, period_end, period_label=period_label)
     conn.close()
+
+    if json_mode:
+        emit(cost_payload(report, cost_roi_payload(report, plan_config) if roi else None))
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -1520,6 +1541,12 @@ def main() -> None:
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     impact_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, counts, top files/directories) instead of text.",
+    )
+    impact_p.add_argument(
         "--top",
         type=int,
         default=10,
@@ -1593,6 +1620,12 @@ def main() -> None:
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     budget_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, pace, projection, priced) instead of text.",
+    )
+    budget_p.add_argument(
         "--window-days",
         type=int,
         default=7,
@@ -1618,6 +1651,12 @@ def main() -> None:
         dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    cost_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, totals, by_project, priced, roi) instead of text.",
     )
     cost_period_group = cost_p.add_mutually_exclusive_group(required=True)
     cost_period_group.add_argument(
@@ -1768,7 +1807,11 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "budget":
-        sys.exit(_run_budget(db_path=args.db_path, window_days=args.window_days))
+        sys.exit(
+            _run_budget(
+                db_path=args.db_path, window_days=args.window_days, json_mode=args.json_mode
+            )
+        )
 
     if args.command == "cost":
         sys.exit(
@@ -1779,6 +1822,7 @@ def main() -> None:
                 since=args.since,
                 roi=args.roi,
                 plan_config=args.plan_config,
+                json_mode=args.json_mode,
             )
         )
 
@@ -1882,7 +1926,7 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "impact":
-        sys.exit(_run_impact(db_path=args.db_path, top_n=args.top_n))
+        sys.exit(_run_impact(db_path=args.db_path, top_n=args.top_n, json_mode=args.json_mode))
 
     if args.command == "ask":
         import os as _os
