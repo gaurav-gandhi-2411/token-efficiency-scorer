@@ -29,12 +29,12 @@ from tes.store import (
     open_db,
     trajectory_render_state,
 )
+from tes.takeaway import build_attribution_takeaway
 from tes.waste import build_waste_entry
 from tes.web.cost_format import (
     format_cost_display,
     format_cost_pct_vs_baseline,
     format_price_provenance,
-    format_unpriced,
 )
 
 # ---------------------------------------------------------------------------
@@ -66,84 +66,6 @@ def _compute_session_attribution(
         return compute_attribution(digest, waste_entry, prices)
     except Exception:
         return None
-
-
-def _build_attribution_takeaway(
-    attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
-) -> str:
-    """Deterministic takeaway with data-gated actionable hints (multiple can fire).
-
-    Hint rules checked in order — each fires independently:
-      1. Waste lever  : waste_usd >= 0.50  OR  (waste_pct >= 10 AND waste_usd >= 0.05)
-                        → "$X.XX in detectable waste; see the waste events for exact proof turns."
-                        Threshold keeps sub-$0.50 rounding-noise sessions silent.
-      2. Context lever: context_pct (re-send + growth) >= 60% of total cost
-                        → "a long context drove most of the cost; checkpointing or /compact reduces re-send."
-      3. Output lever : output_pct >= 40% AND context_pct < 60%
-                        → "output was a large cost share; shorter responses or fewer regenerations reduce this."
-      No hint fires   → description only (no dominant lever — correct to stay quiet).
-    """
-    total_usd = attr.total_usd
-    if total_usd == 0:
-        if unpriced_models:
-            return (
-                f"Cost is {format_unpriced(unpriced_models)} — token bucket counts "
-                "available in attribution table."
-            )
-        return "No cost data — token bucket counts available in attribution table."
-
-    def pct(v: float) -> int:
-        return round(v / total_usd * 100)
-
-    resend_pct = pct(attr.context_resend_usd)
-    growth_pct = pct(attr.context_growth_usd)
-    output_pct = pct(attr.output_usd)
-    context_pct = resend_pct + growth_pct
-    waste_usd = attr.rr_waste_usd + attr.rfr_waste_usd
-    waste_pct = pct(waste_usd)
-
-    parts: list[str] = []
-    if context_pct > 0:
-        parts.append(f"context ({resend_pct}% re-send + {growth_pct}% growth)")
-    if output_pct > 0:
-        parts.append(f"output ({output_pct}%)")
-
-    cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
-    waste_str = (
-        f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
-    )
-
-    # Data-gated hints — each checked independently, waste first
-    hints: list[str] = []
-
-    # Waste lever: real waste, not rounding noise
-    # Absolute: >= $0.50 catches large-session waste regardless of share
-    # Relative: >= 10% share AND >= $0.05 catches small-session disproportionate waste
-    if waste_usd >= 0.50 or (waste_pct >= 10 and waste_usd >= 0.05):
-        hints.append(
-            f"${waste_usd:.2f} in detectable waste; see the waste events for exact proof turns."
-        )
-
-    # Context lever: context is the majority of cost
-    if context_pct >= 60:
-        hints.append(
-            "a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."
-        )
-    elif output_pct >= 40:
-        # Output lever: only when context is not already dominant
-        hints.append(
-            "output was a large cost share; shorter responses or fewer regenerations reduce this."
-        )
-
-    if not hints:
-        return cost_desc + waste_str + "."
-
-    # First hint: " — "; subsequent: " Also, "
-    hint_text = " — " + hints[0]
-    for h in hints[1:]:
-        hint_text += " Also, " + h
-
-    return cost_desc + waste_str + "." + hint_text
 
 
 def _build_attribution_rows(attr: AttributionResult) -> list[dict]:
@@ -460,7 +382,7 @@ def create_app(config: ServerConfig) -> Flask:
         # Attribution — requires source JSONL file; gracefully returns None if unavailable.
         attribution = _compute_session_attribution(session, _prices)
         attribution_takeaway = (
-            _build_attribution_takeaway(attribution, session.get("unpriced_models") or ())
+            build_attribution_takeaway(attribution, session.get("unpriced_models") or ())
             if attribution
             else None
         )
