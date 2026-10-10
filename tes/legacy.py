@@ -20,15 +20,19 @@ import json
 import os
 import sqlite3
 import sys
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TextIO, TypeVar
+
+_RowT = TypeVar("_RowT", bound=Mapping[str, Any])
 
 NO_NOTICE_ENV = "TES_NO_NOTICE"  # =1 silences the one-time legacy-rows notice
 NOTICE_META_KEY = "legacy_notice"  # meta-table key holding the last-shown marker
 # Label used wherever a historical (uncorrected) dollar figure is still shown.
 LEGACY_LABEL = "legacy (pre-0.15 accounting, overcounted ~2x)"
+# The short mark shown next to a legacy row wherever it is listed (dashboard, `ask` context).
+LEGACY_ROW_LABEL = "legacy: overcounted, not comparable"
 
 
 def _versions() -> tuple[int, int]:
@@ -65,6 +69,33 @@ def is_legacy_row(row: Mapping[str, Any]) -> bool:
     adapter, cost = _versions()
     a, c = row.get("adapter_version"), row.get("cost_version")
     return a is None or c is None or a < adapter or c < cost
+
+
+def partition_legacy(rows: Iterable[_RowT]) -> tuple[list[_RowT], int]:
+    """Split fetched session rows into (current rows, number of legacy rows left out).
+
+    The aggregate surfaces (`impact`, `patterns`, `ask`) use this so a legacy row can never
+    enter a figure; they report the second value so the exclusion is always visible.
+    """
+    current: list[_RowT] = []
+    excluded = 0
+    for row in rows:
+        if is_legacy_row(row):
+            excluded += 1
+        else:
+            current.append(row)
+    return current, excluded
+
+
+def excluded_note(n: int, what: str = "") -> str:
+    """One line saying how many legacy sessions a surface left out ('' when none)."""
+    if not n:
+        return ""
+    where = f" from {what}" if what else ""
+    return (
+        f"{n} legacy session{'s' if n != 1 else ''} left out{where} ({LEGACY_ROW_LABEL}; "
+        "scored before 0.15). `tes rescore` recovers those whose transcript still exists."
+    )
 
 
 def count_legacy(conn: sqlite3.Connection) -> int:
@@ -224,12 +255,15 @@ __all__ = [
     "NO_NOTICE_ENV",
     "LegacyCensus",
     "census",
+    "LEGACY_ROW_LABEL",
     "count_legacy",
     "current_clause",
+    "excluded_note",
     "is_legacy_row",
     "legacy_clause",
     "legacy_sources",
     "maybe_notify",
     "notice_text",
+    "partition_legacy",
     "source_readable",
 ]

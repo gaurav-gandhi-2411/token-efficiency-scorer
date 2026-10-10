@@ -61,7 +61,7 @@ from tes.judge import (
     score_trajectory,
     score_trajectory_api,
 )
-from tes.legacy import LEGACY_LABEL
+from tes.legacy import LEGACY_LABEL, excluded_note, partition_legacy
 from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.report import format_human, format_json
 from tes.score import ThreeAxisResult, score_session
@@ -753,6 +753,9 @@ def _run_patterns(
 
     if not cache.get("valid"):
         print(f"\n{cache.get('status', 'Pattern analysis unavailable.')}")
+        legacy_line = excluded_note(int(cache.get("legacy_rows_excluded") or 0), "this analysis")
+        if legacy_line:
+            print(legacy_line)
         if cache.get("n_sessions") is not None:
             print(
                 f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)"
@@ -768,6 +771,9 @@ def _run_patterns(
         f"silhouette={cache['silhouette']:.3f}  |  {'stable' if cache['stable'] else 'variable'}"
     )
     print(f"  {cache['status']}")
+    legacy_line = excluded_note(int(cache.get("legacy_rows_excluded") or 0), "this analysis")
+    if legacy_line:
+        print(f"  {legacy_line}")
     print()
     print("ARCHETYPES (measured behavioral patterns — not quality labels):")
     for a in cache["archetypes"]:
@@ -822,7 +828,10 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool 
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
 
-    report = compute_impact_report(rows, top_n=top_n)
+    # Legacy rows (pre-0.15 accounting) stay out of every aggregate and are counted instead.
+    current_rows, legacy_excluded = partition_legacy(rows)
+    report = compute_impact_report(current_rows, top_n=top_n, legacy_rows_excluded=legacy_excluded)
+    legacy_line = excluded_note(legacy_excluded, "these figures")
 
     if json_mode:
         emit(impact_payload(report, top_n))
@@ -842,6 +851,8 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool 
             )
         else:
             print("\nNo sessions found in this store.")
+        if legacy_line:
+            print(f"\n{legacy_line}")
         print(sep)
         return EXIT_OK
 
@@ -856,6 +867,8 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool 
         )
     )
     print(f"  +{report.total_additions} / -{report.total_deletions} lines")
+    if legacy_line:
+        print(f"  {legacy_line}")
 
     if report.prior_content_unknown_pct is not None:
         print(
@@ -889,6 +902,22 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool 
 
     print(sep)
     return EXIT_OK
+
+
+def _print_ask_legacy_note(db_path: str | None) -> None:
+    """Say how many legacy sessions `ask` left out of the numbers it answered from."""
+    from tes.legacy import count_legacy
+    from tes.store import open_db, resolve_db_path
+
+    try:
+        conn = open_db(resolve_db_path(db_path))
+        n = count_legacy(conn)
+        conn.close()
+    except Exception:  # noqa: BLE001 -- a note about exclusions must never fail the answer
+        return
+    note = excluded_note(n, "the numbers above")
+    if note:
+        print(f"({note})")
 
 
 def _run_ask(
@@ -926,6 +955,7 @@ def _run_ask(
         if answer:
             print(f"\n{answer}\n")
             print("(answered from measured metrics — local Ollama)")
+            _print_ask_legacy_note(db_path)
             return
 
         # Local unavailable — offer API if key is present
@@ -978,6 +1008,7 @@ def _run_ask(
     if answer:
         print(f"\n{answer}\n")
         print(f"(answered from measured metrics — {api_model})")
+        _print_ask_legacy_note(db_path)
     else:
         print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
 

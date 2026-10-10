@@ -88,6 +88,7 @@ IMPACT_KEYS = {
     "untested_tool_shape_pct",
     "top_files",
     "top_directories",
+    "legacy_rows_excluded",
 }
 CHURN_KEYS = {"path", "edits", "additions", "deletions", "sessions_touched"}
 
@@ -495,6 +496,7 @@ PATTERNS_KEYS = {
     "status",
     "n_sessions",
     "domain_of_validity",
+    "legacy_rows_excluded",
     "analysis",
 }
 
