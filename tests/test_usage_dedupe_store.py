@@ -103,3 +103,16 @@ def test_upsert_persists_adapter_version(tmp_path: Path) -> None:
     upsert_session(conn, result, str(FIXTURE), 0.0, "h", turn_count=7)
     row = conn.execute("SELECT adapter_version, duplicate_usage_records FROM sessions").fetchone()
     assert (row[0], row[1]) == (ADAPTER_VERSION, 3)
+
+
+def test_upsert_persists_dominant_model(tmp_path: Path) -> None:
+    """The alarm's model era is stored (normalized) so later alarms can group by it."""
+    from tes.adapt import adapt_session
+    from tes.score import score_session
+    from tes.store import upsert_session
+
+    result = score_session(adapt_session(FIXTURE), load_baselines(BUNDLED_BASELINES_PATH))
+    assert result.dominant_model == "claude-sonnet-4-6"
+    conn = open_db(tmp_path / "u.db")
+    upsert_session(conn, result, str(FIXTURE), 0.0, "h", turn_count=7)
+    assert conn.execute("SELECT dominant_model FROM sessions").fetchone()[0] == "claude-sonnet-4-6"

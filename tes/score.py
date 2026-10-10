@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from tes.alarm_baseline import dominant_model
 from tes.baselines import compute_real_tokens, load_baselines
 from tes.classify import classify_session
 from tes.web.cost_format import cost_is_known
@@ -230,6 +231,10 @@ class ThreeAxisResult:
     usage_records: int = 0
     usage_records_deduped: int = 0
     duplicate_usage_records: int = 0
+
+    # --- model era for the live alarm's baseline: the (normalized) model that did most of the
+    # token work, see tes.alarm_baseline.dominant_model. None when no turn names a model. ---
+    dominant_model: str | None = None
 
     # --- lever hint (W1A item 4): the data-gated cost lever (waste / long context / output
     # share) from tes.takeaway.build_lever_hint, the same function the dashboard uses. None when
@@ -611,6 +616,7 @@ def score_session(
         usage_records=int(_usage_dedupe.get("usage_records", 0)),
         usage_records_deduped=int(_usage_dedupe.get("usage_records_deduped", 0)),
         duplicate_usage_records=int(_usage_dedupe.get("duplicate_usage_records", 0)),
+        dominant_model=dominant_model(record.get("digest", {}).get("turns", [])) or None,
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,
