@@ -1185,10 +1185,10 @@ def _run_monitor(
     Returns EXIT_ALARM when the alarm fires, else EXIT_OK (including "no active session": an
     idle machine is not a failure for a hook that calls this between sessions).
     """
-    from tes.alarm import AlarmConfig, check_alarm
+    from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
     from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
     from tes.live_monitor import find_active_session, score_live_session
-    from tes.self_baseline import load_or_compute
+    from tes.self_baseline import SelfBaselineState
     from tes.store import resolve_db_path
 
     cc_path = _resolve_cc_path(cc_path_arg)
@@ -1213,12 +1213,12 @@ def _run_monitor(
 
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
-    self_bl = load_or_compute(resolved_db, baselines)
     config = AlarmConfig(enabled=True, plan_type=plan_type)
-    alarm = check_alarm(live, self_bl, config)
+    threshold = threshold_for_live(live, resolved_db, baselines, config)
+    alarm = check_alarm(live, SelfBaselineState(), config, threshold)
 
     if json_mode:
-        emit(monitor_payload("ok", str(cc_path), live=live, alarm=alarm))
+        emit(monitor_payload("ok", str(cc_path), live=live, alarm=alarm, threshold=threshold))
         return EXIT_ALARM if alarm is not None else EXIT_OK
 
     print(f"Session: {live.session_id}  ({live.task_type})")
@@ -1231,7 +1231,10 @@ def _run_monitor(
     if alarm is not None:
         print(f"\n[ALARM] {alarm.message}")
         return EXIT_ALARM
-    print("\nNo alarm (measured thresholds not tripped, or baseline still building for this type).")
+    if threshold.status != "active":
+        print(f"\nNo alarm: {threshold.reason}.")
+    else:
+        print(f"\nNo alarm (threshold: {threshold.reason}).")
     return EXIT_OK
 
 

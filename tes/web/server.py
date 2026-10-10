@@ -21,13 +21,14 @@ from tes.cost import load_price_table
 from tes.intelligence.cache import get_or_compute_intelligence
 from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
 from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
-from tes.self_baseline import compute_baseline_cost_band, load_or_compute
+from tes.self_baseline import SelfBaselineState, compute_baseline_cost_band, load_or_compute
 from tes.store import (
     _SORT_COLUMN_WHITELIST,
     TrajectoryRenderState,
     get_session,
     list_sessions,
     open_db,
+    resolve_db_path,
     trajectory_render_state,
 )
 from tes.takeaway import build_attribution_takeaway
@@ -510,7 +511,7 @@ def create_app(config: ServerConfig) -> Flask:
         Read-only, best-effort — the active session may not exist right now,
         in which case this shows an honest 'no active session' state, not an error.
         """
-        from tes.alarm import AlarmConfig, check_alarm
+        from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
         from tes.live_monitor import find_active_session, score_live_session
         from tes.watcher import DEFAULT_CC_PATH
 
@@ -521,14 +522,17 @@ def create_app(config: ServerConfig) -> Flask:
         live = score_live_session(active_path, _prices) if active_path is not None else None
 
         alarm_result = None
-        if live is not None and self_bl is not None:
+        threshold = None
+        if live is not None:
             alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
-            alarm_result = check_alarm(live, self_bl, alarm_cfg)
+            threshold = threshold_for_live(live, resolve_db_path(config.db_path), _b2, alarm_cfg)
+            alarm_result = check_alarm(live, self_bl or SelfBaselineState(), alarm_cfg, threshold)
 
         return render_template(
             "monitor.html",
             live=live,
             alarm=alarm_result,
+            threshold=threshold,
             plan_type=config.plan_type,
         )
 

@@ -18,7 +18,7 @@ import pytest
 import tes.cli as cli
 from tes.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
 
-from tests.test_alarm_measured import _live, _self_baseline_active, _self_baseline_building
+from tests.test_alarm_measured import _live, _threshold_active, _threshold_disabled
 
 GOOD_RECORDS: list[dict[str, Any]] = [
     {"type": "user", "message": {"role": "user", "content": "do the thing"}},
@@ -146,13 +146,13 @@ def test_cost_with_unopenable_store_exits_usage(
 
 
 def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baseline: Any) -> int:
+    import tes.alarm as alarm_mod
     import tes.live_monitor as lm
-    import tes.self_baseline as sb
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
-    monkeypatch.setattr(sb, "load_or_compute", lambda *a, **k: baseline)
+    monkeypatch.setattr(alarm_mod, "threshold_for_live", lambda *a, **k: baseline)
     monkeypatch.setattr("sys.argv", ["tes", "monitor"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
@@ -162,7 +162,7 @@ def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baselin
 def test_monitor_alarm_firing_exits_alarm_code(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code = _monitor(monkeypatch, tmp_path, _live(), _self_baseline_active())
+    code = _monitor(monkeypatch, tmp_path, _live(), _threshold_active())
     assert code == EXIT_ALARM
     assert "[ALARM]" in capsys.readouterr().out
 
@@ -170,9 +170,11 @@ def test_monitor_alarm_firing_exits_alarm_code(
 def test_monitor_no_alarm_exits_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code = _monitor(monkeypatch, tmp_path, _live(), _self_baseline_building())
+    code = _monitor(monkeypatch, tmp_path, _live(), _threshold_disabled())
     assert code == EXIT_OK
-    assert "No alarm" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "No alarm" in out
+    assert "alarm disabled: needs at least 10 of your sessions" in out  # the reason is shown
 
 
 def test_monitor_without_active_session_exits_zero(

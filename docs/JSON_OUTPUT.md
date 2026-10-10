@@ -58,8 +58,13 @@ unpriced turns were excluded from `api_equivalent_usd`).
 The session fields (`session_id`, `task_type`, `live_cost_usd`, `priced`, `unpriced_models`,
 `live_context_tokens`, `live_resend_ratio`, `context_resend_dominant`, `ai_turn_count`,
 `domain_of_validity`) are `null` unless `status` is `ok`; `cc_path` and `source_path` are always
-present. `alarm` is `null`, or `{message, resend_pct, baseline_p75_tokens, plan_type}`, and is
-non-null exactly when the process exits 3. Live figures are estimates for an in-progress session.
+present. `alarm` is `null`, or `{message, resend_pct, baseline_p75_tokens, plan_type, threshold_tokens,
+baseline_tier, baseline_n, baseline_percentile}`, and is non-null exactly when the process exits 3
+(`baseline_p75_tokens` is the legacy name of `threshold_tokens`; it holds the threshold at whatever
+percentile is configured). `alarm_baseline` (non-null whenever `status` is `ok`) says what the alarm compared
+against, or why there is nothing to compare: `{status ("active" | "disabled"), tier, threshold_tokens (null
+when disabled), n, percentile, window_days, era, task_type, reason}`; the tiers and the one-line reasons are
+in `docs/ALARM.md`. Live figures are estimates for an in-progress session.
 
 ## `impact [--top N]`
 

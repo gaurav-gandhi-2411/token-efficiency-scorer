@@ -27,7 +27,7 @@ from typing import Any
 
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
-from tes.alarm import AlarmConfig, check_alarm
+from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.discovery import iter_session_files
@@ -209,6 +209,8 @@ def _check_live_alarm(
     config: WatcherConfig,
     self_baseline,
     prices: dict,
+    db_path: Path | None = None,
+    baselines: dict[str, Any] | None = None,
 ) -> None:
     """One-shot live-monitor + alarm check for the currently active session.
 
@@ -226,7 +228,10 @@ def _check_live_alarm(
         if live is None:
             return
         alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
-        result = check_alarm(live, self_baseline, alarm_cfg)
+        threshold = (
+            threshold_for_live(live, db_path, baselines, alarm_cfg) if db_path is not None else None
+        )
+        result = check_alarm(live, self_baseline, alarm_cfg, threshold)
         if result is not None:
             logger.warning("[ALARM] %s", result.message)
             print(f"[ALARM] {result.message}", file=sys.stderr)
@@ -265,7 +270,7 @@ def run_watcher(
             count = _scan_once(config, conn, baselines, self_baseline=self_bl, prices=prices)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)
-            _check_live_alarm(config, self_bl, prices)
+            _check_live_alarm(config, self_bl, prices, db_path, baselines)
         except Exception:
             logger.exception("Scan cycle error — continuing")
 

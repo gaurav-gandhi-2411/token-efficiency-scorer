@@ -3,11 +3,13 @@ from __future__ import annotations
 """The alarm gate over the user's store: threshold from the pool, fire/no-fire, e2e.
 """
 
+import dataclasses
 import json
 import sqlite3
 from pathlib import Path
 from typing import Any
 
+import pytest
 from tes.adapt import ADAPTER_VERSION
 from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
 from tes.alarm_baseline import (
@@ -231,3 +233,83 @@ def test_runaway_resend_session_fires_and_a_normal_one_does_not(tmp_path: Path) 
     assert check_alarm(live_normal, SelfBaselineState(), cfg, thr) is None
     fired = check_alarm(live_runaway, SelfBaselineState(), cfg, thr)
     assert fired is not None and fired.resend_pct >= 90
+
+
+def test_monitor_cli_reads_the_store_end_to_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No seam on the threshold: the store's recent same-era rows decide exit 3 vs 0."""
+    import time
+
+    import tes.live_monitor as lm
+    from tes import cli
+
+    db = tmp_path / "tes.db"
+    conn = open_db(db)
+    for i in range(12):
+        _insert(conn, f"s{i}", 100_000 + i, ADAPTER_VERSION, model=S55, mtime=time.time() - 3600)
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
+
+    def run(tokens: int) -> tuple[int, dict[str, Any]]:
+        monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: _live(tokens))
+        monkeypatch.setattr("sys.argv", ["tes", "monitor", "--json"])
+        with pytest.raises(SystemExit) as exc:
+            cli.main()
+        return int(exc.value.code or 0), json.loads(capsys.readouterr().out)
+
+    code, doc = run(150_000)
+    assert code == 3 and doc["alarm"] is not None
+    assert (
+        doc["alarm_baseline"]["tier"] == TIER_RECENT_ERA_TYPE and doc["alarm_baseline"]["n"] == 12
+    )
+    code, doc = run(100_000)
+    assert code == 0 and doc["alarm"] is None and doc["alarm_baseline"]["status"] == "active"
+
+
+def test_dashboard_monitor_page_shows_the_threshold_or_the_disabled_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    import tes.live_monitor as lm
+    from tes.web.server import ServerConfig, create_app
+
+    db = tmp_path / "tes.db"
+    conn = open_db(db)
+    for i in range(3):
+        _insert(conn, f"s{i}", 100_000 + i, ADAPTER_VERSION, model=S55, mtime=time.time() - 3600)
+    conn.commit()
+    conn.close()
+    live = dataclasses.replace(_live(1_000_000), task_type="feature-build")  # no shipped band
+    monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
+    monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
+    client = create_app(ServerConfig(db_path=db, cc_path=tmp_path)).test_client()
+
+    html = client.get("/monitor").get_data(as_text=True)
+    assert "alarm disabled: needs at least 10 of your sessions" in html  # 3 sessions: no tier
+    assert "[ALARM]" not in html
+
+    conn = open_db(db)
+    for i in range(10):
+        _insert(conn, f"t{i}", 100_000 + i, ADAPTER_VERSION, model=S55, mtime=time.time() - 3600)
+    conn.commit()
+    conn.close()
+    html = client.get("/monitor").get_data(as_text=True)
+    assert "[ALARM]" in html and "p85 of your last 30 days of claude-sonnet-5-5 sessions" in html
+
+
+def test_shipped_tier_message_says_it_is_not_the_users_own_history() -> None:
+    thr = resolve_threshold(
+        [],
+        task_type="infra-deploy",
+        era=S55,
+        now=NOW,
+        shipped_types={"infra-deploy": {"available": True, "n": 15, "p75": 3_000_000}},
+    )
+    hit = check_alarm(_live(5_000_000), SelfBaselineState(), AlarmConfig(enabled=True), thr)
+    assert hit is not None and hit.baseline_tier == "shipped"
+    assert "bundled infra-deploy reference band (3,000,000 tokens" in hit.message
+    assert "not your own history" in hit.message
