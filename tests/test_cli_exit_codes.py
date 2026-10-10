@@ -17,7 +17,9 @@ from typing import Any
 import pytest
 import tes.cli as cli
 from tes.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
+from tes.store import open_db
 
+from tests.legacy_store import build_mixed_store
 from tests.test_alarm_measured import _live, _threshold_active, _threshold_disabled
 
 GOOD_RECORDS: list[dict[str, Any]] = [
@@ -233,6 +235,16 @@ def test_every_row_of_exit_codes_md_matches_behaviour(
     empty.mkdir()
     isdir_db = t / "isdir.db"
     isdir_db.mkdir()
+    for sub_dir in ("mixed", "gone"):
+        (t / sub_dir).mkdir()
+    legacy_db = build_mixed_store(t / "mixed").db  # holds one unparseable legacy row
+    gone_db = build_mixed_store(t / "gone").db
+    conn = open_db(gone_db)
+    conn.execute(
+        "DELETE FROM sessions WHERE source_path LIKE '%sess-%'"
+    )  # leaves only the gone one
+    conn.commit()
+    conn.close()
     # (documented code, the doc row it comes from, argv)
     cases: list[tuple[int, str, list[str]]] = [
         (0, "scored, nothing notable", ["score", str(good), "--no-judge"]),
@@ -248,11 +260,20 @@ def test_every_row_of_exit_codes_md_matches_behaviour(
         (1, "store cannot be opened: cost", ["cost", "--week", "--db-path", str(isdir_db)]),
         (1, "store cannot be opened: budget", ["budget", "--db-path", str(isdir_db)]),
         (1, "store cannot be opened: impact", ["impact", "--db-path", str(isdir_db)]),
+        (1, "store cannot be opened: rescore", ["rescore", "--db-path", str(isdir_db)]),
+        (1, "no store to rescore", ["rescore", "--db-path", str(t / "none.db")]),
+        (1, "rescore --limit below 1", ["rescore", "--limit", "0", "--db-path", str(legacy_db)]),
+        (
+            0,
+            "rescore: gone transcripts are skipped, not failed",
+            ["rescore", "--db-path", str(gone_db)],
+        ),
         (2, "unknown flag", ["score", str(good), "--bogus"]),
         (2, "missing value", ["budget", "--window-days"]),
         (2, "missing required choice", ["cost"]),
         (2, "argparse mutually exclusive flags", ["cost", "--week", "--since", "2026-01-01"]),
         (4, "a session cannot be parsed", ["score", str(bad), "--no-judge"]),
+        (4, "rescore: a legacy row yields no usage", ["rescore", "--db-path", str(legacy_db)]),
     ]
     for want, why, argv in cases:
         got = _main_code(monkeypatch, argv)

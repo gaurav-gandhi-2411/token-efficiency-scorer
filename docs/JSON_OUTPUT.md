@@ -31,7 +31,13 @@ The contract, pinned by `tests/test_cli_json.py` (exact key sets) and implemente
 `period{label,start,end}`, `total_usd`, `priced`, `unpriced_models`, `unpriced_models_incomplete`,
 `session_count`, `sessions_missing_cost`, `session_coverage_pct`, `token_coverage_pct`,
 `token_total`, `token_priced`, `tokens_unpriced`, `sessions_unpriced`,
-`by_project[{project,total_usd,session_count,priced,unpriced_models}]`, `roi`.
+`by_project[{project,total_usd,session_count,priced,unpriced_models}]`, `roi`,
+`legacy_rows_excluded`, `legacy{label,session_count,total_usd,included_in_total_usd}`.
+
+`legacy_rows_excluded` counts stored sessions in the window from the pre-0.15 accounting (usage
+counted once per content block, ~2x too high). They are in none of the figures above; `legacy` is
+their own history line, with `included_in_total_usd` always `false`. Both keys were added with
+`schema_version` staying `1`. See [UPGRADING.md](UPGRADING.md).
 
 Coverage counts a session as priced only when none of its turns used an unpriced model.
 `sessions_unpriced` is the number of sessions in the window that are not fully priced (an unpriced
@@ -50,7 +56,16 @@ unpriced turns were excluded from `api_equivalent_usd`).
 
 `available` (false when the window has no cost data; the numeric fields are then `null`),
 `window_days`, `session_count`, `days_observed`, `total_usd_so_far`, `projected_usd_for_window`,
-`priced`, `unpriced_models`, `message`.
+`priced`, `unpriced_models`, `legacy_rows_excluded`, `message`. `legacy_rows_excluded` is the number of
+legacy sessions (with a cost) in the window that the pace leaves out; it is present, possibly `0`,
+whether or not `available` is true.
+
+## `rescore [--dry-run] [--limit N]`
+
+`dry_run`, `limit` (`null` if not given), `legacy_rows` (legacy rows the run started with),
+`rescored` (on a dry run: how many WOULD be rescored; nothing is written), `skipped_source_missing`,
+`failed`, `not_attempted` (readable rows past `--limit`), `remaining_legacy` (`legacy_rows` minus the
+rows actually rescored). Exit code 4 when `failed > 0`.
 
 ## `monitor`
 
