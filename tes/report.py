@@ -197,6 +197,12 @@ def format_human(
             "Flat-plan users: marginal cost differs; token consumption is the honest metric."
         )
     )
+
+    # LEVER: only when a data-gated lever fires (or cost levers are unavailable).
+    if result.lever_hint:
+        lines.append("")
+        lines.append(_section_divider("LEVER"))
+        lines.append(_wrap(result.lever_hint))
     lines.append(_BORDER)
 
     return "\n".join(lines)

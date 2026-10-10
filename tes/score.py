@@ -225,6 +225,12 @@ class ThreeAxisResult:
     usage_records_deduped: int = 0
     duplicate_usage_records: int = 0
 
+    # --- lever hint (W1A item 4): the data-gated cost lever (waste / long context / output
+    # share) from tes.takeaway.build_lever_hint, the same function the dashboard uses. None when
+    # no lever fires (or attribution was unavailable). Set by the CLI after scoring, not by
+    # score_session, because it needs the AttributionResult, which is not part of this result. ---
+    lever_hint: str | None = None
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
