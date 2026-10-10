@@ -40,6 +40,7 @@ from dataclasses import dataclass
 
 from tes.live_monitor import LiveSessionState
 from tes.self_baseline import SelfBaselineState, TypeBaseline
+from tes.web.cost_format import format_cost_display
 
 PLAN_USAGE_BASED: str = "usage_based"
 PLAN_MAX: str = "max"
@@ -109,7 +110,10 @@ def format_alarm_message(
     parenthetical) but never removes the dollar figure outright — see the
     module docstring and the approved design decision 2.3-c.
     """
-    cost_str = f"~${live.live_cost_usd:.2f} (estimated, in progress)"
+    cost_str = (
+        format_cost_display(live.live_cost_usd, live.live_unpriced_models, approx=True)
+        + " (estimated, in progress)"
+    )
     tokens_str = f"~{live.live_context_tokens:,} context tokens (estimated, in progress)"
     baseline_str = f"your own typical {live.task_type} session (p75: {type_bl.p75:,} tokens)"
 

@@ -14,7 +14,7 @@ Public API:
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from tes._digest import reconstruct_digest
@@ -51,6 +51,13 @@ class LiveSessionState:
     )
     ai_turn_count: int
     domain_of_validity: str
+    # Models in this session missing from the price table (W1A D7); live_cost_usd is then a
+    # priced subtotal. Empty when everything priced. `live_priced` is the boolean twin.
+    live_unpriced_models: list[str] = field(default_factory=list)
+
+    @property
+    def live_priced(self) -> bool:
+        return not self.live_unpriced_models
 
 
 def find_active_session(
@@ -130,6 +137,7 @@ def score_live_session(
         context_resend_dominant=resend > (output + fresh),
         ai_turn_count=session_cost.ai_turn_count,
         domain_of_validity=LIVE_ESTIMATE_DOV,
+        live_unpriced_models=list(session_cost.unpriced_models),
     )
 
 

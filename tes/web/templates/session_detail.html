@@ -128,7 +128,7 @@
         <td style="font-weight:600;">{{ row.bucket }} <span class="text-muted" style="font-weight:400; font-size:0.82em;">{{ row.label }}</span></td>
         <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">{{ row.cost_pct }}%</td>
         <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--graphite);">{{ row.tok_pct }}%</td>
-        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if session.unpriced_models and row.usd == 0 %}unpriced{% else %}${{ "%.4f" | format(row.usd) }}{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -138,7 +138,7 @@
         <td>TOTAL (billed)</td>
         <td style="text-align:right;">100%</td>
         <td style="text-align:right; color:var(--graphite);">100%</td>
-        <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
+        <td style="text-align:right;">{{ attribution.total_usd | cost_display(session.unpriced_models, 4) }}</td>
       </tr>
     </tfoot>
   </table>
@@ -368,7 +368,10 @@
         <tr>
           <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
           <td>
-            <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
+            <span class="cost-amount">{{ session.session_cost_usd | cost_display(session.unpriced_models) }}</span>
+            {% if session.get("subagent_count") %}
+              <span class="cost-approx">includes {{ session.subagent_count }} subagent transcript(s): {{ session.subagent_cost_usd | cost_display([], 2) }}</span>
+            {% endif %}
             {% if session.get("cost_approximate") %}
               <span class="cost-approx">[~] approximate</span>
             {% endif %}

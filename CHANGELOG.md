@@ -33,6 +33,8 @@ below was measured on this branch; the commands and raw outputs are in the W1A r
   `--pick`, the watcher and the live monitor because they were the newest file); their usage is rolled into the
   parent session's cost and attribution (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`), while
   `real_tokens` and waste detection stay main-chain so the verdict axis is unchanged by it.
+* **Unpriced models are shown, not hidden:** a session whose models are not in the price table prints
+  `unpriced (<model>)` instead of `$0.00`; JSON gains `priced` and `unpriced_models`.
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 

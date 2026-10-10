@@ -112,6 +112,9 @@ def compute_baseline_cost_band(
         "SELECT real_tokens, session_cost_usd FROM sessions "
         "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0 "
         "  AND session_cost_usd IS NOT NULL "
+        # W1A D7: a session with unpriced models has a partial (possibly $0) cost; it must not
+        # pull the "typical efficient run" cost band down.
+        "  AND (cost_unpriced_models IS NULL OR cost_unpriced_models = '') "
         "  AND ("
         "    (turn_count IS NOT NULL AND turn_count >= ?)"
         "    OR (turn_count IS NULL AND scope_status = 'in_scope')"

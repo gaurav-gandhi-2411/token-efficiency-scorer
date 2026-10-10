@@ -37,6 +37,7 @@ from typing import Any
 import httpx
 
 from tes.intelligence.cache import format_intelligence_summary, get_or_compute_intelligence
+from tes.web.cost_format import format_cost_display
 
 # ---------------------------------------------------------------------------
 # System prompt (the honesty boundary, enforced in text)
@@ -162,7 +163,12 @@ def build_chat_context(
 
     # --- Corpus-level stats (metrics only) ---
     content_rows = [r for r in rows if r.get("real_tokens", 0) > 0]
-    all_costs = [r["session_cost_usd"] for r in content_rows if r.get("session_cost_usd")]
+    # W1A D7: unpriced sessions have a partial/zero cost; keep them out of the $ percentiles.
+    all_costs = [
+        r["session_cost_usd"]
+        for r in content_rows
+        if r.get("session_cost_usd") and not r.get("unpriced_models")
+    ]
     all_tokens = [r["real_tokens"] for r in content_rows if r.get("real_tokens", 0) > 0]
     waste_rows = [r for r in content_rows if (r.get("waste_event_count") or 0) > 0]
 
@@ -218,6 +224,11 @@ def build_chat_context(
     }
 
 
+def _cost_label(usd: float | None, unpriced_models: list[str] | None) -> str:
+    """Cost as shown to the chat model: 'unpriced (m)' rather than a misleading '$0.0'."""
+    return format_cost_display(usd, unpriced_models or (), decimals=4)
+
+
 def _summarize_session(row: dict) -> dict[str, Any]:
     """Build a metrics-only summary of a single session for the chat context.
 
@@ -235,6 +246,7 @@ def _summarize_session(row: dict) -> dict[str, Any]:
         "band_verdict": row.get("band_verdict"),
         "scope_status": row.get("scope_status"),
         "session_cost_usd": row.get("session_cost_usd"),
+        "unpriced_models": row.get("unpriced_models") or [],
         "judge_verdict": row.get("judge_verdict"),
         "judge_score": row.get("judge_score"),
         "waste_event_count": row.get("waste_event_count"),
@@ -288,7 +300,7 @@ def _build_user_message(context: dict[str, Any]) -> str:
             f"SPECIFIC SESSION (partial ID: {s['session_id_prefix']}*):",
             f"  task_type: {s['task_type']}  scored: {s['scored_at']}",
             f"  real_tokens: {s['real_tokens']:,}  turn_count: {s['turn_count']}  "
-            f"  cost: ${s['session_cost_usd']}",
+            f"  cost: {_cost_label(s['session_cost_usd'], s.get('unpriced_models'))}",
             f"  token_verdict: {s['band_verdict']} (scope: {s['scope_status']})",
             f"  judge_verdict: {s['judge_verdict']} (score: {s['judge_score']})",
             f"  waste_events: {s['waste_event_count']} ({s['waste_types_detected']})",
