@@ -96,10 +96,11 @@ This document describes the actual flow, written after running it for real for `
 
 ## Pre-release price check (local, needs real transcripts)
 
-CI cannot see real transcripts, so before tagging run both price checks locally:
+CI cannot see real transcripts, so before tagging run the price and usage-field checks locally:
 
 ```
 python scripts/check_transcript_models_priced.py     # every model id in ~/.claude/projects must price
+python scripts/check_usage_fields_priced.py            # every usage key path/value in ~/.claude/projects must have a rule
 python scripts/check_price_table_vs_vendor.py        # table vs Anthropic's page (needs network)
 ```
 
