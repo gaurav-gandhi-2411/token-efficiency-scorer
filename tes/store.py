@@ -226,6 +226,8 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         "duplicate_usage_records": (
             "ALTER TABLE sessions ADD COLUMN duplicate_usage_records INTEGER"
         ),
+        # Model era for the live alarm baseline (tes.alarm_baseline); NULL = unknown era.
+        "dominant_model": "ALTER TABLE sessions ADD COLUMN dominant_model TEXT",
     }
     for col_name, alter_sql in dedupe_cols.items():
         if col_name not in existing_cols:
@@ -551,8 +553,14 @@ def upsert_session(
         )
 
     conn.execute(
-        "UPDATE sessions SET adapter_version = ?, duplicate_usage_records = ? WHERE session_id = ?",
-        (result.adapter_version, result.duplicate_usage_records, result.session_id),
+        "UPDATE sessions SET adapter_version = ?, duplicate_usage_records = ?, "
+        "dominant_model = ? WHERE session_id = ?",
+        (
+            result.adapter_version,
+            result.duplicate_usage_records,
+            result.dominant_model,
+            result.session_id,
+        ),
     )
     conn.commit()
 
@@ -637,7 +645,8 @@ def _refresh_usage_columns(
         "session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
         "cost_unpriced_models = ?, subagent_tokens = ?, subagent_cost_usd = ?, "
         "subagent_count = ?, context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, "
-        "waste_pct = ?, adapter_version = ?, duplicate_usage_records = ? WHERE session_id = ?",
+        "waste_pct = ?, adapter_version = ?, duplicate_usage_records = ?, dominant_model = ? "
+        "WHERE session_id = ?",
         (
             r.real_tokens,
             r.scope_status,
@@ -662,6 +671,7 @@ def _refresh_usage_columns(
             waste_pct,
             r.adapter_version,
             r.duplicate_usage_records,
+            r.dominant_model,
             r.session_id,
         ),
     )

@@ -19,6 +19,7 @@ from pathlib import Path
 
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
+from tes.alarm_baseline import dominant_model
 from tes.attribution import compute_attribution
 from tes.classify import classify_session
 from tes.cost import compute_session_cost, load_price_table
@@ -54,6 +55,9 @@ class LiveSessionState:
     # Models in this session missing from the price table (W1A D7); live_cost_usd is then a
     # priced subtotal. Empty when everything priced. `live_priced` is the boolean twin.
     live_unpriced_models: list[str] = field(default_factory=list)
+    # Normalized model that did most of the session's token work (the alarm baseline's "era");
+    # "" when no turn names a model.
+    dominant_model: str = ""
 
     @property
     def live_priced(self) -> bool:
@@ -138,6 +142,7 @@ def score_live_session(
         ai_turn_count=session_cost.ai_turn_count,
         domain_of_validity=LIVE_ESTIMATE_DOV,
         live_unpriced_models=list(session_cost.unpriced_models),
+        dominant_model=dominant_model(turns),
     )
 
 
