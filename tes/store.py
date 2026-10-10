@@ -657,6 +657,29 @@ def _has_usage(record: dict[str, Any]) -> bool:
     return bool(record.get("usage_dedupe", {}).get("usage_records"))
 
 
+def _is_empty_stub(conn: sqlite3.Connection, session_id: str) -> bool:
+    """True iff the STORED row recorded no turns and no tokens (a session that never started).
+
+    Decided from the stored numbers, not from the transcript: a row that once had turns or
+    tokens and whose transcript is now empty or damaged is a failure, not a stub.
+    """
+    row = conn.execute(
+        "SELECT turn_count, real_tokens FROM sessions WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    return row is not None and row[0] == 0 and row[1] == 0
+
+
+def _stamp_current_versions(conn: sqlite3.Connection, session_id: str) -> None:
+    """Mark one row as scored by the current accounting without changing any number."""
+    from tes.adapt import ADAPTER_VERSION, COST_VERSION
+
+    conn.execute(
+        "UPDATE sessions SET adapter_version = ?, cost_version = ? WHERE session_id = ?",
+        (ADAPTER_VERSION, COST_VERSION, session_id),
+    )
+    conn.commit()
+
+
 def _refresh_usage_columns(
     conn: sqlite3.Connection,
     record: dict[str, Any],
@@ -757,8 +780,12 @@ def backfill_waste(
     Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
     scored before waste detection was wired show waste_event_count=0 in the store).
 
+    An empty stub (stored ``turn_count`` 0 and ``real_tokens`` 0, transcript without usage) is
+    counted in ``skipped_stub`` and only has its two version columns stamped, so it stops being
+    legacy; no stored number changes. Any other usage-less row is still a failure.
+
     Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E,
-    "refreshed": R}
+    "refreshed": R, "skipped_stub": S}
     where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
     processed with 0 detected events, "missing_source" = source file not accessible,
     "errors" = failed rows (left unchanged), "refreshed" = rows re-scored.
@@ -800,6 +827,7 @@ def backfill_waste(
     missing = 0
     errors = 0
     refreshed = 0
+    skipped_stub = 0
     attempted = 0
     not_attempted = 0
 
@@ -818,7 +846,15 @@ def backfill_waste(
             if not _has_usage(record):
                 # The adapter tolerates garbage/empty/truncated files by returning zero usage;
                 # writing that over a stored row would erase its numbers (and stamp it current).
-                # Every path counts it as failed and leaves the row exactly as it was.
+                # Every path counts it as failed and leaves the row exactly as it was...
+                if _is_empty_stub(conn, session_id):
+                    # ...except an empty stub: a row that never had a turn or a token has no
+                    # number to protect and nothing to recompute. Stamp the versions only, so it
+                    # stops being legacy (and `tes rescore` can exit 0); no stored number moves.
+                    if not dry_run:
+                        _stamp_current_versions(conn, session_id)
+                    skipped_stub += 1
+                    continue
                 raise ValueError(f"no usage records in {p.name}")
             turns: list[dict] = record.get("digest", {}).get("turns", [])
             waste_entry = build_waste_entry(session_id, turns)
@@ -880,6 +916,7 @@ def backfill_waste(
         "refreshed": refreshed,
         "legacy_rows": len(rows) if only_legacy else 0,
         "not_attempted": not_attempted,
+        "skipped_stub": skipped_stub,
     }
 
 

@@ -50,12 +50,16 @@ tes rescore [--dry-run] [--json] [--db-path PATH] [--limit N]
 
 Re-scores every legacy row whose transcript is still readable with the current adapter and price
 table (real tokens, cost, subagent split, verdict band against the bundled baseline, attribution
-fractions, waste events). Judge verdicts are kept. It reports four counts:
+fractions, waste events). Judge verdicts are kept. It reports five counts:
 
 * **rescored**: legacy rows re-computed and now current.
 * **skipped (source missing)**: the transcript is gone. The row is left exactly as it was and stays legacy.
-* **failed (parse error)**: the transcript exists but yielded no usage records, or its cost could
-  not be computed. The row is left exactly as it was and stays legacy (so a damaged file can never
+* **skipped (empty stub)**: the row never recorded a turn or a token (stored `turn_count` 0 and
+  `real_tokens` 0) and its transcript carries no usage, so there is nothing to recompute. It is
+  marked current (only `adapter_version` and `cost_version` are written; no stored number moves), so
+  it stops being legacy and does not keep `rescore` failing on every run.
+* **failed (parse error)**: the transcript exists but yielded no usage records although the row had turns or tokens,
+  or its cost could not be computed. The row is left exactly as it was and stays legacy (so a damaged file can never
   overwrite a stored number with zero).
 * **not attempted (--limit)**: readable rows past `--limit` (most recently written first); run again.
 

@@ -64,8 +64,9 @@ whether or not `available` is true.
 
 `dry_run`, `limit` (`null` if not given), `legacy_rows` (legacy rows the run started with),
 `rescored` (on a dry run: how many WOULD be rescored; nothing is written), `skipped_source_missing`,
+`skipped_empty_stub` (rows with 0 turns and 0 tokens, marked current with no number changed),
 `failed`, `not_attempted` (readable rows past `--limit`), `remaining_legacy` (`legacy_rows` minus the
-rows actually rescored). Exit code 4 when `failed > 0`.
+rows actually rescored or stub-stamped). Exit code 4 when `failed > 0`.
 
 ## `monitor`
 

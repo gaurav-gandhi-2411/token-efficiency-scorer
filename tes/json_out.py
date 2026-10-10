@@ -173,6 +173,7 @@ def budget_payload(
 def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None) -> dict[str, Any]:
     """`tes rescore --json`. On a dry run `rescored` is what WOULD be rescored (nothing written)."""
     rescored = summary["refreshed"]
+    stubs = summary["skipped_stub"]
     return envelope(
         "rescore",
         dry_run=dry_run,
@@ -180,9 +181,10 @@ def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None
         legacy_rows=summary["legacy_rows"],
         rescored=rescored,
         skipped_source_missing=summary["missing_source"],
+        skipped_empty_stub=summary["skipped_stub"],
         failed=summary["errors"],
         not_attempted=summary["not_attempted"],
-        remaining_legacy=summary["legacy_rows"] - (0 if dry_run else rescored),
+        remaining_legacy=summary["legacy_rows"] - (0 if dry_run else rescored + stubs),
     )
 
 

@@ -1020,11 +1020,14 @@ def _run_rescore(
     )
     print(f"  {verb}:{' ' * (24 - len(verb))}{summary['refreshed']}")
     print(f"  skipped (source missing):  {summary['missing_source']}")
+    print(f"  skipped (empty stub):      {summary['skipped_stub']}")
     print(f"  failed (parse error):      {summary['errors']}")
     if limit is not None:
         print(f"  not attempted (--limit):   {summary['not_attempted']}")
     if summary["missing_source"]:
         print("  Rows whose transcript is gone were left exactly as they were.")
+    if summary["skipped_stub"]:
+        print("  Empty stubs (0 turns, 0 tokens) have nothing to rescore: marked current.")
     return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
 
 

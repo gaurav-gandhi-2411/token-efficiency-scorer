@@ -21,7 +21,9 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
   errors go to stderr.
 * **`rescore`** exits 4 (the same code as `score`) when a readable legacy row fails to re-score, 1 for
   a missing or unopenable store or `--limit` below 1 (it never creates a store), else 0. Rows whose
-  transcript is gone are not a failure: they are counted as `skipped` and the exit stays 0. A second
+  transcript is gone are not a failure: they are counted as `skipped` and the exit stays 0. So are
+  empty stubs (a row with 0 turns and 0 tokens whose transcript has no usage): they are marked
+  current without touching a number and counted as `skipped (empty stub)`. A second
   run exits the same way and changes nothing. See [UPGRADING.md](UPGRADING.md).
 * **`backfill-waste`** follows the same rule as `rescore`: a row whose transcript is empty, unreadable
   or has no usage records is counted as `failed`, left exactly as it was (it is never overwritten with
