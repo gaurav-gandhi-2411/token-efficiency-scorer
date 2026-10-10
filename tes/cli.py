@@ -20,6 +20,7 @@ the API judge; the per-session consent screen still gates every byte that leaves
 """
 
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -43,7 +44,7 @@ from tes.judge import (
     score_trajectory_api,
 )
 from tes.report import format_human, format_json
-from tes.score import score_session
+from tes.score import ThreeAxisResult, score_session
 from tes.waste import (
     annotate_waste_costs,
     build_waste_entry,
@@ -234,6 +235,22 @@ def _resolve_score_targets(args: argparse.Namespace) -> list[Path]:
     return [newest]
 
 
+def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisResult:
+    """Attach the dashboard's data-gated lever hint (None when no lever fires).
+
+    Never raises: a hint failure must not break scoring output.
+    """
+    if attribution is None:
+        return result
+    try:
+        from tes.takeaway import build_lever_hint  # noqa: PLC0415
+
+        hint = build_lever_hint(attribution, tuple(result.unpriced_models))  # type: ignore[arg-type]
+    except Exception:
+        return result
+    return dataclasses.replace(result, lever_hint=hint)
+
+
 def score_path(
     path: Path,
     baselines: dict,
@@ -326,6 +343,8 @@ def score_path(
             )
         except Exception:
             pass  # baseline band lookup failure is non-fatal
+
+    result = _with_lever_hint(result, attribution)
 
     if json_mode:
         print(format_json(result))
@@ -431,6 +450,8 @@ def _score_path_with_api_judge(
             )
         except Exception:
             pass
+
+    result = _with_lever_hint(result, attribution)
 
     if json_mode:
         print(format_json(result))
