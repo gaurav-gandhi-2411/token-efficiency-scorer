@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from datetime import timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -109,6 +110,42 @@ def resolve_db_path(path: Path | str | None = None) -> Path:
     return _DEFAULT_DB
 
 
+def _add_column(conn: sqlite3.Connection, alter_sql: str) -> None:
+    """Run one additive ``ALTER TABLE ... ADD COLUMN``, tolerating a concurrent migrator.
+
+    The watcher and a CLI command can open the same pre-migration store at the same moment;
+    both see the column missing and both ALTER. SQLite lets only one win and raises
+    "duplicate column name" for the other, which used to crash that process. That error means
+    the column exists, which is exactly what this wants, so it is swallowed (nothing else is).
+    """
+    try:
+        conn.execute(alter_sql)
+        conn.commit()
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc):
+            raise
+
+
+def _enable_wal(conn: sqlite3.Connection) -> None:
+    """Switch the store to WAL, tolerating another process doing the same at this moment.
+
+    Changing the journal mode of a not-yet-WAL file needs a lock SQLite's busy handler does not
+    wait on, so two simultaneous first opens (watcher + CLI) made one raise "database is locked".
+    WAL is persistent in the file, so the loser only has to retry (or skip: the winner set it).
+    """
+    for _ in range(40):
+        try:
+            if conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal":
+                return
+            conn.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc):
+                raise
+            time.sleep(0.05)
+    # Still contended after ~2s: carry on in the current mode; a later open will set WAL.
+
+
 def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     """Open (or create) the TES database.
 
@@ -125,7 +162,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         ) from exc
 
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    _enable_wal(conn)
     conn.row_factory = sqlite3.Row
 
     existing_version: int = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -146,14 +183,13 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # ALTER TABLE is safe to re-run guard: check column presence first.
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
     if "turn_count" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
 
     if "baseline_source" not in existing_cols:
-        conn.execute(
-            "ALTER TABLE sessions ADD COLUMN baseline_source TEXT NOT NULL DEFAULT 'b2_corpus'"
+        _add_column(
+            conn,
+            "ALTER TABLE sessions ADD COLUMN baseline_source TEXT NOT NULL DEFAULT 'b2_corpus'",
         )
-        conn.commit()
 
     cost_cols = {
         "session_cost_usd": "ALTER TABLE sessions ADD COLUMN session_cost_usd REAL",
@@ -162,8 +198,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in cost_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
 
     # RR1: attribution fractions, persisted at score time so tes.intelligence
     # can cluster ANY scored session without re-reading its source JSONL --
@@ -178,8 +213,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in attribution_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
 
     # XX1.3: raw unresolved model string(s) for a session whose cost is NULL
     # because a model didn't resolve against the price table -- persisted at
@@ -189,8 +223,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # anything. Comma-joined raw model strings, NULL if the session priced
     # cleanly or was scored before this column existed.
     if "cost_unpriced_models" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
 
     # XX2.2: reconstructed code-impact per session (Edit/Write/MultiEdit/
     # NotebookEdit operations), persisted at score time -- same RR1 lesson,
@@ -201,8 +234,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # every row scored before this migration -- tes impact's own report
     # names this as a legacy-row gap, same pattern as SS1.
     if "edit_operations" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
 
     # W1A D6: subagent roll-up. session_cost_usd already INCLUDES subagent spend; these
     # expose the split (subagent_tokens in real_tokens units). NULL for rows scored before
@@ -214,8 +246,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in subagent_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
 
     # Usage de-duplication (tes.adapt.ADAPTER_VERSION 2): which adapter produced this row's
     # real_tokens/cost. NULL = scored before the column existed = the pre-dedupe adapter, which
@@ -235,8 +266,12 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in dedupe_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
+
+    # Key/value store-level state (e.g. the one-time legacy-rows notice marker, tes.legacy).
+    # Additive and idempotent; never holds anything a score depends on.
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    conn.commit()
 
     return conn
 
