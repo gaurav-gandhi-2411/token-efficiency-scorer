@@ -655,6 +655,7 @@ def _refresh_usage_columns(
     session_cost: SessionCost | None,
     digest: SessionDigest | None,
     prices: dict[str, Any],
+    session_id: str,
 ) -> None:
     """Re-derive every usage-derived column of one row from a freshly adapted record.
 
@@ -713,7 +714,7 @@ def _refresh_usage_columns(
             r.cost_version,
             r.duplicate_usage_records,
             r.dominant_model,
-            r.session_id,
+            session_id,
         ),
     )
 
@@ -721,8 +722,19 @@ def _refresh_usage_columns(
 def backfill_waste(
     db_path: Path | str | None = None,
     prices: dict | None = None,
+    *,
+    only_legacy: bool = False,
+    dry_run: bool = False,
+    limit: int | None = None,
 ) -> dict[str, int]:
     """Re-run frozen detectors on all accessible sessions; embed per-event costs.
+
+    ``only_legacy`` (what `tes rescore` uses) restricts the run to LEGACY rows (tes.legacy) and
+    refreshes every one whose transcript is readable; a row whose cost cannot be recomputed is
+    counted in ``errors`` and left legacy. ``dry_run`` opens the store read-only, runs the same
+    computation and writes nothing (not even a schema migration). ``limit`` stops after that many
+    readable rows (the rest are counted in ``not_attempted``). With ``only_legacy``,
+    ``legacy_rows`` is how many legacy rows the run started with.
 
     Also refreshes the usage-derived columns (real_tokens, cost, verdict band, attribution) of
     rows produced by the pre-dedupe adapter (adapter_version NULL/older) or priced before
@@ -744,26 +756,54 @@ def backfill_waste(
     if prices is None:
         prices = load_price_table()
 
-    conn = open_db(db_path)
-    rows = conn.execute(
-        "SELECT session_id, source_path, adapter_version, cost_version FROM sessions "
-        "WHERE source_path IS NOT NULL"
-    ).fetchall()
+    if dry_run:
+        # No migration, no checkpoint, no side files: a dry run leaves the store as it found it.
+        # A read-only handle on a WAL store creates -wal/-shm when none exist, so a store that
+        # is idle (no -wal: everything is in the main file) is opened immutable instead.
+        resolved = resolve_db_path(db_path).resolve()
+        mode = "mode=ro" if Path(f"{resolved}-wal").exists() else "immutable=1"
+        conn = sqlite3.connect(f"{resolved.as_uri()}?{mode}", uri=True)
+        conn.row_factory = sqlite3.Row
+    else:
+        conn = open_db(db_path)
+    if only_legacy:
+        from tes.legacy import legacy_sources
+
+        # (session_id, source_path); every one of these is refreshed, whatever its versions say.
+        rows: list[Any] = [
+            {"session_id": sid, "source_path": path, "adapter_version": None, "cost_version": None}
+            for sid, path in legacy_sources(conn)
+        ]
+    else:
+        rows = conn.execute(
+            "SELECT session_id, source_path, adapter_version, cost_version FROM sessions "
+            "WHERE source_path IS NOT NULL"
+        ).fetchall()
 
     updated = 0
     no_waste = 0
     missing = 0
     errors = 0
     refreshed = 0
+    attempted = 0
+    not_attempted = 0
 
     for row in rows:
         session_id: str = row["session_id"]
-        p = Path(row["source_path"])
-        if not p.exists():
+        if not row["source_path"] or not Path(row["source_path"]).exists():
             missing += 1
             continue
+        p = Path(row["source_path"])
+        if limit is not None and attempted >= limit:
+            not_attempted += 1  # readable, but past --limit: left legacy for the next run
+            continue
+        attempted += 1
         try:
             record = adapt_session(p)
+            if only_legacy and not record.get("usage_dedupe", {}).get("usage_records"):
+                # The adapter tolerates garbage/empty/truncated files by returning zero usage;
+                # writing that over a stored row would erase its numbers. Fail, leave it legacy.
+                raise ValueError(f"no usage records in {p.name}")
             turns: list[dict] = record.get("digest", {}).get("turns", [])
             waste_entry = build_waste_entry(session_id, turns)
 
@@ -780,19 +820,30 @@ def backfill_waste(
             waste_events = waste_entry["waste_events"]
             annotate_waste_costs(waste_events, per_turn_cost)
 
+            if only_legacy and sc is None:
+                # Refreshing would stamp the row current with no cost at all: report a failure
+                # and leave it legacy rather than launder it into the corrected figures.
+                raise ValueError(f"cost could not be computed for {session_id}")
+
             if (
-                row["adapter_version"] != ADAPTER_VERSION
+                only_legacy
+                or row["adapter_version"] != ADAPTER_VERSION
                 or (row["cost_version"] or 0) != COST_VERSION
             ):
-                _refresh_usage_columns(conn, record, waste_entry, sc, digest, prices)
+                if not dry_run:
+                    _refresh_usage_columns(
+                        conn, record, waste_entry, sc, digest, prices, session_id
+                    )
                 refreshed += 1
 
             count = len(waste_events)
-            conn.execute(
-                "UPDATE sessions SET waste_event_count = ?, waste_events = ? WHERE session_id = ?",
-                (count, json.dumps(waste_events), session_id),
-            )
-            conn.commit()
+            if not dry_run:
+                conn.execute(
+                    "UPDATE sessions SET waste_event_count = ?, waste_events = ? "
+                    "WHERE session_id = ?",
+                    (count, json.dumps(waste_events), session_id),
+                )
+                conn.commit()
 
             if count > 0:
                 updated += 1
@@ -800,6 +851,8 @@ def backfill_waste(
                 no_waste += 1
         except Exception:
             errors += 1
+            if not dry_run:
+                conn.rollback()  # drop a half-applied row so the next commit cannot persist it
 
     conn.close()
     return {
@@ -808,6 +861,8 @@ def backfill_waste(
         "missing_source": missing,
         "errors": errors,
         "refreshed": refreshed,
+        "legacy_rows": len(rows) if only_legacy else 0,
+        "not_attempted": not_attempted,
     }
 
 
