@@ -23,6 +23,7 @@ from tes.web.cost_format import cost_is_known
 
 if TYPE_CHECKING:
     from tes.alarm import AlarmResult
+    from tes.alarm_baseline import AlarmThreshold
     from tes.budget import BudgetProjection
     from tes.cost_period import PeriodCostReport
     from tes.impact import ImpactReport
@@ -198,12 +199,15 @@ def monitor_payload(
     live: LiveSessionState | None = None,
     alarm: AlarmResult | None = None,
     source_path: str | None = None,
+    threshold: AlarmThreshold | None = None,
 ) -> dict[str, Any]:
     """`tes monitor --json`.
 
     status: "no_active_session" | "insufficient_data" | "ok". Session fields are null unless
     status is "ok". `alarm` is null when none fired (exit code 0) and an object when it did
-    (exit code 3).
+    (exit code 3). `alarm_baseline` (status "ok" only) always says what the alarm compared
+    against, or why it is disabled: status, tier, threshold_tokens, n, percentile, window_days,
+    era, task_type, reason.
     """
     return envelope(
         "monitor",
@@ -228,10 +232,15 @@ def monitor_payload(
                 "resend_pct": alarm.resend_pct,
                 "baseline_p75_tokens": alarm.baseline_p75_tokens,
                 "plan_type": alarm.plan_type,
+                "threshold_tokens": alarm.baseline_p75_tokens,
+                "baseline_tier": alarm.baseline_tier,
+                "baseline_n": alarm.baseline_n,
+                "baseline_percentile": alarm.baseline_percentile,
             }
             if alarm is not None
             else None
         ),
+        alarm_baseline=threshold.to_dict() if threshold is not None else None,
     )
 
 

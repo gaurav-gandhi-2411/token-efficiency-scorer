@@ -364,25 +364,46 @@ MONITOR_KEYS = {
     "ai_turn_count",
     "domain_of_validity",
     "alarm",
+    "alarm_baseline",
 }
-ALARM_KEYS = {"message", "resend_pct", "baseline_p75_tokens", "plan_type"}
+ALARM_KEYS = {
+    "message",
+    "resend_pct",
+    "baseline_p75_tokens",
+    "plan_type",
+    "threshold_tokens",
+    "baseline_tier",
+    "baseline_n",
+    "baseline_percentile",
+}
+ALARM_BASELINE_KEYS = {
+    "status",
+    "tier",
+    "threshold_tokens",
+    "n",
+    "percentile",
+    "window_days",
+    "era",
+    "task_type",
+    "reason",
+}
 
 
 def _stub_monitor(monkeypatch: pytest.MonkeyPatch, live: Any, baseline: Any) -> None:
+    import tes.alarm as alarm_mod
     import tes.live_monitor as lm
-    import tes.self_baseline as sb
 
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
-    monkeypatch.setattr(sb, "load_or_compute", lambda *a, **k: baseline)
+    monkeypatch.setattr(alarm_mod, "threshold_for_live", lambda *a, **k: baseline)
 
 
 def test_monitor_json_alarm_fired_exits_3_with_alarm_object(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tests.test_alarm_measured import _live, _self_baseline_active
+    from tests.test_alarm_measured import _live, _threshold_active
 
-    _stub_monitor(monkeypatch, _live(), _self_baseline_active())
+    _stub_monitor(monkeypatch, _live(), _threshold_active())
     code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
     doc = _doc(out)
     assert code == 3
@@ -392,30 +413,39 @@ def test_monitor_json_alarm_fired_exits_3_with_alarm_object(
     assert doc["priced"] is True
     assert set(doc["alarm"]) == ALARM_KEYS
     assert doc["alarm"]["resend_pct"] == 92
+    assert set(doc["alarm_baseline"]) == ALARM_BASELINE_KEYS
+    assert doc["alarm_baseline"]["status"] == "active"
+    assert doc["alarm_baseline"]["threshold_tokens"] == doc["alarm"]["threshold_tokens"] == 140_000
+    assert doc["alarm_baseline"]["tier"] == doc["alarm"]["baseline_tier"] == "recent_era_type"
 
 
 def test_monitor_json_no_alarm_exits_0_with_null_alarm(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tests.test_alarm_measured import _live, _self_baseline_building
+    from tests.test_alarm_measured import _live, _threshold_disabled
 
-    _stub_monitor(monkeypatch, _live(), _self_baseline_building())
+    _stub_monitor(monkeypatch, _live(), _threshold_disabled())
     code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
     doc = _doc(out)
     assert code == 0
     assert set(doc) == MONITOR_KEYS
     assert doc["alarm"] is None
     assert doc["live_cost_usd"] == 8.10
+    # a disabled alarm still says what it compared against, or why there is nothing to compare
+    assert set(doc["alarm_baseline"]) == ALARM_BASELINE_KEYS
+    assert doc["alarm_baseline"]["status"] == "disabled"
+    assert doc["alarm_baseline"]["threshold_tokens"] is None
+    assert "alarm disabled" in doc["alarm_baseline"]["reason"]
 
 
 def test_monitor_json_unpriced_fields(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tests.test_alarm_measured import _live, _self_baseline_building
+    from tests.test_alarm_measured import _live, _threshold_disabled
 
     live = _live()
     live.live_unpriced_models = [UNPRICED]
-    _stub_monitor(monkeypatch, live, _self_baseline_building())
+    _stub_monitor(monkeypatch, live, _threshold_disabled())
     doc = _doc(_run(monkeypatch, capsys, "monitor", "--json")[1])
     assert doc["priced"] is False
     assert doc["unpriced_models"] == [UNPRICED]
@@ -441,9 +471,9 @@ def test_monitor_json_no_active_session_has_full_key_set(
 def test_monitor_json_insufficient_data(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tests.test_alarm_measured import _self_baseline_building
+    from tests.test_alarm_measured import _threshold_disabled
 
-    _stub_monitor(monkeypatch, None, _self_baseline_building())
+    _stub_monitor(monkeypatch, None, _threshold_disabled())
     code, out, _ = _run(monkeypatch, capsys, "monitor", "--json")
     doc = _doc(out)
     assert code == 0

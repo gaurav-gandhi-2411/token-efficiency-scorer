@@ -26,12 +26,16 @@
   <div class="takeaway" style="border-left-color:var(--needle);">
     [ALARM] {{ alarm.message }}
   </div>
+  {% elif threshold and threshold.status != "active" %}
+  <p class="text-muted" style="font-size:0.85rem;">
+    No alarm &mdash; {{ threshold.reason }}.
+  </p>
   {% else %}
   <p class="text-muted" style="font-size:0.85rem;">
-    No alarm &mdash; measured thresholds not tripped, or your self-baseline for this
-    task type is still building. Silence here means nothing unusual is measured, not
-    that the alarm feature is disabled (unless you never passed <code>--alarm</code>
-    to <code>tes serve</code>).
+    No alarm &mdash; measured thresholds not tripped
+    {% if threshold %}(threshold: {{ threshold.reason }}){% endif %}. Silence here means
+    nothing unusual is measured, not that the alarm feature is disabled (unless you never
+    passed <code>--alarm</code> to <code>tes serve</code>).
   </p>
   {% endif %}
 
