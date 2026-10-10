@@ -55,34 +55,121 @@ jobs:
         continue-on-error: true
         run: uv run mypy src/ tes/
 
-      # UU1 (0.11.1): test_cluster_validity.py and test_chat_grounding.py's
-      # TestContextFormatUnambiguous class used to be excluded here entirely
-      # -- both read the real local ~/.claude/projects session history via
-      # _load_real_corpus / get_or_compute_intelligence(no db_path), a
-      # machine-state dependency no CI runner could ever satisfy. Fixed at
-      # the test level instead of papering over it here:
-      # test_chat_grounding.py's format-contract tests now use a synthetic,
-      # always-valid cache dict (they test a pure dict -> str function, which
-      # never needed a real DB); test_cluster_validity.py's real-corpus
-      # quality checks now pytest.skip with a stated reason when the corpus
-      # is too thin to evaluate, same pattern test_anomaly_threshold.py
-      # already used correctly. Both files run unrestricted here now.
-      - name: Unit tests
-        run: |
-          uv run pytest
+      # Offline half of the release gate (release.yml runs it again with --pypi at tag time): a
+      # version that disagrees between pyproject.toml, uv.lock and CHANGELOG fails here, not at release.
+      - name: Release version sources agree
+        run: uv run python scripts/check_release_version.py
 
-  # The classifiers claim Python 3.10-3.14 while lint-and-test only ever ran 3.11 (audit D8,
-  # 2026-10-07; its first run found the package did not import on 3.10, see CHANGELOG). This runs
-  # the same suite on every other claimed version. It is a SEPARATE job, not a matrix on lint-and-test,
-  # because renaming that job's check to "lint-and-test (3.11)" would orphan the required check
-  # "lint-and-test" and block every merge. The legs are covered by the required aggregate check
-  # "python-compat (every leg)" below.
+  # W1A item 8. The full suite on every OS x Python the package claims (classifiers say 3.10-3.14;
+  # Windows and macOS were never exercised before). lint-and-test above stays ONE job for
+  # lint/format/types/release checks -- those do not vary by platform, so 12x would only be noise --
+  # and keeps its name because "lint-and-test" is a required status check. The tests moved here and
+  # are still a merge gate through the required aggregate "python-compat (every leg)" below.
+  #
+  # History kept for context (UU1, 0.11.1): test_cluster_validity.py and test_chat_grounding.py were
+  # once excluded from CI because they read the real ~/.claude history; they were fixed at the test
+  # level (synthetic cache dict; pytest.skip with a stated reason on a thin corpus), so the whole
+  # suite runs unrestricted on every leg.
+  tests:
+    name: tests (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # The dev group carries the `patterns` extra's pins (numpy, scikit-learn), so these legs test the
+      # full install. The core-only install is the `core-only` job below.
+      - name: Install dependencies
+        run: uv sync --frozen --python ${{ matrix.python-version }}
+
+      # Coverage is measured, and the pyproject.toml [tool.coverage.report] fail_under ratchet is
+      # enforced, on exactly ONE leg. The other 11 run without --cov so a platform-dependent branch
+      # (a Windows-only path, a skipped test) cannot flip the total across the threshold.
+      - name: Unit tests (with the coverage ratchet)
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
+        run: uv run pytest --cov=tes --cov-report=term-missing
+
+      - name: Unit tests
+        if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') }}
+        run: uv run pytest
+
+  # What a user who runs `pip install tracegauge` (no extras) gets: no numpy, no scikit-learn.
+  # tests/test_core_without_extras.py simulates that by blocking the imports in a subprocess inside
+  # the full dev environment; this job is the real thing, in an environment where they are absent.
+  # Ubuntu and Windows, at the oldest and newest supported Python.
+  core-only:
+    name: core-only (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # A non-editable install of a built wheel into an empty venv: the shape a user gets.
+      - name: Install the wheel with no extras
+        run: |
+          python -m venv "$RUNNER_TEMP/core"
+          if [ -x "$RUNNER_TEMP/core/bin/python" ]; then PY="$RUNNER_TEMP/core/bin/python"; else PY="$RUNNER_TEMP/core/Scripts/python.exe"; fi
+          echo "PY=$PY" >> "$GITHUB_ENV"
+          "$PY" -m pip install --quiet wheel
+          "$PY" -m pip wheel --quiet --no-deps --wheel-dir "$RUNNER_TEMP/wheel" .
+          "$PY" -m pip install --quiet "$RUNNER_TEMP"/wheel/tracegauge-*.whl
+
+      - name: numpy and scikit-learn are absent
+        run: |
+          "$PY" -c "import importlib.util as u; assert u.find_spec('numpy') is None and u.find_spec('sklearn') is None, 'a patterns dependency leaked into core'"
+
+      - name: quickstart runs and shows a finding
+        run: |
+          "$PY" -m tes quickstart | tee "$RUNNER_TEMP/quickstart.txt"
+          grep -q "REPEATED-FAILED-RETRY" "$RUNNER_TEMP/quickstart.txt"
+
+      - name: score runs on the bundled sample
+        run: |
+          SAMPLE=$("$PY" -c "import pathlib, tes; print(pathlib.Path(tes.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
+          "$PY" -m tes score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
+          "$PY" -c "import json, sys; d = json.load(open(sys.argv[1], encoding='utf-8')); assert d, 'empty score output'" "$RUNNER_TEMP/score.json"
+
+      # An editable install of this checkout (still no extras) satisfies tests/_checkout_guard.py,
+      # then the core-only suite runs against an environment that really lacks the extras.
+      - name: tests/test_core_without_extras.py against a core-only environment
+        run: |
+          "$PY" -m pip uninstall --yes tracegauge
+          "$PY" -m pip install --quiet -e . "pytest>=9.0.3,<10" "pytest-asyncio>=1,<2"
+          "$PY" -m pytest tests/test_core_without_extras.py
+
+  # The classifiers claim Python 3.10-3.14 (audit D8, 2026-10-07; its first run found the package
+  # did not import on 3.10, see CHANGELOG). 3.10-3.13 now run in the `tests` matrix on three OSes;
+  # this job keeps the pre-existing ubuntu 3.14 leg so no claimed version loses coverage. Its own
+  # check name ("python-compat (3.14)") is not required; the aggregate below is.
   python-compat:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.12", "3.13", "3.14"]
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
 
@@ -98,23 +185,26 @@ jobs:
         run: |
           uv run pytest
 
-  # One check that is red if ANY python-compat leg is red. The legs are named "python-compat (3.10)" etc.;
-  # requiring each by name would go stale the day a version is added or dropped, and a leg that is not
-  # required cannot block a merge (adk-tracegauge found this on its first bot-opened PR, 2026-10-08: every
-  # required check green, a new leg red, the merge gate "eligible"). This name is stable, so it can be a
-  # required check that covers every leg, present and future.
+  # One check that is red if ANY test leg is red: the 12-leg `tests` matrix, the 4 `core-only` legs and
+  # the `python-compat` 3.14 leg. Requiring legs by name would go stale the day a version or OS is
+  # added or dropped, and a leg that is not required cannot block a merge (adk-tracegauge found this on
+  # its first bot-opened PR, 2026-10-08: every required check green, a new leg red, the merge gate
+  # "eligible"). This is the name already required on master, so the matrix changes nothing about
+  # branch protection. A skipped or cancelled leg is not "success", so it fails this too.
   python-compat-all:
     name: python-compat (every leg)
     if: ${{ always() }}
-    needs: [python-compat]
+    needs: [python-compat, tests, core-only]
     runs-on: ubuntu-latest
     steps:
-      - name: Every python-compat leg passed
+      - name: Every test leg passed
         env:
           COMPAT_RESULT: ${{ needs.python-compat.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
+          CORE_RESULT: ${{ needs.core-only.result }}
         run: |
-          echo "python-compat (all legs): $COMPAT_RESULT"
-          [ "$COMPAT_RESULT" = "success" ]
+          echo "python-compat: $COMPAT_RESULT; tests matrix: $TESTS_RESULT; core-only: $CORE_RESULT"
+          [ "$COMPAT_RESULT" = "success" ] && [ "$TESTS_RESULT" = "success" ] && [ "$CORE_RESULT" = "success" ]
 
   manifest-provenance:
     # 2026-08-05 audit: a metric in .portfolio/metrics.json without a
