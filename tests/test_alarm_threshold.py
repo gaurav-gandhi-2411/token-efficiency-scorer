@@ -299,3 +299,17 @@ def test_dashboard_monitor_page_shows_the_threshold_or_the_disabled_reason(
     conn.close()
     html = client.get("/monitor").get_data(as_text=True)
     assert "[ALARM]" in html and "p85 of your last 30 days of claude-sonnet-5-5 sessions" in html
+
+
+def test_shipped_tier_message_says_it_is_not_the_users_own_history() -> None:
+    thr = resolve_threshold(
+        [],
+        task_type="infra-deploy",
+        era=S55,
+        now=NOW,
+        shipped_types={"infra-deploy": {"available": True, "n": 15, "p75": 3_000_000}},
+    )
+    hit = check_alarm(_live(5_000_000), SelfBaselineState(), AlarmConfig(enabled=True), thr)
+    assert hit is not None and hit.baseline_tier == "shipped"
+    assert "bundled infra-deploy reference band (3,000,000 tokens" in hit.message
+    assert "not your own history" in hit.message

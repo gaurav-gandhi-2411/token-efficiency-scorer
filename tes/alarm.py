@@ -49,6 +49,7 @@ from tes.alarm_baseline import (
     DEFAULT_PERCENTILE,
     DEFAULT_WINDOW_DAYS,
     STATUS_ACTIVE,
+    TIER_SHIPPED,
     AlarmThreshold,
     compute_alarm_threshold,
 )
@@ -193,7 +194,12 @@ def format_alarm_message(
         + " (estimated, in progress)"
     )
     tokens_str = f"~{live.live_context_tokens:,} context tokens (estimated, in progress)"
-    if isinstance(type_bl, AlarmThreshold):
+    if isinstance(type_bl, AlarmThreshold) and type_bl.tier == TIER_SHIPPED:
+        baseline_str = (
+            f"the bundled {live.task_type} reference band ({type_bl.threshold_tokens:,} tokens; "
+            "not your own history, you have too few recent sessions)"
+        )
+    elif isinstance(type_bl, AlarmThreshold):
         baseline_str = f"your own recent sessions ({type_bl.reason})"
     else:
         baseline_str = f"your own typical {live.task_type} session (p75: {type_bl.p75:,} tokens)"
