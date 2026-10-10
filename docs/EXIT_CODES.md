@@ -10,7 +10,7 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
 | 1 | Bad usage or nothing to do: path not found, no `.jsonl` files / no sessions found, `score --judge --no-judge` (checked by our own code), a bad `--since` value, or the store (`tes.db`) cannot be opened. | all |
 | 2 | Command-line usage error reported by argparse: unknown flag, missing argument or value, a missing required choice (`cost` with none of `--week`/`--month`/`--since`), or flags argparse itself declares mutually exclusive (`cost --week --since ...`). We never use 2 ourselves. | all |
 | 3 | The `monitor` alarm fired for the active session. | `monitor` |
-| 4 | At least one session could not be read or parsed (for example a file that is not valid UTF-8). For `rescore`: at least one legacy row's transcript yielded no usage or could not be priced (the others were still rescored; that row is left as it was). | `score`, `rescore` |
+| 4 | At least one session could not be read or parsed (for example a file that is not valid UTF-8). For `rescore` and `backfill-waste`: at least one row's transcript yielded no usage or could not be priced (the others were still processed; that row is left as it was). | `score`, `rescore`, `backfill-waste` |
 
 ## Behaviour that scripts rely on
 
@@ -23,6 +23,10 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
   a missing or unopenable store or `--limit` below 1 (it never creates a store), else 0. Rows whose
   transcript is gone are not a failure: they are counted as `skipped` and the exit stays 0. A second
   run exits the same way and changes nothing. See [UPGRADING.md](UPGRADING.md).
+* **`backfill-waste`** follows the same rule as `rescore`: a row whose transcript is empty, unreadable
+  or has no usage records is counted as `failed`, left exactly as it was (it is never overwritten with
+  zeros), and the command exits 4 after processing the rest. It prints
+  `Summary: rescored: N, skipped (source missing): M, failed: E`. It used to exit 0 whatever happened.
 * **A file that parses but has nothing to score** (empty, or only unreadable lines) is not an error:
   it scores as `unavailable` and exits 0. Exit 4 is for files the adapter cannot read at all.
 * **`monitor` exits 3 only when the alarm fires.** "No active session" and "not enough data to

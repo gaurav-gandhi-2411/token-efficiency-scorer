@@ -131,12 +131,12 @@ def test_a_cost_failure_leaves_the_row_legacy_instead_of_stamping_it_current(
     assert count_legacy(open_db(mixed.db)) == 4
 
 
-def test_backfill_waste_default_behaviour_is_unchanged(mixed: MixedStore) -> None:
+def test_backfill_waste_default_path_shares_the_zero_usage_guard(mixed: MixedStore) -> None:
     summary = backfill_waste(mixed.db)
     assert summary["legacy_rows"] == 0 and summary["not_attempted"] == 0
-    # Unlike rescore, the long-standing command has no zero-usage guard: it refreshes the
-    # unparseable file too (3), and the 2 current rows have no file at all (+ the expired one).
-    assert summary["refreshed"] == 3 and summary["missing_source"] == 3
+    # Same rule as rescore: the unparseable file is a failure and its row is left alone (it used
+    # to be "refreshed" with zeros). The 2 current rows have no file at all (+ the expired one).
+    assert summary["refreshed"] == 2 and summary["errors"] == 1 and summary["missing_source"] == 3
 
 
 def test_dry_run_beside_a_live_writer_does_not_touch_the_store_file(mixed: MixedStore) -> None:

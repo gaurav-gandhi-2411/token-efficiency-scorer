@@ -648,6 +648,15 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
         return None
 
 
+def _has_usage(record: dict[str, Any]) -> bool:
+    """True iff the adapted transcript carried at least one usage record.
+
+    ``adapt_session`` returns zero usage for an empty, garbage or truncated file instead of
+    raising; every writer that refreshes a stored row from a transcript must check this first.
+    """
+    return bool(record.get("usage_dedupe", {}).get("usage_records"))
+
+
 def _refresh_usage_columns(
     conn: sqlite3.Connection,
     record: dict[str, Any],
@@ -740,13 +749,19 @@ def backfill_waste(
     rows produced by the pre-dedupe adapter (adapter_version NULL/older) or priced before
     1-hour cache writes were split out (cost_version NULL/older), counted in ``refreshed``; rows already current are left as they were.
 
+    A transcript that is empty, unreadable or carries no usage records is never written over a
+    stored row, on any path (``adapt_session`` returns zero usage for it rather than raising):
+    the row is counted in ``errors`` and left exactly as it was. The same holds when a row due a
+    refresh cannot be priced.
+
     Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
     scored before waste detection was wired show waste_event_count=0 in the store).
 
     Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E,
     "refreshed": R}
     where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
-    processed with 0 detected events, "missing_source" = source file not accessible.
+    processed with 0 detected events, "missing_source" = source file not accessible,
+    "errors" = failed rows (left unchanged), "refreshed" = rows re-scored.
     """
     from tes._digest import reconstruct_digest
     from tes.adapt import ADAPTER_VERSION, COST_VERSION, adapt_session
@@ -800,9 +815,10 @@ def backfill_waste(
         attempted += 1
         try:
             record = adapt_session(p)
-            if only_legacy and not record.get("usage_dedupe", {}).get("usage_records"):
+            if not _has_usage(record):
                 # The adapter tolerates garbage/empty/truncated files by returning zero usage;
-                # writing that over a stored row would erase its numbers. Fail, leave it legacy.
+                # writing that over a stored row would erase its numbers (and stamp it current).
+                # Every path counts it as failed and leaves the row exactly as it was.
                 raise ValueError(f"no usage records in {p.name}")
             turns: list[dict] = record.get("digest", {}).get("turns", [])
             waste_entry = build_waste_entry(session_id, turns)
@@ -820,16 +836,17 @@ def backfill_waste(
             waste_events = waste_entry["waste_events"]
             annotate_waste_costs(waste_events, per_turn_cost)
 
-            if only_legacy and sc is None:
+            needs_refresh = (
+                only_legacy
+                or row["adapter_version"] != ADAPTER_VERSION
+                or (row["cost_version"] or 0) != COST_VERSION
+            )
+            if needs_refresh and sc is None:
                 # Refreshing would stamp the row current with no cost at all: report a failure
                 # and leave it legacy rather than launder it into the corrected figures.
                 raise ValueError(f"cost could not be computed for {session_id}")
 
-            if (
-                only_legacy
-                or row["adapter_version"] != ADAPTER_VERSION
-                or (row["cost_version"] or 0) != COST_VERSION
-            ):
+            if needs_refresh:
                 if not dry_run:
                     _refresh_usage_columns(
                         conn, record, waste_entry, sc, digest, prices, session_id
@@ -898,6 +915,8 @@ def backfill_cost(
             continue
         try:
             record = adapt_session(p)
+            if not _has_usage(record):
+                raise ValueError(f"no usage records in {p.name}")  # unknown must not become 0.0
             digest = reconstruct_digest(record["digest"])
             session_cost = compute_session_cost(digest, prices)
             conn.execute(

@@ -65,7 +65,9 @@ when no `-wal` file exists), so it is not migrated and the file is byte-identica
 Idempotent: a second run rescores 0 rows and changes nothing. It never creates a store. Exit codes:
 `0` ok, `1` no store / unopenable store / `--limit < 1`, `4` at least one readable row failed (the
 rest were still rescored); see [EXIT_CODES.md](EXIT_CODES.md). `tes backfill-waste` still works as
-before (it also refreshes stale rows, but without `rescore`'s zero-usage guard).
+before (it also refreshes stale rows) and follows the same guard: a transcript with no usage records
+is counted as failed, its row is left as it was, and the exit code is 4. Before 0.15.0 it overwrote
+such a row with zeros.
 
 If the transcripts are gone (Claude Code deletes old ones), `rescore` cannot help: those rows stay
 excluded and your self-baselines and alarm threshold rebuild from new sessions.
