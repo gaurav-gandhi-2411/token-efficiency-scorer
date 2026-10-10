@@ -20,6 +20,8 @@ from tes.contribution import (
     get_or_create_contributor_id,
 )
 
+from tests.legacy_store import stamp_current
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # ---------------------------------------------------------------------------
@@ -247,6 +249,7 @@ def test_build_contribution_payload_row_keys_exactly_allowed() -> None:
     )
     mtime = datetime(2026, 1, 15, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash123", turn_count=5)
+    stamp_current(conn)
 
     payload = build_contribution_payload(
         conn, contributor_id="cid-test", include_source_components=False
@@ -298,6 +301,7 @@ def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
     )
     mtime = datetime(2026, 3, 1, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash456", turn_count=3)
+    stamp_current(conn)
 
     payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     row = payload.rows[0]
