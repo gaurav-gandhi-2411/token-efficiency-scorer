@@ -128,6 +128,10 @@ self-baseline computation (it falls back to the 20-turn minimum).
   `tes.adapt` (both readers), `tes.store` turn counting and the two `scripts/adapters/claudecode_adapter.py` readers.
 * **Unpriced models are shown, not hidden:** a session whose models are not in the price table prints
   `unpriced (<model>)` instead of `$0.00`; JSON gains `priced` and `unpriced_models`.
+* **Cost breakdown and finding in `score` (replaces the "long context" lever):** `tes score` and the dashboard
+  session page show a COST BREAKDOWN (dollars and share per bucket, labelled informational) and, only when an
+  absolute rule fires, a LEVER finding carried as `lever_hint` in `--json` (`null` otherwise). Same function for both
+  surfaces (`tes/takeaway.py`). See the next entries for what changed and why.
 * **Exit codes (behavior change for scripts):** `tes score` used to print `[ERROR]` for an unreadable session and
   still exit 0; it now exits 4 after scoring the rest (a directory keeps going and lists every failure).
   `tes monitor` exits 3 when the alarm fires (it exited 0). `cost`, `budget` and `impact` exit 1 when the store

@@ -21,7 +21,7 @@ consumers receive the honesty — not bolted on in CLI formatting only (spec dec
 import json
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from tes.alarm_baseline import dominant_model
 from tes.baselines import compute_real_tokens, load_baselines
@@ -247,6 +247,9 @@ class ThreeAxisResult:
     # no lever fires (or attribution was unavailable). Set by the CLI after scoring, not by
     # score_session, because it needs the AttributionResult, which is not part of this result. ---
     lever_hint: str | None = None
+    # Informational dollars and shares per bucket (tes.takeaway.build_cost_breakdown); not a
+    # finding. None when attribution was unavailable. Set by the CLI after scoring, like lever_hint.
+    cost_breakdown: dict[str, Any] | None = None
 
 
 # ---------------------------------------------------------------------------

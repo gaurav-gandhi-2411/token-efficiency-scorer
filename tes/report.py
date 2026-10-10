@@ -13,6 +13,7 @@ from typing import Any
 
 from tes.json_out import SCHEMA_VERSION as JSON_SCHEMA_VERSION
 from tes.score import ThreeAxisResult
+from tes.takeaway import BREAKDOWN_NOTE, format_cost_breakdown_lines
 from tes.web.cost_format import (
     format_cost_display,
     format_cost_usd,
@@ -206,7 +207,18 @@ def format_human(
         )
     )
 
-    # LEVER: only when a data-gated lever fires (or cost levers are unavailable).
+    # COST BREAKDOWN: informational dollars per bucket; never a finding (see tes.takeaway).
+    if result.cost_breakdown:
+        bd = result.cost_breakdown
+        lines.append("")
+        lines.append(_section_divider("COST BREAKDOWN"))
+        lines.append(_wrap(f"({bd['label']})"))
+        lines.extend(format_cost_breakdown_lines(bd))
+        if bd["note"]:
+            lines.append(_wrap(f"[{bd['note']}]"))
+        lines.append(_wrap(BREAKDOWN_NOTE))
+
+    # LEVER: only when an absolute finding fires (waste above its threshold, or output >= 40%).
     if result.lever_hint:
         lines.append("")
         lines.append(_section_divider("LEVER"))
