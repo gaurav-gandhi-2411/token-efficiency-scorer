@@ -196,6 +196,10 @@ self-baseline computation (it falls back to the 20-turn minimum).
   old store at the same moment (the watcher and a CLI command) could raise `database is locked` or
   `duplicate column name`. On the Phase 0 store copy (1,452 rows, none with a source transcript left) every row
   is legacy and unrecoverable: the self-baselines restart from zero. See `docs/UPGRADING.md`.
+- **`export-contribution` (and `tes corpus contribute`) leave legacy rows out:** a legacy row's `real_tokens` is
+  overcounted about 2x, and the contribution builder would have written it into a file others can read. The preview
+  and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports
+  nothing and says why. `ContributionManifest` gains `legacy_rows_excluded` (default 0).
 - **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript:** `adapt_session`
   returns zero usage for an empty, garbage or truncated file instead of raising, and the default `backfill-waste`
   path (and `backfill_cost`) trusted it, replacing the row's `real_tokens`/cost with zeros and stamping it current.
