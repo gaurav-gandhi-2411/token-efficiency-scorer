@@ -27,8 +27,11 @@ Pure functions over ``PoolRow`` lists, so the study and the tests exercise exact
 """
 
 import re
+import sqlite3
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any
 
 # Chosen from data (docs/ALARM.md): p85 fired on 8/50 (chronological) and 7/50 (leave-one-out)
@@ -53,6 +56,7 @@ TIER_DISABLED = "disabled"
 
 STATUS_ACTIVE = "active"
 STATUS_DISABLED = "disabled"
+
 _MODEL_DATE_SUFFIX = re.compile(r"-\d{8}$")
 _MODEL_CONTEXT_SUFFIX = re.compile(r"\[[^\]]*\]$")
 _SECONDS_PER_DAY = 86400.0
@@ -125,6 +129,37 @@ def percentile_at_index(sorted_values: Sequence[int], fraction: float) -> int:
         raise ValueError("percentile of an empty list")
     idx = max(0, min(int(len(sorted_values) * fraction), len(sorted_values) - 1))
     return sorted_values[idx]
+
+
+def load_pool_rows(db_path: Path | str) -> list[PoolRow]:
+    """Current-adapter sessions with tokens from the store, read-only.
+
+    Rows from the pre-dedupe adapter (adapter_version NULL/older) are excluded: their
+    real_tokens are inflated ~2.4x. A store that predates the ``adapter_version`` column
+    contributes nothing (fails closed); one that predates ``dominant_model`` contributes rows of
+    unknown era (they can still serve the era-agnostic tiers). A missing store is an empty pool.
+    """
+    from tes.adapt import ADAPTER_VERSION  # noqa: PLC0415 -- keeps this module import-light
+
+    path = Path(db_path)
+    if not path.exists():
+        return []
+    conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        if "adapter_version" not in cols:
+            return []
+        era_col = "dominant_model" if "dominant_model" in cols else "NULL"
+        rows = conn.execute(
+            f"SELECT session_id, task_type, {era_col}, real_tokens, source_mtime "  # noqa: S608
+            "FROM sessions WHERE real_tokens > 0 AND adapter_version = ?",
+            (ADAPTER_VERSION,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        PoolRow(str(r[0]), str(r[1]), normalize_model(r[2]), int(r[3]), float(r[4])) for r in rows
+    ]
 
 
 def _shipped_threshold(shipped_types: Mapping[str, Any] | None, task_type: str) -> int | None:
@@ -223,6 +258,32 @@ def resolve_threshold(
     )
 
 
+def compute_alarm_threshold(
+    db_path: Path | str,
+    *,
+    task_type: str,
+    era: str,
+    session_id: str | None,
+    baselines: Mapping[str, Any] | None = None,
+    percentile: float = DEFAULT_PERCENTILE,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    min_n: int = DEFAULT_MIN_N,
+    now: float | None = None,
+) -> AlarmThreshold:
+    """Load the store's pool and resolve the threshold for one live session (read-only)."""
+    return resolve_threshold(
+        load_pool_rows(db_path),
+        task_type=task_type,
+        era=normalize_model(era),
+        now=time.time() if now is None else now,
+        percentile=percentile,
+        window_days=window_days,
+        min_n=min_n,
+        exclude_session_id=session_id,
+        shipped_types=(baselines or {}).get("types"),
+    )
+
+
 __all__ = [
     "DEFAULT_MIN_N",
     "DEFAULT_PERCENTILE",
@@ -237,7 +298,9 @@ __all__ = [
     "TIER_SHIPPED",
     "AlarmThreshold",
     "PoolRow",
+    "compute_alarm_threshold",
     "dominant_model",
+    "load_pool_rows",
     "normalize_model",
     "percentile_at_index",
     "resolve_threshold",
