@@ -23,6 +23,16 @@
 </div>
 {% endif %}
 
+{% if legacy_count %}
+<div class="caveat" id="legacy-banner">
+  <strong>{{ legacy_count }} legacy session{{ "s" if legacy_count != 1 }}</strong> in this list
+  ({{ legacy_label }}): scored before 0.15, when each response's usage was counted once per
+  content block, so their tokens and cost are about 2x too high. They are kept and marked, and
+  left out of baselines, <code>tes cost</code>, <code>tes budget</code>, patterns and impact.
+  <code>tes rescore</code> recovers those whose transcript still exists.
+</div>
+{% endif %}
+
 {# Honesty element 5: relative-not-absolute framing #}
 <div class="caveat">
   Token verdicts are relative to <strong>your own lean waste-free sessions</strong> of each type
@@ -66,6 +76,9 @@
            style="font-weight:600; color:var(--ink); display:block; margin-bottom:3px; text-decoration:none;">
           {{ session.get("attribution_line") or (session.session_id[:14] ~ "…") }}
         </a>
+        {% if session.is_legacy %}
+          <span class="badge badge-unavailable legacy-badge" title="Scored before 0.15: tokens and cost are about 2x too high.">{{ legacy_label }}</span>
+        {% endif %}
         <span class="mono text-faint" style="font-size:0.75rem;">
           {{ session.session_id[:14] }}&hellip;
           &nbsp;&middot;&nbsp; {{ session.task_type }}
@@ -114,7 +127,7 @@
       </td>
       <td style="white-space:nowrap; font-variant-numeric:tabular-nums;">
         {% if session.get('session_cost_usd') is not none %}
-          <span class="cost-amount">{{ session.session_cost_usd | cost_display(session.unpriced_models, 3) }}</span>
+          <span class="cost-amount{% if session.is_legacy %} text-faint{% endif %}">{{ session.session_cost_usd | cost_display(session.unpriced_models, 3) }}</span>
         {% else %}
           <span class="text-faint">—</span>
         {% endif %}

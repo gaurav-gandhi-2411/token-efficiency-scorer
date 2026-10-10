@@ -20,6 +20,7 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import load_price_table
 from tes.intelligence.cache import get_or_compute_intelligence
 from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
+from tes.legacy import LEGACY_ROW_LABEL, is_legacy_row
 from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.self_baseline import SelfBaselineState, compute_baseline_cost_band, load_or_compute
 from tes.store import (
@@ -345,6 +346,15 @@ def create_app(config: ServerConfig) -> Flask:
                 s["cost_vs_baseline_pct"] = None
                 s["baseline_cost_median"] = None
 
+        # Legacy rows (pre-0.15 accounting) stay listed but are marked, and are never compared
+        # with a baseline built from corrected sessions.
+        for s in sessions:
+            s["is_legacy"] = is_legacy_row(s)
+            if s["is_legacy"]:
+                s["cost_vs_baseline_pct"] = None
+                s["baseline_cost_median"] = None
+        legacy_count = sum(1 for s in sessions if s["is_legacy"])
+
         pairs = [(s, trajectory_render_state(s)) for s in sessions]
 
         # Annotate each session with a stored-data attribution line (no file I/O).
@@ -361,6 +371,8 @@ def create_app(config: ServerConfig) -> Flask:
             price_provenance=_price_provenance,
             sort_key=sort_key,
             sort_dir=sort_dir,
+            legacy_count=legacy_count,
+            legacy_label=LEGACY_ROW_LABEL,
         )
 
     @app.route("/session/<session_id>")
@@ -378,8 +390,13 @@ def create_app(config: ServerConfig) -> Flask:
         scope_floor = type_bl.scope_floor if type_bl is not None else 20
         cost_band = compute_baseline_cost_band(conn, task_type, scope_floor)
 
+        is_legacy = is_legacy_row(session)
         cost_usd = session.get("session_cost_usd")
-        if cost_band is not None and cost_usd is not None:
+        if is_legacy:
+            # An overcounted cost must not be compared with a corrected baseline.
+            cost_vs_baseline_pct = None
+            baseline_cost_median = None
+        elif cost_band is not None and cost_usd is not None:
             pct = format_cost_pct_vs_baseline(float(cost_usd), cost_band)
             cost_vs_baseline_pct = pct
             baseline_cost_median = cost_band[1]
@@ -402,6 +419,8 @@ def create_app(config: ServerConfig) -> Flask:
             traj_state=traj_state,
             TrajectoryRenderState=TrajectoryRenderState,
             price_provenance=_price_provenance,
+            is_legacy=is_legacy,
+            legacy_label=LEGACY_ROW_LABEL,
             cost_band=cost_band,
             cost_vs_baseline_pct=cost_vs_baseline_pct,
             baseline_cost_median=baseline_cost_median,
