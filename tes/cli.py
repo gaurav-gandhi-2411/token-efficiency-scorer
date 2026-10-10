@@ -1256,7 +1256,11 @@ def main() -> None:
             "in the store whose source file is accessible, embed per-event wasted_cost_usd "
             "(redundant turns only, P5 cost model), and write correct waste_event_count + "
             "waste_events to the store. Fixes the stale-zeros bug from sessions scored "
-            "before waste detection was fully wired. Detectors are frozen (byte-verbatim)."
+            "before waste detection was fully wired. Detectors are frozen (byte-verbatim). "
+            "Also re-scores rows whose token counts came from the pre-dedupe adapter "
+            "(Claude Code writes one record per content block, each repeating the response's "
+            "usage; those rows were counted ~2.4x too high): real_tokens, cost and the verdict "
+            "band are refreshed from the source transcript."
         ),
     )
     backfill_p.add_argument(
@@ -1687,6 +1691,7 @@ def main() -> None:
         print(f"  Sessions confirmed 0-waste:  {summary['no_waste']}")
         print(f"  Source files not accessible: {summary['missing_source']}")
         print(f"  Errors (skipped):            {summary['errors']}")
+        print(f"  Rows re-scored (pre-dedupe usage): {summary['refreshed']}")
         total_processed = summary["updated"] + summary["no_waste"]
         print(f"  Total processed: {total_processed}")
         sys.exit(0)

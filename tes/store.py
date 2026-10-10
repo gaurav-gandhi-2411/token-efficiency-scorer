@@ -21,8 +21,13 @@ import os
 import sqlite3
 from datetime import timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from tes.score import ThreeAxisResult
+
+if TYPE_CHECKING:
+    from tes._digest import SessionDigest
+    from tes.cost import SessionCost
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -207,6 +212,21 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         "subagent_count": "ALTER TABLE sessions ADD COLUMN subagent_count INTEGER",
     }
     for col_name, alter_sql in subagent_cols.items():
+        if col_name not in existing_cols:
+            conn.execute(alter_sql)
+            conn.commit()
+
+    # Usage de-duplication (tes.adapt.ADAPTER_VERSION 2): which adapter produced this row's
+    # real_tokens/cost. NULL = scored before the column existed = the pre-dedupe adapter, which
+    # summed usage once per content-block record (~2.4x too high). tes.self_baseline ignores such
+    # rows; `tes backfill-waste` refreshes them from the source transcript. Additive, idempotent.
+    dedupe_cols = {
+        "adapter_version": "ALTER TABLE sessions ADD COLUMN adapter_version INTEGER",
+        "duplicate_usage_records": (
+            "ALTER TABLE sessions ADD COLUMN duplicate_usage_records INTEGER"
+        ),
+    }
+    for col_name, alter_sql in dedupe_cols.items():
         if col_name not in existing_cols:
             conn.execute(alter_sql)
             conn.commit()
@@ -529,6 +549,10 @@ def upsert_session(
             ),
         )
 
+    conn.execute(
+        "UPDATE sessions SET adapter_version = ?, duplicate_usage_records = ? WHERE session_id = ?",
+        (result.adapter_version, result.duplicate_usage_records, result.session_id),
+    )
     conn.commit()
 
 
@@ -575,21 +599,93 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
         return None
 
 
+def _refresh_usage_columns(
+    conn: sqlite3.Connection,
+    record: dict[str, Any],
+    waste_entry: dict[str, Any],
+    session_cost: SessionCost | None,
+    digest: SessionDigest | None,
+    prices: dict[str, Any],
+) -> None:
+    """Re-derive every usage-derived column of one row from a freshly adapted record.
+
+    Used by backfill_waste for rows written by the pre-dedupe adapter (real_tokens and cost
+    over-counted ~2.4x). The verdict columns are recomputed against the BUNDLED corpus baseline
+    (the stored self-baseline would be built from the very rows being repaired); judge columns
+    and waste columns are not touched here.
+    """
+    from tes.attribution import attribution_fractions, compute_attribution
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.score import score_session
+
+    attribution = compute_attribution(digest, waste_entry, prices) if digest is not None else None
+    r = score_session(
+        record,
+        load_baselines(BUNDLED_BASELINES_PATH),
+        waste_entry=waste_entry,
+        session_cost=session_cost,
+        attribution=attribution,
+    )
+    resend, growth, out_pct, waste_pct = (
+        attribution_fractions(attribution) if attribution is not None else (None,) * 4
+    )
+    conn.execute(
+        "UPDATE sessions SET real_tokens = ?, scope_status = ?, baseline_available = ?, "
+        "p25 = ?, p75 = ?, median = ?, band_verdict = ?, interpretation = ?, "
+        "token_domain_of_validity = ?, baseline_source = ?, "
+        "session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
+        "cost_unpriced_models = ?, subagent_tokens = ?, subagent_cost_usd = ?, "
+        "subagent_count = ?, context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, "
+        "waste_pct = ?, adapter_version = ?, duplicate_usage_records = ? WHERE session_id = ?",
+        (
+            r.real_tokens,
+            r.scope_status,
+            int(r.baseline_available),
+            r.p25,
+            r.p75,
+            r.median,
+            r.band_verdict,
+            r.interpretation,
+            r.token_domain_of_validity,
+            r.baseline_source,
+            r.session_cost_usd,
+            int(r.cost_approximate),
+            r.cost_domain_of_validity or "",
+            r.cost_unpriced_models,
+            r.subagent_tokens,
+            r.subagent_cost_usd,
+            r.subagent_count,
+            resend,
+            growth,
+            out_pct,
+            waste_pct,
+            r.adapter_version,
+            r.duplicate_usage_records,
+            r.session_id,
+        ),
+    )
+
+
 def backfill_waste(
     db_path: Path | str | None = None,
     prices: dict | None = None,
 ) -> dict[str, int]:
     """Re-run frozen detectors on all accessible sessions; embed per-event costs.
 
+    Also refreshes the usage-derived columns (real_tokens, cost, verdict band, attribution) of
+    rows produced by the pre-dedupe adapter (adapter_version NULL/older), counted in
+    ``refreshed``; rows already current are left as they were.
+
     Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
     scored before waste detection was wired show waste_event_count=0 in the store).
 
-    Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E}
+    Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E,
+    "refreshed": R}
     where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
     processed with 0 detected events, "missing_source" = source file not accessible.
     """
     from tes._digest import reconstruct_digest
-    from tes.adapt import adapt_session
+    from tes.adapt import ADAPTER_VERSION, adapt_session
     from tes.cost import compute_session_cost, load_price_table
     from tes.waste import annotate_waste_costs, build_waste_entry
 
@@ -598,13 +694,15 @@ def backfill_waste(
 
     conn = open_db(db_path)
     rows = conn.execute(
-        "SELECT session_id, source_path FROM sessions WHERE source_path IS NOT NULL"
+        "SELECT session_id, source_path, adapter_version FROM sessions "
+        "WHERE source_path IS NOT NULL"
     ).fetchall()
 
     updated = 0
     no_waste = 0
     missing = 0
     errors = 0
+    refreshed = 0
 
     for row in rows:
         session_id: str = row["session_id"]
@@ -618,6 +716,8 @@ def backfill_waste(
             waste_entry = build_waste_entry(session_id, turns)
 
             per_turn_cost: dict[int, float] = {}
+            sc = None
+            digest = None
             try:
                 digest = reconstruct_digest(record.get("digest", {}))
                 sc = compute_session_cost(digest, prices)
@@ -627,6 +727,10 @@ def backfill_waste(
 
             waste_events = waste_entry["waste_events"]
             annotate_waste_costs(waste_events, per_turn_cost)
+
+            if row["adapter_version"] != ADAPTER_VERSION:
+                _refresh_usage_columns(conn, record, waste_entry, sc, digest, prices)
+                refreshed += 1
 
             count = len(waste_events)
             conn.execute(
@@ -643,7 +747,13 @@ def backfill_waste(
             errors += 1
 
     conn.close()
-    return {"updated": updated, "no_waste": no_waste, "missing_source": missing, "errors": errors}
+    return {
+        "updated": updated,
+        "no_waste": no_waste,
+        "missing_source": missing,
+        "errors": errors,
+        "refreshed": refreshed,
+    }
 
 
 def backfill_cost(
