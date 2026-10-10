@@ -50,12 +50,16 @@ tes rescore [--dry-run] [--json] [--db-path PATH] [--limit N]
 
 Re-scores every legacy row whose transcript is still readable with the current adapter and price
 table (real tokens, cost, subagent split, verdict band against the bundled baseline, attribution
-fractions, waste events). Judge verdicts are kept. It reports four counts:
+fractions, waste events). Judge verdicts are kept. It reports five counts:
 
 * **rescored**: legacy rows re-computed and now current.
 * **skipped (source missing)**: the transcript is gone. The row is left exactly as it was and stays legacy.
-* **failed (parse error)**: the transcript exists but yielded no usage records, or its cost could
-  not be computed. The row is left exactly as it was and stays legacy (so a damaged file can never
+* **skipped (empty stub)**: the row never recorded a turn or a token (stored `turn_count` 0 and
+  `real_tokens` 0) and its transcript carries no usage, so there is nothing to recompute. It is
+  marked current (only `adapter_version` and `cost_version` are written; no stored number moves), so
+  it stops being legacy and does not keep `rescore` failing on every run.
+* **failed (parse error)**: the transcript exists but yielded no usage records although the row had turns or tokens,
+  or its cost could not be computed. The row is left exactly as it was and stays legacy (so a damaged file can never
   overwrite a stored number with zero).
 * **not attempted (--limit)**: readable rows past `--limit` (most recently written first); run again.
 
@@ -65,7 +69,9 @@ when no `-wal` file exists), so it is not migrated and the file is byte-identica
 Idempotent: a second run rescores 0 rows and changes nothing. It never creates a store. Exit codes:
 `0` ok, `1` no store / unopenable store / `--limit < 1`, `4` at least one readable row failed (the
 rest were still rescored); see [EXIT_CODES.md](EXIT_CODES.md). `tes backfill-waste` still works as
-before (it also refreshes stale rows, but without `rescore`'s zero-usage guard).
+before (it also refreshes stale rows) and follows the same guard: a transcript with no usage records
+is counted as failed, its row is left as it was, and the exit code is 4. Before 0.15.0 it overwrote
+such a row with zeros.
 
 If the transcripts are gone (Claude Code deletes old ones), `rescore` cannot help: those rows stay
 excluded and your self-baselines and alarm threshold rebuild from new sessions.

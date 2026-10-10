@@ -1020,11 +1020,14 @@ def _run_rescore(
     )
     print(f"  {verb}:{' ' * (24 - len(verb))}{summary['refreshed']}")
     print(f"  skipped (source missing):  {summary['missing_source']}")
+    print(f"  skipped (empty stub):      {summary['skipped_stub']}")
     print(f"  failed (parse error):      {summary['errors']}")
     if limit is not None:
         print(f"  not attempted (--limit):   {summary['not_attempted']}")
     if summary["missing_source"]:
         print("  Rows whose transcript is gone were left exactly as they were.")
+    if summary["skipped_stub"]:
+        print("  Empty stubs (0 turns, 0 tokens) have nothing to rescore: marked current.")
     return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
 
 
@@ -1466,6 +1469,7 @@ def main() -> None:
     backfill_p = sub.add_parser(
         "backfill-waste",
         help="Re-run frozen detectors on all stored sessions; fix stale waste counts.",
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
         description=(
             "Re-run REPEATED-FAILED-RETRY and REDUNDANT-READ detectors on every session "
             "in the store whose source file is accessible, embed per-event wasted_cost_usd "
@@ -1997,11 +2001,21 @@ def main() -> None:
         print(f"  Sessions with waste written: {summary['updated']}")
         print(f"  Sessions confirmed 0-waste:  {summary['no_waste']}")
         print(f"  Source files not accessible: {summary['missing_source']}")
-        print(f"  Errors (skipped):            {summary['errors']}")
+        print(f"  Errors (left unchanged):     {summary['errors']}")
         print(f"  Rows re-scored (pre-dedupe usage): {summary['refreshed']}")
         total_processed = summary["updated"] + summary["no_waste"]
         print(f"  Total processed: {total_processed}")
-        sys.exit(0)
+        print(
+            f"  Summary: rescored: {summary['refreshed']}, "
+            f"skipped (source missing): {summary['missing_source']}, "
+            f"failed: {summary['errors']}"
+        )
+        if summary["errors"]:
+            print(
+                "  A failed row (transcript has no usage records, is unreadable, or its cost "
+                "could not be computed) was left exactly as it was."
+            )
+        sys.exit(EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK)
 
     if args.command == "rescore":
         sys.exit(

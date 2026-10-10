@@ -196,6 +196,13 @@ self-baseline computation (it falls back to the 20-turn minimum).
   old store at the same moment (the watcher and a CLI command) could raise `database is locked` or
   `duplicate column name`. On the Phase 0 store copy (1,452 rows, none with a source transcript left) every row
   is legacy and unrecoverable: the self-baselines restart from zero. See `docs/UPGRADING.md`.
+- **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript:** `adapt_session`
+  returns zero usage for an empty, garbage or truncated file instead of raising, and the default `backfill-waste`
+  path (and `backfill_cost`) trusted it, replacing the row's `real_tokens`/cost with zeros and stamping it current.
+  It now follows the rule `tes rescore` already had: the row is counted as failed and left exactly as it was, the
+  command prints `rescored / skipped (source missing) / failed` and exits 4 when any row failed (it exited 0
+  whatever happened). A row due a refresh whose cost cannot be computed is a failure too, not a row stamped
+  current without a cost.
 - **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
   printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
   now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption

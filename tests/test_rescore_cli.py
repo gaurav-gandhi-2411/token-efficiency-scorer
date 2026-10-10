@@ -46,6 +46,7 @@ def test_cli_json_dry_run_then_real_and_exit_code(
         "legacy_rows": 4,
         "rescored": 2,
         "skipped_source_missing": 1,
+        "skipped_empty_stub": 0,
         "failed": 1,
         "not_attempted": 0,
         "remaining_legacy": 4,
