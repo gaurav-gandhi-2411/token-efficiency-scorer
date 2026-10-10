@@ -264,19 +264,21 @@ class SessionAdaptError(Exception):
 
 
 def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisResult:
-    """Attach the dashboard's data-gated lever hint (None when no lever fires).
+    """Attach the cost breakdown (informational) and the lever hint (an absolute finding, or None).
 
     Never raises: a hint failure must not break scoring output.
     """
     if attribution is None:
         return result
     try:
-        from tes.takeaway import build_lever_hint  # noqa: PLC0415
+        from tes.takeaway import build_cost_breakdown, build_lever_hint  # noqa: PLC0415
 
-        hint = build_lever_hint(attribution, tuple(result.unpriced_models))  # type: ignore[arg-type]
+        unpriced = tuple(result.unpriced_models)
+        hint = build_lever_hint(attribution, unpriced)  # type: ignore[arg-type]
+        breakdown = build_cost_breakdown(attribution, unpriced)  # type: ignore[arg-type]
     except Exception:
         return result
-    return dataclasses.replace(result, lever_hint=hint)
+    return dataclasses.replace(result, lever_hint=hint, cost_breakdown=breakdown)
 
 
 def score_path(

@@ -589,7 +589,7 @@ def test_score_json_carries_schema_version(
     doc = _doc(out)
     assert list(doc)[0] == "schema_version"
     assert doc["schema_version"] == SCHEMA_VERSION
-    assert {"priced", "unpriced_models", "lever_hint", "cost_known"} <= set(doc)
+    assert {"priced", "unpriced_models", "lever_hint", "cost_known", "cost_breakdown"} <= set(doc)
     assert doc["cost_known"] is True
 
 

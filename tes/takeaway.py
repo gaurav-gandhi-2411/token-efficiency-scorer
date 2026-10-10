@@ -7,8 +7,22 @@ two surfaces can never disagree about when a lever fires (previously this lived 
 and the CLI printed nothing).
 """
 
+from typing import Any
+
 from tes.attribution import AttributionResult
 from tes.web.cost_format import format_unpriced
+
+#: Stated on every surface that prints a breakdown, so it is never read as a finding.
+BREAKDOWN_LABEL = "informational: where the priced cost went, not a finding"
+#: Why the context share is not a lever (shown with the breakdown).
+BREAKDOWN_NOTE = (
+    "Every turn re-reads the session's context, so re-send plus growth is a large share of nearly "
+    "every session's cost; it is shown for reference, not as something to fix."
+)
+
+
+def _waste_usd(attr: AttributionResult) -> float:
+    return attr.rr_waste_usd + attr.rfr_waste_usd
 
 
 def _takeaway_parts(
@@ -129,3 +143,78 @@ def build_lever_hint(
     if unpriced_models:
         text += f" (shares are of the priced part only; {format_unpriced(unpriced_models)})"
     return text
+
+
+def build_cost_breakdown(
+    attr: AttributionResult, unpriced_models: tuple[str, ...] | list[str] = ()
+) -> dict[str, Any]:
+    """Dollars, tokens and share of priced cost per bucket. Informational; never a finding.
+
+    ``buckets`` partition ``total_usd`` (the redundant-read and retry-loop waste buckets are
+    merged into ``waste``). ``share_pct`` is None when nothing was priced. Only priced turns are in
+    the dollars; ``unpriced_models`` names the models whose turns are not.
+    """
+    total = attr.total_usd
+    rows = [
+        (
+            "context_resend",
+            "Context re-send (cache reads)",
+            attr.context_resend_usd,
+            attr.context_resend_tokens,
+        ),
+        (
+            "context_growth",
+            "Context growth (cache writes)",
+            attr.context_growth_usd,
+            attr.context_growth_tokens,
+        ),
+        ("output", "Output", attr.output_usd, attr.output_tokens),
+        ("fresh_input", "Fresh input", attr.fresh_input_usd, attr.fresh_input_tokens),
+        (
+            "waste",
+            "Detected waste (redundant reads, retry loops)",
+            _waste_usd(attr),
+            attr.rr_waste_tokens + attr.rfr_waste_tokens,
+        ),
+    ]
+    unpriced = sorted(set(unpriced_models))
+    note = ""
+    if unpriced and total > 0:
+        note = (
+            f"Priced part only: {format_unpriced(unpriced)} turns are not in these dollars, "
+            "so the true cost is higher."
+        )
+    elif unpriced:
+        note = (
+            f"Not computed: cost is {format_unpriced(unpriced)}. Add the model(s) to "
+            "TES_PRICE_TABLE or ~/.tes/prices.json."
+        )
+    return {
+        "label": BREAKDOWN_LABEL,
+        "total_usd": round(total, 6),
+        "priced": not unpriced,
+        "unpriced_models": unpriced,
+        "buckets": [
+            {
+                "key": key,
+                "label": label,
+                "usd": round(usd, 6),
+                "share_pct": round(usd / total * 100, 1) if total > 0 else None,
+                "tokens": tokens,
+            }
+            for key, label, usd, tokens in rows
+        ],
+        "note": note,
+    }
+
+
+def format_cost_breakdown_lines(breakdown: dict[str, Any]) -> list[str]:
+    """Plain-text rows for the CLI (the caller wraps the notes). Empty when nothing was priced."""
+    if not breakdown["total_usd"]:
+        return []
+    lines = []
+    for b in breakdown["buckets"]:
+        share = f"{b['share_pct']:5.1f}%" if b["share_pct"] is not None else "   n/a"
+        lines.append(f"  {b['label']:<46} {'$' + format(b['usd'], '.2f'):>10}  {share}")
+    lines.append(f"  {'Total (priced)':<46} {'$' + format(breakdown['total_usd'], '.2f'):>10}")
+    return lines
