@@ -32,7 +32,7 @@ from tes.store import (
     resolve_db_path,
     trajectory_render_state,
 )
-from tes.takeaway import build_lever_hint
+from tes.takeaway import BREAKDOWN_NOTE, build_cost_breakdown, build_lever_hint
 from tes.waste import build_waste_entry
 from tes.web.cost_format import (
     format_cost_display,
@@ -407,8 +407,10 @@ def create_app(config: ServerConfig) -> Flask:
         # Attribution — requires source JSONL file; gracefully returns None if unavailable.
         attribution = _compute_session_attribution(session, _prices)
         unpriced = session.get("unpriced_models") or ()
-        # An absolute finding (waste above its threshold, output >= 40%) or None.
+        # An absolute finding (waste above its threshold, output >= 40%) or None; the breakdown
+        # is informational and always shown when attribution is available.
         attribution_takeaway = build_lever_hint(attribution, unpriced) if attribution else None
+        cost_breakdown = build_cost_breakdown(attribution, unpriced) if attribution else None
         attribution_rows = _build_attribution_rows(attribution) if attribution else None
 
         return render_template(
@@ -424,6 +426,8 @@ def create_app(config: ServerConfig) -> Flask:
             baseline_cost_median=baseline_cost_median,
             attribution=attribution,
             attribution_takeaway=attribution_takeaway,
+            cost_breakdown=cost_breakdown,
+            breakdown_note=BREAKDOWN_NOTE,
             attribution_rows=attribution_rows,
         )
 

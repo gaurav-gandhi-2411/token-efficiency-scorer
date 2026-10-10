@@ -22,7 +22,34 @@
 
 {# ── Takeaway ────────────────────────────────────────────────────── #}
 {% if attribution_takeaway %}
-<div class="takeaway">{{ attribution_takeaway }}</div>
+<div class="takeaway" id="finding">{{ attribution_takeaway }}</div>
+{% endif %}
+
+{% if cost_breakdown %}
+<div class="card" id="cost-breakdown">
+  <div class="card-title">Cost breakdown <span class="badge badge-unavailable">{{ cost_breakdown.label }}</span></div>
+  {% if cost_breakdown.total_usd %}
+  <table style="width:auto;">
+    <thead><tr><th>Bucket</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Share</th></tr></thead>
+    <tbody>
+    {% for b in cost_breakdown.buckets %}
+      <tr>
+        <td>{{ b.label }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.2f"|format(b.usd) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if b.share_pct is not none %}{{ "%.1f"|format(b.share_pct) }}%{% else %}n/a{% endif %}</td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td><strong>Total (priced)</strong></td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;"><strong>${{ "%.2f"|format(cost_breakdown.total_usd) }}</strong></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if cost_breakdown.note %}<p class="cost-approx">{{ cost_breakdown.note }}</p>{% endif %}
+  <p class="text-faint" style="font-size:0.78rem; margin-top:0.6rem;">{{ breakdown_note }}</p>
+</div>
 {% endif %}
 
 {# ── Attribution ─────────────────────────────────────────────────── #}
