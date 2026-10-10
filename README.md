@@ -47,7 +47,7 @@ pip install tracegauge
 tracegauge quickstart
 ```
 
-Two commands. Scores a bundled sample Claude Code session (token economy, deterministic waste detection, cost annotation) and prints a real three-axis report — nothing read from your machine, no local Ollama probe, no consent prompt. All three axes render something meaningful with zero configuration: token economy scores for real against the research-recon band, trajectory quality states plainly that it's unavailable without a judge and shows a labeled, non-computed example of what that axis looks like once one is configured, and waste detection reports its real (zero) count. **Measured live, not estimated: 0.7s wall-clock from a genuine fresh `pip install` into a clean venv on Windows to the printed report.**
+Two commands. Scores a bundled sample Claude Code session (token economy, deterministic waste detection, cost annotation) and prints a real three-axis report — nothing read from your machine, no local Ollama probe, no consent prompt. All three axes render something meaningful with zero configuration: token economy scores against the research-recon band (the bundled sample is synthetic and labeled so, sized to pass that task type's scope gate), trajectory quality states plainly that it's unavailable without a judge and shows a labeled, non-computed example of what that axis looks like once one is configured, and waste detection reports one deterministic `REPEATED-FAILED-RETRY` finding with its proof turns, followed by a cost-lever line. **Timing, measured on one Windows 11 machine (CPython 3.13) and not a guarantee: `pip install` of the core package into a fresh venv took 10.6 to 14.0 s, and the installed `tracegauge quickstart` then took 0.9 to 1.3 s (an independent verifier's runs); conditions and raw numbers are in [docs/INSTALL.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/INSTALL.md).**
 
 ## Quick start
 
@@ -55,6 +55,8 @@ The tool already knows where your sessions live (`~/.claude/projects`). You don'
 
 ```bash
 pip install tracegauge
+# Optional: pip install "tracegauge[patterns]" adds numpy + scikit-learn, needed only for
+# `tes patterns`, `tes ask` and the dashboard's Patterns/Ask pages
 
 # Just run it — bare `tes` launches the localhost dashboard (http://127.0.0.1:4747/)
 tes
@@ -76,7 +78,7 @@ That's the whole frictionless path. Power-user / scripting forms still work:
 tes serve                                  # same as bare `tes`, with flags (--port, --cc-path, …)
 tes score <path>.jsonl                     # score a specific file
 tes score ~/.claude/projects/<project>/    # score every session in a directory
-tes score <path> --json                    # machine-readable output
+tes score <path> --json                    # machine-readable output (also cost, budget, monitor, impact, patterns)
 tes --version
 ```
 
@@ -88,7 +90,7 @@ Bare `tes` (and `tes serve`) start two things: a background scan loop that auto-
 
 Read this before installing. These are not caveats to hide — they're the honest picture of what the tool measures and where the calibration comes from.
 
-**Corpus caveat (token baselines).** The token economy baselines are derived from one developer's 75 quality-gated Claude Code sessions, skewed toward high-intensity infrastructure and ML-ops work (GCP, Cloud Run, training pipelines). B5 generalization validation across 172 independent developers (1,053 SWE-chat CC sessions) found the generalizable repeated-failed-retry rate is ~1.4% — versus 6.6% in the calibration pool, which is a high-waste infra outlier. A developer doing ordinary coding work may score below-band on the token axis without being inefficient; the baseline encodes "efficient under expert prompting on heavy infra work," not a universal reference.
+**Corpus caveat (token baselines).** The bundled token economy baselines are derived from 71 Claude Code sessions of one developer (not quality-gated; each API response's usage counted once; listed in `eval/manifest.json`), heavy on infrastructure and agent-orchestration work. Four task types have a band; feature-build (8 sessions, below the minimum of 10) has none yet. B5 generalization validation across 172 independent developers (1,053 SWE-chat CC sessions) found the generalizable repeated-failed-retry rate is ~1.4% — versus 6.6% in the calibration pool, which is a high-waste infra outlier. A developer doing ordinary coding work may score below-band on the token axis without being inefficient; the baseline encodes one developer's typical heavy infra and agent-orchestration work (it is not filtered for quality), not a universal reference.
 
 > Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). See [DATA_SOURCES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/DATA_SOURCES.md) for the full attribution and what was derived from it.
 
@@ -110,11 +112,11 @@ No composite score. Three independent labeled signals, each with its own domain 
 
 ### Token economy
 
-Compares the session's real token count (AI turns only; cache-read inflation removed) against the p25–p75 band for the same task type (ml-eval, debug-fix, infra-deploy, research-recon, feature-build). Verdicts: `above_p75`, `within_band`, `below_p25`, `unavailable`.
+Compares the session's real token count (AI turns only; cache-read inflation removed) against the p25–p75 band for the same task type (ml-eval, debug-fix, infra-deploy, research-recon, feature-build; feature-build has no bundled band yet — 8 sessions, minimum 10 — so its token verdict is `unavailable` unless your own self-baseline for it is active). Verdicts: `above_p75`, `within_band`, `below_p25`, `unavailable`.
 
 `unavailable` when the session is below the per-type p10 turn floor (scope gate) — the session is too short relative to the reference mass to produce a meaningful comparison. Not an error.
 
-**Domain of validity:** calibrated to a high-waste infra/ML-ops corpus (one developer, 75 sessions). Interpret alongside the trajectory verdict.
+**Domain of validity:** calibrated to a high-waste infra/ML-ops corpus (one developer, 71 sessions, not quality-gated). Interpret alongside the trajectory verdict.
 
 ### Trajectory quality
 
@@ -162,9 +164,9 @@ Two observable-invariant detectors with proof turns attached to every event:
 
 The session-detail view in `tes serve` breaks billed token spend into six named buckets — context re-send (cache reads), context growth (cache writes), output, fresh input, redundant-read waste, and retry-loop waste — reconciling exactly to total billed tokens.
 
-Dollar and token percentages are shown side-by-side because they diverge significantly: cache re-reads may be 95% of tokens but only 49% of cost (billed at 0.1×), while output at 1% of tokens can be 30% of cost (billed at full rate). The dollar column is what matters for spend; the token column is what the verdict axis measures. These should not be compared directly.
+Dollar and token percentages are shown side-by-side because they diverge significantly: in the bundled sample session (`tracegauge quickstart`), cache re-reads are 94% of billed tokens but 51% of cost (cache reads bill at 0.1× the input rate on most models, 0.05× on Opus/Sonnet 5.5 and 0.025× on Fable/Mythos 5.1), while output at 0.8% of tokens is 22% of cost (billed at the full output rate). The dollar column is what matters for spend; the token column is what the verdict axis measures. These should not be compared directly.
 
-Attribution is computed from the source JSONL on demand. A deterministic one-line takeaway is generated from the bucket values, with a data-gated lever hint when a bucket genuinely dominates (e.g. "Cost: context (49% re-send + 21% growth) and output (30%); detectable waste $0.15. — a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send.").
+Attribution is computed from the source JSONL on demand. A deterministic one-line takeaway is generated from the bucket values, with a data-gated lever hint when a bucket genuinely dominates (e.g. the bundled sample prints "Cost: context (51% re-send + 9% growth) and output (22%); detectable waste $0.04. — a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."). The hint appears in the dashboard and as a LEVER section of `tes score` (`lever_hint` in `--json`, `null` when no lever fires); for a session with an unpriced model it says cost levers are unavailable instead of guessing.
 
 ---
 
@@ -200,6 +202,8 @@ tes cost --since YYYY-MM-DD      # from this date through now
 
 Total spend, session count, and a per-project breakdown for a period — distinct from `tes budget`'s rolling self-trend *projection* (where your pace is heading); `tes cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
 
+> **Scale caveat (0.15.0).** The dollar figures in the examples in this section and in `tes budget` and `tes monitor` below are 0.11.0 output from before 0.15.0 began counting each API response's usage once. On the same transcripts 0.15.0 reports lower totals (main-chain cost factor 2.26x measured on 10 sessions; 1.0x to 4.0x per session). Order-of-magnitude equivalents: the first block below is about $2.73 / $1.50 / $1.23, the second about $5.43 / $4.20 / $1.23, the no-cost-data example about $1.11. The source sessions are gone, so these blocks cannot be regenerated; read them for format, not magnitude. Rows stored by 0.14 and earlier are left out of `tes cost` totals and reported on a separate line; see [docs/UPGRADING.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/UPGRADING.md).
+
 Real output, from the published `tracegauge==0.11.0` artifact, four real seeded sessions across two projects (one older than the 7-day window):
 
 ```text
@@ -230,7 +234,7 @@ By project:
 ──────────────────────────────────────────────────────────────────────
 ```
 
-**Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tes score`/`tes scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tes budget`'s existing rolling-window projection has this same divergence — tracked, not fixed, as [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
+**Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tes score`/`tes scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tes budget` had the same divergence and was fixed to filter on `source_mtime` as well in 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
 
 Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output, published `0.11.0`:
 
@@ -243,18 +247,31 @@ Total: $2.50  (1 session)
 
 ### Unpriced coverage
 
-Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known:
+Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known. A session with any turn of an unpriced model counts as unpriced in full (the store has no per-model token split), so the token figure is an upper bound on the unpriced tokens, and such a session shows `unpriced (<model>)` instead of `$0.00`. Real output of the 0.15.0 build on two synthetic sessions, one priced and one using a model that is not in the price table:
 
 ```text
-Priced coverage: 50% of sessions, 100% of tokens
-  Unpriced model(s): claude-future-9
+Total: $0.14 + unpriced (claude-future-9)  (2 sessions)
+  (priced subtotal only: turns of the unpriced model(s) below are NOT in this figure -- the real total is higher)
+
+By project:
+  demo-api                                     $0.14  (1 session)
+  demo-web                                  unpriced (claude-future-9)  (1 session)
+
+Priced coverage: 50% of sessions, 50% of tokens
+  unpriced (claude-future-9)
+  (1 session not fully priced, 9,000 tokens: a session with any unpriced turn counts as unpriced in full)
 ```
 
-A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete:
+A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete (real output on synthetic sessions, with one session's stored cost blanked to stand in for a pre-`0.12.0` row):
 
 ```text
-Priced coverage: 40% of sessions, 85% of tokens
-  Unpriced model(s): gpt-6-preview
+Total: $0.14 + unpriced (gpt-6-preview)  (2 sessions)
+  (priced subtotal only: turns of the unpriced model(s) below are NOT in this figure -- the real total is higher)
+  (1 additional session in this period has no cost data yet -- excluded from the total above, not counted as $0)
+
+Priced coverage: 33% of sessions, 33% of tokens
+  unpriced (gpt-6-preview)
+  (2 sessions not fully priced, 18,000 tokens: a session with any unpriced turn counts as unpriced in full)
   (some unpriced sessions predate model tracking -- can't name their model)
 ```
 
@@ -281,6 +298,8 @@ Plan: Claude Max ($46.67 for this window)
 ROI: $496.29 API-equivalent / $46.67 plan cost = 10.6x
   (API-equivalent value at measured token rates, not a bill you'd actually pay under a flat plan.)
 ```
+
+That block is 0.11.0 output on the old per-record scale. The ledger's order-of-magnitude equivalent is about $220 API-equivalent and about 4.7x (÷2.26); it also shifts because the 5.x models were unpriced then and cache reads were priced at a flat 0.1×. The ROI is built on the corrected total only, so when rows from older versions were left out the multiple is a floor, and the output says so.
 
 **Refuses to print a ratio the data can't support** — never a misleading number:
 - No `plan.json` configured: prints setup instructions instead of a ratio.
@@ -340,13 +359,15 @@ At this pace (~$5604.50 so far across 841 sessions, 70.1 of 365 days) you're tre
 ──────────────────────────────────────────────────────────────────────
 ```
 
+The dollar figures above are 0.11.0 output on the old scale; the ledger's order-of-magnitude equivalent is about $2.5k so far and about $12.9k projected (÷2.26; the 841 is a session count and is unaffected). 0.15.0 also leaves rows stored by older versions out of the pace and says how many (`legacy_rows_excluded` in `--json`).
+
 At the default 7-day window, with no cost data that recent, `tes budget` says so plainly rather than fabricating a projection from stale data:
 
 ```text
 No sessions with cost data in the last 7 days -- nothing to project yet.
 ```
 
-**Filters on `scored_at`, not `source_mtime`** — when `tes score`/`tes scan` happened to run, not when the session itself happened. This is a real, known divergence from `tes cost`'s design (which deliberately uses `source_mtime` instead — see above): under a batch-scoring workflow, every session scored in one sitting gets the same `scored_at` timestamp, so this projection's trailing window can cluster a batch of real, older spend onto one recent instant, or miss it entirely once it ages out of the window — describing "cost incurred in scoring runs over the last N days," not necessarily "cost incurred by real usage in the last N days." Documented here honestly as this command's current, real behavior, not its intent. Tracked as [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12); not fixed here.
+**Filters on `source_mtime`, not `scored_at`** (since 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)) — when the session file was last written, the same as `tes cost`. The 0.11.0 output above predates that fix: it filtered on `scored_at` (when `tes score`/`tes scan` happened to run), so under a batch-scoring workflow it could cluster a batch of older spend onto one recent instant, or miss it once it aged out of the window.
 
 ## `tes monitor` — live in-progress check
 
@@ -372,7 +393,9 @@ Live estimate of an IN-PROGRESS session -- cost and context size are provisional
 [ALARM] This session is at ~$681.70 (estimated, in progress) and ~20,400,400 context tokens (estimated, in progress), 99% of which is re-sent context (measured) -- well above your own typical infra-deploy session (p75: 447,157 tokens). Consider `/compact`.
 ```
 
-The alarm compares the live estimate against your own self-baseline (per task type), the same baseline `tes score`'s band verdict uses — it fires only once enough of your own history exists to make that comparison meaningful, never against a fixed universal threshold.
+That is 0.11.0 output on the old scale. The ledger's order-of-magnitude equivalents are about $302 and about 8.5M context tokens (÷2.26 and ÷2.4, UNVERIFIED for this session). The `p75: 447,157 tokens` threshold came from stored rows counted once per content block; those rows are gone, so it cannot be recomputed, and the alarm no longer compares against a p75 of that kind.
+
+The alarm fires only when the live session's real tokens exceed the **p85 of your own sessions from the last 30 days in the same model era** (rows from the current accounting only) **and** re-sent context dominates. The pool is the first of these with at least 10 sessions: same era and task type, same era, same task type, any recent session; then the bundled band's upper bound; otherwise the alarm is disabled. `tes monitor` prints the threshold and where it came from (or why the alarm is disabled), and exits 3 only when the alarm fires (0 otherwise, including when no session is active). Method, false-alarm rate and limits: [docs/ALARM.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/ALARM.md); exit codes: [docs/EXIT_CODES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/EXIT_CODES.md).
 
 ## Session intelligence — `tes patterns` and `tes ask`
 
@@ -383,6 +406,8 @@ The most differentiated thing either package does, and previously the least visi
 ```bash
 tes patterns [--recompute]
 ```
+
+Needs the optional `patterns` extra (since 0.15.0): `pip install "tracegauge[patterns]"` adds numpy and scikit-learn. Without it `tes patterns` and `tes ask` print that one-line install hint and exit 1, and the dashboard shows an "extra not installed" page for Patterns; everything else keeps working.
 
 Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to a file named after and co-located with your TES database (`<db-name>.intelligence_cache.json` — e.g. `~/.tes/tes.intelligence_cache.json` for the default DB) and are reused by `tes ask` below.
 
@@ -492,7 +517,7 @@ print(result.token_domain_of_validity)  # caveat string, always populated
 
 The scoring components were validated through a five-phase credibility arc (B1–B5) before packaging. Key results:
 
-- **Token baselines (B2):** 75 quality-gated CC sessions, 5 task types, scope gates at per-type p10 turn floor. See [research/08-baselines.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/08-baselines.md).
+- **Token baselines (B2, research pool):** 75 quality-gated CC sessions, 5 task types, scope gates at per-type p10 turn floor, on the old per-record usage scale. Since 0.15.0 the bundled baseline is a different, ungated 71-session re-baseline (see Scope & Limitations). See [research/08-baselines.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/08-baselines.md).
 - **Trajectory judge (B3):** Cross-model corroboration. Positive verdicts: 84% strict / 96% top-2. Negative verdicts model-dependent. No human gold. See [research/09-cross-model.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/09-cross-model.md).
 - **Deterministic waste (B4):** RFR fired 12/181 pool sessions (6.6%). RR fired 20/181 (11.0%). Observable-invariant boundary documented. See [research/10-deterministic-waste.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/10-deterministic-waste.md).
 - **Generalization (B5):** RFR and PATH-A validated across 172 developers (1,053 SWE-chat CC sessions — [ODC-BY licensed, see DATA_SOURCES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/DATA_SOURCES.md)). Rate gap (6.6% pool vs 1.4% SWE-chat) explained by corpus characterization — pool is a high-waste infra outlier. Cross-agent generalization inconclusive (parquet lacks tool_result rows for OpenCode/Codex). See [research/11-generalization.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/research/11-generalization.md).
