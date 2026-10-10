@@ -55,7 +55,9 @@ def test_quickstart_bundled_fixture_is_reachable_via_importlib_resources():
         assert len(content.strip().splitlines()) == 146
 
 
-def test_quickstart_shows_a_verdict_a_finding_with_proof_and_a_lever(monkeypatch, capsys):
+def test_quickstart_shows_a_verdict_a_waste_finding_with_proof_and_the_breakdown(
+    monkeypatch, capsys
+):
     # Regression for the rebuilt baseline raising the research-recon gate above the old 50-turn
     # sample: quickstart printed UNAVAILABLE / 0 waste events and no test noticed.
     monkeypatch.setattr("sys.argv", ["tes", "quickstart"])
@@ -70,7 +72,13 @@ def test_quickstart_shows_a_verdict_a_finding_with_proof_and_a_lever(monkeypatch
     assert "Events:  0 detected" not in out
     assert "REPEATED-FAILED-RETRY" in out
     assert "turns:" in out  # proof turns are attached to the event
-    assert "── LEVER ──" in out
+    # The finding is the waste event with its proof turns (above). "Context dominates" is not a
+    # lever any more: the cost is shown as an informational breakdown, with no LEVER section.
+    assert "── COST BREAKDOWN " in out
+    assert "Context re-send (cache reads)" in out and "Detected waste" in out
+    assert "Total (priced)" in out
+    assert "── LEVER ──" not in out
+    assert "checkpointing" not in out
 
 
 def test_quickstart_sample_is_labelled_synthetic():
