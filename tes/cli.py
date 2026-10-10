@@ -1317,6 +1317,23 @@ def _run_monitor(
     return EXIT_OK
 
 
+# Commands that open the store: the first run after an upgrade tells the user about legacy rows.
+# (`rescore` and `backfill-waste` are the fix, `quickstart` never reads the store.)
+_STORE_COMMANDS = frozenset(
+    {
+        "score",
+        "cost",
+        "budget",
+        "monitor",
+        "serve",
+        "impact",
+        "patterns",
+        "ask",
+        "export-contribution",
+    }
+)
+
+
 def main() -> None:
     """CLI entry point."""
     # Ensure UTF-8 output on Windows (cp1252 console cannot encode ═/─ box-drawing chars)
@@ -1332,6 +1349,15 @@ def main() -> None:
         "-V",
         action="version",
         version=f"%(prog)s {__version__}",
+    )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help=(
+            "Suppress the one-time notice about stored sessions from an older version "
+            "(same as TES_NO_NOTICE=1). Goes before the command: tes --quiet cost --week."
+        ),
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -1912,6 +1938,11 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    if args.command in _STORE_COMMANDS or args.command is None:
+        # stderr, once per store per version; never raises, never blocks (see tes.legacy).
+        from tes.legacy import maybe_notify
+
+        maybe_notify(getattr(args, "db_path", None), quiet=args.quiet)
     if args.command is None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
         # (`tes --help` still shows help; `tes <unknown>` still errors via argparse.)

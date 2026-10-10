@@ -182,6 +182,20 @@ self-baseline computation (it falls back to the 20-turn minimum).
   field or a bill-changing value (`speed: fast`, `inference_geo: us`, a non-standard `service_tier`) has no pricing
   rule. Not modelled, with their count in set B: web search (0 non-zero records), fast mode and data residency (every
   record that carries the field says standard / not_available; 41,611 subagent records carry no `speed` at all).
+- **Upgrade path for stores written by 0.14 and earlier: legacy rows are excluded from corrected figures and
+  `tes rescore` recovers what can be recovered.** Rows with `adapter_version` or `cost_version` NULL/older
+  (every row of an old store) are derived as *legacy*; nothing is deleted or rewritten. They are left out of the
+  self-baselines, the alarm pool, `budget` (pace/projection) and `cost`/`--roi` totals; `cost` shows them once on
+  a separate `legacy (pre-0.15 accounting, overcounted ~2x)` line, never summed in, and `budget`/`cost --json`
+  gain `legacy_rows_excluded` (keys added, `schema_version` stays 1). The first store-opening command after the
+  upgrade prints a one-time stderr notice (counts of legacy / rescorable / unrecoverable rows and the fix);
+  `TES_NO_NOTICE=1` or `tes --quiet` silences it. New `tes rescore [--dry-run] [--json] [--limit N]` re-scores
+  legacy rows whose transcript still exists (idempotent; `--dry-run` leaves the store byte-identical; rows whose
+  transcript is gone are never touched; exit 4 if a readable row fails; an empty stub row, 0 turns and 0 tokens,
+  has nothing to rescore and is only marked current, so it cannot make `rescore` exit 4 forever). Also fixed: two processes opening one
+  old store at the same moment (the watcher and a CLI command) could raise `database is locked` or
+  `duplicate column name`. On the Phase 0 store copy (1,452 rows, none with a source transcript left) every row
+  is legacy and unrecoverable: the self-baselines restart from zero. See `docs/UPGRADING.md`.
 - **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
   printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
   now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption
