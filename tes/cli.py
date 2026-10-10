@@ -33,6 +33,14 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.cost_period import PeriodCostReport
 from tes.discovery import iter_session_files
+from tes.exit_codes import (
+    EXIT_ADAPT_ERROR,
+    EXIT_ALARM,
+    EXIT_OK,
+    EXIT_USAGE,
+    ExitCodeHelpFormatter,
+    epilog,
+)
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
@@ -235,6 +243,14 @@ def _resolve_score_targets(args: argparse.Namespace) -> list[Path]:
     return [newest]
 
 
+class SessionAdaptError(Exception):
+    """A session file could not be read/parsed. The scoring loop reports it and keeps going."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(str(path))
+        self.path = path
+
+
 def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisResult:
     """Attach the dashboard's data-gated lever hint (None when no lever fires).
 
@@ -269,7 +285,7 @@ def score_path(
         record = adapt_session(path)
     except Exception as exc:
         print(f"[ERROR] Failed to adapt {path.name}: {exc}", file=sys.stderr)
-        return
+        raise SessionAdaptError(path) from exc
 
     session_id: str = record.get("session_id", path.stem)
     turns: list[dict] = record.get("digest", {}).get("turns", [])
@@ -381,7 +397,7 @@ def _score_path_with_api_judge(
         record = adapt_session(path)
     except Exception as exc:
         print(f"[ERROR] Failed to adapt {path.name}: {exc}", file=sys.stderr)
-        return
+        raise SessionAdaptError(path) from exc
 
     session_id: str = record.get("session_id", path.stem)
     turns: list[dict] = record.get("digest", {}).get("turns", [])
@@ -760,7 +776,7 @@ def _run_patterns(
     )
 
 
-def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
+def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> int:
     """Handle `tes impact` -- corpus-wide code-impact reconstruction from
     persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
     counts only; AB3.2: the untested-tool-shape and prior-content-unknown
@@ -775,7 +791,7 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
@@ -797,7 +813,7 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
         else:
             print("\nNo sessions found in this store.")
         print(sep)
-        return
+        return EXIT_OK
 
     print(
         f"\n{report.total_operations} edit operation(s) across "
@@ -842,6 +858,7 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
             )
 
     print(sep)
+    return EXIT_OK
 
 
 def _run_ask(
@@ -933,7 +950,7 @@ def _run_budget(
     *,
     db_path: str | None = None,
     window_days: int = 7,
-) -> None:
+) -> int:
     """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
     from tes.budget import compute_budget_projection
     from tes.store import open_db, resolve_db_path
@@ -943,7 +960,7 @@ def _run_budget(
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     projection = compute_budget_projection(conn, window_days=window_days)
     conn.close()
@@ -952,7 +969,7 @@ def _run_budget(
         print(
             f"No sessions with cost data in the last {window_days} days — nothing to project yet."
         )
-        return
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -960,6 +977,7 @@ def _run_budget(
     print(sep)
     print(f"\n{projection.message}\n")
     print(sep)
+    return EXIT_OK
 
 
 def _run_cost(
@@ -970,7 +988,7 @@ def _run_cost(
     since: str | None = None,
     roi: bool = False,
     plan_config: str | None = None,
-) -> None:
+) -> int:
     """Handle `tes cost` -- a period-scoped spend REPORT (total, session
     count, per-project breakdown), distinct from `tes budget`'s rolling
     self-trend PROJECTION. See tes/cost_period.py's module docstring for why
@@ -983,14 +1001,14 @@ def _run_cost(
         period_start, period_end, period_label = resolve_period(week=week, month=month, since=since)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
     try:
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     report = compute_period_cost(conn, period_start, period_end, period_label=period_label)
     conn.close()
@@ -1006,7 +1024,7 @@ def _run_cost(
             f"to {report.period_end.date()})."
         )
         print(sep)
-        return
+        return EXIT_OK
 
     print(
         f"\nTotal: {format_cost_display(report.total_usd, report.unpriced_models)}  "
@@ -1054,6 +1072,7 @@ def _run_cost(
         _print_cost_roi(report, plan_config)
 
     print(sep)
+    return EXIT_OK
 
 
 def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
@@ -1109,7 +1128,7 @@ def _run_monitor(
     db_path: str | None = None,
     stability_window: int = 300,
     plan_type: str = "usage_based",
-) -> None:
+) -> int:
     """Handle `tes monitor` — one-shot live check of the currently active session."""
     from tes.alarm import AlarmConfig, check_alarm
     from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
@@ -1124,12 +1143,12 @@ def _run_monitor(
             f"No active session detected under {cc_path} "
             f"(nothing modified in the last {stability_window}s)."
         )
-        return
+        return EXIT_OK
 
     live = score_live_session(active, _PRICES)
     if live is None:
         print(f"Active session found ({active.name}) but not enough data to score yet.")
-        return
+        return EXIT_OK
 
     print(f"Session: {live.session_id}  ({live.task_type})")
     live_cost = format_cost_display(live.live_cost_usd, live.live_unpriced_models, approx=True)
@@ -1145,10 +1164,9 @@ def _run_monitor(
     alarm = check_alarm(live, self_bl, config)
     if alarm is not None:
         print(f"\n[ALARM] {alarm.message}")
-    else:
-        print(
-            "\nNo alarm (measured thresholds not tripped, or baseline still building for this type)."
-        )
+        return EXIT_ALARM
+    print("\nNo alarm (measured thresholds not tripped, or baseline still building for this type).")
+    return EXIT_OK
 
 
 def main() -> None:
@@ -1171,6 +1189,8 @@ def main() -> None:
 
     score_p = sub.add_parser(
         "score",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
         help="Score CC session log(s).",
         description=(
             "Score one or more Claude Code session JSONL files. "
@@ -1458,6 +1478,8 @@ def main() -> None:
 
     patterns_p = sub.add_parser(
         "patterns",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Show the session archetypes and anomaly summary (ML pattern analysis).",
         description=(
             "Run or display the ML pattern analysis: validated clustering of your session corpus "
@@ -1480,6 +1502,8 @@ def main() -> None:
 
     impact_p = sub.add_parser(
         "impact",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Code-impact reconstruction: additions/deletions, churn ranking, from Edit/Write payloads.",
         description=(
             "Corpus-wide, from Edit/Write/MultiEdit/NotebookEdit tool-call payloads persisted at "
@@ -1553,6 +1577,8 @@ def main() -> None:
 
     budget_p = sub.add_parser(
         "budget",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Show your rolling-window spend pace and an honest self-trend projection.",
         description=(
             "Rolling-window spend/token pace tracking. The projection is YOUR OWN trend, "
@@ -1577,6 +1603,8 @@ def main() -> None:
 
     cost_p = sub.add_parser(
         "cost",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Spend report for a period: total, session count, per-project breakdown.",
         description=(
             "A period-scoped spend REPORT (what you actually spent), distinct from "
@@ -1627,6 +1655,8 @@ def main() -> None:
 
     monitor_p = sub.add_parser(
         "monitor",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ALARM),
         help="One-shot live check of the currently active (in-progress) CC session.",
         description=(
             "Score the session currently being written, print its estimated cost/context "
@@ -1681,9 +1711,16 @@ def main() -> None:
         )
         sample_path = resources.files("tes.data") / "quickstart_sample_session.jsonl"
         with resources.as_file(sample_path) as concrete_path:
-            score_path(
-                concrete_path, load_baselines(), JudgeConfig(), use_judge=False, json_mode=False
-            )
+            try:
+                score_path(
+                    concrete_path,
+                    load_baselines(),
+                    JudgeConfig(),
+                    use_judge=False,
+                    json_mode=False,
+                )
+            except SessionAdaptError:
+                sys.exit(EXIT_ADAPT_ERROR)
         print(
             "Example -- what TRAJECTORY QUALITY looks like with a judge configured\n"
             "(illustrative only: a fixed example, not computed from this session --\n"
@@ -1731,28 +1768,29 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "budget":
-        _run_budget(db_path=args.db_path, window_days=args.window_days)
-        sys.exit(0)
+        sys.exit(_run_budget(db_path=args.db_path, window_days=args.window_days))
 
     if args.command == "cost":
-        _run_cost(
-            db_path=args.db_path,
-            week=args.week,
-            month=args.month,
-            since=args.since,
-            roi=args.roi,
-            plan_config=args.plan_config,
+        sys.exit(
+            _run_cost(
+                db_path=args.db_path,
+                week=args.week,
+                month=args.month,
+                since=args.since,
+                roi=args.roi,
+                plan_config=args.plan_config,
+            )
         )
-        sys.exit(0)
 
     if args.command == "monitor":
-        _run_monitor(
-            cc_path_arg=args.cc_path,
-            db_path=args.db_path,
-            stability_window=args.stability_window,
-            plan_type=args.plan_type,
+        sys.exit(
+            _run_monitor(
+                cc_path_arg=args.cc_path,
+                db_path=args.db_path,
+                stability_window=args.stability_window,
+                plan_type=args.plan_type,
+            )
         )
-        sys.exit(0)
 
     if args.command == "export-contribution":
         from datetime import date as _date
@@ -1844,8 +1882,7 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "impact":
-        _run_impact(db_path=args.db_path, top_n=args.top_n)
-        sys.exit(0)
+        sys.exit(_run_impact(db_path=args.db_path, top_n=args.top_n))
 
     if args.command == "ask":
         import os as _os
@@ -1971,20 +2008,33 @@ def main() -> None:
     except Exception:
         pass
 
+    failed: list[Path] = []
     try:
         for sp in session_paths:
-            _score_path_with_api_judge(
-                sp,
-                baselines,
-                judge_config,
-                use_local_judge,
-                args.json_mode,
-                store_conn=store_conn,
-                api_judge_config=api_judge_config,
-                api_judge_consent=api_judge_consent,
-            )
+            try:
+                _score_path_with_api_judge(
+                    sp,
+                    baselines,
+                    judge_config,
+                    use_local_judge,
+                    args.json_mode,
+                    store_conn=store_conn,
+                    api_judge_config=api_judge_config,
+                    api_judge_consent=api_judge_consent,
+                )
+            except SessionAdaptError:
+                # Already reported on stderr; keep scanning the rest, fail at the end.
+                failed.append(sp)
             if not args.json_mode and len(session_paths) > 1:
                 print()
     finally:
         if store_conn is not None:
             store_conn.close()
+
+    if failed:
+        print(
+            f"[ERROR] {len(failed)} of {len(session_paths)} session(s) could not be parsed: "
+            + ", ".join(str(f) for f in failed),
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_ADAPT_ERROR)
