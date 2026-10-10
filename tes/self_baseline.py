@@ -45,16 +45,15 @@ class SelfBaselineState:
 
 
 def _current_adapter_clause(conn: sqlite3.Connection) -> tuple[str, tuple[int, ...]]:
-    """SQL fragment (+ params) keeping only rows whose real_tokens/cost came from the current
-    adapter. Rows from the pre-dedupe adapter (adapter_version NULL or older) over-count usage
-    ~2.4x, so mixing them into a self-baseline would silently inflate the user's own band.
-    A DB that predates the column has no current rows at all (fails closed)."""
-    from tes.adapt import ADAPTER_VERSION
+    """SQL fragment (+ params) keeping only rows from the current accounting (not LEGACY, see
+    tes.legacy). Rows from the pre-dedupe adapter (adapter_version NULL or older) over-count usage
+    ~2.4x, and rows priced before 1-hour cache writes were split out (cost_version NULL or older)
+    are under-priced, so mixing either into a self-baseline would silently skew the user's own
+    band. A DB that predates the columns has no current rows at all (fails closed)."""
+    from tes.legacy import current_clause
 
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
-    if "adapter_version" not in cols:
-        return " AND 0", ()
-    return " AND adapter_version = ?", (ADAPTER_VERSION,)
+    sql, params = current_clause(conn)
+    return f" AND {sql}", params
 
 
 def _percentile(sorted_values: list[int], pct: float) -> int:

@@ -18,7 +18,7 @@ Covers the ten required cases:
 import sqlite3
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.self_baseline import (
     MIN_MEANINGFUL_TURNS,
     compute_self_baselines,
@@ -92,7 +92,8 @@ def _make_test_db(
             waste_event_count INTEGER NOT NULL DEFAULT 0,
             turn_count        INTEGER,
             scope_status      TEXT NOT NULL DEFAULT 'in_scope',
-            adapter_version   INTEGER
+            adapter_version   INTEGER,
+            cost_version      INTEGER
         )
         """
     )
@@ -102,7 +103,7 @@ def _make_test_db(
             conn.execute(
                 "INSERT INTO sessions "
                 "(session_id, task_type, real_tokens, waste_event_count, turn_count, scope_status, "
-                "adapter_version) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "adapter_version, cost_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     f"sess-{task_type}-{row_id:04d}",
                     task_type,
@@ -112,6 +113,7 @@ def _make_test_db(
                     row.get("scope_status", "in_scope"),
                     # rows default to the current adapter; tests of stale rows override it
                     row.get("adapter_version", ADAPTER_VERSION),
+                    row.get("cost_version", COST_VERSION),
                 ),
             )
             row_id += 1

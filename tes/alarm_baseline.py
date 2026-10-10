@@ -134,12 +134,12 @@ def percentile_at_index(sorted_values: Sequence[int], fraction: float) -> int:
 def load_pool_rows(db_path: Path | str) -> list[PoolRow]:
     """Current-adapter sessions with tokens from the store, read-only.
 
-    Rows from the pre-dedupe adapter (adapter_version NULL/older) are excluded: their
-    real_tokens are inflated ~2.4x. A store that predates the ``adapter_version`` column
+    LEGACY rows (tes.legacy: adapter_version or cost_version NULL/older) are excluded: pre-dedupe
+    real_tokens are inflated ~2.4x. A store that predates the version columns
     contributes nothing (fails closed); one that predates ``dominant_model`` contributes rows of
     unknown era (they can still serve the era-agnostic tiers). A missing store is an empty pool.
     """
-    from tes.adapt import ADAPTER_VERSION  # noqa: PLC0415 -- keeps this module import-light
+    from tes.legacy import current_clause  # noqa: PLC0415 -- keeps this module import-light
 
     path = Path(db_path)
     if not path.exists():
@@ -147,13 +147,12 @@ def load_pool_rows(db_path: Path | str) -> list[PoolRow]:
     conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
     try:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
-        if "adapter_version" not in cols:
-            return []
         era_col = "dominant_model" if "dominant_model" in cols else "NULL"
+        current_sql, current_params = current_clause(conn)  # "0" (no rows) if columns missing
         rows = conn.execute(
             f"SELECT session_id, task_type, {era_col}, real_tokens, source_mtime "  # noqa: S608
-            "FROM sessions WHERE real_tokens > 0 AND adapter_version = ?",
-            (ADAPTER_VERSION,),
+            f"FROM sessions WHERE real_tokens > 0 AND {current_sql}",
+            current_params,
         ).fetchall()
     finally:
         conn.close()

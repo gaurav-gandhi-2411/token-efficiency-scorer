@@ -8,7 +8,7 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.self_baseline import compute_self_baselines
 from tes.store import backfill_waste, open_db
@@ -20,14 +20,16 @@ _INSERT = (
     "INSERT INTO sessions (session_id, task_type, source_path, source_mtime, source_hash, "
     "scored_at, axes_scored, real_tokens, scope_status, baseline_available, band_verdict, "
     "interpretation, token_domain_of_validity, trajectory_domain_of_validity, "
-    "waste_event_count, waste_events, waste_domain_of_validity, turn_count, adapter_version) "
+    "waste_event_count, waste_events, waste_domain_of_validity, turn_count, adapter_version, cost_version) "
     "VALUES (?, 'ml-eval', ?, 0, 'h', 't', '[]', ?, 'in_scope', 1, 'within_band', 'i', 'd', "
-    "'d', 0, '[]', 'd', 80, ?)"
+    "'d', 0, '[]', 'd', 80, ?, ?)"
 )
 
 
 def _row(conn: sqlite3.Connection, sid: str, src: str, tokens: int, version: int | None) -> None:
-    conn.execute(_INSERT, (sid, src, tokens, version))
+    conn.execute(
+        _INSERT, (sid, src, tokens, version, COST_VERSION if version is not None else None)
+    )
 
 
 def test_self_baseline_ignores_pre_dedupe_rows(tmp_path: Path) -> None:
