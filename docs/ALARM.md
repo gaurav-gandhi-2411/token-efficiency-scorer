@@ -58,8 +58,10 @@ on a copy of the Phase 0 store, 0/50 because all 1,452 rows are stale. Neither e
 
 ## How the percentile was chosen (data)
 
-Setting: Phase 0 set B, the 50 most recent main sessions of one developer (49 with usage; one has no usable
-usage and counts as "no fire" in the denominator). Each finished session is scored once as if it were the live
+Setting: Phase 0 set B, the 50 most recent main sessions of one developer. 48 have tokens; one more was
+extracted with 0 tokens and one has no assistant usage at all, so 49 sessions were extracted and the 2 that cannot
+exceed any threshold count as "no fire" in the denominator of 50. Counts below written "of 49" are over the 49
+extracted sessions (the 0-token one is placed in the `recent` tier, giving 9 rather than 8 there). Each finished session is scored once as if it were the live
 session, with `score_live_session` and `tes.alarm_baseline.resolve_threshold`, against other sessions only.
 **This is a retrospective analogue, not a live alarm**: the monitor checks only the currently active session,
 once, with a partial transcript; here the finished session is scored whole, so its token count is its final
