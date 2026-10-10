@@ -33,7 +33,9 @@ def _load_real_corpus() -> tuple[list[SessionFeatures], np.ndarray, dict[str, in
 
     UU2: db_path is resolved explicitly here (this is a legitimate top-level
     entry point -- these tests intentionally exercise this machine's own real
-    corpus) rather than relying on a downstream function's own default.
+    corpus) rather than relying on a downstream function's own default. Under the
+    suite-wide isolation in tests/conftest.py this is an empty store (tests skip);
+    set TES_TEST_USE_AMBIENT_STORE=1 to run against the real store.
     """
     from tes.store import resolve_db_path
 
@@ -115,7 +117,25 @@ class TestFeatureExtraction:
         assert all(sf.real_tokens > 0 for sf in features), "Stub sessions slipped through"
 
     def test_attribution_pcts_bounded(self):
-        features, X, _diagnostics = _load_real_corpus()
+        """The five buckets (waste_pct is a disjoint bucket, not an overlay) partition 1.0.
+        Deterministic synthetic rows -- never the ambient store."""
+        rows = [
+            {
+                "session_id": f"synthetic-{i}",
+                "real_tokens": 100_000,
+                "turn_count": 50,
+                "session_cost_usd": 1.0,
+                "waste_event_count": 1 if waste else 0,
+                "task_type": "debug-fix",
+                "context_resend_pct": 0.90 - waste,
+                "context_growth_pct": 0.05,
+                "output_pct": 0.04,
+                "waste_pct": waste,
+            }
+            for i, waste in enumerate([0.0, 0.0091, 0.25])
+        ]
+        features, _X, _diagnostics = build_feature_matrix(rows, verbose=False)
+        assert len(features) == len(rows)
         for sf in features:
             total = (
                 sf.context_resend_pct
@@ -124,8 +144,7 @@ class TestFeatureExtraction:
                 + sf.waste_pct
                 + sf.fresh_input_pct
             )
-            assert total <= 1.0 + 1e-9, f"Attribution pcts sum > 1: {total}"
-            assert total >= 0.0, f"Attribution pcts sum < 0: {total}"
+            assert abs(total - 1.0) < 1e-9, f"Attribution pcts must sum to 1.0, got {total}"
 
     def test_feature_vector_no_nan(self):
         features, X, _diagnostics = _load_real_corpus()

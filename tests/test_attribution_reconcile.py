@@ -13,8 +13,9 @@ Invariant under test:
 
 
 from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import AttributionResult, compute_attribution
+from tes.attribution import AttributionResult, attribution_fractions, compute_attribution
 from tes.cost import load_price_table
+from tes.intelligence.features import extract_features
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -344,3 +345,44 @@ def test_reconcile_with_costs() -> None:
     assert abs(usd_from_buckets - result.total_usd) < 1e-9, (
         f"USD bucket sum {usd_from_buckets} != total_usd {result.total_usd}"
     )
+
+
+def test_pct_buckets_partition_one_and_persisted_fresh_matches() -> None:
+    """The five pct buckets (resend, growth, output, waste, fresh) partition 1.0 -- waste_pct
+    is its own disjoint bucket (whole waste turns), not an overlay on the others. The
+    persisted-fractions path of extract_features must derive fresh_input_pct accordingly
+    (regression: it used to omit waste_pct and so overstated fresh by it, summing to > 1)."""
+    turns = [_ai(0), _tool(1), _ai(2), _tool(3), _ai(4), _tool(5)]
+    waste_entry = {
+        "session_id": "test-session",
+        "waste_events": [
+            {
+                "detector": "REDUNDANT-READ",
+                "session_id": "test-session",
+                "turns": [0, 1, 2, 3],
+                "repeat_count": 1,
+                "evidence": {},
+            }
+        ],
+    }
+    attr = compute_attribution(_session(turns), waste_entry, load_price_table())
+    resend, growth, output, waste = attribution_fractions(attr)
+    assert waste > 0
+    fresh = attr.fresh_input_tokens / attr.total_billed_tokens
+    assert abs(resend + growth + output + waste + fresh - 1.0) < 1e-9
+
+    row = {
+        "session_id": "test-session",
+        "real_tokens": attr.total_billed_tokens,
+        "turn_count": 6,
+        "session_cost_usd": attr.total_usd,
+        "waste_event_count": 1,
+        "task_type": "debug-fix",
+        "context_resend_pct": resend,
+        "context_growth_pct": growth,
+        "output_pct": output,
+        "waste_pct": waste,
+    }
+    feat = extract_features(row)
+    assert feat is not None
+    assert abs(feat.fresh_input_pct - fresh) < 1e-9
