@@ -10,9 +10,12 @@ tes/intelligence/anomaly.py's per-cluster Tukey fence — data-driven, no
 arbitrary global threshold):
 
   1. Magnitude gate — the live session's accumulated token count already
-     exceeds the user's OWN p75 token band for this task_type
-     (tes.self_baseline.TypeBaseline — silent when that type's baseline is
-     still 'building', exactly like every other self-baseline consumer).
+     exceeds a threshold from the user's OWN recent, same-model-era sessions
+     (tes.alarm_baseline: p85, 30-day window, minimum-n fallback chain, silent
+     with a stated reason when nothing qualifies; method and numbers in
+     docs/ALARM.md). Callers that pass no `threshold` to check_alarm keep the
+     original comparison against the verdict self-baseline's p75
+     (tes.self_baseline.TypeBaseline — silent when 'building').
   2. Cause gate — context re-send is the DOMINANT component of live cost, so
      the "/compact" suggestion is actually relevant (a large but genuinely
      fresh-work session should not get a compaction nudge that wouldn't help it).
