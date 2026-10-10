@@ -43,9 +43,11 @@ which blocks numpy, scipy and sklearn in a subprocess and runs the core commands
 
 ## Measured facts
 
-Local wheel `tracegauge-0.14.0-py3-none-any.whl` (292,384 bytes) built from branch `w1a-first-run`
-at the commit that introduced the extra; fresh `python -m venv` (CPython 3.13.5, Windows 11),
-`pip install <wheel>` with a warm pip cache unless stated. Raw commands and outputs are in the W1A-f report.
+Local wheel `tracegauge-0.14.0-py3-none-any.whl`: 292,384 bytes at the commit that introduced the extra (the
+size, venv and `pip install` figures below were measured with that wheel), 299,510 bytes when rebuilt at `ef1de9f`
+(`uv build --wheel` from a `git archive` of that commit; it grows by a few hundred bytes per source commit). Venv:
+fresh `python -m venv` (CPython 3.13.5, Windows 11), `pip install <wheel>` with a warm pip cache unless stated.
+Raw commands and outputs are in the W1A-f report.
 
 | | core | core + `[patterns]` |
 |---|---|---|
@@ -61,14 +63,24 @@ The core install is about half of the 40 MB budget with pip counted and about a 
 non-pip weight is werkzeug (1.6 MiB), anyio (1.2 MiB), tracegauge itself (1.2 MiB), jinja2 (1.1 MiB), click, flask,
 httpx. Moving numpy and scikit-learn to the extra removed about 226 MiB from the default install.
 
-`uvx --from <local wheel> tracegauge ...` wall time, n=5 each, cold = a brand-new empty uv cache (downloads
-flask, httpx and the rest from PyPI), warm = populated uv cache:
+`uvx --from <local wheel> tracegauge quickstart` wall time, n=5 each, cold = a brand-new empty uv cache per run
+(downloads flask, httpx and the rest from PyPI), warm = populated uv cache after one uncounted priming run.
+Every run printed the REPEATED-FAILED-RETRY finding, so this is time-to-first-finding.
+
+Re-measured 2026-10-10 on the wheel built at `ef1de9f`, **on a contended host**: the machine's CPU load
+(`Win32_Processor.LoadPercentage`) was 90 to 100% in 40 of 45 samples taken over about half an hour (lowest 48%),
+from other jobs that were not part of this measurement, and 90 to 100% immediately before each timed run. Three
+waits of several minutes did not bring it down, so these are not idle-machine numbers.
 
 | command | cold: mean / median / min / max (s) | warm: mean / median / min / max (s) |
 |---|---|---|
-| `quickstart` | 4.53 / 4.96 / 3.06 / 5.07 | 1.49 / 1.49 / 1.06 / 2.00 |
-| `score <sample session>` | 5.47 / 5.05 / 4.54 / 7.06 | 2.14 / 1.16 / 1.02 / 6.29 |
+| `quickstart`, contended (above) | 15.78 / 7.92 / 5.36 / 33.33 (runs 33.33, 24.61, 5.36, 7.71, 7.92) | 1.97 / 1.71 / 1.40 / 2.99 (runs 2.99, 2.28, 1.71, 1.45, 1.40) |
 
-`quickstart` prints its first finding (a REPEATED-FAILED-RETRY with proof turns) in all of these runs, so
-time-to-first-finding is the `quickstart` row. These are single-machine, single-run-set numbers with network and
-antivirus variance (note the 6.29 s warm outlier); treat them as an order of magnitude, not a guarantee.
+Earlier run on the same machine, wheel from the commit that introduced the extra, **load not recorded** (so it
+cannot be called uncontended): `quickstart` cold 4.53 / 4.96 / 3.06 / 5.07 s and warm 1.49 / 1.49 / 1.06 / 2.00 s;
+`score <sample session>` cold 5.47 / 5.05 / 4.54 / 7.06 s and warm 2.14 / 1.16 / 1.02 / 6.29 s. An independent
+verifier measured 6 to 27 s for uvx runs while the machine was also at 99 to 100% CPU, and 0.9 to 1.3 s for the
+installed `tracegauge quickstart`. The honest reading: warm uvx is about 1 to 3 s, cold depends on the network and on
+machine load and ranged from 3 to 33 s here, and a cold-run claim of "under 10 s" has not been shown on an idle
+machine. These are single-machine measurements with network and antivirus variance; treat them as an order of
+magnitude, not a guarantee.
