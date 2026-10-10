@@ -34,12 +34,27 @@ class TypeBaseline:
     sessions_needed: int  # how many more lean-subset sessions needed (0 when active)
     scope_floor: int  # effective turns floor for this type
     domain_of_validity: str
+    # Rows of this type excluded because the pre-dedupe adapter produced their real_tokens.
+    stale_n: int = 0
 
 
 @dataclass
 class SelfBaselineState:
     by_type: dict[str, TypeBaseline] = field(default_factory=dict)
     total_sessions: int = 0
+
+
+def _current_adapter_clause(conn: sqlite3.Connection) -> tuple[str, tuple[int, ...]]:
+    """SQL fragment (+ params) keeping only rows whose real_tokens/cost came from the current
+    adapter. Rows from the pre-dedupe adapter (adapter_version NULL or older) over-count usage
+    ~2.4x, so mixing them into a self-baseline would silently inflate the user's own band.
+    A DB that predates the column has no current rows at all (fails closed)."""
+    from tes.adapt import ADAPTER_VERSION
+
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    if "adapter_version" not in cols:
+        return " AND 0", ()
+    return " AND adapter_version = ?", (ADAPTER_VERSION,)
 
 
 def _percentile(sorted_values: list[int], pct: float) -> int:
@@ -108,6 +123,7 @@ def compute_baseline_cost_band(
     Returns None if fewer than min_lean_n sessions have both session_cost_usd populated
     and real_tokens > 0.
     """
+    cur_sql, cur_params = _current_adapter_clause(conn)
     rows = conn.execute(
         "SELECT real_tokens, session_cost_usd FROM sessions "
         "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0 "
@@ -118,8 +134,8 @@ def compute_baseline_cost_band(
         "  AND ("
         "    (turn_count IS NOT NULL AND turn_count >= ?)"
         "    OR (turn_count IS NULL AND scope_status = 'in_scope')"
-        "  )",
-        (task_type, scope_floor),
+        "  )" + cur_sql,
+        (task_type, scope_floor, *cur_params),
     ).fetchall()
 
     if not rows:
@@ -222,6 +238,7 @@ def compute_self_baselines(
     total_sessions: int = int(total_row[0]) if total_row else 0
 
     state = SelfBaselineState(total_sessions=total_sessions)
+    cur_sql, cur_params = _current_adapter_clause(conn)
 
     scope_gates: dict = b2_baselines.get("scope_gates", {})
     types_info: dict = b2_baselines.get("types", {})
@@ -241,9 +258,24 @@ def compute_self_baselines(
             "  AND ("
             "    (turn_count IS NOT NULL AND turn_count >= ?)"
             "    OR (turn_count IS NULL AND scope_status = 'in_scope')"
-            "  )",
-            (task_type, scope_floor),
+            "  )" + cur_sql,
+            (task_type, scope_floor, *cur_params),
         ).fetchall()
+        total_n = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM sessions WHERE task_type = ? AND waste_event_count = 0 "
+                "AND real_tokens > 0",
+                (task_type,),
+            ).fetchone()[0]
+        )
+        cur_n = int(
+            conn.execute(
+                "SELECT COUNT(*) FROM sessions WHERE task_type = ? AND waste_event_count = 0 "
+                "AND real_tokens > 0" + cur_sql,
+                (task_type, *cur_params),
+            ).fetchone()[0]
+        )
+        stale_n = total_n - cur_n
         tokens: list[int] = sorted(int(r[0]) for r in rows)
         waste_free_n = len(tokens)
 
@@ -292,6 +324,7 @@ def compute_self_baselines(
                 sessions_needed=sessions_needed,
                 scope_floor=scope_floor,
                 domain_of_validity=dov,
+                stale_n=stale_n,
             )
         else:
             source = "self"
@@ -326,6 +359,7 @@ def compute_self_baselines(
                     sessions_needed=sessions_needed,
                     scope_floor=scope_floor,
                     domain_of_validity=dov,
+                    stale_n=stale_n,
                 )
                 continue  # skip the normal 'self' path below
 
@@ -343,6 +377,16 @@ def compute_self_baselines(
                 sessions_needed=0,
                 scope_floor=scope_floor,
                 domain_of_validity=dov,
+                stale_n=stale_n,
+            )
+
+    # Say loudly why a type's own band is thin/absent after the usage-dedupe upgrade.
+    for tb in state.by_type.values():
+        if tb.stale_n:
+            tb.domain_of_validity += (
+                f" {tb.stale_n} stored {tb.task_type} session(s) were scored by the pre-dedupe "
+                "adapter (token counts inflated ~2.4x) and are excluded; run `tes backfill-waste` "
+                "to re-score them from their source transcripts."
             )
 
     conn.close()
@@ -352,11 +396,13 @@ def compute_self_baselines(
 def _fingerprint(conn: sqlite3.Connection, b2_baselines: dict) -> dict[str, int]:
     """Return per-type waste-free session counts; used to detect when to recompute."""
     result: dict[str, int] = {}
+    # Counting only current-adapter rows also invalidates a cache built before the upgrade.
+    cur_sql, cur_params = _current_adapter_clause(conn)
     for task_type in b2_baselines.get("scope_gates", {}):
         row = conn.execute(
             "SELECT COUNT(*) FROM sessions "
-            "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0",
-            (task_type,),
+            "WHERE task_type = ? AND waste_event_count = 0 AND real_tokens > 0" + cur_sql,
+            (task_type, *cur_params),
         ).fetchone()
         result[task_type] = int(row[0]) if row else 0
     return result
@@ -378,6 +424,7 @@ def _state_to_json(state: SelfBaselineState) -> dict:
                 "sessions_needed": v.sessions_needed,
                 "scope_floor": v.scope_floor,
                 "domain_of_validity": v.domain_of_validity,
+                "stale_n": v.stale_n,
             }
             for k, v in state.by_type.items()
         },
@@ -399,6 +446,7 @@ def _state_from_json(data: dict) -> SelfBaselineState:
             sessions_needed=v["sessions_needed"],
             scope_floor=v["scope_floor"],
             domain_of_validity=v["domain_of_validity"],
+            stale_n=v.get("stale_n", 0),
         )
     return SelfBaselineState(
         by_type=by_type,
