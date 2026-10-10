@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+# NOTE (2026-10): this FROZEN research adapter still sums usage per assistant RECORD, which
+# over-counts ~2.4x on current Claude Code transcripts (one record per content block, each
+# repeating the response's usage). Its logic is left unchanged on purpose: published research
+# artifacts (pool_adapted.jsonl, B5) were produced with it. Anything that ships numbers
+# (baselines, scores, cost) must use tes.adapt.adapt_session, which counts each message.id once.
+
 """claudecode_adapter.py — Convert Claude Code session JSONL transcripts to layer1_outputs format.
 
 Reads raw Claude Code session JSONL files (from ~/.claude/projects/<project>/<uuid>.jsonl)

@@ -215,6 +215,16 @@ class ThreeAxisResult:
     # tes.impact's report distinguishes these at read time. ---
     edit_operations: str | None = None
 
+    # --- usage de-duplication (adapter_version 2). Claude Code writes one assistant record
+    # per content block of an API response, each repeating the response's usage; tes.adapt
+    # counts each distinct message.id once. These make the correction observable:
+    # duplicate_usage_records = usage_records - usage_records_deduped. adapter_version is None
+    # for a record that did not come from tes.adapt (e.g. a pool_adapted.jsonl fixture). ---
+    adapter_version: int | None = None
+    usage_records: int = 0
+    usage_records_deduped: int = 0
+    duplicate_usage_records: int = 0
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -515,6 +525,7 @@ def score_session(
     _sub_usage: dict[str, int] = record.get("subagent_usage") or {}
     subagent_tokens = int(_sub_usage.get("real_tokens", 0))
     subagent_count = int(_sub_usage.get("file_count", 0))
+    _usage_dedupe: dict[str, int] = record.get("usage_dedupe") or {}
 
     # XX2.2: persist whatever tes.adapt already extracted from tool_use
     # blocks in its single pass over the source JSONL -- "edit_operations"
@@ -583,6 +594,10 @@ def score_session(
         subagent_count=subagent_count,
         real_tokens_incl_subagents=real_tokens + subagent_tokens,
         edit_operations=edit_operations_json,
+        adapter_version=record.get("adapter_version"),
+        usage_records=int(_usage_dedupe.get("usage_records", 0)),
+        usage_records_deduped=int(_usage_dedupe.get("usage_records_deduped", 0)),
+        duplicate_usage_records=int(_usage_dedupe.get("duplicate_usage_records", 0)),
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,

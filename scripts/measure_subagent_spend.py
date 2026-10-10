@@ -16,10 +16,11 @@ cannot silently point it elsewhere:
         --selection D:/tracegauge-audit/sections/C-raw/c2-selection.json \\
         --out D:/tracegauge-w1a/w1a/item1_invisible_spend.md
 
-Two bases are reported because the main-chain adapter counts every assistant *record* while
-Claude Code writes one record per content block of the same API response (identical usage
-repeated): "adapter" = what ``tes`` totals today for the parent; "deduped" = each API
-response (``message.id``) counted once, which is also how subagents are counted.
+Two bases are reported: "adapter" = what ``tes`` totals for the parent; "deduped" = each API
+response (``message.id``) counted once, computed here independently. Since adapter_version 2
+the two agree (before it, the adapter counted every assistant *record*, and Claude Code writes
+one record per content block of the same API response, so "adapter" was ~2.4x "deduped"); the
+independent basis is kept as a cross-check that the adapter has not regressed.
 """
 
 import argparse

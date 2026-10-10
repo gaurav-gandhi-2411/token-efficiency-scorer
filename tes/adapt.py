@@ -219,6 +219,77 @@ def _message_dedup_key(msg: dict[str, Any]) -> str:
     return str(mid or msg.get("requestId") or msg.get("uuid") or id(msg))
 
 
+# Bumped whenever the token accounting of ``adapt_session`` changes in a way that moves
+# stored ``real_tokens``/cost. Rows persisted by tes.store carry it so a self-baseline can
+# tell rows produced by an older (pre-dedupe) adapter from current ones.
+#   1 = one usage per assistant record (over-counts: Claude Code writes one record per
+#       content block of an API response, each repeating the response's usage)
+#   2 = each distinct message.id counted once (per-field max over its records)
+ADAPTER_VERSION: int = 2
+
+
+def _has_tool_use(content: list[Any]) -> bool:
+    return any(isinstance(b, dict) and b.get("type") == "tool_use" for b in content)
+
+
+def _collapse_main_chain_usage(
+    messages: list[dict[str, Any]],
+) -> tuple[dict[int, tuple[list[int], dict[str, int]]], dict[str, int]]:
+    """Resolve each API response's usage ONCE across the main-chain records it spans.
+
+    Returns ``(carriers, stats)``. ``carriers`` maps the index (into ``messages``) of ONE
+    record per response -- the *carrier* -- to ``([input, cache_creation, cache_read,
+    output], server_tool_use)``: the per-field maximum over all records sharing the
+    response's ``_message_dedup_key`` (on real data every record of a response repeats an
+    identical usage, so max == first == last; max is also the safe choice for streaming
+    partials whose ``output_tokens`` grow). Every other record of the response is a
+    zero-usage turn.
+
+    Why the turn structure is NOT merged: waste detectors, proof-turn indices, the
+    ``turn_count`` scope gates and ``edit_operations`` all work on one turn per record, and
+    ``tes.attribution`` charges a flagged turn the tokens it carries. So only the usage is
+    deduped. The carrier is the LAST record holding a ``tool_use`` block (else the last
+    record): redundant-read / retry waste is detected on tool-calling turns and must be
+    charged the response's tokens, not zero.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    usage_records = 0
+    for i, msg in enumerate(messages):
+        if not _is_main_chain(msg) or msg.get("type") != "assistant":
+            continue
+        message = msg.get("message", {})
+        content = message.get("content", []) if isinstance(message, dict) else []
+        if not isinstance(content, list):
+            continue  # the main loop skips these records too
+        usage = message.get("usage", {})
+        if not isinstance(usage, dict):
+            usage = {}
+        if usage:
+            usage_records += 1
+        g = groups.setdefault(
+            _message_dedup_key(msg),
+            {"counts": [0, 0, 0, 0], "stu": {}, "last": i, "tool": None, "has_usage": False},
+        )
+        g["counts"] = [max(a, b) for a, b in zip(g["counts"], _parse_usage(usage), strict=True)]
+        stu = _parse_server_tool_use(usage) or {}
+        g["stu"] = {k: max(g["stu"].get(k, 0), stu.get(k, 0)) for k in {*g["stu"], *stu}}
+        g["last"] = i
+        g["has_usage"] = g["has_usage"] or bool(usage)
+        if _has_tool_use(content):
+            g["tool"] = i
+    carriers = {
+        (g["tool"] if g["tool"] is not None else g["last"]): (g["counts"], g["stu"])
+        for g in groups.values()
+    }
+    distinct = sum(1 for g in groups.values() if g["has_usage"])
+    stats = {
+        "usage_records": usage_records,
+        "usage_records_deduped": distinct,
+        "duplicate_usage_records": usage_records - distinct,
+    }
+    return carriers, stats
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     """Parse a JSONL file, skipping blank/malformed lines (a live file may end mid-write)."""
     out: list[dict[str, Any]] = []
@@ -389,7 +460,9 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     # _extract_edit_operations_from_content's docstring for why).
     edit_operations: list[dict[str, Any]] = []
 
-    for msg in messages:
+    usage_carriers, usage_stats = _collapse_main_chain_usage(messages)
+
+    for msg_idx, msg in enumerate(messages):
         if not _is_main_chain(msg):
             continue
 
@@ -401,9 +474,11 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
             if not isinstance(content, list):
                 continue
 
-            usage: dict[str, Any] = message.get("usage", {})
-            inp, cache_cr, cache_rd, out = _parse_usage(usage)
-            server_tool_use = _parse_server_tool_use(usage)
+            # Usage is charged once per API response, on its carrier record (see
+            # _collapse_main_chain_usage); sibling content-block records get zero usage.
+            counts, stu = usage_carriers.get(msg_idx, ([0, 0, 0, 0], {}))
+            inp, cache_cr, cache_rd, out = counts
+            server_tool_use = stu or None
             model_str: str = message.get("model", "")
 
             sum_input += inp
@@ -524,6 +599,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         turns=turns,
         subagent_turns=subagent_turns,
         subagent_count=subagent["file_count"] if subagent else 0,
+        usage_records=usage_stats["usage_records"],
+        usage_records_deduped=usage_stats["usage_records_deduped"],
     )
 
     return {
@@ -542,6 +619,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
         "token_economy_available": False,
         "domain_inferred": "fallback_unknown",
         "edit_operations": edit_operations,
+        "adapter_version": ADAPTER_VERSION,
+        "usage_dedupe": usage_stats,
         "subagent_usage": (
             {k: v for k, v in subagent.items() if k != "turns"}
             if subagent
@@ -550,4 +629,4 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     }
 
 
-__all__ = ["adapt_session", "collect_subagent_usage"]
+__all__ = ["ADAPTER_VERSION", "adapt_session", "collect_subagent_usage"]
