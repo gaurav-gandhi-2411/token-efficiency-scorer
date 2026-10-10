@@ -23,9 +23,11 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable
-from datetime import UTC, date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+
+UTC = timezone.utc  # datetime.UTC is 3.11+; tracegauge supports 3.10 and tests import this script
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
