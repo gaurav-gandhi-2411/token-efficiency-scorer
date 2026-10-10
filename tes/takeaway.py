@@ -55,9 +55,15 @@ def _takeaway_parts(
         parts.append(f"output ({output_pct}%)")
 
     cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
-    waste_str = (
-        f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
-    )
+    if waste_usd > 0.001:
+        waste_str = f"; detectable waste ${waste_usd:.2f}"
+        if unpriced_models:
+            waste_str += f" + {format_unpriced(unpriced_models)}"
+    elif unpriced_models:
+        # Waste on the unpriced turns has no dollar value, so "no detectable waste" would overstate.
+        waste_str = f"; waste cost on {format_unpriced(unpriced_models)} turns not priced"
+    else:
+        waste_str = "; no detectable waste"
 
     # Data-gated hints — each checked independently, waste first
     hints: list[str] = []
