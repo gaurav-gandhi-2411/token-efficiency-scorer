@@ -75,7 +75,7 @@ This document describes the actual flow, written after running it for real for `
    git push origin vX.Y.Z
    ```
 5. **`release.yml` takes it from there** — triggered by the `v*` tag push, it checks out
-   that exact tag (never a branch head), builds with `uv build`, sanity-checks the artifact
+   that exact tag (never a branch head), builds with `python scripts/build_dist.py dist`, sanity-checks the artifact
    with `twine check`, and publishes via `pypa/gh-action-pypi-publish@release/v1` using the
    `pypi` GitHub Environment's OIDC token. Confirm it actually succeeded — don't just trust
    a green checkmark, read the log for the real upload confirmation:
@@ -87,6 +87,14 @@ This document describes the actual flow, written after running it for real for `
    `View at: https://pypi.org/project/tracegauge/X.Y.Z/` — that URL is the actual proof, not
    the workflow's green checkmark alone (a green run that never reached the upload step
    would look identical in the checks UI).
+
+   **Reproducible builds.** `scripts/build_dist.py` exports `SOURCE_DATE_EPOCH` from the commit
+   time of `HEAD` and runs `uv build`; `.gitattributes` forces LF in every checkout; and the
+   in-tree backend in `_build/` pins the sdist's tar and gzip metadata. The same commit therefore
+   builds to the same sdist and wheel bytes on Windows and Linux, from any clone. To compare a
+   local build with what CI published, run `python scripts/build_dist.py dist` on a clean checkout
+   of the tag and compare the printed sha256 values with the `reproducible-build` job's summary in
+   `ci.yml` (or with the files on PyPI). A plain `uv build` without the epoch is not reproducible.
 6. **Post-publish verify from a fresh environment against the real index** — see below.
    Also confirm (step 2's checklist) that the published README actually rendered the new
    commands/flags, via PyPI's JSON API — not just that CI succeeded.
