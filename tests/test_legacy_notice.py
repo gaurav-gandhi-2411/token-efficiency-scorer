@@ -14,10 +14,10 @@ import time
 from pathlib import Path
 
 import pytest
-import tes
-from tes import cli, legacy
-from tes.legacy import NO_NOTICE_ENV, maybe_notify
-from tes.store import backfill_waste, open_db
+import tracegauge
+from tracegauge import cli, legacy
+from tracegauge.legacy import NO_NOTICE_ENV, maybe_notify
+from tracegauge.store import backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
@@ -52,7 +52,7 @@ def test_first_run_names_counts_and_the_fix_then_stays_quiet(mixed: MixedStore) 
     assert "rescorable (transcript still on disk): 3" in text
     assert "unrecoverable (transcript gone):       1" in text
     assert "tes rescore" in text
-    assert _marker(mixed.db) == {"version": tes.__version__, "legacy": 4}
+    assert _marker(mixed.db) == {"version": tracegauge.__version__, "legacy": 4}
     assert _notify(mixed) == (False, "")  # once per store per version
 
 
@@ -77,11 +77,9 @@ def test_a_rescore_lowers_the_marker_so_later_legacy_rows_notify_again(mixed: Mi
     assert _notify(mixed)[0]  # 3 > 2
 
 
-def test_a_new_tes_version_notifies_again(
-    mixed: MixedStore, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_new_version_notifies_again(mixed: MixedStore, monkeypatch: pytest.MonkeyPatch) -> None:
     assert _notify(mixed)[0]
-    monkeypatch.setattr(tes, "__version__", "9.9.9")
+    monkeypatch.setattr(tracegauge, "__version__", "9.9.9")
     assert _notify(mixed)[0]
     assert _marker(mixed.db)["version"] == "9.9.9"
 

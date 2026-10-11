@@ -13,8 +13,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.store import backfill_cost, backfill_waste, open_db
+from tracegauge import cli
+from tracegauge.store import backfill_cost, backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 

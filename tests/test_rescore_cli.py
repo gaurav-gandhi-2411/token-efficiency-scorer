@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 
 import pytest
-from tes import cli
-from tes.store import open_db
+from tracegauge import cli
+from tracegauge.store import open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store
 

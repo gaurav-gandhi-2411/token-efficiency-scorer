@@ -2,7 +2,7 @@
 
 Every reporting command takes `--json`: `score`, `cost`, `budget`, `monitor`, `impact`, `patterns`.
 The contract, pinned by `tests/test_cli_json.py` (exact key sets) and implemented in
-`tes/json_out.py`:
+`tracegauge/json_out.py`:
 
 * **stdout is exactly one JSON document** (`score` on a directory prints one document per session,
   each complete). Warnings, hints and errors go to stderr; on an error stdout is empty and the exit
@@ -101,11 +101,11 @@ scored before 0.15 that the analysis left out; `n_sessions` counts current sessi
 analysis as `tes patterns` reads it (`k`, `silhouette`, `archetypes`, `anomaly_count`,
 `anomaly_pct`, ...). If the pattern-analysis dependencies are not installed the command prints a
 one-line hint to stderr (`pip install "tracegauge[patterns]"`) and exits 1; `require_patterns_extra()`
-in `tes/patterns_extra.py` is the single check.
+in `tracegauge/patterns_extra.py` is the single check.
 
 ## `score`
 
-The full result (see `tes/score.py::ThreeAxisResult`), with `schema_version`, `command` (`"score"`) and
+The full result (see `tracegauge/score.py::ThreeAxisResult`), with `schema_version`, `command` (`"score"`) and
 `legacy_rows_excluded` (pre-0.15 rows in the store, `0` with no store; a single score is not
 adjusted by them) as the first keys, and
 `lever_hint` (a string only when an absolute finding fires, else `null`: detected waste of at least

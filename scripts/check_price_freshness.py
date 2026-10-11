@@ -5,16 +5,16 @@ from __future__ import annotations
 
 """scripts/check_price_freshness.py — CI freshness gate for tracegauge's price table.
 
-Fails (exit 1) when any non-retired entry in tes/data/prices.json has an
+Fails (exit 1) when any non-retired entry in tracegauge/data/prices.json has an
 ``as_of`` date (or, if the entry has none, the table-level ``as_of``) older
-than ``tes.cost.STALE_THRESHOLD_DAYS`` (90 days), measured against the date
+than ``tracegauge.cost.STALE_THRESHOLD_DAYS`` (90 days), measured against the date
 this script actually runs.
 
 Minimum-viable port of adk-tracegauge's staleness-guard CONCEPT
 (scripts/check_price_freshness.py there checks a Gemini/Claude/GPT table's
 per-model ``fetched_on`` against the same 90-day threshold) — adapted here
 to tracegauge's own per-model ``as_of``/``source_url``/``retired`` fields
-via ``tes.cost.check_price_table_staleness``, which does the actual date
+via ``tracegauge.cost.check_price_table_staleness``, which does the actual date
 arithmetic (see that function's docstring for what's deliberately NOT
 ported: promo-expiry handling, tiering, multi-provider support, the
 regression gate — Phase 7 full-engine-move scope).
@@ -32,7 +32,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tes.cost import (  # noqa: E402
+from tracegauge.cost import (  # noqa: E402
     STALE_THRESHOLD_DAYS,
     check_price_table_staleness,
     load_price_table,
@@ -65,7 +65,7 @@ def main() -> int:
         )
     print(
         "\nUpdate as_of + source_url (and the price itself, if it changed) for each "
-        'flagged entry in tes/data/prices.json. Retired entries ("retired": true) are '
+        'flagged entry in tracegauge/data/prices.json. Retired entries ("retired": true) are '
         "exempt from this check by design -- see prices.json's top-level note.",
         file=sys.stderr,
     )

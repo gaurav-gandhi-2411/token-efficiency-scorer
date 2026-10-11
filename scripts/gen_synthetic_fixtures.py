@@ -39,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tes.classify import CAVEAT_PREFIX, classify_session  # noqa: E402
+from tracegauge.classify import CAVEAT_PREFIX, classify_session  # noqa: E402
 
 SEED = 42  # fixed: the committed fixtures must be reproducible byte for byte
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
@@ -49,7 +49,7 @@ JUDGE_OUT = FIXTURES / "synthetic_judge_scores.jsonl"
 SNIPPET_MAX = 300  # the adapter truncates content_snippet to this length
 
 # ---------------------------------------------------------------------------
-# Phrase tables. Each description must classify (tes.classify) as its task type; the
+# Phrase tables. Each description must classify (tracegauge.classify) as its task type; the
 # generator asserts that, so a keyword added to the classifier later fails here, loudly.
 # ---------------------------------------------------------------------------
 
@@ -111,7 +111,7 @@ GREP_RESULTS = [
 EDIT_RESULT = "The file src/demo/app.py has been updated successfully."
 OK_BASH_RESULTS = ["done", "3 passed in 0.41s", "ok", "Everything up to date"]
 
-# Waste scripts. Their wording is chosen so the real detectors (tes/_waste_detectors.py)
+# Waste scripts. Their wording is chosen so the real detectors (tracegauge/_waste_detectors.py)
 # fire, or deliberately do not fire for the near-miss controls.
 RFR_ERROR = (
     "Exit code 2\npython: can't open file 'sample_job.py': [Errno 2] No such file or directory"

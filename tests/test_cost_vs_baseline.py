@@ -10,8 +10,8 @@ Cost is an annotation only — not a score, not part of any composite.
 """
 
 import pytest
-from tes.cost import SessionCost
-from tes.score import load_baselines, score_session
+from tracegauge.cost import SessionCost
+from tracegauge.score import load_baselines, score_session
 
 # ---------------------------------------------------------------------------
 # Helpers

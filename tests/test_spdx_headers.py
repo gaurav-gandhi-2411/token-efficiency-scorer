@@ -74,5 +74,5 @@ def test_every_first_party_python_file_carries_the_header() -> None:
 
 def test_frozen_detector_module_is_excluded() -> None:
     names = {p.relative_to(ROOT).as_posix() for p in spdx.python_files(ROOT)}
-    assert "tes/_waste_detectors.py" not in names
-    assert "tes/cost.py" in names
+    assert "tracegauge/_waste_detectors.py" not in names
+    assert "tracegauge/cost.py" in names

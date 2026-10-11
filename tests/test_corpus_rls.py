@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 
 import pytest
-from tes.contribution import ALLOWED_FIELDS
+from tracegauge.contribution import ALLOWED_FIELDS
 
 _SCHEMA_PATH = Path(__file__).parent.parent / "corpus" / "schema.sql"
 

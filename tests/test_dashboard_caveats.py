@@ -5,14 +5,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import open_db, upsert_session
-from tes.web.server import ServerConfig, create_app
+from tracegauge.store import open_db, upsert_session
+from tracegauge.web.server import ServerConfig, create_app
 
 
 def _make_judge_absent_result() -> ThreeAxisResult:

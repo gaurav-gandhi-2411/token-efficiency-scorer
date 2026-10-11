@@ -28,13 +28,13 @@ from scripts.check_price_table_vs_vendor import (
     parse_anthropic_markdown,
     parse_vendor_table,
 )
-from tes.cost import load_price_table
+from tracegauge.cost import load_price_table
 
 _FIXTURES = Path(__file__).parent / "fixtures" / "pricing"
 _PAGE = _FIXTURES / "anthropic_pricing_2026-10-09_excerpt.md"
 _OLD_TABLE = _FIXTURES / "prices_b261c4b.json"
 _PAGE_TEXT = _PAGE.read_text(encoding="utf-8")
-_BUNDLED = Path(__file__).resolve().parent.parent / "tes" / "data" / "prices.json"
+_BUNDLED = Path(__file__).resolve().parent.parent / "tracegauge" / "data" / "prices.json"
 
 _HEADER = (
     "| Model | Base input tokens | 5m cache writes | 1h cache writes "

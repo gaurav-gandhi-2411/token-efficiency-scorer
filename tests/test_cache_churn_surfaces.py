@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes import cache_churn as cc
-from tes.json_out import cache_churn_payload
-from tes.report import format_cache_churn_lines
+import tracegauge.cli as cli
+from tracegauge import cache_churn as cc
+from tracegauge.json_out import cache_churn_payload
+from tracegauge.report import format_cache_churn_lines
 
 from tests.churn_synth import MODEL_A, T0, asst_rec, build_chain, user_rec
 
@@ -178,19 +178,19 @@ def test_internal_error_is_logged_with_traceback_and_stdout_stays_json(
         raise RuntimeError("bug in the analysis")
 
     monkeypatch.setattr(cc, "analyze_session", boom)
-    with caplog.at_level("WARNING", logger="tes.json_out"):
+    with caplog.at_level("WARNING", logger="tracegauge.json_out"):
         code, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
     churn = json.loads(out)["cache_churn"]  # stdout is still exactly one valid JSON document
     assert code == 0
     assert churn["status"] == "unavailable" and churn["reason"] == "internal_error"
-    (rec,) = [r for r in caplog.records if r.name == "tes.json_out"]
+    (rec,) = [r for r in caplog.records if r.name == "tracegauge.json_out"]
     assert rec.levelname == "WARNING" and rec.exc_info is not None
     assert rec.exc_info[0] is RuntimeError  # the traceback is kept, not swallowed
 
 
 def test_ok_and_missing_source_reasons(tmp_path: Path) -> None:
-    from tes.cost import load_price_table
-    from tes.json_out import cache_churn_payload_for_path
+    from tracegauge.cost import load_price_table
+    from tracegauge.json_out import cache_churn_payload_for_path
 
     path = _session(tmp_path, {})
     good = cache_churn_payload_for_path(path, load_price_table())
@@ -201,7 +201,7 @@ def test_ok_and_missing_source_reasons(tmp_path: Path) -> None:
 def test_dashboard_helper_reports_internal_error_reason(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tes.web.server import _compute_session_cache_churn
+    from tracegauge.web.server import _compute_session_cache_churn
 
     path = _session(tmp_path, {10: "TTL_GAP"})
 

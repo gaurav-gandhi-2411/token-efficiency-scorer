@@ -16,10 +16,10 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.coach import CAVEAT_SUFFIX, MIN_N_FOR_HABIT, get_habits
-from tes.cost import load_price_table
-from tes.self_baseline import SelfBaselineState, TypeBaseline
-from tes.store import open_db
+from tracegauge.coach import CAVEAT_SUFFIX, MIN_N_FOR_HABIT, get_habits
+from tracegauge.cost import load_price_table
+from tracegauge.self_baseline import SelfBaselineState, TypeBaseline
+from tracegauge.store import open_db
 
 _PRICES = load_price_table()
 
@@ -241,7 +241,7 @@ def test_h1_fires_when_high_resend_group_costs_more(tmp_path: Path) -> None:
     def fake_adapt(path: Path) -> dict:
         return records[str(path)]
 
-    with patch("tes.coach.adapt_session", side_effect=fake_adapt):
+    with patch("tracegauge.coach.adapt_session", side_effect=fake_adapt):
         habits = get_habits(conn, SelfBaselineState(), _PRICES)
 
     h1 = next((h for h in habits if h.habit_id == "H1"), None)
@@ -299,7 +299,11 @@ def test_no_hardcoded_savings_percentage_in_source() -> None:
     interpolation of a computed value, never a bare literal claim like 'save 40%'.
     """
     src = (
-        Path(__file__).resolve().parents[1].joinpath("tes", "coach.py").read_text(encoding="utf-8")
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("tracegauge", "coach.py")
+        .read_text(encoding="utf-8")
     )
     assert not re.search(r"save[s]?\s*~?\d+%", src, re.IGNORECASE)
     assert not re.search(r"\d+%\s*(less|savings|cheaper)", src, re.IGNORECASE)

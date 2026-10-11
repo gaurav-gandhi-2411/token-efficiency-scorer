@@ -27,13 +27,13 @@ import pytest
 # import chain (numpy, scikit-learn, flask): slow on a cold venv, and a crash inside it would be
 # reported as "not installed".
 _PROBE = (
-    "import importlib.util as u; s = u.find_spec('tes'); "
+    "import importlib.util as u; s = u.find_spec('tracegauge'); "
     "print(s.origin if s is not None and s.origin else '')"
 )
 
 
 def installed_package_file(python: str = sys.executable) -> Path | None:
-    """The ``tes/__init__.py`` a fresh subprocess of ``python`` would import, or None.
+    """The ``tracegauge/__init__.py`` a fresh subprocess of ``python`` would import, or None.
 
     ``-I`` ignores the working directory and PYTHON* variables, so only the environment's own
     installation can answer. None means the package is not installed there at all.
@@ -55,7 +55,7 @@ def enforce(
     probe: Callable[[], Path | None] = installed_package_file,
 ) -> None:
     """Exit the pytest session, with an actionable message, if the install is not this checkout's."""
-    pkg = (repo_root / "tes").resolve()
+    pkg = (repo_root / "tracegauge").resolve()
     try:
         found = probe()
     except (subprocess.TimeoutExpired, OSError) as exc:

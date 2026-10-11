@@ -16,15 +16,15 @@ import tempfile
 from unittest.mock import patch
 
 # ── 1. Confirm site-packages (NOT repo) ─────────────────────────────────────
-import tes
+import tracegauge
 
 repo = pathlib.Path(r"C:\Users\USER\ml-projects\token-efficiency-scorer")
-pkg = pathlib.Path(tes.__file__)
+pkg = pathlib.Path(tracegauge.__file__)
 assert repo not in pkg.parents, f"FAIL: still loading from repo: {pkg}"
-print(f"[OK] tes.__file__ = {pkg}  (site-packages, not repo)")
+print(f"[OK] tracegauge.__file__ = {pkg}  (site-packages, not repo)")
 
-assert tes.__version__ == "0.8.0", f"FAIL: version = {tes.__version__}"
-print(f"[OK] tes.__version__ = {tes.__version__}")
+assert tracegauge.__version__ == "0.8.0", f"FAIL: version = {tracegauge.__version__}"
+print(f"[OK] tracegauge.__version__ = {tracegauge.__version__}")
 
 # ── 2. Confirm install came from the index (not a local wheel) ──────────────
 direct_url_path = pkg.parent.parent / "tracegauge-0.8.0.dist-info" / "direct_url.json"
@@ -47,7 +47,7 @@ print(f"[OK] numpy {np.__version__} auto-installed")
 print(f"[OK] scikit-learn {sklearn.__version__} auto-installed")
 
 # ── 4. Route registration: /patterns and /ask in url_map ────────────────────
-import tes.web.server as srv
+import tracegauge.web.server as srv
 
 app = srv.create_app(srv.ServerConfig())
 rules = {str(r) for r in app.url_map.iter_rules() if not str(r).startswith("/static")}
@@ -65,8 +65,8 @@ mock_cache_below_floor = {
     "domain_of_validity": "n/a",
 }
 with (
-    patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache_below_floor),
-    patch("tes.web.server._check_ollama", return_value=False),
+    patch("tracegauge.web.server.get_or_compute_intelligence", return_value=mock_cache_below_floor),
+    patch("tracegauge.web.server._check_ollama", return_value=False),
 ):
     with app.test_client() as c:
         resp = c.get("/patterns")
@@ -77,7 +77,7 @@ assert "Not enough sessions" in html or "not enough" in html.lower(), "FAIL: flo
 print("[OK] GET /patterns → 200 (templates bundled, floor message rendered, Ask panel present)")
 
 # ── 6. Honesty guard: "I don't predict" fires from published artifact ────────
-from tes.intelligence.chat import CHAT_SYSTEM_PROMPT, ChatApiConfig, ask_api
+from tracegauge.intelligence.chat import CHAT_SYSTEM_PROMPT, ChatApiConfig, ask_api
 
 # Verify the guard text is in the system prompt shipped in the wheel
 assert "I don't predict future behavior" in CHAT_SYSTEM_PROMPT, (
@@ -90,7 +90,7 @@ PREDICTION_REFUSAL = (
     "I don't predict future behavior — I only explain what's already measured "
     "in your session history."
 )
-with patch("tes.web.server.ask_local", return_value=PREDICTION_REFUSAL):
+with patch("tracegauge.web.server.ask_local", return_value=PREDICTION_REFUSAL):
     with app.test_client() as c:
         r = c.post(
             "/ask",
@@ -111,13 +111,13 @@ assert result is None, "FAIL: ask_api bypassed consent gate in published wheel"
 print("[OK] ask_api(consent_given=False) → None (consent gate intact in published wheel)")
 
 # ── 7. Sort: list_sessions whitelist + ordering from published wheel ─────────
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
+from tracegauge.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
 
 assert set(_SORT_COLUMN_WHITELIST.keys()) == {"date", "cost", "waste", "tokens", "verdict"}, (
     f"FAIL: sort whitelist keys wrong: {set(_SORT_COLUMN_WHITELIST.keys())}"
@@ -164,7 +164,9 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
 # ── 8. tes --version from installed entry point ──────────────────────────────
 import subprocess
 
-result = subprocess.run([sys.executable, "-m", "tes", "--version"], capture_output=True, text=True)
+result = subprocess.run(
+    [sys.executable, "-m", "tracegauge", "--version"], capture_output=True, text=True
+)
 ver = (result.stdout + result.stderr).strip()
 assert "0.8.0" in ver, f"FAIL: tes --version = {ver!r}"
 print(f"[OK] tes --version: {ver}")

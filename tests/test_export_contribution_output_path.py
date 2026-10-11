@@ -17,7 +17,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 
 from tests.legacy_store import stamp_current
 
@@ -55,7 +55,7 @@ def _insert_minimal_session(conn: sqlite3.Connection, session_id: str) -> None:
 def isolated_store(tmp_path, monkeypatch):
     db_path = tmp_path / "scratch.db"
     monkeypatch.setenv("TES_DB_PATH", str(db_path))
-    from tes.store import open_db
+    from tracegauge.store import open_db
 
     conn = open_db(db_path)
     _insert_minimal_session(conn, "sess-1")

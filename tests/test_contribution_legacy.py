@@ -10,9 +10,9 @@ import json
 from pathlib import Path
 
 import pytest
-import tes.cli as cli
-from tes.contribution import build_contribution_payload
-from tes.store import open_db
+import tracegauge.cli as cli
+from tracegauge.contribution import build_contribution_payload
+from tracegauge.store import open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 

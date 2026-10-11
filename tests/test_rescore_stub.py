@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.legacy import count_legacy
-from tes.store import backfill_waste, open_db
+from tracegauge import cli
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.legacy import count_legacy
+from tracegauge.store import backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 

@@ -12,7 +12,7 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 > **Note — 0.10.2 (live on PyPI since 2026-08-15) was a BREAKING bug-fix release for SDK users.**
 > Unknown/unresolvable models used to silently return a guessed price (defaulting to
 > `claude-sonnet-4-6`'s rate); they now return an explicit unpriced result instead
-> (`priced=False`, `total_usd=0.0`). If you call `tes.cost.compute_turn_cost`/
+> (`priced=False`, `total_usd=0.0`). If you call `tracegauge.cost.compute_turn_cost`/
 > `compute_session_cost` directly and read `total_usd`, see the `[0.10.2]` entry in
 > [CHANGELOG.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/CHANGELOG.md) for the exact migration path if you're upgrading from
 > `0.10.1` or earlier.
@@ -350,9 +350,9 @@ Real output on the maintainer's own transcript (an unpublished local measurement
   66% of additions are from Write/NotebookEdit calls, whose payload never carries the file's PRIOR content -- additions are exact, but a full-file rewrite looks identical to a brand-new file, so this fraction is inherently uncertain in that specific way.
 
 Most-edited files:
-    20 edits  +494/-188  (1 session(s))  tes/cli.py
-    15 edits  +137/-58  (1 session(s))  tes/score.py
-    15 edits  +193/-127  (1 session(s))  tes/intelligence/cache.py
+    20 edits  +494/-188  (1 session(s))  tracegauge/cli.py
+    15 edits  +137/-58  (1 session(s))  tracegauge/score.py
+    15 edits  +193/-127  (1 session(s))  tracegauge/intelligence/cache.py
 ```
 
 **Extraction scope, checked against the maintainer's own local corpus** (883 transcript files, 434,774 lines; an unpublished local measurement): `Edit` (10,175 real occurrences) and `Write` (3,059) are fully supported. `MultiEdit`/`NotebookEdit` are real Claude Code tool names with **zero occurrences in that same real-corpus check** — extraction is written (best-effort, defensive) but every operation from either is flagged internally and surfaced in the output's own inline fraction whenever it contributes to a total, never presented with the same confidence as Edit/Write-derived numbers. `apply_patch`/`str_replace_editor` (Codex/computer-use tool names, not Claude Code ones) are out of scope entirely.
@@ -491,10 +491,10 @@ A conversational explainer, constrained by construction to answer only from the 
 ```python
 from pathlib import Path
 
-from tes import load_baselines, score_session, JudgeConfig
-from tes.adapt import adapt_session
-from tes.baselines import BUNDLED_BASELINES_PATH
-from tes.waste import detect_repeated_failed_retry, detect_redundant_read, build_waste_entry
+from tracegauge import load_baselines, score_session, JudgeConfig
+from tracegauge.adapt import adapt_session
+from tracegauge.baselines import BUNDLED_BASELINES_PATH
+from tracegauge.waste import detect_repeated_failed_retry, detect_redundant_read, build_waste_entry
 
 baselines = load_baselines(BUNDLED_BASELINES_PATH)
 record = adapt_session(Path("path/to/session.jsonl"))  # secrets redacted at ingestion
@@ -504,7 +504,7 @@ turns = record["digest"]["turns"]
 waste_entry = build_waste_entry(session_id, turns)
 
 # Optional: trajectory judge (returns None → UNAVAILABLE when no local judge)
-from tes.judge import score_trajectory
+from tracegauge.judge import score_trajectory
 
 judge_entry = score_trajectory(record)
 

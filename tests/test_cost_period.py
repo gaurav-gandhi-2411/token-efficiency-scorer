@@ -18,14 +18,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.cli import _project_label
-from tes.cost_period import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.cli import _project_label
+from tracegauge.cost_period import (
     _project_label_from_source_path,
     compute_period_cost,
     resolve_period,
 )
-from tes.store import open_db
+from tracegauge.store import open_db
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 

@@ -6,11 +6,11 @@
     python scripts/spdx_headers.py            # add the header where it is missing
     python scripts/spdx_headers.py --check    # exit 1 and list files that lack it
 
-Covers tes/, scripts/ and tests/. The header is two comment lines, placed after any shebang or
+Covers tracegauge/, scripts/ and tests/. The header is two comment lines, placed after any shebang or
 encoding line, so ``from __future__ import annotations`` stays the first non-comment line. Files that
 carry the older "AGPL-3.0-only OR Apache-2.0" dual-licence block get that block replaced.
 
-``tes/_waste_detectors.py`` is skipped on purpose: it is byte-frozen (tests/test_prior_features_intact.py
+``tracegauge/_waste_detectors.py`` is skipped on purpose: it is byte-frozen (tests/test_prior_features_intact.py
 fails on any diff), and the repository LICENSE already covers it.
 """
 
@@ -22,9 +22,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ROOTS = ("tes", "scripts", "tests")
+ROOTS = ("tracegauge", "scripts", "tests")
 # Byte-frozen project invariant; adding a header would trip its own guard test.
-EXCLUDE = frozenset({"tes/_waste_detectors.py"})
+EXCLUDE = frozenset({"tracegauge/_waste_detectors.py"})
 HEADER_LINES = (
     "# Copyright 2026 Gaurav Gandhi",
     "# SPDX-License-Identifier: Apache-2.0",

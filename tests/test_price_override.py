@@ -10,8 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes._digest import TurnDigest
-from tes.cost import compute_turn_cost, load_price_table
+from tracegauge._digest import TurnDigest
+from tracegauge.cost import compute_turn_cost, load_price_table
 
 _CUSTOM_PRICES: dict = {
     "as_of": "2099-01-01",
@@ -59,7 +59,7 @@ def test_home_override_used_when_no_env_var(
 
     monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
 
-    with patch("tes.cost.Path.home", return_value=fake_home):
+    with patch("tracegauge.cost.Path.home", return_value=fake_home):
         table = load_price_table()
 
     assert table["as_of"] == "2099-01-01"
@@ -91,7 +91,7 @@ def test_bundled_table_loads_when_no_override(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
 
     # Ensure ~/.tes/prices.json does not exist by pointing home to a temp dir without it
-    with patch("tes.cost.Path.home", return_value=Path("/nonexistent_temp_home_xyz")):
+    with patch("tracegauge.cost.Path.home", return_value=Path("/nonexistent_temp_home_xyz")):
         table = load_price_table()
 
     assert table["as_of"] == "2026-10-09"

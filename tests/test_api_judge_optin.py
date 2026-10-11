@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from tes.judge import ApiJudgeConfig, score_trajectory_api
+from tracegauge.judge import ApiJudgeConfig, score_trajectory_api
 
 _MINIMAL_RECORD = {
     "session_id": "test-session-optin",
@@ -44,7 +44,7 @@ _MINIMAL_RECORD = {
 def test_api_judge_off_by_default():
     """score_trajectory_api returns None when consent_given=False (no network call)."""
     config = ApiJudgeConfig(api_key="sk-test-key")
-    with patch("tes.judge.httpx.post") as mock_post:
+    with patch("tracegauge.judge.httpx.post") as mock_post:
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=False)
     assert result is None
     mock_post.assert_not_called()
@@ -53,7 +53,7 @@ def test_api_judge_off_by_default():
 def test_consent_gate_blocks_network_call():
     """httpx.post is NEVER called when consent_given=False, regardless of key validity."""
     config = ApiJudgeConfig(api_key="sk-any-key")
-    with patch("tes.judge.httpx.post") as mock_post:
+    with patch("tracegauge.judge.httpx.post") as mock_post:
         score_trajectory_api(_MINIMAL_RECORD, config, consent_given=False)
     mock_post.assert_not_called()
 
@@ -61,7 +61,7 @@ def test_consent_gate_blocks_network_call():
 def test_no_key_returns_none_no_network():
     """Empty api_key returns None without any network call, even with consent."""
     config = ApiJudgeConfig(api_key="")
-    with patch("tes.judge.httpx.post") as mock_post:
+    with patch("tracegauge.judge.httpx.post") as mock_post:
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     assert result is None
     mock_post.assert_not_called()
@@ -79,7 +79,7 @@ def test_consent_given_true_attempts_call():
         ]
     }
     mock_response.raise_for_status = MagicMock()
-    with patch("tes.judge.httpx.post", return_value=mock_response) as mock_post:
+    with patch("tracegauge.judge.httpx.post", return_value=mock_response) as mock_post:
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     mock_post.assert_called_once()
     assert result is not None
@@ -98,7 +98,7 @@ def test_api_call_failure_returns_none():
     import httpx as _httpx
 
     config = ApiJudgeConfig(api_key="sk-key")
-    with patch("tes.judge.httpx.post", side_effect=_httpx.ConnectError("refused")):
+    with patch("tracegauge.judge.httpx.post", side_effect=_httpx.ConnectError("refused")):
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     assert result is None
 
@@ -112,7 +112,7 @@ def test_consent_given_false_even_with_valid_key_no_egress():
         call_count["n"] += 1
         raise AssertionError("httpx.post should never be called without consent")
 
-    with patch("tes.judge.httpx.post", side_effect=counting_post):
+    with patch("tracegauge.judge.httpx.post", side_effect=counting_post):
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=False)
 
     assert result is None

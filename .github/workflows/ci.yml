@@ -53,7 +53,7 @@ jobs:
       # None introduced by this change; same tightening note as lint above.
       - name: Type check (mypy, informational)
         continue-on-error: true
-        run: uv run mypy src/ tes/
+        run: uv run mypy src/ tracegauge/
 
       # Offline half of the release gate (release.yml runs it again with --pypi at tag time): a
       # version that disagrees between pyproject.toml, uv.lock and CHANGELOG fails here, not at release.
@@ -143,13 +143,13 @@ jobs:
 
       - name: quickstart runs and shows a finding
         run: |
-          "$PY" -m tes quickstart | tee "$RUNNER_TEMP/quickstart.txt"
+          "$PY" -m tracegauge quickstart | tee "$RUNNER_TEMP/quickstart.txt"
           grep -q "REPEATED-FAILED-RETRY" "$RUNNER_TEMP/quickstart.txt"
 
       - name: score runs on the bundled sample
         run: |
-          SAMPLE=$("$PY" -c "import pathlib, tes; print(pathlib.Path(tes.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
-          "$PY" -m tes score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
+          SAMPLE=$("$PY" -c "import pathlib, tes; print(pathlib.Path(tracegauge.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
+          "$PY" -m tracegauge score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
           "$PY" -c "import json, sys; d = json.load(open(sys.argv[1], encoding='utf-8')); assert d, 'empty score output'" "$RUNNER_TEMP/score.json"
 
       # An editable install of this checkout (still no extras) satisfies tests/_checkout_guard.py,

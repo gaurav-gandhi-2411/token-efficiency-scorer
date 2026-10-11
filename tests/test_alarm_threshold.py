@@ -13,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
-from tes.alarm_baseline import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.alarm import AlarmConfig, check_alarm, threshold_for_live
+from tracegauge.alarm_baseline import (
     DEFAULT_PERCENTILE,
     TIER_RECENT_ERA_TYPE,
     PoolRow,
@@ -23,9 +23,9 @@ from tes.alarm_baseline import (
     load_pool_rows,
     resolve_threshold,
 )
-from tes.live_monitor import LiveSessionState, score_live_session
-from tes.self_baseline import SelfBaselineState
-from tes.store import open_db
+from tracegauge.live_monitor import LiveSessionState, score_live_session
+from tracegauge.self_baseline import SelfBaselineState
+from tracegauge.store import open_db
 
 DAY = 86400.0
 NOW = 1_800_000_000.0
@@ -245,8 +245,8 @@ def test_monitor_cli_reads_the_store_end_to_end(
     """No seam on the threshold: the store's recent same-era rows decide exit 3 vs 0."""
     import time
 
-    import tes.live_monitor as lm
-    from tes import cli
+    import tracegauge.live_monitor as lm
+    from tracegauge import cli
 
     db = tmp_path / "tes.db"
     conn = open_db(db)
@@ -278,8 +278,8 @@ def test_dashboard_monitor_page_shows_the_threshold_or_the_disabled_reason(
 ) -> None:
     import time
 
-    import tes.live_monitor as lm
-    from tes.web.server import ServerConfig, create_app
+    import tracegauge.live_monitor as lm
+    from tracegauge.web.server import ServerConfig, create_app
 
     db = tmp_path / "tes.db"
     conn = open_db(db)

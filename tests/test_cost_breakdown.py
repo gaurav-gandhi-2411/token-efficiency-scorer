@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""The informational COST BREAKDOWN (tes/takeaway.py, `tes score`, `score --json`).
+"""The informational COST BREAKDOWN (tracegauge/takeaway.py, `tes score`, `score --json`).
 
 Dollars and share of priced cost per bucket. It is a breakdown, not a finding: the tests pin that
 the buckets partition the total, that unpriced models are named instead of read as $0.00, and
@@ -15,9 +15,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.attribution import AttributionResult
-from tes.takeaway import BREAKDOWN_LABEL, build_cost_breakdown, format_cost_breakdown_lines
+import tracegauge.cli as cli
+from tracegauge.attribution import AttributionResult
+from tracegauge.takeaway import BREAKDOWN_LABEL, build_cost_breakdown, format_cost_breakdown_lines
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"

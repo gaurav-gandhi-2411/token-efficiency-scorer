@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import rebuild_baselines as rb  # noqa: E402
-from tes.adapt import ADAPTER_VERSION  # noqa: E402
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION  # noqa: E402
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines  # noqa: E402
 
 
 def test_shipped_baseline_is_exactly_what_the_manifest_builds() -> None:

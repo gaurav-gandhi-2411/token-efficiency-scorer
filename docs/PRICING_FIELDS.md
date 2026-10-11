@@ -1,14 +1,14 @@
 # Pricing fields: what Claude Code transcripts carry vs what tracegauge prices
 
 Every key path under `message.usage` of an assistant record, mapped to the dimension on Anthropic's
-pricing page, whether `tes.cost` prices it, and the evidence. The machine-readable twin is
+pricing page, whether `tracegauge.cost` prices it, and the evidence. The machine-readable twin is
 `config/usage_field_rules.json`; `scripts/check_usage_fields_priced.py` fails when a transcript (or the
 committed fixture `tests/fixtures/usage_fields/`) carries a key path or a value that this registry does
 not list (see "The gate" below).
 
 **Source of the rules.** `https://platform.claude.com/docs/en/about-claude/pricing.md`, retrieved
 2026-10-10T11:34:51Z (HTTP 200, 50,272 bytes), sha256
-`67904e280b595d31f373c857844ed380072ae79d280d8f385640b5992d337ca9`. The table in `tes/data/prices.json`
+`67904e280b595d31f373c857844ed380072ae79d280d8f385640b5992d337ca9`. The table in `tracegauge/data/prices.json`
 (token rates, cache columns, fast-mode rates, the `inference_geo` multiplier and the web-search price) is
 verified against that page by `scripts/check_price_table_vs_vendor.py`; the rules below describe the same
 page. Page sections used: "Model pricing", "Prompt caching", "Data residency pricing", "Fast mode pricing",
@@ -27,7 +27,7 @@ record that does carry one is billed correctly, not because they moved a total.
 
 | usage key path | records (main / sub) | non-zero (main / sub) | pricing page rule | implemented? | evidence |
 |---|---|---|---|---|---|
-| `input_tokens` | 32,761 / 82,425 | 32,692 / 82,385 | base input rate | yes | `tes.cost.compute_turn_cost` |
+| `input_tokens` | 32,761 / 82,425 | 32,692 / 82,385 | base input rate | yes | `tracegauge.cost.compute_turn_cost` |
 | `output_tokens` | 32,761 / 82,425 | 32,692 / 82,385 | output rate (thinking tokens are output) | yes | same |
 | `cache_read_input_tokens` | 32,761 / 82,425 | 32,692 / 81,517 | input x 0.1 (0.05 Opus/Sonnet 5.5, 0.025 Fable/Mythos 5.1) | yes (per-model `cache_read_multiplier`) | `tests/test_cost_math.py`, `prices.json` |
 | `cache_creation_input_tokens` | 32,761 / 82,425 | 32,683 / 82,378 | = 5m + 1h writes | yes (as the sum of the two rows below) | 5m + 1h == total on 57,651 of 57,651 deduped messages with the breakdown (100.0%) |
@@ -45,7 +45,7 @@ record that does carry one is billed correctly, not because they moved a total.
 
 ## What is priced for the three dimensions, and the decisions behind it
 
-Rates live in `tes/data/prices.json`; the formula is `tes.cost.compute_turn_cost`; `COST_VERSION` is 3.
+Rates live in `tracegauge/data/prices.json`; the formula is `tracegauge.cost.compute_turn_cost`; `COST_VERSION` is 3.
 
 **Web search.** `usage.server_tool_use.web_search_requests` x $10 / 1,000 = $0.01 per search, added to the turn
 on top of the token cost. The page: "Web search is available on the Claude API for $10 per 1,000 searches, plus
@@ -79,7 +79,7 @@ disagrees.
 
 **Batch does not apply to Claude Code transcripts.** No usage field carries it, Claude Code does not use the
 Batch API, and the page says fast mode is not available with Batch, so the 0.5x discount is never part of a
-Claude Code bill. It is stated that way in `tes.cost.UNMODELLED_BILLING` ("does not apply to Claude Code
+Claude Code bill. It is stated that way in `tracegauge.cost.UNMODELLED_BILLING` ("does not apply to Claude Code
 transcripts") rather than listed as a gap. Managed-Agents session runtime and the Bedrock/Vertex regional prices
 are likewise not derivable from a Claude Code transcript.
 
@@ -153,8 +153,8 @@ full context window and no fast model is tiered.
 a key path is not in `config/usage_field_rules.json`, or when a guarded field takes a value outside the registry's
 allowed set: `speed` in {`standard`, `fast`}, `inference_geo` in {`not_available`, `global`, `us`},
 `service_tier` = `standard`, `fallback_credit` null. A made-up `speed` such as `turbo`, another region, or a
-non-standard tier fails because `tes.cost` would price it as standard without knowing. Exit 2 means nothing
+non-standard tier fails because `tracegauge.cost` would price it as standard without knowing. Exit 2 means nothing
 could be scanned ("could not check" is never a pass). CI runs it over the committed fixture
 (`tests/test_usage_fields_priced.py`); the real-transcript scan is a pre-release step (RELEASING.md).
-When it fails: price the field in `tes/cost.py`, or register it as `free` / `ignored` with a reason, and add the
+When it fails: price the field in `tracegauge/cost.py`, or register it as `free` / `ignored` with a reason, and add the
 row above in the same change.

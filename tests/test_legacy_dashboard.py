@@ -12,9 +12,9 @@ from pathlib import Path
 
 import pytest
 from flask.testing import FlaskClient
-from tes.legacy import LEGACY_ROW_LABEL
-from tes.store import open_db
-from tes.web.server import ServerConfig, create_app
+from tracegauge.legacy import LEGACY_ROW_LABEL
+from tracegauge.store import open_db
+from tracegauge.web.server import ServerConfig, create_app
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 

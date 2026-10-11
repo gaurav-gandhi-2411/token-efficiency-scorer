@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from measure_subagent_spend import _deduped_main_turns, measure
-from tes.cost import load_price_table
+from tracegauge.cost import load_price_table
 
 
 def _rec(mid: str, out: int, *, sidechain: bool = False) -> dict:

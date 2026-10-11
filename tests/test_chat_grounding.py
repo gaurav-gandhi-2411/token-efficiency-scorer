@@ -18,7 +18,7 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-from tes.intelligence.chat import (
+from tracegauge.intelligence.chat import (
     CHAT_EGRESS_NOTICE,
     CHAT_SYSTEM_PROMPT,
     ChatApiConfig,
@@ -166,7 +166,7 @@ class TestNoCodeEgress:
 
     def test_session_summary_no_file_paths(self):
         """_summarize_session must not include source_path."""
-        from tes.intelligence.chat import _summarize_session
+        from tracegauge.intelligence.chat import _summarize_session
 
         fake_row = {
             "session_id": "abcd1234-5678-9012-3456-789012345678",
@@ -192,7 +192,7 @@ class TestNoCodeEgress:
 
     def test_session_summary_uses_partial_id(self):
         """Session ID in context should be truncated (not full UUID)."""
-        from tes.intelligence.chat import _summarize_session
+        from tracegauge.intelligence.chat import _summarize_session
 
         fake_row = {
             "session_id": "abcd1234-5678-9012-3456-789012345678",
@@ -291,9 +291,9 @@ class TestApiConsentGate:
 
     def test_ask_local_returns_none_when_ollama_down(self):
         """ask_local should return None gracefully when Ollama is not reachable."""
-        from tes.intelligence.chat import ask_local
+        from tracegauge.intelligence.chat import ask_local
 
-        with patch("tes.intelligence.chat._probe_ollama_models", return_value=[]):
+        with patch("tracegauge.intelligence.chat._probe_ollama_models", return_value=[]):
             result = ask_local("What are my session patterns?")
         assert result is None
 
@@ -330,7 +330,7 @@ class TestContextFormatUnambiguous:
         build_cache_from_results() produces) tests the same formatting contract
         deterministically, everywhere, with no DB access at all.
         """
-        from tes.intelligence.cache import format_intelligence_summary
+        from tracegauge.intelligence.cache import format_intelligence_summary
 
         synthetic_cache = {
             "valid": True,
@@ -409,7 +409,7 @@ class TestContextFormatUnambiguous:
 
     def test_small_corpus_summary_no_archetype_claims(self) -> None:
         """format_intelligence_summary on an invalid cache must not mention archetypes."""
-        from tes.intelligence.cache import format_intelligence_summary
+        from tracegauge.intelligence.cache import format_intelligence_summary
 
         small_cache = {
             "valid": False,

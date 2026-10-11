@@ -14,7 +14,7 @@ Same synthetic-JSONL fixture pattern as test_server_tool_warning.py.
 import json
 from pathlib import Path
 
-from tes.adapt import adapt_session
+from tracegauge.adapt import adapt_session
 
 
 def _write_session_jsonl(path: Path, assistant_content: list[dict]) -> None:
@@ -95,7 +95,7 @@ def test_adapt_session_extracts_write_tool_call(tmp_path: Path) -> None:
 
 def test_adapt_session_with_no_edit_tools_returns_empty_list_not_none(tmp_path: Path) -> None:
     """Distinguishes 'ran, made no edits' ([]) from 'never ran this
-    extraction at all' (a missing key or None) -- see tes.score's docstring
+    extraction at all' (a missing key or None) -- see tracegauge.score's docstring
     on edit_operations for why this distinction matters for legacy rows."""
     session_path = tmp_path / "read-only-session.jsonl"
     _write_session_jsonl(

@@ -18,13 +18,13 @@ import time
 from pathlib import Path
 
 import pytest
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
+from tracegauge.store import _SORT_COLUMN_WHITELIST, list_sessions, open_db, upsert_session
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -185,7 +185,7 @@ class TestSortWhitelist:
 
 @pytest.fixture()
 def flask_app(seeded_db: Path):
-    from tes.web.server import ServerConfig, create_app
+    from tracegauge.web.server import ServerConfig, create_app
 
     cfg = ServerConfig(db_path=seeded_db)
     app = create_app(cfg)

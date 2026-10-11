@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.web.server import ServerConfig, create_app
+import tracegauge.cli as cli
+from tracegauge.web.server import ServerConfig, create_app
 
 from tests.churn_synth import build_chain
 

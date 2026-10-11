@@ -33,10 +33,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tes._digest import TurnDigest, reconstruct_digest
-from tes.adapt import _message_dedup_key, _parse_usage, _read_jsonl, adapt_session
-from tes.cost import compute_turn_cost, load_price_table
-from tes.discovery import SUBAGENTS_DIRNAME, iter_session_files
+from tracegauge._digest import TurnDigest, reconstruct_digest
+from tracegauge.adapt import _message_dedup_key, _parse_usage, _read_jsonl, adapt_session
+from tracegauge.cost import compute_turn_cost, load_price_table
+from tracegauge.discovery import SUBAGENTS_DIRNAME, iter_session_files
 
 
 @dataclass
@@ -149,7 +149,7 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
     lines = [
         "# Item 1d: spend invisible before subagent roll-up",
         "",
-        f"Price table: bundled `tes/data/prices.json`, as_of `{prices.get('as_of')}`. USD counts "
+        f"Price table: bundled `tracegauge/data/prices.json`, as_of `{prices.get('as_of')}`. USD counts "
         "priced turns only; tokens of models missing from the table are listed separately and "
         "are NOT in any USD figure (so USD is a floor wherever a model is flagged).",
         "",

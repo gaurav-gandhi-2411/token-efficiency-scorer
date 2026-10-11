@@ -22,7 +22,7 @@ turn `t` (one API response, de-duplicated by `message.id`) is an event when all 
 
 Turn 0 of a chain has no predecessor and is never an event. A big read of a new file with the old
 prefix intact fails condition 2 and is not an event: that is growth, not churn. The constants are
-named in `tes/cache_churn.py` (`MIN_PREFIX_TOKENS`, `READ_DROP_RATIO`, `REWRITE_SHARE`). On the
+named in `tracegauge/cache_churn.py` (`MIN_PREFIX_TOKENS`, `READ_DROP_RATIO`, `REWRITE_SHARE`). On the
 maintainer's own sessions the ratio `cache_read(t) / C(t-1)` was bimodal (nothing between 0.3 and
 0.9), so the event set barely moves with the thresholds (the maintainer's unpublished local
 measurement: -2.1% / +0.2% events when all three were made stricter / looser together).
@@ -54,7 +54,7 @@ inferred from the most recent turn that wrote to the cache and records the 5-min
 of its writes (`usage.cache_creation`): 1 hour if at least half of its writes were 1-hour writes,
 otherwise 5 minutes. Turns without that split are never assumed to be 5-minute writes; if the chain
 has no turn with the split at all, the lifetime is unknown (see Limits). A gap is over the lifetime when it is strictly greater than
-it (`TTL_GRACE_S` in `tes/cache_churn.py` can add a margin; the default is 0, the documented
+it (`TTL_GRACE_S` in `tracegauge/cache_churn.py` can add a margin; the default is 0, the documented
 boundary). Transcript timestamps are when records were written, not when requests arrived, so the
 5-minute edge is blurred over roughly 300 to 360 seconds: on the maintainer's snapshot a 30 s grace
 would move some `TTL_GAP` events with a gap in (300, 330] s to `UNEXPLAINED` (the maintainer's

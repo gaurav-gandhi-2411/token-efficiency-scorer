@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT))
 
 import gen_synthetic_fixtures as gen  # noqa: E402
 from efficiency_score import load_baselines, score_session  # noqa: E402
-from tes.waste import build_waste_entry  # noqa: E402
+from tracegauge.waste import build_waste_entry  # noqa: E402
 
 FIXTURE_FILES = (
     "synthetic_pool.jsonl",

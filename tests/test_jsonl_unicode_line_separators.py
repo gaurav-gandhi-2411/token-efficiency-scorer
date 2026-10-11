@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes._digest import reconstruct_digest
-from tes.adapt import _read_jsonl, adapt_session
-from tes.store import _count_turns_from_jsonl
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import _read_jsonl, adapt_session
+from tracegauge.store import _count_turns_from_jsonl
 
 SEPARATORS = ["\u2028", "\u2029", "\u0085"]  # \x0b-\x1e are escaped by json.dumps
 

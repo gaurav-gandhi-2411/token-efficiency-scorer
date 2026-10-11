@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -149,7 +149,7 @@ def test_waste_finding_fires_through_the_real_pipeline(
     """The bundled sample has one retry loop worth ~$0.04: below the shipped threshold (quiet),
     above a lowered one (finding with dollars), so the wiring from waste events to the finding
     is exercised end to end without hand-building a $0.50 loop."""
-    import tes.takeaway as takeaway
+    import tracegauge.takeaway as takeaway
 
     out, _ = _run(monkeypatch, capsys, ["quickstart"])
     assert "LEVER" not in out  # shipped thresholds: quiet

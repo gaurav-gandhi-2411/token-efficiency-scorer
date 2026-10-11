@@ -16,13 +16,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes
-from tes._digest import SessionDigest, TurnDigest
-from tes.adapt import adapt_session, collect_subagent_usage
-from tes.cost import compute_session_cost, compute_turn_cost
+import tracegauge
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.adapt import adapt_session, collect_subagent_usage
+from tracegauge.cost import compute_session_cost, compute_turn_cost
 
 PRICES: dict[str, Any] = json.loads(
-    (Path(tes.__file__).parent / "data" / "prices.json").read_text(encoding="utf-8")
+    (Path(tracegauge.__file__).parent / "data" / "prices.json").read_text(encoding="utf-8")
 )
 
 
@@ -207,7 +207,7 @@ def test_adapt_dedupes_message_id_with_per_field_max_and_prices_1h(tmp_path: Pat
         ],
     )
     record = adapt_session(session)
-    from tes._digest import reconstruct_digest
+    from tracegauge._digest import reconstruct_digest
 
     sc = compute_session_cost(reconstruct_digest(record["digest"]), PRICES)
     # m1: 0.6M@$5 + 0.4M@$8 = 6.20 ; m2: 0.5M@$5 = 2.50 ; plus 1 fresh-in/1 out token each
@@ -218,7 +218,7 @@ def test_adapt_dedupes_message_id_with_per_field_max_and_prices_1h(tmp_path: Pat
     assert sum(t["cache_creation_tier_known"] for t in ai) == 1_000_000
     assert sum(t["cache_creation"] for t in ai) == 1_500_000
     assert sc.cache_write_unspecified_tokens == 500_000
-    from tes.adapt import COST_VERSION
+    from tracegauge.adapt import COST_VERSION
 
     assert record["cost_version"] == COST_VERSION
 
@@ -261,8 +261,8 @@ def test_backfill_reprices_rows_with_stale_cost_version_only(tmp_path: Path) -> 
     import shutil
     import sqlite3
 
-    from tes.adapt import ADAPTER_VERSION, COST_VERSION
-    from tes.store import backfill_waste, open_db
+    from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+    from tracegauge.store import backfill_waste, open_db
 
     fixture = Path(__file__).parent / "fixtures" / "usage_dedupe" / "multi_block_session.jsonl"
     src = tmp_path / "proj" / "sess-1.jsonl"

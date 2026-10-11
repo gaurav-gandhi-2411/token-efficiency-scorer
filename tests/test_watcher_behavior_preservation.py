@@ -14,10 +14,10 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.score import score_session
-from tes.waste import build_waste_entry
-from tes.watcher import score_session_file
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.score import score_session
+from tracegauge.waste import build_waste_entry
+from tracegauge.watcher import score_session_file
 
 
 def _load_first_adapted_record() -> dict:
@@ -42,7 +42,7 @@ def test_watcher_behavior_preservation(tmp_path: Path) -> None:
     fake_path = tmp_path / f"{session_id}.jsonl"
     fake_path.write_bytes(b"{}")  # content irrelevant — adapt is mocked
 
-    with patch("tes.watcher.adapt_session", return_value=record):
+    with patch("tracegauge.watcher.adapt_session", return_value=record):
         actual = score_session_file(fake_path, baselines, use_judge=False)
 
     assert actual is not None, "score_session_file returned None unexpectedly"

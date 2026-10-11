@@ -2,7 +2,7 @@
 
 Every `tracegauge` / `tes` command exits with one of these codes. They are a contract for scripts,
 Claude Code hooks and CI: new codes may be added, existing ones are never renumbered. The same
-table is in each command's `--help` epilog. The constants live in `tes/exit_codes.py`.
+table is in each command's `--help` epilog. The constants live in `tracegauge/exit_codes.py`.
 
 | Code | Meaning | Commands |
 |---:|---|---|

@@ -19,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import rebuild_baselines as rb  # noqa: E402
-from tes.adapt import ADAPTER_VERSION  # noqa: E402
-from tes.score import _score_session_impl  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION  # noqa: E402
+from tracegauge.score import _score_session_impl  # noqa: E402
 
 
 def _entry(
@@ -224,7 +224,7 @@ def test_build_writes_lf_only_so_the_hash_is_platform_independent(
     assert b"\r" not in built
     # Compare to the committed file with any checkout-time CRLF translation undone (a Windows
     # working tree with core.autocrlf=true holds CRLF; git's blob is LF).
-    committed = (rb.REPO_ROOT / "tes" / "data" / "cc_baselines.json").read_bytes()
+    committed = (rb.REPO_ROOT / "tracegauge" / "data" / "cc_baselines.json").read_bytes()
     committed = committed.replace(b"\r\n", b"\n")
     assert hashlib.sha256(built).hexdigest() == hashlib.sha256(committed).hexdigest()
     payload = json.loads(built)
