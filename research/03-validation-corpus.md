@@ -68,7 +68,7 @@ We sourced 15 sessions from two out-of-distribution datasets:
 | `zai-org/CC-Bench-trajectories` | 10 | `claude_code` | frontend_development, app_development, ui_optimization, build_deployment, data_analysis |
 | Synthetic (constructed) | 5 | `claude_code` | data_analysis, TypeScript refactor, shell scripting, docs update, Go bug fix |
 
-CC-Bench contains 370 real Claude Code sessions with structured tool calls (Claude Code session JSON format), token totals, and tool call counts. Licenses: CC-BY-4.0 (CC-Bench), CC0 (synthetic).
+CC-Bench contains 370 real Claude Code sessions with structured tool calls (Claude Code session JSON format), token totals, and tool call counts. Licenses: MIT (CC-Bench, per its dataset card; an earlier version of this note said CC-BY-4.0), CC0 (synthetic).
 
 ---
 
@@ -382,4 +382,4 @@ python scripts/06_evaluate_ood.py
 2. Yang, J., et al. (2026). SWE-ABS: Unifying the Evaluation of AI Software Engineering Agents. arXiv:2603.00520
 3. Tang, X., et al. (2024). AgentDiet: Improving the Efficiency of LLM-based Agents via Diet Strategy. arXiv:2509.23586
 4. Wang, P., et al. (2024). Math-Shepherd: Verify and Reinforce LLMs Step-by-step without Human Annotations. arXiv:2312.08935
-5. CC-Bench-trajectories. zai-org/CC-Bench-trajectories. HuggingFace Datasets. CC-BY-4.0.
+5. CC-Bench-trajectories. zai-org/CC-Bench-trajectories. HuggingFace Datasets. MIT (per the dataset card).

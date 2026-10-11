@@ -125,7 +125,7 @@ def _normalize_ccbench_session(row: dict, idx: int) -> dict | None:
         "source_dataset": "zai-org/CC-Bench-trajectories",
         "scaffold": "claude_code",
         "model": model,
-        "license": "CC-BY-4.0",
+        "license": "MIT",
         "instance_id": f"ccbench__{task_id}",
         "ood_source": "zai-org/CC-Bench-trajectories",
         "ood_task_category": category,
