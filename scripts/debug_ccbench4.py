@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Inspect CC-Bench Claude Code session turn structure."""
 
 from __future__ import annotations

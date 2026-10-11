@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_prices_vs_litellm.py — OPTIONAL, NON-FATAL cross-check of the price table
 against LiteLLM's community price file.
 

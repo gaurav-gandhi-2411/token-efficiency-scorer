@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """generalization_run.py — B5 generalization run: frozen waste detectors on SWE-chat public data.

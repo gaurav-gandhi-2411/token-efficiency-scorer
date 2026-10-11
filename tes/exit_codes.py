@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tes/exit_codes.py -- the CLI's process exit codes, documented in docs/EXIT_CODES.md.

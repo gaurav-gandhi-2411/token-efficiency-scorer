@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Debug tool_use content in normalized traces."""
 
 from __future__ import annotations

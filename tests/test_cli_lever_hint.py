@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """`tes score` prints a neutral COST BREAKDOWN and, rarely, an absolute LEVER finding.

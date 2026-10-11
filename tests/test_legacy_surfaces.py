@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Legacy rows (scored before 0.15) on `impact`, `patterns` and `ask`: their aggregates leave

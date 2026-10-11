@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """usage.speed / usage.inference_geo reach TurnDigest, and a subagent aggregate never mixes

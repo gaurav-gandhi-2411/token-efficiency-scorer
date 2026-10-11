@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Check instance_id, first-turn content, and patch_diff stats."""
 
 from __future__ import annotations

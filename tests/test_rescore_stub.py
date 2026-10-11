@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Empty-stub legacy rows (0 turns, 0 real tokens, a transcript with no usage) can never be

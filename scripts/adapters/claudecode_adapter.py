@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 # NOTE (2026-10): this FROZEN research adapter still sums usage per assistant RECORD, which

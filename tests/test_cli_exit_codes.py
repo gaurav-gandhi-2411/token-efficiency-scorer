@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Exit codes are a contract (docs/EXIT_CODES.md): scripts and hooks branch on them (W1A item 6).

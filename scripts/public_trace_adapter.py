@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """public_trace_adapter.py — Adapt SWE-chat public trajectory data to the layer1_outputs digest schema.

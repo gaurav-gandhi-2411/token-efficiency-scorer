@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Every place tracegauge's version lives must agree, with no hardcoded copy to go stale.
 
 ``pyproject.toml`` ``[project].version`` is the single source. ``tes.__version__`` is read from the

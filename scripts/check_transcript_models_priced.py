@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_transcript_models_priced.py — fail when a model id that appears in real Claude
 Code transcripts cannot be priced by the bundled price table.
 

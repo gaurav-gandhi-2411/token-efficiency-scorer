@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/verify_swechat_pathb.py — GUARDRAIL 4: confirm PATH-B now fires on SWE-chat CC sessions.

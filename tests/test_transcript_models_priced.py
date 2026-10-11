@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Always-on CI guard (and unit tests) for scripts/check_transcript_models_priced.py.
 
 CI has no real transcripts, so the fixture tests/fixtures/transcript_models/ is a committed,

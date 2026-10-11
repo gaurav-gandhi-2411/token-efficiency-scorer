@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Rebuild tes/data/cc_baselines.json on the adapter_version-2 scale (usage counted once).

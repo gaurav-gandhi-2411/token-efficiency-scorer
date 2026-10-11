@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """A raw U+2028/U+0085 inside a JSON string must not split (and so drop) a JSONL record.

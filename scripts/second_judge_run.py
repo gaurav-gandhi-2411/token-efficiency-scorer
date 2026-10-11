@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 second_judge_run.py — Gemma3-27B second judge for cross-model corroboration.
 

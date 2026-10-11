@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_attribution_reconcile.py — Invariant: all 6 token buckets sum to total_billed_tokens.

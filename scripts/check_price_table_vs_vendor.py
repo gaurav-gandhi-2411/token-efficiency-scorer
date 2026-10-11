@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_price_table_vs_vendor.py — fetches Anthropic's own published pricing
 page and compares it, in BOTH directions, against this repo's price table
 (tes/data/prices.json).

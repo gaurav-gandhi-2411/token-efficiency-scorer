@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Post-publish verification for tracegauge 0.8.0 — runs from REAL PyPI install.
 
 Confirms: site-packages (not repo), /patterns 200, /ask honesty guard,

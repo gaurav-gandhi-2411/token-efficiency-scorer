@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Pins for the shipped adapter-v2 baseline: it must be exactly what eval/manifest.json builds."""

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 10_remeasure_heuristics.py  — Phase A.1 heuristic F1 remeasurement
 
