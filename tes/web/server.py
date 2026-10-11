@@ -71,6 +71,26 @@ def _compute_session_attribution(
         return None
 
 
+def _compute_session_cache_churn(
+    session: dict[str, object], prices: dict[str, object]
+) -> dict[str, object]:
+    """Cache-churn payload for a session, computed on demand from its source JSONL.
+
+    Same object as `score --json`'s `cache_churn`; status "unavailable" (figures null) when the
+    transcript is missing or unreadable, never an exception.
+    """
+    from tes.cache_churn import analyze_session  # noqa: PLC0415
+    from tes.json_out import cache_churn_payload  # noqa: PLC0415
+
+    source_path = session.get("source_path")
+    try:
+        if isinstance(source_path, str) and Path(source_path).exists():
+            return cache_churn_payload(analyze_session(Path(source_path), prices))
+    except Exception:
+        pass
+    return cache_churn_payload(None)
+
+
 def _build_attribution_rows(attr: AttributionResult) -> list[dict]:
     """Build attribution table rows sorted by cost% descending."""
     tb = attr.total_billed_tokens
@@ -412,6 +432,7 @@ def create_app(config: ServerConfig) -> Flask:
         attribution_takeaway = build_lever_hint(attribution, unpriced) if attribution else None
         cost_breakdown = build_cost_breakdown(attribution, unpriced) if attribution else None
         attribution_rows = _build_attribution_rows(attribution) if attribution else None
+        cache_churn = _compute_session_cache_churn(session, _prices)
 
         return render_template(
             "session_detail.html",
@@ -429,6 +450,7 @@ def create_app(config: ServerConfig) -> Flask:
             cost_breakdown=cost_breakdown,
             breakdown_note=BREAKDOWN_NOTE,
             attribution_rows=attribution_rows,
+            cache_churn=cache_churn,
         )
 
     @app.route("/trends")
