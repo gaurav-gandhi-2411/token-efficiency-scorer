@@ -49,7 +49,7 @@ previous behaviour (the verdict self-baseline's p75) for existing callers; every
 
 The alarm used to compare against `self_baseline`'s p75, which is the p75 of the **lean half** of your waste-free
 sessions over all time. That number sits near your overall median, so the alarm fired on most sessions: a
-retrospective run over a real user's 50 most recent sessions (the maintainer's 50 most recent sessions, old accounting, a stale store) fired
+retrospective run over 50 of the maintainer's sessions (old accounting, a stale store) fired
 on **40/50 = 80%** (an earlier unpublished local measurement of `check_alarm` over `score_live_session`; not re-run here, old
 accounting no longer exists). It also mixed model eras, and its rows were inflated by the usage double-count.
 Under the corrected accounting the old design is mostly silent instead: on the same 50 sessions its
@@ -58,7 +58,7 @@ on a copy of the maintainer's store, 0/50 because all 1,452 rows are stale. Neit
 
 ## How the percentile was chosen (data)
 
-Setting: the 50 most recent main sessions of one developer (the maintainer; the transcripts are not published, the method is `tes.alarm_baseline`, so these figures are an unpublished local measurement). 48 have tokens; one more was
+Setting: 50 main sessions of one developer (the maintainer; the transcripts are not published, the method is `tes.alarm_baseline`, so these figures are an unpublished local measurement). 48 have tokens; one more was
 extracted with 0 tokens and one has no assistant usage at all, so 49 sessions were extracted and the 2 that cannot
 exceed any threshold count as "no fire" in the denominator of 50. Counts below written "of 49" are over the 49
 extracted sessions (the 0-token one is placed in the `recent` tier, giving 9 rather than 8 there). Each finished session is scored once as if it were the live

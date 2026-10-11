@@ -21,7 +21,7 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (~2.4x too high)
+## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
 
 Measurements and migration detail: [docs/releases/0.15.0.md](docs/releases/0.15.0.md). Figures called "the
 maintainer's" are unpublished local measurements on the maintainer's own transcripts.
@@ -77,7 +77,7 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
 - **The live alarm is the p85 of your own last 30 days of sessions in the same model era**, falls back to a
   documented chain, and says what it used; `tes monitor` exits 3 when it fires. [docs/ALARM.md](docs/ALARM.md).
 - **`--json` on `cost`, `budget`, `monitor`, `impact` and `patterns`** (with `score`): `schema_version`, `command`
-  and `legacy_rows_excluded` in every document, fixed key sets. [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+  and `legacy_rows_excluded` in every document emitted, fixed key sets. [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
 - **`cost --roi --plan-config PATH` exits 1 when PATH does not exist** (it printed "no plan configured" and exited
   0). [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
 - **`tes rescore [--dry-run] [--json] [--limit N]`** recovers legacy rows whose transcript still exists; a first
@@ -96,7 +96,7 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
 - **The JSONL reader no longer drops records containing U+2028, U+2029 or U+0085.**
   [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
 - **CI runs the suite on Linux, macOS and Windows x Python 3.10-3.13 plus four core-only legs; the coverage floor
-  is 86** (86.70% measured on the GitHub runner). [docs/CI.md](docs/CI.md).
+  is 86** (86.70% measured on the GitHub runner, CI run 38091475996). [docs/CI.md](docs/CI.md).
 - **README example blocks are generated:** every `tes cost`, `cost --roi`, `budget`, `monitor` and `ask` example
   is this version's output on synthetic sessions from
   [`scripts/gen_readme_examples.py`](scripts/gen_readme_examples.py), pinned by `tests/test_readme_examples.py`;
