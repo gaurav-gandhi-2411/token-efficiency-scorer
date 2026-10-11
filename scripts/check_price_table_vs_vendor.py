@@ -15,7 +15,16 @@ PAGE and fails when:
     columns are compared against the table's own multipliers, per-model overrides included);
 (c) a non-retired table entry is no longer on the page;
 (d) a tiered model (Haiku 5.5's "for prompts up to/over N tokens" rows) disagrees with the
-    table's ``long_context`` block, or the table has/lacks a tier the page lacks/has.
+    table's ``long_context`` block, or the table has/lacks a tier the page lacks/has;
+(e) the page's "Fast mode pricing" table disagrees with the table's per-model
+    ``fast_input_usd_per_mtok`` / ``fast_output_usd_per_mtok`` (a model with fast rates on only
+    one side is a mismatch);
+(f) the page's "Data residency pricing" rule ("Claude X.Y and later" models get an Nx multiplier
+    for ``inference_geo: "us"``) disagrees with which table models carry ``geo_us_multiplier``,
+    or with its value -- eligibility is derived from the model key's version, not hard-coded;
+(g) the page's web-search price ("$N per 1,000 searches") disagrees with
+    ``server_tool_rates.web_search_usd_per_1000``.
+A page that lacks any of those three sections (or has an ambiguous one) is COULD NOT VERIFY.
 
 TWO DISTINCT FAILURE MODES, never conflated:
 1. COULD NOT VERIFY -- the page could not be fetched or parsed, or parsed to zero models, or a
@@ -299,6 +308,159 @@ def compare_table(
     return missing, mismatches, stale
 
 
+@dataclass(frozen=True)
+class VendorModifiers:
+    """The page's billing modifiers beyond the per-model token table."""
+
+    web_search_per_1000: float
+    fast: dict[str, tuple[float, float]]  # model key -> (input, output) USD per MTok
+    geo_us_multiplier: float
+    geo_min_version: tuple[int, int]  # "Claude X.Y and later models"
+
+
+def _section(md: str, heading: str) -> str:
+    """Text of the section whose heading line contains ``heading``, up to the next heading."""
+    lines = md.splitlines()
+    for i, line in enumerate(lines):
+        if line.startswith("#") and heading in line:
+            body: list[str] = []
+            for nxt in lines[i + 1 :]:
+                if nxt.startswith("#"):
+                    break
+                body.append(nxt)
+            return "\n".join(body)
+    raise FetchError(f"'{heading}' section not found")
+
+
+def parse_vendor_modifiers(md: str) -> VendorModifiers:
+    """Web-search price, fast-mode rates and the data-residency rule from the page.
+
+    Raises FetchError (never returns defaults) when a section is missing, a number is
+    unreadable or the page states the web-search price inconsistently.
+    """
+    prices_found = {
+        m.group(1).replace(",", "")
+        for m in re.finditer(r"\$\s*([\d,]+(?:\.\d+)?)\s+per\s+1,000\s+searches", md)
+    }
+    if len(prices_found) != 1:
+        raise FetchError(f"web search price not found exactly once: {sorted(prices_found)}")
+
+    fast: dict[str, tuple[float, float]] = {}
+    column_index: dict[str, int] | None = None
+    for line in _section(md, "Fast mode pricing").splitlines():
+        if not line.strip().startswith("|"):
+            continue
+        cells = _split_row(line)
+        if set("".join(cells)) <= {"-", ":", " "}:
+            continue
+        if column_index is None:
+            lowered = [c.lower() for c in cells]
+            if lowered[0] != "model" or "input" not in " ".join(lowered):
+                continue
+            try:
+                column_index = {
+                    "input": next(i for i, c in enumerate(lowered) if "input" in c),
+                    "output": next(i for i, c in enumerate(lowered) if "output" in c),
+                }
+            except StopIteration as e:
+                raise FetchError(f"fast mode table lacks an input/output column: {cells}") from e
+            continue
+        rates: list[float] = []
+        for field_name in ("input", "output"):
+            price = _PRICE_RE.search(cells[column_index[field_name]])
+            if price is None:
+                raise FetchError(f"fast mode row {cells!r}: unreadable {field_name} price")
+            rates.append(float(price.group(1).replace(",", "")))
+        for name in cells[0].split(" / "):  # "Claude Opus 5 / Claude Opus 4.8" share a row
+            if name.strip():
+                fast[model_key_from_display_name(name)] = (rates[0], rates[1])
+    if column_index is None or not fast:
+        raise FetchError("fast mode pricing table not found or empty")
+
+    residency = _section(md, "Data residency pricing")
+    version = re.search(r"Claude\s+(\d+)\.(\d+)\s+and later", residency)
+    mult = re.search(r"([\d.]+)x\s+multiplier", residency)
+    if version is None or mult is None:
+        raise FetchError("data residency rule ('Claude X.Y and later', 'Nx multiplier') not found")
+    return VendorModifiers(
+        web_search_per_1000=float(prices_found.pop()),
+        fast=fast,
+        geo_us_multiplier=float(mult.group(1)),
+        geo_min_version=(int(version.group(1)), int(version.group(2))),
+    )
+
+
+_VERSION_KEY_RES = (
+    re.compile(r"^claude-(?:opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d+))?$"),  # claude-opus-4-6
+    re.compile(r"^claude-(\d+)(?:-(\d+))?-(?:opus|sonnet|haiku)$"),  # claude-3-5-sonnet
+)
+
+
+def model_version(model_key: str) -> tuple[int, int] | None:
+    """(major, minor) of a model key, or None when the key has no readable version."""
+    for pattern in _VERSION_KEY_RES:
+        m = pattern.match(model_key)
+        if m:
+            return int(m.group(1)), int(m.group(2) or 0)
+    return None
+
+
+def compare_modifiers(prices: dict[str, Any], mods: VendorModifiers) -> tuple[list[str], list[str]]:
+    """Compare web search, fast mode and the geo multiplier. Returns ``(missing, mismatches)``."""
+    models: dict[str, dict[str, Any]] = prices.get("models", {})
+    missing: list[str] = []
+    mismatches: list[str] = []
+
+    rates = prices.get("server_tool_rates")
+    ours = rates.get("web_search_usd_per_1000") if isinstance(rates, dict) else None
+    if not isinstance(ours, int | float) or _differs(float(ours), mods.web_search_per_1000):
+        mismatches.append(
+            f"web search: ours={ours!r} vs page=${mods.web_search_per_1000:g} per 1,000 searches"
+        )
+
+    for key, (fin, fout) in sorted(mods.fast.items()):
+        entry = models.get(key)
+        if entry is None:
+            missing.append(f"{key}: page lists fast-mode rates but prices.json has no such key")
+            continue
+        for label, field_name, theirs in (
+            ("input", "fast_input_usd_per_mtok", fin),
+            ("output", "fast_output_usd_per_mtok", fout),
+        ):
+            value = entry.get(field_name)
+            if not isinstance(value, int | float) or _differs(float(value), theirs):
+                mismatches.append(
+                    f"{key}: fast {label} ours={value!r} vs page=${theirs:g} per MTok"
+                )
+    for key, entry in sorted(models.items()):
+        if key not in mods.fast and (
+            "fast_input_usd_per_mtok" in entry or "fast_output_usd_per_mtok" in entry
+        ):
+            mismatches.append(f"{key}: has fast-mode rates the page does not list for it")
+
+    for key, entry in sorted(models.items()):
+        version = model_version(key)
+        if version is None:
+            mismatches.append(f"{key}: cannot derive a model version to decide geo eligibility")
+            continue
+        eligible = version >= mods.geo_min_version
+        ours_mult = entry.get("geo_us_multiplier")
+        if eligible and (
+            not isinstance(ours_mult, int | float)
+            or _differs(float(ours_mult), mods.geo_us_multiplier)
+        ):
+            mismatches.append(
+                f"{key}: geo_us_multiplier ours={ours_mult!r} vs page={mods.geo_us_multiplier:g}x "
+                f"(Claude {mods.geo_min_version[0]}.{mods.geo_min_version[1]} and later)"
+            )
+        if not eligible and ours_mult is not None:
+            mismatches.append(
+                f"{key}: has geo_us_multiplier but the page limits it to Claude "
+                f"{mods.geo_min_version[0]}.{mods.geo_min_version[1]} and later"
+            )
+    return missing, mismatches
+
+
 def _report(title: str, items: list[str]) -> None:
     if items:
         print(f"{title}:", file=sys.stderr)
@@ -317,6 +479,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         md = args.page.read_text(encoding="utf-8") if args.page else _fetch(ANTHROPIC_MD_URL)
         rows = parse_vendor_table(md)
+        mods = parse_vendor_modifiers(md)
     except (FetchError, OSError) as e:
         print(
             "COULD NOT VERIFY (fetch/parse failure, not a mismatch -- failing closed):",
@@ -326,10 +489,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     missing, mismatches, stale = compare_table(prices, rows)
+    mod_missing, mod_mismatches = compare_modifiers(prices, mods)
+    missing += mod_missing
+    mismatches += mod_mismatches
     if not (missing or mismatches or stale):
         print(
             f"OK: {len(rows)} page rows verified against the table "
-            "(input, output, 5m/1h cache write, cache hit, tiers); no page model missing."
+            "(input, output, 5m/1h cache write, cache hit, tiers, fast-mode rates, "
+            "inference_geo multiplier and eligibility, web search); no page model missing."
         )
         return 0
     _report("MISSING FROM prices.json (page lists a model/tier the table lacks)", missing)

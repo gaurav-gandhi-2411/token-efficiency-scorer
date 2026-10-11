@@ -52,3 +52,58 @@ The following table shows pricing for all Claude models:
 * **Retired:** May still be available on other cloud platforms. See [Model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations) for more.
 
 Claude 4.7 and later models and Claude Mythos Preview use a newer tokenizer that contributes to their improved performance on a wide range of tasks. This tokenizer produces approximately 30% more tokens for the same text. The exact increase depends on the content and workload shape. Claude Sonnet 4.6 and earlier models use the previous tokenizer.
+
+<!-- Appended verbatim from the saved official page (sha256 67904e280b595d31f373c857844ed380072ae79d280d8f385640b5992d337ca9,
+     retrieved 2026-10-10): the sections check_price_table_vs_vendor.py reads for web
+     search, fast mode and data residency. -->
+
+### Data residency pricing
+
+For Claude 4.6 and later models, specifying US-only inference through the `inference_geo` parameter incurs a 1.1x multiplier on all token pricing categories, including input tokens, output tokens, cache writes, and cache reads. On Claude Haiku 5.5, the multiplier also applies to the higher prices for prompts over 100,000 tokens (see [Long context pricing](https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing)). Global routing (the default) uses standard pricing.
+
+This applies to the Claude API (first-party) and Claude Platform on AWS. On Claude in Microsoft Foundry, the same 1.1x multiplier applies to deployments that use the US Data Zone Standard deployment type (see [Inference geography](https://platform.claude.com/docs/en/about-claude/pricing#foundry-inference-geography)). Partner-operated platforms (Bedrock and Google Cloud) have independent regional pricing. See [Bedrock](https://aws.amazon.com/bedrock/pricing/) and [Google Cloud](https://cloud.google.com/vertex-ai/generative-ai/pricing#claude-models) for details. Earlier models do not support the `inference_geo` parameter and always use standard pricing; requests that include the parameter on these models return a 400 error.
+
+For more information, see [Data residency](https://platform.claude.com/docs/en/manage-claude/data-residency).
+
+### Fast mode pricing
+
+[Fast mode](https://platform.claude.com/docs/en/build-with-claude/fast-mode), in research preview, provides significantly faster output for Claude Opus 5.5, Claude Opus 5, and Claude Opus 4.8 at premium pricing. Fast mode pricing applies across the full context window, including requests over 200k input tokens. Fast mode is available on the Claude API (first-party) only; it is not available on Claude Platform on AWS or partner-operated cloud platforms.
+
+| Model                           | Input      | Output     |
+| ------------------------------- | ---------- | ---------- |
+| Claude Opus 5.5                 | $8 / MTok  | $40 / MTok |
+| Claude Opus 5 / Claude Opus 4.8 | $10 / MTok | $50 / MTok |
+
+Fast mode is not available on Claude Opus 4.7 (requests with `speed: "fast"` return an error) or Claude Opus 4.6 (requests run at standard speed and are billed at standard rates). See [Fast mode](https://platform.claude.com/docs/en/build-with-claude/fast-mode#supported-models).
+
+Fast mode pricing stacks with other pricing modifiers:
+
+* [Prompt caching multipliers](https://platform.claude.com/docs/en/about-claude/pricing#prompt-caching) apply on top of fast mode pricing
+* [Data residency](https://platform.claude.com/docs/en/manage-claude/data-residency) multipliers apply on top of fast mode pricing
+
+Fast mode is not available with the [Batch API](https://platform.claude.com/docs/en/about-claude/pricing#batch-processing).
+
+For more information, see [Fast mode](https://platform.claude.com/docs/en/build-with-claude/fast-mode).
+
+
+#### Web search tool
+
+Web search usage is charged in addition to token usage:
+
+```json
+{
+  "usage": {
+    "input_tokens": 105,
+    "output_tokens": 6039,
+    "cache_read_input_tokens": 7123,
+    "cache_creation_input_tokens": 7345,
+    "server_tool_use": {
+      "web_search_requests": 1
+    }
+  }
+}
+```
+
+Web search is available on the Claude API for **$10 per 1,000 searches**, plus standard token costs for search-generated content. Web search results retrieved throughout a conversation are counted as input tokens, in search iterations executed during a single turn and in subsequent conversation turns.
+
+Each web search counts as one use, regardless of the number of results returned. If an error occurs during web search, the web search will not be billed.

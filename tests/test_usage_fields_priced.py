@@ -40,7 +40,10 @@ def _write(path: Path, usages: list[dict[str, Any]]) -> Path:
 def test_every_key_path_in_the_committed_fixture_has_a_rule() -> None:
     registry = load_registry()
     scan = scan_usage_fields([_FIXTURE_DIR], registry["value_guards"])
-    assert scan.records == 3
+    assert scan.records == 5
+    # the fixture carries the priced non-default values, so the gate is shown to accept them
+    assert {"'fast'", "'standard'"} <= set(scan.values["usage.speed"])
+    assert {"'us'", "'global'", "'not_available'"} <= set(scan.values["usage.inference_geo"])
     # the fields that move the bill must be in the fixture, so dropping them there would fail
     assert {
         "usage.cache_creation.ephemeral_1h_input_tokens",
@@ -69,8 +72,23 @@ def test_the_priced_cache_fields_are_marked_priced() -> None:
         "usage.cache_read_input_tokens",
         "usage.input_tokens",
         "usage.output_tokens",
+        # COST_VERSION 3: these three dimensions are priced by tes.cost, no longer unmodelled
+        "usage.server_tool_use.web_search_requests",
+        "usage.speed",
+        "usage.inference_geo",
     ):
         assert fields[key]["rule"] == "priced"
+    # code execution (container time is not in the transcript) is still unmodelled and warned
+    assert fields["usage.server_tool_use.code_execution_requests"]["rule"] == "unmodelled"
+    assert fields["usage.server_tool_use.web_fetch_requests"]["rule"] == "free"
+
+
+def test_value_guards_allow_exactly_the_values_tes_cost_prices() -> None:
+    guards = load_registry()["value_guards"]
+    assert guards["usage.speed"] == ["standard", "fast"]
+    assert guards["usage.inference_geo"] == ["not_available", "global", "us"]
+    assert guards["usage.service_tier"] == ["standard"]
+    assert guards["usage.fallback_credit"] == []
 
 
 def _first_usage() -> dict[str, Any]:
@@ -97,8 +115,10 @@ def test_a_new_unknown_usage_key_fails_loudly(
 @pytest.mark.parametrize(
     ("key", "value"),
     [
-        ("speed", "fast"),  # fast mode: premium price, not modelled
-        ("inference_geo", "us"),  # data residency 1.1x, not modelled
+        ("speed", "turbo"),  # a made-up speed: tes.cost would price it standard, so fail
+        ("speed", "Fast"),  # case matters: only the exact value is priced
+        ("inference_geo", "eu"),  # a region the page does not price
+        ("inference_geo", "US"),
         ("service_tier", "priority"),  # no price on the page
         ("fallback_credit", {"amount": 1}),  # non-null: cannot be priced from here
     ],
@@ -118,6 +138,13 @@ def test_billing_changing_values_fail_even_though_the_key_is_known(
     assert unknown == []
     assert len(bad) == 1 and key in bad[0]
     assert main([str(f)]) == 1
+
+
+@pytest.mark.parametrize(("key", "value"), [("speed", "fast"), ("inference_geo", "us")])
+def test_the_now_priced_values_pass_the_gate(tmp_path: Path, key: str, value: str) -> None:
+    usage = _first_usage()
+    usage[key] = value
+    assert main([str(_write(tmp_path / "t.jsonl", [usage]))]) == 0
 
 
 def test_a_hostile_transcript_with_junk_lines_does_not_crash_or_pass(tmp_path: Path) -> None:

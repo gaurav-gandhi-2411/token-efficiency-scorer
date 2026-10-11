@@ -43,8 +43,8 @@ class TurnDigest:
     # non-empty. None when the field was absent/empty on this turn's raw
     # usage dict -- distinct from an empty dict, though tes.adapt never
     # actually produces an empty dict (see adapt.py's _parse_usage). Cost
-    # computation (tes.cost) reads this to warn that server-side tool
-    # billing is not reflected in total_usd, never to price it.
+    # computation (tes.cost) prices web_search_requests from it and warns that
+    # the kinds it cannot price (code execution) are not reflected in total_usd.
     server_tool_use: dict[str, int] | None = None
     # API requests this turn stands for: 1 for a real turn, >1 for an aggregated subagent
     # turn (tes.adapt.collect_subagent_usage). tes.cost needs it because tiered models
@@ -58,6 +58,14 @@ class TurnDigest:
     # the documented conservative default. Both 0 on records stored before this field existed.
     cache_creation_1h: int = 0
     cache_creation_tier_known: int = 0
+    # Per-request billing modifiers from usage.speed / usage.inference_geo, normalised by
+    # tes.adapt._parse_billing_modifiers: speed is "fast" or "" (standard/absent), inference_geo
+    # is "us" or "" (global/not_available/absent). They scale the WHOLE request, so a main-chain
+    # turn (one request) carries its own and an aggregated subagent turn is only ever built
+    # from requests sharing the same pair (tes.adapt.collect_subagent_usage). "" on records
+    # stored before these fields existed, which therefore price exactly as before.
+    speed: str = ""
+    inference_geo: str = ""
 
 
 @dataclass
