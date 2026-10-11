@@ -178,7 +178,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         conn.close()
         raise RuntimeError(
             f"DB schema version {existing_version} is newer than this tool's "
-            f"SCHEMA_VERSION={SCHEMA_VERSION}. Upgrade token-efficiency-scorer."
+            f"SCHEMA_VERSION={SCHEMA_VERSION}. Upgrade tracegauge."
         )
     # existing_version == SCHEMA_VERSION → run additive migrations only.
 
