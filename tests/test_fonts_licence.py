@@ -47,3 +47,20 @@ def test_ofl_text_ships_with_the_fonts() -> None:
 def test_ofl_texts_are_declared_as_package_data() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "web/static/fonts/OFL-*.txt" in pyproject
+
+
+def test_no_name_record_of_any_shipped_font_contains_the_reserved_font_name() -> None:
+    """Every record in every name table, including a variable font's named-instance names
+    (name IDs 256+), not just the family/full/PostScript names. Needs fontTools and brotli (WOFF2),
+    which are test-only tools, not dependencies of the package."""
+    import pytest
+
+    ttlib = pytest.importorskip("fontTools.ttLib")
+    pytest.importorskip("brotli")
+    checked = 0
+    for woff in sorted(FONTS.glob("*.woff2")):
+        font = ttlib.TTFont(woff)
+        for record in font["name"].names:
+            assert "plex" not in str(record).lower(), (woff.name, record.nameID, str(record))
+            checked += 1
+    assert checked > 50
