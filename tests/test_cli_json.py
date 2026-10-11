@@ -226,14 +226,35 @@ def test_cost_json_roi_block_without_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
-    missing_plan = str(tmp_path / "no-plan.json")
-    _, out, _ = _run(
-        monkeypatch, capsys, "cost", "--week", "--roi", "--plan-config", missing_plan, "--json"
-    )
+    # No plan at the default location (TES_PLAN_PATH names it): "no_plan", still exit 0.
+    monkeypatch.setenv("TES_PLAN_PATH", str(tmp_path / "no-plan.json"))
+    code, out, _ = _run(monkeypatch, capsys, "cost", "--week", "--roi", "--json")
+    assert code == 0
     roi = _doc(out)["roi"]
     assert set(roi) == ROI_KEYS
     assert roi["status"] == "no_plan"
     assert roi["multiple"] is None
+
+
+@pytest.mark.parametrize("json_flag", [[], ["--json"]])
+def test_cost_roi_with_a_missing_explicit_plan_config_exits_1(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    json_flag: list[str],
+) -> None:
+    """A plan file the user named but that does not exist is a usage error (it used to exit 0)."""
+    _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
+    missing = str(tmp_path / "typo-plan.json")
+    code, out, err = _run(
+        monkeypatch, capsys, "cost", "--week", "--roi", "--plan-config", missing, *json_flag
+    )
+    assert code == 1
+    assert out == ""  # nothing on stdout, so a --json consumer never parses a half answer
+    assert "--plan-config" in err and "typo-plan.json" in err
+    # without --roi the flag is not read at all
+    code, _, _ = _run(monkeypatch, capsys, "cost", "--week", "--plan-config", missing)
+    assert code == 0
 
 
 def test_cost_json_roi_block_with_plan(

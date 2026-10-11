@@ -1169,6 +1169,12 @@ def _run_cost(
         print(f"[ERROR] {exc}", file=sys.stderr)
         return EXIT_USAGE
 
+    # An explicitly named plan file that does not exist is a usage error, not "no plan configured"
+    # (that message is for the default location, which a new user legitimately lacks).
+    if roi and plan_config is not None and not Path(plan_config).expanduser().is_file():
+        print(f"[ERROR] --plan-config: no such file: {plan_config}", file=sys.stderr)
+        return EXIT_USAGE
+
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
     try:
         conn = open_db(resolved_db)
