@@ -29,6 +29,7 @@ Layers (all pure except ``read_chain_records`` / ``analyze_session``):
 
 import bisect
 import json
+import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -258,6 +259,7 @@ class ProofTurn:
 
     turn_index: int
     record_index: int
+    message_id: str
     model: str
     cache_read: int
     cache_creation: int
@@ -302,7 +304,7 @@ def _tier_ttl(one_hour: bool) -> float:
 
 
 def _proof(k: int, t: CacheTurn) -> ProofTurn:
-    return ProofTurn(k, t.i_first, t.model, t.cr, t.cc, t.cc_1h)
+    return ProofTurn(k, t.i_first, t.mid, t.model, t.cr, t.cc, t.cc_1h)
 
 
 def _starts(turns: list[CacheTurn]) -> list[float | None]:
@@ -569,13 +571,19 @@ def drop_seen_turns(chain: ChainInput, seen: set[str]) -> int:
     return removed
 
 
+# A record the detector can use is one of these three types; every other line (attachments,
+# snapshots, titles, ...) is skipped without being parsed. The match cannot miss a wanted record:
+# its own "type" key appears unescaped in the line, whatever the spacing. A false positive (the
+# text inside a longer line) only costs a parse, and the type is checked again after parsing.
+_WANTED_TYPE = re.compile(r'"type"\s*:\s*"(?:assistant|user|system)"')
+
+
 def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
-    """Parsed object lines of a JSONL file; blank or malformed lines (a live file may end
-    mid-write) are skipped but keep their position out of the numbering, which is order-only."""
+    """Parsed assistant/user/system object lines of a JSONL file; blank or malformed lines (a
+    live file may end mid-write) are skipped. Positions are only used for ordering."""
     with path.open(encoding="utf-8", errors="replace") as fh:
         for line in fh:
-            line = line.strip()
-            if not line:
+            if not _WANTED_TYPE.search(line):
                 continue
             try:
                 obj = json.loads(line)

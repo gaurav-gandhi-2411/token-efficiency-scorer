@@ -399,6 +399,23 @@ def test_session_with_cross_file_duplicate_counts_event_once(tmp_path: Path) -> 
     assert s.total.events == 1 and s.duplicate_turns_dropped == 8
 
 
+def test_unrelated_lines_are_skipped_and_spaced_json_still_parses(tmp_path: Path) -> None:
+    f = tmp_path / "proj" / "s.jsonl"
+    f.parent.mkdir()
+    spaced = json.dumps(asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0), indent=None)
+    spaced = spaced.replace('"type": "assistant"', '"type" :  "assistant"')
+    lines = [
+        json.dumps({"type": "attachment", "attachment": {"type": "x"}}),
+        "{broken json",
+        spaced,
+        json.dumps(user_rec(T0 + 4_000)),
+        json.dumps(asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + 4_001)),
+    ]
+    f.write_text("\n".join(lines), encoding="utf-8")  # no trailing newline: a live file
+    s = cc.analyze_session(f)
+    assert s.total.events == 1 and s.chains[0].n_turns == 2
+
+
 # ------------------------------------------------------------------ TTL advice
 
 
