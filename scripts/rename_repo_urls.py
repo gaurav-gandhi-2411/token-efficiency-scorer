@@ -46,8 +46,11 @@ HISTORICAL_PREFIXES = (
     "PLAN.md",
     "NEXT_PHASE.md",
     "spec.md",
-    "docs/RENAME_REPO.md",
 )
+# Never scanned, listed or rewritten, even with --include-historical: the owner checklist
+# quotes the old slug on purpose, and counting it would make its own inventory depend on
+# its own text.
+EXCLUDED_PATHS = ("docs/RENAME_REPO.md",)
 TEXT_SUFFIXES = {
     ".md", ".py", ".toml", ".yml", ".yaml", ".in", ".txt", ".cfg", ".json", ".html", ".sh", ".svg",
     ".sql", ".ts", ".jsonl", ".log", "",
@@ -91,7 +94,7 @@ def tracked_files(root: Path) -> list[str]:
         check=True,
         capture_output=True,
     ).stdout
-    return [p for p in out.decode("utf-8").split("\0") if p]
+    return [p for p in out.decode("utf-8").split("\0") if p and p not in EXCLUDED_PATHS]
 
 
 def is_historical(path: str) -> bool:
