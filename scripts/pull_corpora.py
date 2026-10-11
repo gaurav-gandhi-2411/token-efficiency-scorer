@@ -10,10 +10,14 @@ user's 152 local CC session files, runs all sessions through the existing
 claudecode_adapter, and reports a summary table.
 
 Usage:
-    python scripts/pull_corpora.py --dry-run --limit 5
-    python scripts/pull_corpora.py --dry-run
-    python scripts/pull_corpora.py --output data/corpus_pool/pool_adapted.jsonl
-    python scripts/pull_corpora.py --skip-public
+    python scripts/pull_corpora.py --projects NAME [NAME ...] --dry-run --limit 5
+    python scripts/pull_corpora.py --projects NAME --skip-public
+    python scripts/pull_corpora.py --all --yes
+
+Local sessions are only read from the project directories you name (``--projects``, directory
+names under ~/.claude/projects) or, as an explicit opt-in, from all of them (``--all --yes``).
+There is no default. The output contains session content and defaults to a git-ignored path
+(data/corpus_pool/local/); it must never be committed.
 """
 
 import argparse
@@ -40,11 +44,12 @@ from adapters.claudecode_adapter import adapt_session  # noqa: E402
 # Constants
 # ---------------------------------------------------------------------------
 
-_DEFAULT_OUTPUT: Path = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
+# Git-ignored (see .gitignore): the output contains session content and must never be committed.
+_DEFAULT_OUTPUT: Path = ROOT / "data" / "corpus_pool" / "local" / "pool_adapted.jsonl"
 
 _LOCAL_PROJECTS_ROOT: Path = Path.home() / ".claude" / "projects"
-# Every project directory under ~/.claude/projects is collected (the original run used a fixed
-# list of the author's own project directories, which has no meaning on another machine).
+# Project directories are chosen by the caller (--projects) or all of them (--all --yes);
+# nothing is read by default.
 
 _HF_REPO_ARMAND: str = "armand0e/kimi-k2.6-claude-code-traces"
 _HF_REPO_CFAHLGREN: str = "cfahlgren1/agent-sessions-list"
@@ -189,18 +194,35 @@ def _adapt_from_lines(lines: list[str], session_id: str, source_label: str) -> A
 # ---------------------------------------------------------------------------
 
 
-def _collect_local_files() -> list[Path]:
-    """Return all *.jsonl files from the local CC project directories."""
-    files: list[Path] = []
+def _list_project_dirs(projects: list[str] | None) -> list[Path]:
+    """Return the project directories to read: the named ones, or all when ``projects`` is None.
+
+    A named project that does not exist under ~/.claude/projects raises ``SystemExit`` rather than
+    being skipped, so a typo cannot silently shrink the corpus.
+    """
     if not _LOCAL_PROJECTS_ROOT.is_dir():
-        return files
-    for project_dir in sorted(p for p in _LOCAL_PROJECTS_ROOT.iterdir() if p.is_dir()):
+        return []
+    if projects is None:
+        return sorted(p for p in _LOCAL_PROJECTS_ROOT.iterdir() if p.is_dir())
+    dirs: list[Path] = []
+    for name in projects:
+        project_dir = _LOCAL_PROJECTS_ROOT / name
+        if not project_dir.is_dir():
+            raise SystemExit(f"error: no such project directory: {project_dir}")
+        dirs.append(project_dir)
+    return dirs
+
+
+def _collect_local_files(projects: list[str] | None) -> list[Path]:
+    """Return all *.jsonl files from the selected local CC project directories."""
+    files: list[Path] = []
+    for project_dir in _list_project_dirs(projects):
         files.extend(sorted(project_dir.glob("*.jsonl")))
     return files
 
 
 def process_local(
-    stats: SourceStats, limit: int | None, seen_ids: set[str]
+    stats: SourceStats, limit: int | None, seen_ids: set[str], projects: list[str] | None
 ) -> list[dict[str, Any]]:
     """Adapt all (or up to ``limit``) local CC session files.
 
@@ -208,11 +230,12 @@ def process_local(
         stats: SourceStats to update in-place.
         limit: Maximum number of sessions to process (None = no limit).
         seen_ids: Set of already-seen session_ids for deduplication (updated in-place).
+        projects: Project directory names to read, or None for every project (--all).
 
     Returns:
         List of adapted records (non-trivial, non-failed, non-duplicate).
     """
-    files = _collect_local_files()
+    files = _collect_local_files(projects)
     if limit is not None:
         files = files[:limit]
 
@@ -542,10 +565,33 @@ def check_output_path(output: Path) -> Path:
     return resolved
 
 
-def _parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
+_CONTENT_WARNING: str = (
+    "WARNING: the output contains session content (prompts, tool calls, file paths). "
+    "It must never be committed or shared. Default path is git-ignored."
+)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments. One of --projects / --all is required (no default)."""
     parser = argparse.ArgumentParser(
         description="Pull local + public CC corpora, adapt, and write to pool JSONL."
+    )
+    scope = parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument(
+        "--projects",
+        nargs="+",
+        metavar="NAME",
+        help="Project directory names under ~/.claude/projects to read (no default).",
+    )
+    scope.add_argument(
+        "--all",
+        action="store_true",
+        help="Read EVERY project under ~/.claude/projects. Explicit opt-in; requires --yes.",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm --all after seeing how many projects will be read.",
     )
     parser.add_argument(
         "--dry-run",
@@ -571,12 +617,19 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Only process local sessions (fallback when network is unavailable).",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """Entry point."""
-    args = _parse_args()
+    args = _parse_args(argv)
+    projects: list[str] | None = None if args.all else args.projects
+    if args.all:
+        n_projects = len(_list_project_dirs(None))
+        print(f"[pull_corpora] --all will read {n_projects} project(s).", file=sys.stderr)
+        if not args.yes:
+            raise SystemExit("error: --all requires --yes to confirm.")
+    print(f"[pull_corpora] {_CONTENT_WARNING}", file=sys.stderr)
     output_path: Path = args.output
     dry_run: bool = args.dry_run
     limit: int | None = args.limit
@@ -596,9 +649,9 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 1. Local sessions
     # ------------------------------------------------------------------
-    local_stats = SourceStats(label="local (152 files)")
+    local_stats = SourceStats(label="local")
     print("[pull_corpora] Processing local sessions...", file=sys.stderr)
-    local_records = process_local(local_stats, limit=limit, seen_ids=seen_ids)
+    local_records = process_local(local_stats, limit=limit, seen_ids=seen_ids, projects=projects)
     all_records.extend(local_records)
     sources.append(local_stats)
 
