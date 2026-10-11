@@ -202,45 +202,56 @@ tes cost --since YYYY-MM-DD      # from this date through now
 
 Total spend, session count, and a per-project breakdown for a period — distinct from `tes budget`'s rolling self-trend *projection* (where your pace is heading); `tes cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
 
-> **Scale caveat (0.15.0).** The dollar figures in the examples in this section and in `tes budget` and `tes monitor` below are 0.11.0 output from before 0.15.0 began counting each API response's usage once. On the same transcripts 0.15.0 reports lower totals (main-chain cost factor 2.26x measured on 10 sessions; 1.0x to 4.0x per session). Order-of-magnitude equivalents: the first block below is about $2.73 / $1.50 / $1.23, the second about $5.43 / $4.20 / $1.23, the no-cost-data example about $1.11. The source sessions are gone, so these blocks cannot be regenerated; read them for format, not magnitude. Rows stored by 0.14 and earlier are left out of `tes cost` totals and reported on a separate line; see [docs/UPGRADING.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/UPGRADING.md).
+> **About the examples.** The output blocks in this README are the real output of this version (0.15.0) on **synthetic sessions**: invented transcripts with a frozen clock, produced by [`scripts/gen_readme_examples.py`](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/scripts/gen_readme_examples.py) and pinned by `tests/test_readme_examples.py`, so they cannot drift from the code. No real session content appears in them. Rows stored by 0.14 and earlier are left out of `tes cost` totals and reported on a separate line; see [docs/UPGRADING.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/UPGRADING.md).
 
-Real output, from the published `tracegauge==0.11.0` artifact, four real seeded sessions across two projects (one older than the 7-day window):
+Real output on four synthetic sessions across two projects (one older than the 7-day window):
 
 ```text
 ──────────────────────────────────────────────────────────────────────
 COST -- last 7 days
 ──────────────────────────────────────────────────────────────────────
 
-Total: $6.17  (3 sessions)
+Total: $8.19  (3 sessions)
 
 By project:
-  aura-ml-projects-token-efficiency-scorer  $    3.40  (1 session)
-  --Users-gaura-ml-projects-adk-tracegauge  $    2.77  (2 sessions)
+  demo-web                                     $4.29  (1 session)
+  demo-api                                     $3.89  (2 sessions)
 ──────────────────────────────────────────────────────────────────────
 ```
 
-`tes cost --month` against the same data correctly picks up the older session too:
+`tes cost --month` against the same data picks up the older session too:
 
 ```text
 ──────────────────────────────────────────────────────────────────────
 COST -- last 30 days
 ──────────────────────────────────────────────────────────────────────
 
-Total: $12.27  (4 sessions)
+Total: $11.27  (4 sessions)
 
 By project:
-  aura-ml-projects-token-efficiency-scorer  $    9.50  (2 sessions)
-  --Users-gaura-ml-projects-adk-tracegauge  $    2.77  (2 sessions)
+  demo-api                                     $6.97  (3 sessions)
+  demo-web                                     $4.29  (1 session)
 ──────────────────────────────────────────────────────────────────────
 ```
 
 **Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tes score`/`tes scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tes budget` had the same divergence and was fixed to filter on `source_mtime` as well in 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
 
-Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output, published `0.11.0`:
+Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output of this version, with one of two synthetic sessions stored without a cost:
 
 ```text
-Total: $2.50  (1 session)
-  (1 additional session in this period have no cost data yet -- excluded from the total above, not counted as $0)
+──────────────────────────────────────────────────────────────────────
+COST -- last 7 days
+──────────────────────────────────────────────────────────────────────
+
+Total: $0.60  (1 session)
+  (1 additional session in this period has no cost data yet -- excluded from the total above, not counted as $0)
+
+By project:
+  demo-api                                     $0.60  (1 session)
+
+Priced coverage: 50% of sessions, 50% of tokens
+  (some unpriced sessions predate model tracking -- can't name their model)
+──────────────────────────────────────────────────────────────────────
 ```
 
 **Known gap, not built:** no per-model breakdown. Would need a new schema column and adapter change, and nobody in the originating GitHub issue ([#78148](https://github.com/anthropics/claude-code/issues/78148)) asked for it — left explicit rather than silently omitted.
@@ -250,29 +261,43 @@ Total: $2.50  (1 session)
 Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known. A session with any turn of an unpriced model counts as unpriced in full (the store has no per-model token split), so the token figure is an upper bound on the unpriced tokens, and such a session shows `unpriced (<model>)` instead of `$0.00`. Real output of the 0.15.0 build on two synthetic sessions, one priced and one using a model that is not in the price table:
 
 ```text
-Total: $0.14 + unpriced (claude-future-9)  (2 sessions)
+──────────────────────────────────────────────────────────────────────
+COST -- last 7 days
+──────────────────────────────────────────────────────────────────────
+
+Total: $0.60 + unpriced (claude-future-9)  (2 sessions)
   (priced subtotal only: turns of the unpriced model(s) below are NOT in this figure -- the real total is higher)
 
 By project:
-  demo-api                                     $0.14  (1 session)
+  demo-api                                     $0.60  (1 session)
   demo-web                                  unpriced (claude-future-9)  (1 session)
 
 Priced coverage: 50% of sessions, 50% of tokens
   unpriced (claude-future-9)
-  (1 session not fully priced, 9,000 tokens: a session with any unpriced turn counts as unpriced in full)
+  (1 session not fully priced, 112,500 tokens: a session with any unpriced turn counts as unpriced in full)
+──────────────────────────────────────────────────────────────────────
 ```
 
-A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete (real output on synthetic sessions, with one session's stored cost blanked to stand in for a pre-`0.12.0` row):
+A session scored before `0.12.0` has no persisted model name for its own unpriced gap (the same lesson `0.11.1`'s attribution-persistence fix already established: information only available while the source file is readable must be saved at score time, not re-derived later) — that gap is still counted honestly, just flagged as unattributable rather than silently folded into a list that would then look complete (real output on synthetic sessions, with one session's stored cost and model name blanked to stand in for a pre-`0.12.0` row):
 
 ```text
-Total: $0.14 + unpriced (gpt-6-preview)  (2 sessions)
+──────────────────────────────────────────────────────────────────────
+COST -- last 7 days
+──────────────────────────────────────────────────────────────────────
+
+Total: $0.60 + unpriced (gpt-6-preview)  (2 sessions)
   (priced subtotal only: turns of the unpriced model(s) below are NOT in this figure -- the real total is higher)
   (1 additional session in this period has no cost data yet -- excluded from the total above, not counted as $0)
 
+By project:
+  demo-api                                     $0.60  (1 session)
+  demo-web                                  unpriced (gpt-6-preview)  (1 session)
+
 Priced coverage: 33% of sessions, 33% of tokens
   unpriced (gpt-6-preview)
-  (2 sessions not fully priced, 18,000 tokens: a session with any unpriced turn counts as unpriced in full)
+  (2 sessions not fully priced, 225,000 tokens: a session with any unpriced turn counts as unpriced in full)
   (some unpriced sessions predate model tracking -- can't name their model)
+──────────────────────────────────────────────────────────────────────
 ```
 
 ### `tes cost --roi` — plan-cost ROI
@@ -291,15 +316,15 @@ tes cost --week --roi --plan-config /path/to/plan.json   # override the default 
 ]}
 ```
 
-Real output, this session's own transcript scored fresh and compared against a real 7-day-window `plan.json`:
+Real output of this version on twelve synthetic sessions (Claude Opus 5.5) against the plan history above:
 
 ```text
 Plan: Claude Max ($46.67 for this window)
-ROI: $496.29 API-equivalent / $46.67 plan cost = 10.6x
+ROI: $195.48 API-equivalent / $46.67 plan cost = 4.2x
   (API-equivalent value at measured token rates, not a bill you'd actually pay under a flat plan.)
 ```
 
-That block is 0.11.0 output on the old per-record scale. The ledger's order-of-magnitude equivalent is about $220 API-equivalent and about 4.7x (÷2.26); it also shifts because the 5.x models were unpriced then and cache reads were priced at a flat 0.1×. The ROI is built on the corrected total only, so when rows from older versions were left out the multiple is a floor, and the output says so.
+The ROI is built on the corrected total only, so when rows from older versions were left out the multiple is a floor, and the output says so.
 
 **Refuses to print a ratio the data can't support** — never a misleading number:
 - No `plan.json` configured: prints setup instructions instead of a ratio.
@@ -347,27 +372,27 @@ tes budget                      # rolling last 7 days (default)
 tes budget --window-days 30
 ```
 
-A rolling-window spend PROJECTION — distinct from `tes cost`'s period REPORT above. `tes cost` answers "what did I actually spend"; `tes budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output, published `tracegauge==0.11.0`, a real 365-day window against real session data:
+A rolling-window spend PROJECTION — distinct from `tes cost`'s period REPORT above. `tes cost` answers "what did I actually spend"; `tes budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output of this version on ten synthetic sessions over the last week:
 
 ```text
 ──────────────────────────────────────────────────────────────────────
 BUDGET / PACE
 ──────────────────────────────────────────────────────────────────────
 
-At this pace (~$5604.50 so far across 841 sessions, 70.1 of 365 days) you're trending toward ~$29179.77 over a 365-day window -- based on your last 70.1 days, not a forecast of future work; work volume varies.
+At this pace (~$40.32 so far across 10 sessions, 5.2 of 7 days) you're trending toward ~$53.76 over a 7-day window — based on your last 5.2 days, not a forecast of future work; work volume varies.
 
 ──────────────────────────────────────────────────────────────────────
 ```
 
-The dollar figures above are 0.11.0 output on the old scale; the ledger's order-of-magnitude equivalent is about $2.5k so far and about $12.9k projected (÷2.26; the 841 is a session count and is unaffected). 0.15.0 also leaves rows stored by older versions out of the pace and says how many (`legacy_rows_excluded` in `--json`).
+Rows stored by older versions are left out of the pace, and the command says how many (`legacy_rows_excluded` in `--json`).
 
 At the default 7-day window, with no cost data that recent, `tes budget` says so plainly rather than fabricating a projection from stale data:
 
 ```text
-No sessions with cost data in the last 7 days -- nothing to project yet.
+No sessions with current cost data in the last 7 days — nothing to project yet.
 ```
 
-**Filters on `source_mtime`, not `scored_at`** (since 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)) — when the session file was last written, the same as `tes cost`. The 0.11.0 output above predates that fix: it filtered on `scored_at` (when `tes score`/`tes scan` happened to run), so under a batch-scoring workflow it could cluster a batch of older spend onto one recent instant, or miss it once it aged out of the window.
+**Filters on `source_mtime`, not `scored_at`** (since 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)) — when the session file was last written, the same as `tes cost`. Before 0.12.1 it filtered on `scored_at` (when `tes score`/`tes scan` happened to run), so under a batch-scoring workflow it could cluster a batch of older spend onto one recent instant, or miss it once it aged out of the window.
 
 ## `tes monitor` — live in-progress check
 
@@ -377,23 +402,20 @@ tes monitor [--stability-window SECONDS] [--plan usage_based|max]
 
 A one-shot check of whatever Claude Code session is currently being written under `~/.claude/projects` — scores it as-is (a partial transcript, not a finished session), prints an estimated cost/context figure explicitly labeled "in progress," and checks the same data-gated cost/context alarm the background watcher uses. A session more recently modified than `--stability-window` (default 300s) is considered "active"; if none is, it says so and does nothing further.
 
-Real output, published `tracegauge==0.11.0`, against a genuinely active session on this machine (redaction warnings are the adapter finding and stripping real secret-shaped strings from the transcript before scoring — the tool's own redaction-on-by-default behavior, not an error):
+Real output of this version on thirteen synthetic sessions (twelve earlier ones plus one being written right now):
 
 ```text
-[adapter] WARNING: redacted 1 occurrence(s) of pattern 'anthropic_key'
-[adapter] WARNING: redacted 3 occurrence(s) of pattern 'generic_key_assignment'
-...
-Session: 96fd948b-9197-46b2-9e9f-4dbfd7fc3a88  (infra-deploy)
-  ~$681.70 (estimated, in progress)
-  ~20,400,400 context tokens (estimated, in progress)
-  99% context re-send (measured)
+Session: a1b2c3d4-0000-4000-8000-000000000001  (debug-fix)
+  ~$7.14 (estimated, in progress)
+  ~852,500 context tokens (estimated, in progress)
+  98% context re-send (measured)
 
-Live estimate of an IN-PROGRESS session -- cost and context size are provisional and will change as the session continues. Computed with the same frozen attribution/cost math used on completed sessions, applied to the partial transcript seen so far. Never a final or billed figure.
+Live estimate of an IN-PROGRESS session — cost and context size are provisional and will change as the session continues. Computed with the same frozen attribution/cost math used on completed sessions, applied to the partial transcript seen so far. Never a final or billed figure.
 
-[ALARM] This session is at ~$681.70 (estimated, in progress) and ~20,400,400 context tokens (estimated, in progress), 99% of which is re-sent context (measured) -- well above your own typical infra-deploy session (p75: 447,157 tokens). Consider `/compact`.
+[ALARM] This session is at ~$7.14 (estimated, in progress) and ~852,500 context tokens (estimated, in progress), 98% of which is re-sent context (measured) — well above your own recent sessions (p85 of your last 30 days of claude-sonnet-5-5 debug-fix (n=12): 257,550 tokens). Consider `/compact`.
 ```
 
-That is 0.11.0 output on the old scale. The ledger's order-of-magnitude equivalents are about $302 and about 8.5M context tokens (÷2.26 and ÷2.4, UNVERIFIED for this session). The `p75: 447,157 tokens` threshold came from stored rows counted once per content block; those rows are gone, so it cannot be recomputed, and the alarm no longer compares against a p75 of that kind.
+The command above exits 3 because the alarm fired.
 
 The alarm fires only when the live session's real tokens exceed the **p85 of your own sessions from the last 30 days in the same model era** (rows from the current accounting only) **and** re-sent context dominates. The pool is the first of these with at least 10 sessions: same era and task type, same era, same task type, any recent session; then the bundled band's upper bound; otherwise the alarm is disabled. `tes monitor` prints the threshold and where it came from (or why the alarm is disabled), and exits 3 only when the alarm fires (0 otherwise, including when no session is active). Method, false-alarm rate and limits: [docs/ALARM.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/ALARM.md); exit codes: [docs/EXIT_CODES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/EXIT_CODES.md).
 
@@ -452,24 +474,30 @@ tes ask "Do I have any waste patterns in my sessions?" --api   # opt-in, consent
 
 A conversational explainer, constrained by construction to answer only from the same measured metrics/pattern output `tes patterns` produces — never invents analysis, predicts future cost, or judges session quality. Tries local Ollama first (`qwen3:8b` by default, or whatever 7B+ model is available); with no local judge but `ANTHROPIC_API_KEY` set, offers the API path with an explicit per-call consent prompt (sends metrics only, never session content/code).
 
-Real output, published `0.11.0`, local Ollama, against real session data:
+Real output of this version on a synthetic 36-session store, with a local Ollama `qwen3:8b` (one run on one machine; a language model's wording varies from run to run, unlike the other blocks in this README). Reproduce with `python scripts/gen_readme_examples.py --ask "<question>"` (needs the `[patterns]` extra and Ollama):
 
 ```text
+$ tes ask "What kind of sessions do I run?"
 Looking up your session data...
 
-From your measured data, 12.8% of content sessions (41 out of 321) have detected waste, totaling 74 waste events. However, there is not enough content sessions for detailed pattern analysis yet (less than 30 sessions needed for patterns to emerge). As your session corpus grows, tracegauge will provide more insights into waste patterns.
+Based on the measured data, your sessions are primarily "medium high context re-send sessions." Most of your 36 content sessions (55.6% and 44.4% respectively) involve re-sending nearly all billed tokens as context, with minimal output and little to no growth in context tokens. All sessions are focused on the "debug-fix" task type, and none have detected waste. These patterns reflect your workflow, not population norms.
 
-(answered from measured metrics -- local Ollama)
+(answered from measured metrics — local Ollama)
 ```
 
-The constraint is real, not just a system-prompt claim — asking something genuinely unmeasured gets refused rather than answered with a plausible-sounding guess:
+The constraint is real, not just a system-prompt claim: the parts of a question that are not measured are declined rather than answered with a plausible-sounding guess.
 
 ```text
-$ tes ask "How much of my token spend is context re-send versus actual output?"
+$ tes ask "How much will I spend next month, and are my prompts any good?"
+Looking up your session data...
 
-I don't have that measured -- tracegauge hasn't collected that metric. The data provided includes total token counts and cost metrics, but not a breakdown between context re-send and actual output tokens. You may need to analyze token usage patterns or use additional tools to differentiate between these categories.
+I don't predict future behavior — I only explain what's already measured in your session history.
 
-(answered from measured metrics -- local Ollama)
+Your sessions have a median cost of $2.86 per session, with the highest session costing $8.17. However, I don't have that measured — tracegauge hasn't collected that metric.
+
+tracegauge doesn't rate session quality — it describes measured patterns like token distribution and waste detection. Your sessions show no detected waste, and token usage patterns suggest consistent context re-send behavior.
+
+(answered from measured metrics — local Ollama)
 ```
 
 ## What this does NOT do
