@@ -94,7 +94,9 @@ This document describes the actual flow, written after running it for real for `
    builds to the same sdist and wheel bytes on Windows and Linux, from any clone. To compare a
    local build with what CI published, run `python scripts/build_dist.py dist` on a clean checkout
    of the tag and compare the printed sha256 values with the `reproducible-build` job's summary in
-   `ci.yml` (or with the files on PyPI). A plain `uv build` without the epoch is not reproducible.
+   `ci.yml` (or with the files on PyPI). The hashes match a local build only for runs on a
+   `workflow_dispatch`, a tag or a branch push: a `pull_request` run builds GitHub's merge commit of
+   the PR into its base, which is a different commit from the PR head you have locally. A plain `uv build` without the epoch is not reproducible.
 6. **Post-publish verify from a fresh environment against the real index** — see below.
    Also confirm (step 2's checklist) that the published README actually rendered the new
    commands/flags, via PyPI's JSON API — not just that CI succeeded.

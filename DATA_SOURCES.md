@@ -17,10 +17,13 @@ previously-uncredited attribution gap — see the entry below.
   requires this notice. Verified directly against the license text
   (opendatacommons.org/licenses/by/1-0/) rather than assumed.
 - **What was derived from it:** the B5 generalization validation
-  (`research/11-generalization.md`) — the "172 independent developers, 1,053
-  SWE-chat CC sessions" figures and the 1.4% (SWE-chat) vs. 6.6% (calibration
+  (`research/11-generalization.md`) — the 1,053 SWE-chat CC sessions (58 attributed developers plus 281 sessions with no
+  user_id; see the correction below) and the 1.4% (SWE-chat) vs. 6.6% (calibration
   pool) REPEATED-FAILED-RETRY rate comparison reported in README.md and
   `research/09-cross-model.md`/`research/10-deterministic-waste.md`.
+- **Correction (2026-10):** earlier releases and research notes said "172 independent developers,
+  1,053 sessions". That mixed two counts. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. The detector rates and conclusions are
+  unchanged; only the developer count they were attributed to was wrong.
 - **Redistribution:** none. The raw SWE-chat data (`data/swechat_raw/`) and both
   adapted forms (`data/swechat_cc_adapted.jsonl`, `data/swechat_noncc_adapted.jsonl`)
   are gitignored and never committed to this repo — only the derived aggregate
@@ -39,7 +42,9 @@ date given per entry), not assumed.
 | nebius/SWE-agent-trajectories | CC-BY-4.0 | `data/validation-corpus/` (80 traces + annotations) | yes, 80 sampled traces |
 | nebius/SWE-rebench-openhands-trajectories | CC-BY-4.0 | `data/validation-corpus/` (70 traces + annotations) | yes, 70 sampled traces |
 | zai-org/CC-Bench-trajectories | MIT | `data/ood-corpus/` (5 traces) | yes, 5 sampled traces |
+| synthetic OOD traces (generated for this project) | CC0 | `data/ood-corpus/` (5 traces, `source_dataset: synthetic_ood`) | yes, 5 traces; not third-party |
 | SWE-Gym/OpenHands-Sampled-Trajectories | none stated | was `data/validation-corpus/` (50 traces) | no: removed in 0.16.0 |
+| SWE-Gym/SWE-Gym (task dataset, a different dataset from the trajectories above) | MIT | not committed; only instance ids appear in a taxonomy file (below) | no |
 | SALT-NLP/SWE-chat | ODC-BY 1.0 | not committed | no (see above) |
 
 ### nebius/SWE-agent-trajectories
@@ -105,11 +110,18 @@ date given per entry), not assumed.
   (our own measurements, no trace text) were kept so published figures stay traceable.
 - Downloading it yourself with `scripts/00_download_corpus.py` is your own use under the dataset's
   terms; nothing is redistributed from it.
+- **What derived material remains, stated plainly:** (1) short per-session LLM commentary strings
+  in `data/judge_scores*.jsonl` and `data/llm_provisional_ratings.jsonl`, written by our own
+  judge/rater about those sessions (they may paraphrase trace content); (2)
+  `data/validation-corpus/taxonomy/task_taxonomy.json`, which holds SWE-Gym instance ids
+  (from the separate MIT-licensed SWE-Gym/SWE-Gym task dataset) and patch statistics. No
+  trace text is kept. A verbatim eight-word SWE-Gym quote and the per-trace paraphrases in
+  `research/03-validation-corpus.md` were removed; only counts remain there.
 
 ### Other datasets referenced by scripts but not in the tree
 
-`scripts/05_download_ood_traces.py` can also download AlienKevin/SWE-ZERO-12M-trajectories (MIT per the
-script) and Agent-Ark/Toucan-1.5M (Apache-2.0 per its Hugging Face metadata). No trace from either is
+`scripts/05_download_ood_traces.py` can also download AlienKevin/SWE-ZERO-12M-trajectories (Apache-2.0 per its
+Hugging Face card; the script's recorded value used to say MIT and was corrected) and Agent-Ark/Toucan-1.5M (Apache-2.0 per its Hugging Face metadata). No trace from either is
 committed.
 
 ## Fonts bundled in the PyPI package
