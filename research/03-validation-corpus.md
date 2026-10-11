@@ -28,9 +28,11 @@ We assembled a 200-session in-distribution corpus from three SWE-bench Verified 
 |---|-----------------|---------|----------|----------|-------------|
 | 1 | `nebius/SWE-agent-trajectories` | CC-BY-4.0 | 80 | `swe_agent` | Llama-3 70B, 8B, 405B |
 | 2 | `nebius/SWE-rebench-openhands-trajectories` | CC-BY-4.0 | 70 | `openhands_nebius` | *unknown* |
-| 3 | `SWE-Gym/OpenHands-Sampled-Trajectories` | CC-BY-4.0 | 50 | `openhands_swegym` | *unknown* |
+| 3 | `SWE-Gym/OpenHands-Sampled-Trajectories` | not stated on the dataset card (this row previously said CC-BY-4.0, which was wrong) | 50 (removed from the repository in 0.16.0) | `openhands_swegym` | *unknown* |
 
 All three datasets draw from SWE-bench Verified (arXiv:2310.06770 [Jimenez et al., 2023]).
+
+**Licence note (0.16.0).** The SWE-Gym dataset card states no licence, so its 50 traces, and the per-turn annotations and verbatim text derived from them, were removed from the repository tree. The figures in this document were measured on the 200-session corpus as it stood before that removal and are kept as the historical record; they cannot be re-derived from the current tree (150 sessions remain). Earlier git history, and released versions up to 0.15.0, still contain those files.
 
 **Model coverage gap:** The `model` field is unpopulated for all 120 OpenHands sessions (datasets 2 and 3 do not expose per-row model metadata in the Parquet schema). This is a corpus documentation failure; model diversity for two-thirds of the corpus is unknown.
 
