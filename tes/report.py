@@ -228,10 +228,17 @@ def format_human(
     return "\n".join(lines)
 
 
-def format_json(result: ThreeAxisResult) -> str:
-    """Serialize the full ThreeAxisResult to indented JSON."""
+def format_json(result: ThreeAxisResult, legacy_rows_excluded: int = 0) -> str:
+    """Serialize the full ThreeAxisResult to indented JSON.
+
+    `command` and `legacy_rows_excluded` follow the envelope every other --json document has.
+    `legacy_rows_excluded` is the store's pre-0.15 row count (0 when no store is open); a single
+    score reads none of them, so it is context, not an adjustment.
+    """
     d: dict[str, Any] = {
         "schema_version": JSON_SCHEMA_VERSION,
+        "command": "score",
+        "legacy_rows_excluded": legacy_rows_excluded,
         **dataclasses.asdict(result),
     }
     return json.dumps(d, indent=2, ensure_ascii=False)

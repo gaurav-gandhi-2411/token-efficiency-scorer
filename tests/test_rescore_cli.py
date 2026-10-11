@@ -50,6 +50,7 @@ def test_cli_json_dry_run_then_real_and_exit_code(
         "failed": 1,
         "not_attempted": 0,
         "remaining_legacy": 4,
+        "legacy_rows_excluded": 4,
     }
     code, out, _ = _run(monkeypatch, capsys, "rescore", "--json", "--db-path", str(mixed.db))
     doc = json.loads(out)

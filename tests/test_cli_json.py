@@ -369,6 +369,7 @@ MONITOR_KEYS = {
     "domain_of_validity",
     "alarm",
     "alarm_baseline",
+    "legacy_rows_excluded",
 }
 ALARM_KEYS = {
     "message",
@@ -602,3 +603,42 @@ def test_score_json_unpriced_session_cost_is_flagged_unknown(
     assert doc["session_cost_usd"] == 0.0  # stays numeric, documented in JSON_OUTPUT.md
     assert doc["priced"] is False
     assert doc["cost_known"] is False
+
+
+# ----------------------------------------------------------------------------- envelope
+
+
+def test_every_json_document_has_command_and_legacy_rows_excluded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The documented envelope: every --json document carries both keys, with the right command."""
+    path = _session(tmp_path / "proj" / "s.jsonl", PRICED, edit=True)
+    _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
+    monkeypatch.setenv("TES_NO_NOTICE", "1")
+    cases = {
+        "score": ["score", str(path), "--no-judge", "--json"],
+        "cost": ["cost", "--week", "--json"],
+        "budget": ["budget", "--json"],
+        "impact": ["impact", "--json"],
+        "patterns": ["patterns", "--json"],
+        "rescore": ["rescore", "--dry-run", "--json"],
+    }
+    for command, argv in cases.items():
+        code, out, err = _run(monkeypatch, capsys, *argv)
+        if command == "patterns" and code == 1 and "patterns]" in err:
+            continue  # core-only install: no document is printed, by design
+        doc = _doc(out)
+        assert doc["command"] == command, (command, doc.get("command"))
+        assert isinstance(doc["legacy_rows_excluded"], int), command
+        assert doc["schema_version"] == SCHEMA_VERSION
+
+
+def test_monitor_json_carries_legacy_rows_excluded() -> None:
+    from tes.json_out import monitor_payload
+
+    doc = monitor_payload("no_active_session", "/x")
+    assert doc["command"] == "monitor" and doc["legacy_rows_excluded"] == 0
+    assert (
+        monitor_payload("no_active_session", "/x", legacy_rows_excluded=4)["legacy_rows_excluded"]
+        == 4
+    )

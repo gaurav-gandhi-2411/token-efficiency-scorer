@@ -174,6 +174,7 @@ def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None
     """`tes rescore --json`. On a dry run `rescored` is what WOULD be rescored (nothing written)."""
     rescored = summary["refreshed"]
     stubs = summary["skipped_stub"]
+    remaining = summary["legacy_rows"] - (0 if dry_run else rescored + stubs)
     return envelope(
         "rescore",
         dry_run=dry_run,
@@ -184,7 +185,8 @@ def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None
         skipped_empty_stub=summary["skipped_stub"],
         failed=summary["errors"],
         not_attempted=summary["not_attempted"],
-        remaining_legacy=summary["legacy_rows"] - (0 if dry_run else rescored + stubs),
+        remaining_legacy=remaining,
+        legacy_rows_excluded=remaining,
     )
 
 
@@ -234,6 +236,7 @@ def monitor_payload(
     alarm: AlarmResult | None = None,
     source_path: str | None = None,
     threshold: AlarmThreshold | None = None,
+    legacy_rows_excluded: int = 0,
 ) -> dict[str, Any]:
     """`tes monitor --json`.
 
@@ -275,6 +278,7 @@ def monitor_payload(
             else None
         ),
         alarm_baseline=threshold.to_dict() if threshold is not None else None,
+        legacy_rows_excluded=legacy_rows_excluded,
     )
 
 

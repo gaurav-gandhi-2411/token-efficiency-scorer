@@ -10,7 +10,7 @@ Two different things, deliberately kept apart:
 * the COST BREAKDOWN (:func:`build_cost_breakdown`) is informational: dollars and shares per
   bucket. It is not a finding. In Claude Code every turn re-reads the whole context, so re-send
   plus context growth is the bulk of the cost of nearly every session (69 to 99.5 percent of cost
-  on each of one developer's 76 priced sessions, W1A diag 4a); "context dominates" therefore says
+  on each of the maintainer's 76 priced sessions, an unpublished local measurement); "context dominates" therefore says
   nothing about any one session and is no longer offered as a lever.
 * a FINDING (:func:`build_lever_hint`) is an absolute, deterministic rule that can be false for a
   session: detected waste above a dollar threshold (the proof turns are in the waste section) or
@@ -34,10 +34,10 @@ BREAKDOWN_NOTE = (
 # regardless of share, >= 10 percent of cost AND >= $0.05 catches small-session waste. Below both
 # is rounding noise.
 _WASTE_ABS_USD = 0.50
-_WASTE_REL_PCT = 10
+_WASTE_REL_PCT = 10.0
 _WASTE_REL_FLOOR_USD = 0.05
 # Output lever threshold (absolute): output is at least 40 percent of the priced cost.
-_OUTPUT_PCT = 40
+_OUTPUT_PCT = 40.0
 
 
 def _waste_usd(attr: AttributionResult) -> float:
@@ -47,24 +47,27 @@ def _waste_usd(attr: AttributionResult) -> float:
 def _hints(attr: AttributionResult) -> list[str]:
     """The findings that fire for ``attr`` (each rule independent; waste first). Empty = quiet.
 
-    1. Waste : waste_usd >= 0.50  OR  (waste share >= 10% AND waste_usd >= 0.05)
-    2. Output: output share of cost >= 40%
+    1. Waste : waste_usd >= 0.50  OR  (waste share >= 10.0% AND waste_usd >= 0.05)
+    2. Output: output share of cost >= 40.0%
+    Shares are compared unrounded.
     """
     total = attr.total_usd
     if total == 0:
         return []
     waste_usd = _waste_usd(attr)
+    # The cuts compare the UNROUNDED share (a 9.96 percent waste share is not "10 percent"); only
+    # the sentence rounds. Cross-multiplied so the comparison has no division.
     waste_pct = round(waste_usd / total * 100)
     output_pct = round(attr.output_usd / total * 100)
+    waste_share_hit = waste_usd * 100 >= _WASTE_REL_PCT * total
+    output_share_hit = attr.output_usd * 100 >= _OUTPUT_PCT * total
     hints: list[str] = []
-    if waste_usd >= _WASTE_ABS_USD or (
-        waste_pct >= _WASTE_REL_PCT and waste_usd >= _WASTE_REL_FLOOR_USD
-    ):
+    if waste_usd >= _WASTE_ABS_USD or (waste_share_hit and waste_usd >= _WASTE_REL_FLOOR_USD):
         hints.append(
             f"${waste_usd:.2f} ({waste_pct}% of the priced cost) in detectable waste; see the "
             "waste events for exact proof turns."
         )
-    if output_pct >= _OUTPUT_PCT:
+    if output_share_hit:
         hints.append(
             f"Output was {output_pct}% of the priced cost; shorter responses or fewer "
             "regenerations reduce this."

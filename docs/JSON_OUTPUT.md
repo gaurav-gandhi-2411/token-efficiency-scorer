@@ -105,9 +105,11 @@ in `tes/patterns_extra.py` is the single check.
 
 ## `score`
 
-The full result (see `tes/score.py::ThreeAxisResult`), now with `schema_version` as the first key and
+The full result (see `tes/score.py::ThreeAxisResult`), with `schema_version`, `command` (`"score"`) and
+`legacy_rows_excluded` (pre-0.15 rows in the store, `0` with no store; a single score is not
+adjusted by them) as the first keys, and
 `lever_hint` (a string only when an absolute finding fires, else `null`: detected waste of at least
-$0.50, or at least 10% of cost and $0.05, or output at 40% of cost or more; "context dominates" is never
+$0.50, or at least 10.0% of cost and $0.05, or output at 40.0% of cost or more, compared unrounded; "context dominates" is never
 one) and `cost_breakdown` (additive, informational, `null` when attribution was unavailable):
 `{label, total_usd, priced, unpriced_models, buckets, note}` where `buckets` is the five entries
 `context_resend`, `context_growth`, `output`, `fresh_input`, `waste`, each `{key, label, usd, share_pct,

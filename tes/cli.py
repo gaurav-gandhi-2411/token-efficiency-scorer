@@ -281,6 +281,34 @@ def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisR
     return dataclasses.replace(result, lever_hint=hint, cost_breakdown=breakdown)
 
 
+def _legacy_count(store_conn: object) -> int:
+    """Pre-0.15 rows in the open store, or 0 when there is no store or it cannot be read."""
+    if store_conn is None:
+        return 0
+    try:
+        from tes.legacy import count_legacy  # noqa: PLC0415
+
+        return count_legacy(store_conn)  # type: ignore[arg-type]
+    except Exception:
+        return 0
+
+
+def _db_legacy_count(db_path: Path) -> int:
+    """Pre-0.15 rows in the store at db_path; 0 when it does not exist or cannot be read."""
+    if not db_path.exists():
+        return 0
+    try:
+        from tes.store import open_db  # noqa: PLC0415
+
+        conn = open_db(db_path)
+        try:
+            return _legacy_count(conn)
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
 def score_path(
     path: Path,
     baselines: dict,
@@ -377,7 +405,7 @@ def score_path(
     result = _with_lever_hint(result, attribution)
 
     if json_mode:
-        print(format_json(result))
+        print(format_json(result, _legacy_count(store_conn)))
     else:
         print(format_human(result, baseline_cost_band=baseline_cost_band))
 
@@ -484,7 +512,7 @@ def _score_path_with_api_judge(
     result = _with_lever_hint(result, attribution)
 
     if json_mode:
-        print(format_json(result))
+        print(format_json(result, _legacy_count(store_conn)))
     else:
         print(format_human(result, baseline_cost_band=baseline_cost_band))
 
@@ -1333,7 +1361,16 @@ def _run_monitor(
     alarm = check_alarm(live, SelfBaselineState(), config, threshold)
 
     if json_mode:
-        emit(monitor_payload("ok", str(cc_path), live=live, alarm=alarm, threshold=threshold))
+        emit(
+            monitor_payload(
+                "ok",
+                str(cc_path),
+                live=live,
+                alarm=alarm,
+                threshold=threshold,
+                legacy_rows_excluded=_db_legacy_count(resolved_db),
+            )
+        )
         return EXIT_ALARM if alarm is not None else EXIT_OK
 
     print(f"Session: {live.session_id}  ({live.task_type})")

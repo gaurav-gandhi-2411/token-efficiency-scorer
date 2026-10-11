@@ -80,6 +80,16 @@ def test_output_finding_fires_at_forty_percent_even_with_big_context() -> None:
     assert build_lever_hint(_attr(resend=6.1, output=3.9)) is None  # 39%
 
 
+def test_share_cuts_compare_unrounded_values() -> None:
+    """9.99 percent is not 10 percent and 39.99 is not 40 (the old rule rounded both up)."""
+    # Waste share, kept under the $0.50 absolute rule: total 2.5, waste 0.25 is exactly 10.0%.
+    assert build_lever_hint(_attr(resend=2.25, rr=0.25)) is not None
+    assert build_lever_hint(_attr(resend=2.2503, rr=0.2497)) is None  # 9.988 percent
+    # Output share: total 10, output 4.0 is exactly 40.0%.
+    assert build_lever_hint(_attr(resend=6.0, output=4.0)) is not None
+    assert build_lever_hint(_attr(resend=6.0004, output=3.9996)) is None  # 39.996 percent
+
+
 def test_lever_does_not_fire_when_balanced() -> None:
     assert build_lever_hint(_attr(resend=3.0, output=3.0, fresh=4.0)) is None
 
