@@ -5,7 +5,7 @@
 Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tes corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md).
 
 [![CI](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml/badge.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://pypi.org/project/tracegauge/)
 [![PyPI](https://img.shields.io/pypi/v/tracegauge.svg)](https://pypi.org/project/tracegauge/)
 
@@ -530,7 +530,7 @@ The scoring components were validated through a five-phase credibility arc (B1�
 
 ## License
 
-[AGPL-3.0-only](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE) — free to use and self-host; any modified version distributed as a network service must publish its source under the same license. Exception: `tes/cost.py` and `tes/_digest.py` are additionally available under [Apache-2.0](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE-APACHE). This lets downstream packages — e.g. [adk-tracegauge](https://github.com/gaurav-gandhi-2411/adk-tracegauge) — depend on the cost-computation module without inheriting AGPL's copyleft terms. Every other file in this repository remains AGPL-3.0-only.
+[Apache-2.0](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE) from 0.16.0 onward. Releases 0.15.0 and earlier on PyPI were published under AGPL-3.0-only and remain under that license for anyone who received them; the change applies to 0.16.0 and later only. Third-party fonts bundled in the package keep their own SIL OFL 1.1 license, and third-party datasets in the repository keep theirs; see `NOTICE` and [DATA_SOURCES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/DATA_SOURCES.md).
 
 ---
 
