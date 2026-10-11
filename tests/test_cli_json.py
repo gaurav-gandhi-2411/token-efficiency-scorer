@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Golden-shape tests for `--json` on every reporting command (W1A item 6).
+"""Golden-shape tests for `--json` on every reporting command.
 
 Pinned per command: the exact key set (a key added or dropped must be a deliberate edit here and
 in docs/JSON_OUTPUT.md, with a SCHEMA_VERSION bump if it is a removal), that stdout is exactly one

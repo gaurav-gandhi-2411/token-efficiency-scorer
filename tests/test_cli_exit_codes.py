@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Exit codes are a contract (docs/EXIT_CODES.md): scripts and hooks branch on them (W1A item 6).
+"""Exit codes are a contract (docs/EXIT_CODES.md): scripts and hooks branch on them.
 
 `score` on a corrupt file used to print [ERROR] and exit 0; `monitor` printed [ALARM] and exit 0,
 so there was no machine-readable pass/fail. These tests run the real CLI (subprocess for the
