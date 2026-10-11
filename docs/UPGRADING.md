@@ -43,7 +43,7 @@ tracegauge: 1452 of 1452 stored session(s) were scored by an older version ...
 ```
 
 It is shown once per store per tracegauge version, and again only if more legacy rows appear later.
-Silence it with `TES_NO_NOTICE=1` or `tracegauge --quiet <command>` (the flag goes before the command).
+Silence it with `TRACEGAUGE_NO_NOTICE=1` or `tracegauge --quiet <command>` (the flag goes before the command).
 It never creates a store, never raises, waits at most 0.25 s on a locked store, and is skipped by
 `rescore` and `backfill-waste`.
 

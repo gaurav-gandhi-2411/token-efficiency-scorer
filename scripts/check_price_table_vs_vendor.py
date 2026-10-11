@@ -64,7 +64,7 @@ from tracegauge.cost import cache_read_multiplier, load_price_table  # noqa: E40
 _USER_AGENT = "Mozilla/5.0 (compatible; tracegauge-price-vendor-check/2.0)"
 _TIMEOUT_SECONDS = 20
 
-#: Always check the bundled table, never a ~/.tes/prices.json or TES_PRICE_TABLE override.
+#: Always check the bundled table, never a ~/.tes/prices.json or TRACEGAUGE_PRICE_TABLE override.
 _BUNDLED_PRICES = _ROOT / "tracegauge" / "data" / "prices.json"
 
 ANTHROPIC_MD_URL = "https://platform.claude.com/docs/en/about-claude/pricing.md"

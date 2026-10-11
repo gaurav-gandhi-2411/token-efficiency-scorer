@@ -62,7 +62,7 @@ def _run(tmp_path: Path, *argv: str) -> subprocess.CompletedProcess[str]:
         "USERPROFILE": str(home),
         "LOCALAPPDATA": str(home),
         "APPDATA": str(home),
-        "TES_DB_PATH": str(tmp_path / "tes.db"),
+        "TRACEGAUGE_DB_PATH": str(tmp_path / "tes.db"),
         "PYTHONIOENCODING": "utf-8",
     }
     env.pop("ANTHROPIC_API_KEY", None)
@@ -154,7 +154,7 @@ def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baselin
     import tracegauge.alarm as alarm_mod
     import tracegauge.live_monitor as lm
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
     monkeypatch.setattr(alarm_mod, "threshold_for_live", lambda *a, **k: baseline)
@@ -189,7 +189,7 @@ def test_monitor_without_active_session_exits_zero(
     # runs `tracegauge monitor` must not read "no session" as a failure.
     import tracegauge.live_monitor as lm
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: None)
     monkeypatch.setattr("sys.argv", ["tracegauge", "monitor", "--cc-path", str(tmp_path)])
     with pytest.raises(SystemExit) as exc:
@@ -210,7 +210,7 @@ def hermetic_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     for var in ("HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"):
         monkeypatch.setenv(var, str(home))
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)

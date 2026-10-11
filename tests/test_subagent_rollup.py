@@ -260,7 +260,7 @@ def test_cli_score_shows_subagent_breakdown(
 ) -> None:
     import tracegauge.cli as cli
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     parent = _make_session(tmp_path)
     monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(parent), "--no-judge"])
     cli.main()
@@ -284,7 +284,7 @@ def test_explicit_subagent_file_scores_without_crashing(
     """An explicit path to a subagent transcript still works (it just has no main chain)."""
     import tracegauge.cli as cli
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     agent = _make_session(tmp_path).with_suffix("") / "subagents" / "agent-aaa.jsonl"
     monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(agent), "--no-judge", "--json"])
     cli.main()

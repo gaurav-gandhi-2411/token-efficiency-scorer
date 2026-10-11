@@ -122,7 +122,7 @@ def test_zero_token_synthetic_turn_does_not_make_a_session_unpriced(tmp_path: Pa
 @pytest.fixture
 def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db = tmp_path / "tes.db"
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

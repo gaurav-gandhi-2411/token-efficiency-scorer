@@ -49,7 +49,7 @@ def _cache_path(db_path: Path | str) -> Path:
     """RR2: co-located with, and named after, the resolved TES database --
     NOT a fixed ~/.tes/intelligence_cache.json regardless of which DB is in
     use. Before this fix, every caller shared one global cache file even
-    when TES_DB_PATH pointed somewhere else entirely (e.g. an isolated test
+    when TRACEGAUGE_DB_PATH pointed somewhere else entirely (e.g. an isolated test
     DB), so computing patterns against a scratch/test database silently
     overwrote the real cache the next real `tracegauge ask`/`tracegauge patterns` call
     would read -- confirmed live during RR1 verification, which is what
@@ -65,7 +65,7 @@ def _cache_path(db_path: Path | str) -> Path:
     tracegauge.store.resolve_db_path -- everything below that boundary, including
     this function, only ever sees a concrete path it was explicitly handed.
     Mirrors tracegauge.store.resolve_db_path's own resolution order (explicit arg
-    -> TES_DB_PATH env var -> ~/.tes/tes.db) so a given DB always maps to
+    -> TRACEGAUGE_DB_PATH env var -> ~/.tes/tes.db) so a given DB always maps to
     the same cache file, and a different DB always maps to a different one.
     """
     from tracegauge.store import resolve_db_path
@@ -204,7 +204,7 @@ def get_or_compute_intelligence(
     an interactive/diagnostic call that never meant to touch the real DB
     ended up writing to the real ~/.tes/intelligence_cache.json (twice: the
     original RR2 discovery, then again during 0.11.1's own release
-    verification). Resolution (explicit arg -> TES_DB_PATH env var ->
+    verification). Resolution (explicit arg -> TRACEGAUGE_DB_PATH env var ->
     ~/.tes/tes.db default) still happens, but now exactly once, at each
     top-level entry point (tracegauge.cli's command handlers, tracegauge.intelligence.chat's
     build_chat_context) via tracegauge.store.resolve_db_path -- callers below that

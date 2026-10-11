@@ -134,7 +134,7 @@ def _session(path: Path, model: str, *, edit: bool = False) -> Path:
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -229,8 +229,8 @@ def test_cost_json_roi_block_without_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
-    # No plan at the default location (TES_PLAN_PATH names it): "no_plan", still exit 0.
-    monkeypatch.setenv("TES_PLAN_PATH", str(tmp_path / "no-plan.json"))
+    # No plan at the default location (TRACEGAUGE_PLAN_PATH names it): "no_plan", still exit 0.
+    monkeypatch.setenv("TRACEGAUGE_PLAN_PATH", str(tmp_path / "no-plan.json"))
     code, out, _ = _run(monkeypatch, capsys, "cost", "--week", "--roi", "--json")
     assert code == 0
     roi = _doc(out)["roi"]
@@ -638,7 +638,7 @@ def test_every_json_document_has_command_and_legacy_rows_excluded(
     """The documented envelope: every --json document carries both keys, with the right command."""
     path = _session(tmp_path / "proj" / "s.jsonl", PRICED, edit=True)
     _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
-    monkeypatch.setenv("TES_NO_NOTICE", "1")
+    monkeypatch.setenv("TRACEGAUGE_NO_NOTICE", "1")
     cases = {
         "score": ["score", str(path), "--no-judge", "--json"],
         "cost": ["cost", "--week", "--json"],

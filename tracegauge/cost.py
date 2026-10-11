@@ -6,11 +6,10 @@ from __future__ import annotations
 """tracegauge/cost.py — Dollar-cost computation for Claude Code sessions.
 
 Self-contained (no src/ or scripts/ imports). Prices are loaded from a bundled
-JSON table; users can override via TES_PRICE_TABLE env var or ~/.tes/prices.json.
+JSON table; users can override via TRACEGAUGE_PRICE_TABLE env var or ~/.tes/prices.json.
 """
 
 import json
-import os
 import re
 from dataclasses import dataclass, field
 from datetime import date
@@ -19,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge._env import env_value
 
 #: A price entry older than this is flagged by check_price_table_staleness,
 #: not silently trusted. 90 days mirrors adk-tracegauge's own
@@ -153,14 +153,14 @@ def load_price_table(path: str | Path | None = None) -> dict[str, Any]:
     """Load the price table, resolving in priority order:
 
     1. Explicit ``path`` argument
-    2. ``TES_PRICE_TABLE`` environment variable
+    2. ``TRACEGAUGE_PRICE_TABLE`` environment variable
     3. ``~/.tes/prices.json`` if it exists
     4. Bundled ``tracegauge/data/prices.json``
     """
     if path is not None:
         return json.loads(Path(path).read_text(encoding="utf-8"))
 
-    env_path = os.environ.get("TES_PRICE_TABLE")
+    env_path = env_value("PRICE_TABLE")
     if env_path:
         return json.loads(Path(env_path).read_text(encoding="utf-8"))
 
@@ -221,7 +221,7 @@ def _resolve_model(model_str: str, prices: dict[str, Any]) -> tuple[str | None, 
     known = ", ".join(sorted(models))
     reason = (
         f"unknown model '{model_str}' — cost unknown, not priced at a guessed/default rate "
-        f"(known models: {known}). Set TES_PRICE_TABLE to a JSON file with the same schema "
+        f"(known models: {known}). Set TRACEGAUGE_PRICE_TABLE to a JSON file with the same schema "
         "as tracegauge/data/prices.json containing an entry for this model, add one to "
         "~/.tes/prices.json, or open an issue at "
         "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues if it should "
@@ -585,7 +585,7 @@ def compute_session_cost(
 
     domain_of_validity = (
         f"Computed from measured tokens at per-turn, per-model rates (prices as of {price_table_date}; "
-        "bundled — override with TES_PRICE_TABLE env var or ~/.tes/prices.json). "
+        "bundled — override with TRACEGAUGE_PRICE_TABLE env var or ~/.tes/prices.json). "
         "Cache writes are split by the transcript's usage.cache_creation: 1-hour writes at 2x "
         "input, 5-minute at 1.25x; writes whose tier is unspecified are assumed 5-minute "
         f"({unspecified_writes} of {all_writes} cache-write tokens in this session). "

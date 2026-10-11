@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 """The one-time notice about legacy rows: once per store per version, again only when new legacy
-rows appear, on stderr only, silenced by --quiet / TES_NO_NOTICE, and never fatal or slow."""
+rows appear, on stderr only, silenced by --quiet / TRACEGAUGE_NO_NOTICE, and never fatal or slow."""
 
 import io
 import json
@@ -194,7 +194,7 @@ def _run(
 def test_cli_notice_goes_to_stderr_once_and_keeps_json_stdout_clean(
     mixed: MixedStore, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(mixed.db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(mixed.db))
     code, out, err = _run(monkeypatch, capsys, "cost", "--week", "--json")
     assert code == 0
     json.loads(out)  # stdout is exactly one JSON document
@@ -207,7 +207,7 @@ def test_cli_notice_goes_to_stderr_once_and_keeps_json_stdout_clean(
 def test_cli_quiet_flag_and_other_commands(
     mixed: MixedStore, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(mixed.db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(mixed.db))
     _, _, err = _run(monkeypatch, capsys, "--quiet", "budget", "--json")
     assert "tracegauge:" not in err
     _, _, err = _run(monkeypatch, capsys, "rescore", "--dry-run", "--json")

@@ -29,7 +29,7 @@ from tracegauge.watcher import WatcherConfig, run_watcher
 def test_scan_cycle_reaches_scan_once_with_default_db_path(tmp_path: Path) -> None:
     """With db_path=None, run_watcher must reach _scan_once (not crash in load_or_compute).
 
-    Uses TES_DB_PATH env var to redirect the default ~/.tes/tes.db to tmp_path so
+    Uses TRACEGAUGE_DB_PATH env var to redirect the default ~/.tes/tes.db to tmp_path so
     the test does not touch the user's real database.
     """
     cc_dir = tmp_path / "projects"
@@ -44,7 +44,7 @@ def test_scan_cycle_reaches_scan_once_with_default_db_path(tmp_path: Path) -> No
     stop_event = threading.Event()
     stop_event.set()  # stop immediately after the first cycle
 
-    with patch.dict(os.environ, {"TES_DB_PATH": str(tmp_path / "tes.db")}):
+    with patch.dict(os.environ, {"TRACEGAUGE_DB_PATH": str(tmp_path / "tes.db")}):
         with patch("tracegauge.watcher._scan_once", return_value=0) as mock_scan:
             run_watcher(config, stop_event)
 

@@ -20,7 +20,6 @@ A store missing either column fails closed: every row is legacy.
 """
 
 import json
-import os
 import sqlite3
 import sys
 from collections.abc import Iterable, Mapping
@@ -28,9 +27,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO, TypeVar
 
+from tracegauge._env import env_value
+
 _RowT = TypeVar("_RowT", bound=Mapping[str, Any])
 
-NO_NOTICE_ENV = "TES_NO_NOTICE"  # =1 silences the one-time legacy-rows notice
+NO_NOTICE_ENV = "TRACEGAUGE_NO_NOTICE"  # =1 silences the one-time legacy-rows notice
 NOTICE_META_KEY = "legacy_notice"  # meta-table key holding the last-shown marker
 # Label used wherever a historical (uncorrected) dollar figure is still shown.
 LEGACY_LABEL = "legacy (pre-0.15 accounting, overcounted ~2x)"
@@ -221,7 +222,7 @@ def maybe_notify(
     marker cannot be saved, the notice again next time). Falling legacy counts (after a rescore)
     lower the marker silently so rows that turn legacy later re-trigger it.
     """
-    if quiet or os.environ.get(NO_NOTICE_ENV, "").strip() not in ("", "0"):
+    if quiet or (env_value("NO_NOTICE") or "").strip() not in ("", "0"):
         return False
     from tracegauge import __version__  # noqa: PLC0415
     from tracegauge.store import resolve_db_path  # noqa: PLC0415

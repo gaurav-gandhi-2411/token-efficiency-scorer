@@ -254,7 +254,7 @@ def test_monitor_cli_reads_the_store_end_to_end(
         _insert(conn, f"s{i}", 100_000 + i, ADAPTER_VERSION, model=S55, mtime=time.time() - 3600)
     conn.commit()
     conn.close()
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
 
     def run(tokens: int) -> tuple[int, dict[str, Any]]:

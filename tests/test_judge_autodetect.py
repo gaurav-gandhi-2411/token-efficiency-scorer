@@ -61,7 +61,7 @@ def _run(monkeypatch, argv):
 
 @pytest.fixture
 def cc(tmp_path, monkeypatch):
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     d = tmp_path / "projects"
     d.mkdir()
     _make_session(d)

@@ -113,7 +113,8 @@ def test_compute_turn_cost_never_confidently_prices_an_unknown_model(model_str: 
     # The reason must name the model AND a concrete remedy -- not a bare
     # "approximate" flag with no actionable content.
     assert (
-        "TES_PRICE_TABLE" in tc.approximate_reason or "empty model string" in tc.approximate_reason
+        "TRACEGAUGE_PRICE_TABLE" in tc.approximate_reason
+        or "empty model string" in tc.approximate_reason
     )
 
 

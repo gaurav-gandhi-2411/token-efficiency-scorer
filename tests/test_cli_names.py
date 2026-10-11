@@ -85,7 +85,6 @@ def test_json_stdout_is_untouched_by_the_notice(tmp_path: Path) -> None:
         **os.environ,
         "HOME": env_home,
         "USERPROFILE": env_home,
-        "TES_DB_PATH": str(tmp_path / "tes.db"),
         "TRACEGAUGE_DB_PATH": str(tmp_path / "tg.db"),
     }
     env.pop("TRACEGAUGE_NO_DEPRECATION_NOTICE", None)

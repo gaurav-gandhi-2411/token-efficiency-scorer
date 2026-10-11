@@ -14,7 +14,7 @@ Three layers of proof:
    the web dashboard, and bare `tracegauge` (dashboard launch) never transmit.
 3. CorpusConfig.from_env() returns None (not a default/fallback destination)
    when the destination env vars are unset — a fresh install with no
-   TES_CORPUS_* configuration cannot transmit even if a user somehow forced
+   TRACEGAUGE_CORPUS_* configuration cannot transmit even if a user somehow forced
    consent_given=True.
 """
 
@@ -174,16 +174,16 @@ def test_bare_tes_dashboard_launch_never_touches_corpus_client(monkeypatch) -> N
 
 
 def test_corpus_config_from_env_returns_none_when_unset(monkeypatch) -> None:
-    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
-    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
-    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_WITHDRAW_URL", raising=False)
     assert CorpusConfig.from_env() is None
 
 
 def test_corpus_config_from_env_requires_all_three_vars(monkeypatch) -> None:
-    monkeypatch.setenv("TES_CORPUS_URL", "https://example.supabase.co")
-    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
-    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+    monkeypatch.setenv("TRACEGAUGE_CORPUS_URL", "https://example.supabase.co")
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_WITHDRAW_URL", raising=False)
     assert CorpusConfig.from_env() is None
 
 
@@ -192,9 +192,9 @@ def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(monkeypat
     the store or showing the preview/consent screen — walking a user through
     a full "Send to the community corpus? [y/N]" prompt only to reveal
     [NOT SENT] afterward looks functional right up until the last line."""
-    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
-    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
-    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_WITHDRAW_URL", raising=False)
 
     def _fail_if_prompted(*a, **k):
         raise AssertionError("input() was called -- config check did not fail fast")
@@ -215,9 +215,9 @@ def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(monkeypat
 
 
 def test_cli_withdraw_fails_fast_when_unconfigured_before_any_prompt(monkeypatch, capsys) -> None:
-    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
-    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
-    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_WITHDRAW_URL", raising=False)
 
     def _fail_if_prompted(*a, **k):
         raise AssertionError("input() was called -- config check did not fail fast")
@@ -236,12 +236,12 @@ def test_cli_withdraw_fails_fast_when_unconfigured_before_any_prompt(monkeypatch
 
 
 def test_no_send_even_with_consent_true_when_unconfigured(monkeypatch) -> None:
-    """A fresh install has no TES_CORPUS_* env vars — contribute() must
+    """A fresh install has no TRACEGAUGE_CORPUS_* env vars — contribute() must
     refuse to send even if consent_given were somehow True, because there is
     nowhere configured to send it."""
-    monkeypatch.delenv("TES_CORPUS_URL", raising=False)
-    monkeypatch.delenv("TES_CORPUS_ANON_KEY", raising=False)
-    monkeypatch.delenv("TES_CORPUS_WITHDRAW_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_URL", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_ANON_KEY", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_CORPUS_WITHDRAW_URL", raising=False)
 
     conn = _conn_with_one_session()
     config = CorpusConfig.from_env()

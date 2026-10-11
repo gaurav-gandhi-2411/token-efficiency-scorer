@@ -38,7 +38,7 @@ def _load_real_corpus() -> tuple[list[SessionFeatures], np.ndarray, dict[str, in
     entry point -- these tests intentionally exercise this machine's own real
     corpus) rather than relying on a downstream function's own default. Under the
     suite-wide isolation in tests/conftest.py this is an empty store (tests skip);
-    set TES_TEST_USE_AMBIENT_STORE=1 to run against the real store.
+    set TRACEGAUGE_TEST_USE_AMBIENT_STORE=1 to run against the real store.
     """
     from tracegauge.store import resolve_db_path
 

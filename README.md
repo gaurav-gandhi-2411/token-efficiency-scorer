@@ -307,7 +307,7 @@ tracegauge cost --week --roi
 tracegauge cost --week --roi --plan-config /path/to/plan.json   # override the default location
 ```
 
-"Is my subscription worth it at API-equivalent prices?" Requires a plan config at `~/.tes/plan.json` (or `TES_PLAN_PATH`/`--plan-config`) — a **history**, not a single static cost, since a plan can change mid-window and each day should price at whichever plan was actually active that day, prorated by exact elapsed time (not calendar-day counting, which would inflate a rolling window that doesn't start/end at midnight — every real invocation):
+"Is my subscription worth it at API-equivalent prices?" Requires a plan config at `~/.tes/plan.json` (or `TRACEGAUGE_PLAN_PATH`/`--plan-config`) — a **history**, not a single static cost, since a plan can change mid-window and each day should price at whichever plan was actually active that day, prorated by exact elapsed time (not calendar-day counting, which would inflate a rolling window that doesn't start/end at midnight — every real invocation):
 
 ```json
 {"plans": [

@@ -55,7 +55,7 @@ def _session(path: Path, model: str, *, input_tokens: int, cache_read: int, outp
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
