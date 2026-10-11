@@ -176,6 +176,8 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   release is the first one whose published PyPI page actually carries the notice — every prior
   published version's page remains permanently non-compliant (PyPI does not allow re-uploading
   a version's metadata; see RELEASING.md, "do not yank").
+  (Erratum, 2026-10: the figure quoted above, "172 independent developers, 1,053 sessions", was
+  wrong. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. The entry is left as published.)
 - Two internal research-corpus documentation errors, unrelated to any public claim but worth
   a clean record: `research/09-cross-model.md` twice mis-described the project's own real
   Spearman ρ≈0.79 trajectory-judge figure as correlating against a "5-session human-rated set"
