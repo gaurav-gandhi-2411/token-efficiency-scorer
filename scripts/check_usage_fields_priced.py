@@ -3,13 +3,14 @@ Claude Code transcripts has no entry in the committed pricing-rule registry.
 
 Why this exists: 1-hour cache writes were recorded in every transcript
 (``usage.cache_creation.ephemeral_1h_input_tokens``) for weeks while tracegauge priced all writes
-at the 5-minute rate, understating set-B spend by ~3%. Nothing noticed, because nothing compared
-"what the transcripts carry" with "what the pricing code knows". This gate does: every key path
-under ``message.usage`` must be listed in ``config/usage_field_rules.json`` with a rule (priced /
-free / ignored-with-reason / unmodelled), so a NEW billable field fails loudly the first time it
-shows up, and a value that changes the bill (``speed: fast``, ``inference_geo: us``, a non-
-standard ``service_tier``) is rejected by the registry's value guards instead of passing as an
-ordinary string.
+at the 5-minute rate, understating the maintainer's measured spend by ~3%. Nothing noticed, because
+nothing compared "what the transcripts carry" with "what the pricing code knows". This gate does:
+every key path under ``message.usage`` must be listed in ``config/usage_field_rules.json`` with a
+rule (priced / free / ignored-with-reason / unmodelled), so a NEW billable field fails loudly the
+first time it shows up, and a value that tes.cost does not price (an unknown ``speed`` such as
+``turbo``, a new ``inference_geo``, a non-standard ``service_tier``) is rejected by the registry's
+value guards instead of passing as an ordinary string. ``speed: fast`` and ``inference_geo: us``
+are priced and allowed.
 
 Usage::
 

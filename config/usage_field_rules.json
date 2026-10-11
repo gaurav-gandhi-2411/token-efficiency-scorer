@@ -2,7 +2,7 @@
   "version": 1,
   "as_of": "2026-10-10",
   "source_url": "https://platform.claude.com/docs/en/about-claude/pricing",
-  "note": "Pricing-rule registry for every key path that appears under message.usage in Claude Code transcripts. scripts/check_usage_fields_priced.py fails CI when a transcript (or the committed fixture) carries a key path that is not listed here, so a new billable field can never be silently ignored. rule is one of: priced (tes.cost prices it), free (the page says no charge), ignored (not an additional charge; reason says why), unmodelled (billable or possibly billable, NOT priced; tes says so in the cost note). Key paths use [] for list elements. value_guards lists the only values of a field the registry has seen and judged benign; any other value (e.g. speed=fast, inference_geo=us) fails the gate because it would change the bill and is not modelled. Evidence for each entry: docs/PRICING_FIELDS.md.",
+  "note": "Pricing-rule registry for every key path that appears under message.usage in Claude Code transcripts. scripts/check_usage_fields_priced.py fails CI when a transcript (or the committed fixture) carries a key path that is not listed here, so a new billable field can never be silently ignored. rule is one of: priced (tes.cost prices it), free (the page says no charge), ignored (not an additional charge; reason says why), unmodelled (billable or possibly billable, NOT priced; tes says so in the cost note). Key paths use [] for list elements. value_guards lists the only values of a field the registry knows how to price (or has judged benign); any other value (e.g. speed=turbo, a new inference_geo, a non-standard service_tier) fails the gate because it may change the bill and tes.cost would price it as standard. Evidence for each entry: docs/PRICING_FIELDS.md.",
   "fields": {
     "usage.input_tokens": {"rule": "priced", "dimension": "fresh input", "reason": "base input rate x tokens"},
     "usage.output_tokens": {"rule": "priced", "dimension": "output", "reason": "output rate x tokens; includes thinking tokens"},
@@ -10,12 +10,12 @@
     "usage.cache_creation_input_tokens": {"rule": "priced", "dimension": "cache write (total)", "reason": "5m + 1h writes; unspecified tier priced as 5m"},
     "usage.cache_creation.ephemeral_5m_input_tokens": {"rule": "priced", "dimension": "5-minute cache write", "reason": "1.25x input"},
     "usage.cache_creation.ephemeral_1h_input_tokens": {"rule": "priced", "dimension": "1-hour cache write", "reason": "2x input"},
-    "usage.server_tool_use.web_search_requests": {"rule": "unmodelled", "dimension": "web search", "reason": "$10 per 1,000 searches on the page; detected and warned about (TurnCost.server_tool_warning), never added to total_usd; 0 non-zero records in the audited set"},
+    "usage.server_tool_use.web_search_requests": {"rule": "priced", "dimension": "web search", "reason": "$10 per 1,000 searches added to the turn's cost (prices.json server_tool_rates), on top of tokens; errored searches are not billed by the API but cannot be seen in a transcript, so every recorded search is charged"},
     "usage.server_tool_use.web_fetch_requests": {"rule": "free", "dimension": "web fetch", "reason": "page: no additional charge beyond token costs"},
     "usage.server_tool_use.code_execution_requests": {"rule": "unmodelled", "dimension": "code execution", "reason": "billed by container execution time (not in the transcript); free with web search/fetch 20260209+; detected and warned about"},
     "usage.service_tier": {"rule": "ignored", "dimension": "service tier", "reason": "value 'standard' on every record seen; the page has no priority-tier price, so any other value fails the gate via value_guards"},
-    "usage.speed": {"rule": "unmodelled", "dimension": "fast mode", "reason": "page: fast mode is premium-priced (Opus 5.5 $8/$40); only 'standard' seen; 'fast' fails the gate via value_guards"},
-    "usage.inference_geo": {"rule": "unmodelled", "dimension": "data residency", "reason": "page: inference_geo 'us' is 1.1x on 4.6+ models; only 'not_available' seen; 'us' fails the gate via value_guards"},
+    "usage.speed": {"rule": "priced", "dimension": "fast mode", "reason": "'fast' uses the model's fast_input/output_usd_per_mtok (Opus 5.5 $8/$40; Opus 5 and 4.8 $10/$50) with cache and geo multipliers stacked on top; a model without fast rates is priced standard and the session note says so; 'standard' and null are standard"},
+    "usage.inference_geo": {"rule": "priced", "dimension": "data residency", "reason": "'us' is 1.1x on every token category of Claude 4.6 and later models (prices.json geo_us_multiplier); an earlier model is priced standard and the session note says so; 'global', 'not_available' and null are 1.0"},
     "usage.iterations": {"rule": "ignored", "dimension": "per-iteration breakdown", "reason": "list of the sampling iterations whose sum equals the top-level usage (32,691/32,691 records checked); pricing the top level already covers it, pricing both would double count"},
     "usage.iterations[].type": {"rule": "ignored", "dimension": "per-iteration breakdown", "reason": "label of an iteration"},
     "usage.iterations[].input_tokens": {"rule": "ignored", "dimension": "per-iteration breakdown", "reason": "sums to usage.input_tokens"},
@@ -30,8 +30,8 @@
   },
   "value_guards": {
     "usage.service_tier": ["standard"],
-    "usage.speed": ["standard"],
-    "usage.inference_geo": ["not_available", "global"],
+    "usage.speed": ["standard", "fast"],
+    "usage.inference_geo": ["not_available", "global", "us"],
     "usage.fallback_credit": []
   }
 }
