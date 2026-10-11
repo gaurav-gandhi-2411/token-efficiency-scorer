@@ -6,7 +6,7 @@
     python scripts/spdx_headers.py            # add the header where it is missing
     python scripts/spdx_headers.py --check    # exit 1 and list files that lack it
 
-Covers tracegauge/, scripts/ and tests/. The header is two comment lines, placed after any shebang or
+Covers tracegauge/, tes/, scripts/ and tests/. The header is two comment lines, placed after any shebang or
 encoding line, so ``from __future__ import annotations`` stays the first non-comment line. Files that
 carry the older "AGPL-3.0-only OR Apache-2.0" dual-licence block get that block replaced.
 
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-ROOTS = ("tracegauge", "scripts", "tests")
+ROOTS = ("tracegauge", "tes", "scripts", "tests")
 # Byte-frozen project invariant; adding a header would trip its own guard test.
 EXCLUDE = frozenset({"tracegauge/_waste_detectors.py"})
 HEADER_LINES = (
