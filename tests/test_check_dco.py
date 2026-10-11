@@ -126,7 +126,17 @@ def test_real_git_range_good_passes_and_bad_fails(repo: Path) -> None:
 def test_real_git_range_skips_merge_and_dependabot(repo: Path) -> None:
     base = _git(repo, "rev-parse", "HEAD")
     _git(repo, "checkout", "-q", "-b", "side")
-    _add(repo, 1, "build(deps): bump x", "g.txt", GIT_AUTHOR_NAME="dependabot[bot]")
+    bot = "49699333+dependabot[bot]@users.noreply.github.com"
+    _add(
+        repo,
+        1,
+        "build(deps): bump x",
+        "g.txt",
+        GIT_AUTHOR_NAME="dependabot[bot]",
+        GIT_AUTHOR_EMAIL=bot,
+        GIT_COMMITTER_NAME="dependabot[bot]",
+        GIT_COMMITTER_EMAIL=bot,
+    )
     _git(repo, "checkout", "-q", "main")
     _add(repo, 2, f"feat: main work\n\nSigned-off-by: {ME}")
     (repo / "f.txt").write_text("merged\n")
@@ -146,3 +156,54 @@ def test_main_exit_codes(
     assert "FAIL" in capsys.readouterr().out
     assert dco.main(["--base", "no-such-ref", "--head", "HEAD"]) == 2  # fail closed
     assert dco.main(["--base", "HEAD", "--head", "HEAD"]) == 0  # empty range
+
+
+BOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com"
+
+
+def _bot_commit(**kw: str) -> object:
+    fields = {
+        "an": "dependabot[bot]",
+        "ae": BOT_EMAIL,
+        "cn": "dependabot[bot]",
+        "ce": BOT_EMAIL,
+    }
+    fields.update(kw)
+    return dco.Commit(
+        "b" * 40, 1, fields["an"], fields["ae"], fields["cn"], fields["ce"], "build(deps): bump x"
+    )
+
+
+def test_a_real_bot_identity_is_exempt() -> None:
+    assert dco.failing_commits([_bot_commit()]) == []
+
+
+def test_a_bot_authored_commit_merged_through_the_github_ui_is_exempt() -> None:
+    web = _bot_commit(cn="GitHub", ce="noreply@github.com")
+    assert dco.failing_commits([web]) == []
+
+
+def test_a_name_ending_in_bot_alone_does_not_exempt() -> None:
+    spoof = _bot_commit(ae="dev@example.org", ce="dev@example.org")
+    assert dco.failing_commits([spoof]) == [spoof]
+
+
+def test_a_bot_name_with_a_lookalike_email_does_not_exempt() -> None:
+    for email in (
+        "dependabot[bot]@users.noreply.github.com",  # no numeric id
+        "49699333+dependabot[bot]@users.noreply.github.com.evil.example",
+        "49699333+dependabot[bot]@example.org",
+        "49699333+dependabot@users.noreply.github.com",  # not a [bot] account
+    ):
+        spoof = _bot_commit(ae=email, ce=email)
+        assert dco.failing_commits([spoof]) == [spoof], email
+
+
+def test_a_bot_email_with_a_human_name_does_not_exempt() -> None:
+    spoof = _bot_commit(an="Dev One", cn="Dev One")
+    assert dco.failing_commits([spoof]) == [spoof]
+
+
+def test_a_human_committer_on_a_bot_authored_commit_does_not_exempt() -> None:
+    spoof = _bot_commit(cn="Dev One", ce="dev@example.org")
+    assert dco.failing_commits([spoof]) == [spoof]
