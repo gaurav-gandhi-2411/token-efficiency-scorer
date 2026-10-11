@@ -58,6 +58,64 @@ problem with this repo's config — clear
 `%LOCALAPPDATA%\pypa\virtualenv\Cache` and `%USERPROFILE%\.cache\pre-commit`
 and retry.
 
+## Licence and sign-off
+
+From 0.16.0 tracegauge is licensed under the Apache License 2.0 (see `LICENSE`); releases up to
+0.15.0 remain AGPL-3.0. By contributing you agree your contribution is licensed under Apache-2.0
+(inbound = outbound). There is no CLA. Instead every commit must be signed off under the
+[Developer Certificate of Origin 1.1](https://developercertificate.org/), which says you wrote the
+change or have the right to submit it under this licence. Add the sign-off with `-s`:
+
+```bash
+git commit -s -m "fix(scope): what changed"   # appends: Signed-off-by: Your Name <you@example.org>
+git rebase --signoff origin/master            # add it to commits you already made
+```
+
+The name and email in the trailer must match the commit's author (or committer) email. CI
+(`dco` job in `.github/workflows/ci.yml`, `scripts/check_dco.py`) fails a pull request if any commit
+in it lacks a valid `Signed-off-by` trailer; merge commits and bot commits (dependabot) are skipped.
+Run it locally with `python scripts/check_dco.py --base origin/master --head HEAD`.
+
+The certificate text, version 1.1 (copied from developercertificate.org):
+
+    Developer Certificate of Origin
+    Version 1.1
+
+    Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+
+    Everyone is permitted to copy and distribute verbatim copies of this
+    license document, but changing it is not allowed.
+
+
+    Developer's Certificate of Origin 1.1
+
+    By making a contribution to this project, I certify that:
+
+    (a) The contribution was created in whole or in part by me and I
+        have the right to submit it under the open source license
+        indicated in the file; or
+
+    (b) The contribution is based upon previous work that, to the best
+        of my knowledge, is covered under an appropriate open source
+        license and I have the right under that license to submit that
+        work with modifications, whether created in whole or in part
+        by me, under the same open source license (unless I am
+        permitted to submit under a different license), as indicated
+        in the file; or
+
+    (c) The contribution was provided directly to me by some other
+        person who certified (a), (b) or (c) and I have not modified
+        it.
+
+    (d) I understand and agree that this project and the contribution
+        are public and that a record of the contribution (including all
+        personal information I submit with it, including my sign-off) is
+        maintained indefinitely and may be redistributed consistent with
+        this project or the open source license(s) involved.
+
+New Python files start with the two-line header added by `scripts/spdx_headers.py`
+(`python scripts/spdx_headers.py` adds it, `--check` verifies it; a test enforces it).
+
 ## Releasing
 
 See `RELEASING.md` for the full tag-triggered release flow.
