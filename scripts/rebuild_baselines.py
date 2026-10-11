@@ -274,7 +274,7 @@ def freeze_manifest(
                 ),
                 # a file still being written has no stable hash worth pinning
                 "sha256": None if active else file_sha256(path),
-                "in_phase0_set_b": path.stem in eval_ids,
+                "in_eval_set": path.stem in eval_ids,
                 "included": reason is None,
                 "exclusion_reason": reason,
             }
@@ -392,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(BASELINES_PATH, build_baselines(manifest))
         print(f"wrote {BASELINES_PATH}")
     elif args.cmd == "evaluate":
-        ids = {x["session_id"] for x in manifest["sessions"] if x["in_phase0_set_b"]}
+        ids = {x["session_id"] for x in manifest["sessions"] if x["in_eval_set"]}
         old = json.loads(args.old_baselines.read_text("utf-8")) if args.old_baselines else None
         result = evaluate_set(manifest, ids, old)
         _write_json(args.out, result)
