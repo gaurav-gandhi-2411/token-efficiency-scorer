@@ -58,6 +58,14 @@ class TurnDigest:
     # the documented conservative default. Both 0 on records stored before this field existed.
     cache_creation_1h: int = 0
     cache_creation_tier_known: int = 0
+    # Per-request billing modifiers from usage.speed / usage.inference_geo, normalised by
+    # tes.adapt._parse_billing_modifiers: speed is "fast" or "" (standard/absent), inference_geo
+    # is "us" or "" (global/not_available/absent). They scale the WHOLE request, so a main-chain
+    # turn (one request) carries its own and an aggregated subagent turn is only ever built
+    # from requests sharing the same pair (tes.adapt.collect_subagent_usage). "" on records
+    # stored before these fields existed, which therefore price exactly as before.
+    speed: str = ""
+    inference_geo: str = ""
 
 
 @dataclass

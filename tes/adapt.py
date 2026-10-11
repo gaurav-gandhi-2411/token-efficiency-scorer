@@ -230,6 +230,19 @@ def _parse_server_tool_use(usage: dict[str, Any]) -> dict[str, int] | None:
     return counts or None
 
 
+def _parse_billing_modifiers(usage: dict[str, Any]) -> tuple[str, str]:
+    """Return ``(speed, inference_geo)`` normalised to what changes the bill.
+
+    ``usage.speed == "fast"`` -> ``"fast"``; ``usage.inference_geo == "us"`` -> ``"us"``.
+    Everything else ("standard", "global", "not_available", null, absent, or a value the
+    pricing page does not know) normalises to ``""`` -- tes.cost prices it at the standard
+    rate, and scripts/check_usage_fields_priced.py is what flags an unrecognised value.
+    """
+    speed = "fast" if usage.get("speed") == "fast" else ""
+    geo = "us" if usage.get("inference_geo") == "us" else ""
+    return speed, geo
+
+
 def _message_dedup_key(msg: dict[str, Any]) -> str:
     """Key identifying the API response an assistant record belongs to.
 
@@ -266,16 +279,18 @@ def _has_tool_use(content: list[Any]) -> bool:
 
 def _collapse_main_chain_usage(
     messages: list[dict[str, Any]],
-) -> tuple[dict[int, tuple[list[int], dict[str, int]]], dict[str, int]]:
+) -> tuple[dict[int, tuple[list[int], dict[str, int], tuple[str, str]]], dict[str, int]]:
     """Resolve each API response's usage ONCE across the main-chain records it spans.
 
     Returns ``(carriers, stats)``. ``carriers`` maps the index (into ``messages``) of ONE
     record per response -- the *carrier* -- to ``([input, cache_creation, cache_read,
-    output, cache_creation_1h, tier_known], server_tool_use)``: the per-field maximum over all records sharing the
+    output, cache_creation_1h, tier_known], server_tool_use, (speed, inference_geo))``: the
+    per-field maximum over all records sharing the
     response's ``_message_dedup_key`` (on real data every record of a response repeats an
     identical usage, so max == first == last; max is also the safe choice for streaming
     partials whose ``output_tokens`` grow). Every other record of the response is a
-    zero-usage turn.
+    zero-usage turn. ``speed`` / ``inference_geo`` are properties of the response, identical
+    on every record of it; the value of the last usage-carrying record is taken.
 
     Why the turn structure is NOT merged: waste detectors, proof-turn indices, the
     ``turn_count`` scope gates and ``edit_operations`` all work on one turn per record, and
@@ -300,19 +315,28 @@ def _collapse_main_chain_usage(
             usage_records += 1
         g = groups.setdefault(
             _message_dedup_key(msg),
-            {"counts": [0] * 6, "stu": {}, "last": i, "tool": None, "has_usage": False},
+            {
+                "counts": [0] * 6,
+                "stu": {},
+                "mods": ("", ""),
+                "last": i,
+                "tool": None,
+                "has_usage": False,
+            },
         )
         # counts = [input, cache_creation, cache_read, output, cache_creation_1h, tier_known]
         row = [*_parse_usage(usage), *_parse_cache_tiers(usage)]
         g["counts"] = [max(a, b) for a, b in zip(g["counts"], row, strict=True)]
         stu = _parse_server_tool_use(usage) or {}
         g["stu"] = {k: max(g["stu"].get(k, 0), stu.get(k, 0)) for k in {*g["stu"], *stu}}
+        if usage:
+            g["mods"] = _parse_billing_modifiers(usage)
         g["last"] = i
         g["has_usage"] = g["has_usage"] or bool(usage)
         if _has_tool_use(content):
             g["tool"] = i
     carriers = {
-        (g["tool"] if g["tool"] is not None else g["last"]): (g["counts"], g["stu"])
+        (g["tool"] if g["tool"] is not None else g["last"]): (g["counts"], g["stu"], g["mods"])
         for g in groups.values()
     }
     distinct = sum(1 for g in groups.values() if g["has_usage"])
@@ -353,8 +377,12 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
     ``message.id`` are merged by taking the per-field maximum, see ``_message_dedup_key``).
 
     Returns ``{"file_count", "message_count", "real_tokens", "billed_tokens", "turns"}`` where
-    ``turns`` are one TurnDigest-shaped dict per (subagent file, model) -- cost and
-    attribution are linear in tokens, so aggregating per model loses nothing.
+    ``turns`` are one TurnDigest-shaped dict per (subagent file, model, speed, inference_geo)
+    -- cost and attribution are linear in tokens, so aggregating loses nothing, but fast mode
+    and the US-only multiplier are per-request properties that scale the whole request, so a
+    request is never summed with one that has a different (speed, geo): each turn carries one
+    uniform ``speed`` / ``inference_geo``. A subagent file with no fast or US request yields
+    exactly the per-(file, model) turns it always did.
     """
     if is_subagent_path(session_path):
         return None
@@ -371,8 +399,8 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
         except OSError:
             continue
         # message key -> (model, [input, cache_creation, cache_read, output, cache_creation_1h,
-        # tier_known], server_tool_use)
-        per_message: dict[str, tuple[str, list[int], dict[str, int]]] = {}
+        # tier_known], server_tool_use, (speed, inference_geo))
+        per_message: dict[str, tuple[str, list[int], dict[str, int], tuple[str, str]]] = {}
         for rec in records:
             if rec.get("type") != "assistant":
                 continue
@@ -384,33 +412,37 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
                 continue
             counts = [*_parse_usage(usage), *_parse_cache_tiers(usage)]
             stu = _parse_server_tool_use(usage) or {}
+            mods = _parse_billing_modifiers(usage)
             key = _message_dedup_key(rec)
             if key in per_message:
-                model, prev, prev_stu = per_message[key]
+                model, prev, prev_stu, _prev_mods = per_message[key]
                 counts = [max(a, b) for a, b in zip(prev, counts, strict=True)]
                 stu = {k: max(prev_stu.get(k, 0), stu.get(k, 0)) for k in {*prev_stu, *stu}}
-                per_message[key] = (model or str(message.get("model", "")), counts, stu)
+                per_message[key] = (model or str(message.get("model", "")), counts, stu, mods)
             else:
-                per_message[key] = (str(message.get("model", "")), counts, stu)
+                per_message[key] = (str(message.get("model", "")), counts, stu, mods)
 
-        by_model: dict[str, list[int]] = {}
-        stu_by_model: dict[str, dict[str, int]] = {}
-        requests_by_model: dict[str, int] = {}
-        for model, counts, stu in per_message.values():
+        # Aggregation key: (model, speed, inference_geo) -- see the docstring.
+        by_model: dict[tuple[str, str, str], list[int]] = {}
+        stu_by_model: dict[tuple[str, str, str], dict[str, int]] = {}
+        requests_by_model: dict[tuple[str, str, str], int] = {}
+        for model, counts, stu, (speed, geo) in per_message.values():
             if not any(counts[:4]):
                 continue  # zero-usage records (e.g. synthetic client-side messages)
-            acc = by_model.setdefault(model, [0] * 6)
+            agg = (model, speed, geo)
+            acc = by_model.setdefault(agg, [0] * 6)
             for i, c in enumerate(counts):
                 acc[i] += c
             message_count += 1
-            requests_by_model[model] = requests_by_model.get(model, 0) + 1
-            tot = stu_by_model.setdefault(model, {})
+            requests_by_model[agg] = requests_by_model.get(agg, 0) + 1
+            tot = stu_by_model.setdefault(agg, {})
             for k, v in stu.items():
                 tot[k] = tot.get(k, 0) + v
         if not by_model:
             continue
         file_count += 1
-        for model, (inp, cache_cr, cache_rd, out, cache_1h, tier_known) in sorted(by_model.items()):
+        for agg, (inp, cache_cr, cache_rd, out, cache_1h, tier_known) in sorted(by_model.items()):
+            model, speed, geo = agg
             turns.append(
                 {
                     "role": "ai",
@@ -422,10 +454,12 @@ def collect_subagent_usage(session_path: Path) -> dict[str, Any] | None:
                     "h2_duplicate": False,
                     "cache_creation": cache_cr,
                     "model": model,
-                    "server_tool_use": stu_by_model.get(model) or None,
-                    "request_count": requests_by_model[model],
+                    "server_tool_use": stu_by_model.get(agg) or None,
+                    "request_count": requests_by_model[agg],
                     "cache_creation_1h": cache_1h,
                     "cache_creation_tier_known": tier_known,
+                    "speed": speed,
+                    "inference_geo": geo,
                 }
             )
 
@@ -513,7 +547,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
 
             # Usage is charged once per API response, on its carrier record (see
             # _collapse_main_chain_usage); sibling content-block records get zero usage.
-            counts, stu = usage_carriers.get(msg_idx, ([0] * 6, {}))
+            counts, stu, (speed, geo) = usage_carriers.get(msg_idx, ([0] * 6, {}, ("", "")))
             inp, cache_cr, cache_rd, out, cache_1h, tier_known = counts
             server_tool_use = stu or None
             model_str: str = message.get("model", "")
@@ -546,6 +580,8 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
                     server_tool_use=server_tool_use,
                     cache_creation_1h=cache_1h,
                     cache_creation_tier_known=tier_known,
+                    speed=speed,
+                    inference_geo=geo,
                 )
             )
             turn_index += 1
