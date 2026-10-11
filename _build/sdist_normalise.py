@@ -8,6 +8,12 @@ import tarfile
 from pathlib import Path
 
 
+def _is_generated_text(name: str) -> bool:
+    """True for the files setuptools generates (PKG-INFO, setup.cfg, *.egg-info/*)."""
+    base = name.split("/", 1)[-1]
+    return base in ("PKG-INFO", "setup.cfg") or ".egg-info/" in base
+
+
 def normalise_sdist(path: Path, epoch: int | None) -> None:
     """Rewrite the .tar.gz at `path` in place with canonical, platform-independent metadata."""
     with tarfile.open(path, "r:gz") as src:
@@ -24,6 +30,9 @@ def normalise_sdist(path: Path, epoch: int | None) -> None:
                 info.mtime = epoch
             else:
                 info.mtime = int(m.mtime)
+            if m.isfile() and _is_generated_text(m.name):
+                # setuptools writes these in text mode: CRLF on Windows, LF on Linux.
+                payload[m.name] = payload[m.name].replace(b"\r\n", b"\n")
             if m.isdir():
                 info.mode = 0o755
                 out.addfile(info)

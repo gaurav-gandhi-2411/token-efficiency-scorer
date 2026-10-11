@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import base64
 import gzip
 import hashlib
 import io
 import shutil
 import sys
 import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_dist  # noqa: E402
 from sdist_normalise import normalise_sdist  # noqa: E402
+from wheel_normalise import normalise_wheel  # noqa: E402
+
+CRLF = b"a\r\nb\r\n"
+LF = b"a\nb\n"
 
 
 def _make_sdist(path: Path, *, mtime: int, mode: int, order: list[str]) -> None:
@@ -50,13 +56,62 @@ def test_normalise_sdist_ignores_mtime_mode_order_owner(tmp_path: Path) -> None:
         }
 
 
+def test_normalise_sdist_lf_for_generated_files_only(tmp_path: Path) -> None:
+    path = tmp_path / "s.tar.gz"
+    raw = io.BytesIO()
+    with tarfile.open(fileobj=raw, mode="w") as tar:
+        for name in ("p-1/PKG-INFO", "p-1/tes/x.py"):
+            info = tarfile.TarInfo(name)
+            info.size = len(CRLF)
+            tar.addfile(info, io.BytesIO(CRLF))
+    path.write_bytes(gzip.compress(raw.getvalue()))
+    normalise_sdist(path, 1)
+    with tarfile.open(path) as tar:
+        got = {m.name: tar.extractfile(m).read() for m in tar.getmembers()}  # type: ignore[union-attr]
+    # Source files are never touched (they are LF by .gitattributes); generated ones are LF.
+    assert got == {"p-1/PKG-INFO": LF, "p-1/tes/x.py": CRLF}
+
+
+def _record_line(name: str, data: bytes) -> str:
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+    return f"{name},sha256={digest},{len(data)}"
+
+
+def _make_wheel(path: Path, *, metadata: bytes, system: int, attr: int) -> None:
+    files = {"p/a.py": b"x = 1\n", "p-1.dist-info/METADATA": metadata}
+    lines = [_record_line(n, d) for n, d in files.items()] + ["p-1.dist-info/RECORD,,"]
+    files["p-1.dist-info/RECORD"] = ("\n".join(lines) + "\n").encode()
+    with zipfile.ZipFile(path, "w") as z:
+        for n, d in files.items():
+            zi = zipfile.ZipInfo(n, (2026, 1, 1, 0, 0, 0))
+            zi.create_system, zi.external_attr = system, attr
+            z.writestr(zi, d)
+
+
+def test_normalise_wheel_is_platform_independent_and_record_stays_valid(tmp_path: Path) -> None:
+    win, lin = tmp_path / "w.whl", tmp_path / "l.whl"
+    _make_wheel(win, metadata=CRLF, system=0, attr=0o100666 << 16)
+    _make_wheel(lin, metadata=LF, system=3, attr=0o100644 << 16)
+    normalise_wheel(win)
+    normalise_wheel(lin)
+    assert win.read_bytes() == lin.read_bytes()
+    with zipfile.ZipFile(win) as z:
+        for line in z.read("p-1.dist-info/RECORD").decode().splitlines():
+            name, digest, _ = line.split(",")
+            if digest:
+                assert line == _record_line(name, z.read(name))
+
+
 @pytest.mark.skipif(
     shutil.which("uv") is None or shutil.which("git") is None, reason="needs uv+git"
 )
 def test_two_builds_are_byte_identical(tmp_path: Path) -> None:
     first = build_dist.build(tmp_path / "one")
     second = build_dist.build(tmp_path / "two")
-    digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()  # noqa: E731
+
+    def digest(p: Path) -> str:
+        return hashlib.sha256(p.read_bytes()).hexdigest()
+
     assert [p.name for p in first] == [p.name for p in second]
     assert len(first) == 2
     assert [digest(p) for p in first] == [digest(p) for p in second]
