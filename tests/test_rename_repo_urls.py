@@ -61,6 +61,7 @@ def repo(tmp_path: Path) -> Path:
         "research/note.md": f"see https://github.com/{OWNER}/{OLD}/blob/main/x.md\n",
         "data/log.jsonl": f'{{"path": "/home/u/{OLD}/x"}}\n',
         "notes.md": f"the {OLD} project, not a link\n",
+        "docs/RENAME_REPO.md": f"quotes the old slug {OWNER}/{OLD} on purpose\n",
         "pic.png": "\0\0binary " + f"{OWNER}/{OLD}",
     }
     for rel, content in files.items():
@@ -154,3 +155,13 @@ def test_identical_old_and_new_is_refused(repo: Path) -> None:
     assert (
         rr.main(["--owner", OWNER, "--old", OLD, "--new", OLD, "--root", str(repo), "--check"]) == 2
     )
+
+
+def test_the_rename_checklist_itself_is_never_scanned_or_rewritten(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    before = (repo / "docs" / "RENAME_REPO.md").read_bytes()
+    assert _run(repo, "--inventory", "--include-historical") == 0
+    assert "RENAME_REPO" not in capsys.readouterr().out
+    _run(repo, "--apply", "--include-historical")
+    assert (repo / "docs" / "RENAME_REPO.md").read_bytes() == before
