@@ -6,13 +6,13 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, `0.13.0`, and `0.14.0` (confirmed live against PyPI's own JSON API;
+`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, `0.13.0`, `0.14.0`, and `0.15.0` (the current release; the earlier ones confirmed live against PyPI's own JSON API;
 this note previously stopped enumerating at `0.10.2` for four releases running — corrected here
 rather than left standing, per the same "nothing re-checks this note against reality" gap
 RELEASING.md's own incident section already names). Versions `0.2.0` and `0.4.0` were built and
 tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
-**deliberately not published** — see its entry for why (corpus stays dormant). `0.14.0` is the
-**current published release**.
+**deliberately not published** — see its entry for why (corpus stays dormant). `0.15.0` is the
+**current release**.
 
 `0.12.3`, `0.12.4` and `0.13.0` are **yanked** on PyPI (reason: "ImportError on Python 3.10 (datetime.UTC); fixed in
 0.14.0"): they do not import on Python 3.10 and are fixed in `0.14.0`. A yank hides a version from unpinned and range
@@ -23,262 +23,85 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (~2.4x too high)
 
+Measurements and migration detail: [docs/releases/0.15.0.md](docs/releases/0.15.0.md). Figures called "the
+maintainer's" are unpublished local measurements on the maintainer's own transcripts.
+
 ### BREAKING: read before upgrading
 
 1. **Usage is deduplicated per `message.id`, so token counts drop ~2.4x on affected sessions, and the shipped
    bands are rebuilt.** `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them
-   change (measured: 35,895,367 -> 14,889,709 tokens, x2.41, on 10 seeded sessions; per-session factor 1.0x to
+   change (the maintainer's 10 sessions: 35,895,367 -> 14,889,709 tokens, x2.41; per-session factor 1.0x to
    4.0x). The bundled `tes/data/cc_baselines.json` is a re-baseline (71 ungated sessions, `adapter_version` 2),
    not a correction. New bands (tokens, p25 / median / p75): ml-eval n=13: 1,335,924 / 1,515,851 / 2,796,600;
    debug-fix n=19: 397,878 / 802,486 / 3,381,684; infra-deploy n=15: 376,422 / 1,577,905 / 3,119,425;
    research-recon n=16: 411,052 / 620,842 / 1,194,136; feature-build n=8 is inactive (below the minimum of 10)
-   and reports no band. Anything you published or stored from an earlier version is on the old scale.
+   and reports no band. Anything you published or stored from an earlier version is on the old scale. The bands
+   describe one developer's work (small n, sessions not independent): "above_p75" means heavier than that
+   developer's typical session, not wasteful and not heavier than other developers.
 2. **numpy and scikit-learn moved to the `[patterns]` extra; the core install is flask + httpx.** `tes patterns`
    and `tes ask` now need `pip install "tracegauge[patterns]"`; without it they print that one-line hint and
    exit 1.
-3. **New exit codes** (see `docs/EXIT_CODES.md`): 1 = bad usage or nothing to do (no sessions found, store
-   cannot be opened), 3 = the `tes monitor` alarm fired (it exited 0 before), 4 = a session could not be read or
-   scored (`tes score` printed `[ERROR]` and exited 0 before). Scripts that treated every exit as success must
-   handle these.
+3. **New exit codes** (see [docs/EXIT_CODES.md](docs/EXIT_CODES.md)): 1 = bad usage or nothing to do (no
+   sessions found, store cannot be opened), 3 = the `tes monitor` alarm fired (it exited 0 before), 4 = a session
+   could not be read or scored (`tes score` printed `[ERROR]` and exited 0 before). Scripts that treated every
+   exit as success must handle these.
 4. **Rows written by older versions are labelled legacy and excluded until `tes rescore`.** They are left out of
    the self-baselines, the alarm pool, `budget`, `cost` totals, `impact`, `patterns`, `ask` and contribution
    exports; nothing is deleted. `tes rescore` re-scores those whose source transcript still exists; where the
-   transcript is gone the row cannot be corrected. See `docs/UPGRADING.md`.
+   transcript is gone the row cannot be corrected. See [docs/UPGRADING.md](docs/UPGRADING.md).
 
-The details, measurements and the remaining changes of this release follow.
+### Added and fixed
 
-Every number
-below was measured on the release branch; the commands and raw outputs are in the W1A reports, not asserted from memory.
-
-### BREAKING: `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them change
-
-**Claude Code writes one assistant JSONL record per content block (thinking, text, each tool_use) of an API
-response, and every one of those records repeats the response's full `usage`. `tes.adapt.adapt_session` added the
-usage of every record, so each response was counted once per content block.** Checked against ccusage, which dedupes
-by `message.id` + `requestId`, and against the data: on 81 live transcripts there are 64,080 main-chain records for
-31,140 distinct `message.id`s, and in 23,553 multi-record groups the usage differed in 0.
-
-Measured effect of the fix (old = per-record sum, new = each `message.id` once):
-
-| population | records / responses | real_tokens old -> new | main-chain cost old -> new |
-|---|---|---|---|
-| 10 seeded sessions | 5,781 / 2,720 | 35,895,367 -> 14,889,709 (x2.41) | $645.90 -> $285.71 (x2.26) |
-| Phase 0 set B (50 sessions) | 32,761 / 14,962 | 172,756,805 -> 69,748,076 (x2.48) | new: $1,328.60 |
-| all 81 live transcripts | 64,080 / 31,140 | 320,198,282 -> 133,842,530 (x2.39) | not measured |
-
-Per-session factor ranges from **1.0x** (a session with one block per response) to **4.0x** (measured minimum and
-maximum over both sets). Three consequences:
-
-* Every `real_tokens`, `total_tokens`, `session_cost_usd`, attribution bucket, `tes cost`, `tes budget`, ROI figure
-  and live-monitor estimate that came from a main-chain transcript was too high by that factor. Subagent usage
-  (added on this branch) was already counted once per response.
-* **The bundled baseline is rebuilt, and it is a re-baseline, not a correction.** The old
-  `tes/data/cc_baselines.json` (75 quality-gated sessions, per-record usage) cannot be corrected: its raw sessions
-  are gone (0 of 75 on disk) and old-scale cells cannot be kept on the new scale. It is replaced by bands built with
-  `adapter_version` 2 from a new frozen population: 71 of the 81 main (non-subagent) Claude Code sessions of one
-  developer (5 still being written and 5 with no usage excluded), **not quality-gated** (no judge verdict was used;
-  the old gate was `MUCH_BETTER` only), listed by id, task type, turns, tokens, size, mtime and sha256 in
-  `eval/manifest.json` (no transcript text, no paths). `scripts/rebuild_baselines.py build` regenerates the file from
-  that manifest alone, byte for byte (seed 42; 95% bootstrap CIs on p25/median/p75 are in the file under `ci95`,
-  provenance under `provenance`). Active cells: ml-eval 13, debug-fix 19, infra-deploy 15, research-recon 16 sessions.
-  **feature-build (n=8, below the activation minimum of 10) is inactive** and reports no token band; it is not padded
-  with the old bands or an estimate. Corrected bands are higher, not lower, than the old ones for most cells
-  (median ml-eval 646,026 -> 1,515,851, infra-deploy 698,512 -> 1,577,905, debug-fix 524,989 -> 802,486,
-  research-recon 718,627 -> 620,842): this developer's recent sessions are long agentic runs (median 821 turns,
-  992,235 tokens), not the shorter June pool.
-  **Limitation, read before trusting a verdict.** The bands describe one developer's typical work, which is heavy on
-  infrastructure and agent orchestration; they are small-n (13 to 19 per cell, p75 CI up to 4.3x wide) and the
-  sessions are not independent. A percentile band built from your own sessions puts roughly a quarter of those same
-  sessions above its p75 by construction, so "above_p75" here means "heavier than a typical session of this
-  developer", not "wasteful" and not "heavier than other developers". On the 50 Phase 0 set-B sessions, scored with
-  each session left out of its own bands (leave-one-out): above_p75 10 / within_band 20 / below_p25 3 / unavailable 17
-  (above_p75 20% of 50, Wilson 95% 11% to 33%); against bands from only the 23 included sessions disjoint from set B, just
-  debug-fix reaches n=10, so 42 of 50 are unavailable. For comparison, Phase 0 (old accounting, old bands) was
-  above_p75 36 / within_band 3 / below_p25 2 / unavailable 9, and corrected tokens against the OLD bands 24 / 12 / 5 / 9:
-  the Phase 0 skew is not reproduced against bands built from the same developer's current sessions (it came from
-  comparing them with an older, quality-gated pool on a different scale). Re-baseline on a wider, multi-developer population before reading a verdict as an absolute
-  statement.
-* **Your own stored self-baselines are discarded, not silently reused.** Rows written by older versions carry no
-  `adapter_version` and are ignored by the self-baseline (a type shows "building" with a count of excluded rows).
-  `tes backfill-waste` re-scores them from the source transcript when it still exists; where the transcript is gone
-  (the usual case for old sessions) the stored aggregate cannot be corrected. On a copy of the Phase 0 store,
-  1,452 of 1,452 rows were stale and none could be refreshed, so all five task types fall back from `self` to
-  `building`.
-
-**What did not change.** Waste detection: the detectors read tool names and result snippets only. REPEATED-FAILED-
-RETRY and REDUNDANT-READ event counts and proof turns are identical before and after on the 50 set-B sessions (3
-events in total, all identical); per-event `wasted_cost_usd` is also identical there, because a flagged turn already
-carried exactly one response's usage, so waste as a share of the (now smaller) total goes up. `turn_count` and `edit_operations` are unchanged: turns are still one per record, only usage is deduped. The
-bundled scope gates (`p10_turns`) are re-derived with the new baseline (ml-eval 66, debug-fix 56, infra-deploy 68,
-research-recon 143, none for the inactive feature-build); an inactive cell's null gate no longer crashes the
-self-baseline computation (it falls back to the 20-turn minimum).
-
-**Migration.**
-
-* `adapt_session` returns `adapter_version: 2` and `usage_dedupe` (`usage_records`, `usage_records_deduped`,
-  `duplicate_usage_records`); the same three counts are on `SessionDigest` (`usage_records`, `usage_records_deduped`)
-  and `ThreeAxisResult` (`tes score --json`). A digest or row without them was produced by the old accounting.
-* SDK callers that sum `turn.token_count_input` / `token_count_output` themselves: a response now charges its tokens
-  on ONE turn (the last record holding a `tool_use`, else the last record); its sibling content-block turns carry 0.
-  Sums per session are right; per-turn values are not "tokens of this record". With parallel tool calls in one
-  response only the last tool_use turn holds the tokens, so a waste event on an earlier sibling is charged $0
-  (the session totals are unaffected).
-* The SQLite store gains `adapter_version` and `duplicate_usage_records` columns (additive, idempotent). A store from
-  an older version is read-compatible; run `tes backfill-waste` to re-score the rows whose transcripts still exist.
-* Anything you published or stored from an earlier version (cost reports, ROI, dashboards, exported contribution
-  files) is on the old scale. `scripts/adapters/claudecode_adapter.py` (the frozen research adapter) still sums per
-  record by design; use `tes.adapt` for any number that ships.
-
-### Added / Fixed on the same branch (separate commits, each independently reviewable)
-
-* **Prices:** `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-fable-5-1`, `claude-mythos-5-1`, `claude-haiku-5-5`
-  added from the vendor pricing page (retrieved 2026-10-09); before this, 84,140 assistant turns in the local
-  transcripts were unpriced and counted as $0. Optional per-model `cache_read_multiplier` (0.05x Opus/Sonnet 5.5,
-  0.025x Fable/Mythos 5.1; 0.1x elsewhere), Haiku 5.5 long-context tier, `<synthetic>` as an explicit zero-cost
-  non-model, and `claude-sonnet-4` as its own entry. The 13 legacy entries were re-verified and are unchanged. CI now
-  derives the model list and the cache columns from the vendor page (the previous check never looked at either, which
-  is why it passed while five models were missing), fails when a model id seen in real transcripts has no price, and
-  runs an advisory LiteLLM cross-check. Not modelled and stated in the domain of validity: fast mode, `inference_geo`
-  uplift, Batch discount, server tools.
-* **Subagent roll-up:** subagent transcripts (`<session>/subagents/agent-*.jsonl`, every record `isSidechain: true`)
-  are no longer scored as separate empty sessions (they scored 0 tokens / UNAVAILABLE and were picked by `tes score`,
-  `--pick`, the watcher and the live monitor because they were the newest file); their usage is rolled into the
-  parent session's cost and attribution (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`), while
-  `real_tokens` and waste detection stay main-chain so the verdict axis is unchanged by it.
-* **JSONL reader no longer drops records containing U+2028/U+2029/U+0085:** transcripts were read with
-  `str.splitlines()`, which also breaks lines on those characters (and `\x0b`, `\x0c`, `\x1c`-`\x1e`) inside JSON
-  strings, so the fragments failed `json.loads` and the record was silently skipped; JSONL lines end only at `\n`.
-  On the local transcripts 1 of 1,005 files lost 3 records (one subagent message, 145,906 billed tokens). Fixed in
-  `tes.adapt` (both readers), `tes.store` turn counting and the two `scripts/adapters/claudecode_adapter.py` readers.
-* **Unpriced models are shown, not hidden:** a session whose models are not in the price table prints
-  `unpriced (<model>)` instead of `$0.00`; JSON gains `priced` and `unpriced_models`.
-* **Cost breakdown and finding in `score` (replaces the "long context" lever):** `tes score` and the dashboard
-  session page show a COST BREAKDOWN (dollars and share per bucket, labelled informational) and, only when an
-  absolute rule fires, a LEVER finding carried as `lever_hint` in `--json` (`null` otherwise). Same function for both
-  surfaces (`tes/takeaway.py`). See the next entries for what changed and why.
-* **Exit codes (behavior change for scripts):** `tes score` used to print `[ERROR]` for an unreadable session and
-  still exit 0; it now exits 4 after scoring the rest (a directory keeps going and lists every failure).
-  `tes monitor` exits 3 when the alarm fires (it exited 0). `cost`, `budget` and `impact` exit 1 when the store
-  cannot be opened (they exited 0). `monitor` with no active session stays 0. Every success path is unchanged.
-  All codes are in `docs/EXIT_CODES.md` and each command's `--help` epilog.
-* **`--json` on every reporting command:** `cost`, `budget`, `monitor`, `impact` and `patterns` join `score`.
-  Each document opens with `schema_version` (1) and `command`, has a fixed key set (null, never absent), puts
-  only the document on stdout (hints and errors on stderr) and carries `priced` / `unpriced_models` where USD is
-  involved. `score --json` gains `schema_version` and `lever_hint`. Keys are documented in `docs/JSON_OUTPUT.md`
-  and pinned by `tests/test_cli_json.py`. `tes patterns` now checks its dependencies through
-  `require_patterns_extra()` and prints a one-line install hint if they are missing (they are still core today).
-* **Lighter default install (`pip install tracegauge` / `uvx tracegauge`):** numpy and scikit-learn (scipy comes
-  with it) moved out of the core dependencies into the optional `tracegauge[patterns]` extra. Only `tes patterns`,
-  `tes ask` and the dashboard `/patterns` and `/ask` use them (import-graph checked: nothing else in `tes/` imports
-  them), and `tes.intelligence` now imports lazily, so nothing needs them at import or CLI start-up. Without the
-  extra, `tes patterns` and `tes ask` print `pip install "tracegauge[patterns]"` and exit 1, and the dashboard shows
-  an "extra not installed" page (`/patterns`) or a JSON 501 (`/ask`). **Upgrade note:** anyone using `tes patterns`
-  or `tes ask` must now install `tracegauge[patterns]`. Measured on a local wheel: site-packages 20.0 MiB core
-  (10.4 MiB of that is pip) vs 246.2 MiB with the extra; details in `docs/INSTALL.md`.
-* **Live alarm compares against your recent sessions of the same model era, and says what it used:** it used to
-  compare against the verdict self-baseline's p75 (the p75 of the lean half of your sessions over all time), which
-  sat near the median and fired on 40/50 = 80% of a real user's last 50 sessions (Phase 0 audit, old accounting;
-  mixed model eras and double-counted rows made it worse). The threshold is now the p85 of your own sessions from
-  the last 30 days, same model era (`claude-sonnet-5` vs `claude-sonnet-5-5` ...), current-adapter rows only, with
-  a fallback chain (recent+era+type -> recent+era -> recent+type -> recent -> bundled reference -> alarm disabled,
-  minimum 10 sessions per tier). `tes monitor` prints the threshold and where it came from, or the one-line reason
-  the alarm is disabled; `--json` gains `alarm_baseline` and `threshold_tokens` / `baseline_tier` / `baseline_n` /
-  `baseline_percentile` on `alarm`. Retrospective on the same 50 sessions (a finished-session analogue of a live
-  alarm): 8/50 = 16% [8, 29] chronological and 7/50 = 14% [7, 26] leave-one-out, 5/5 and 4/5 of the top-decile
-  sessions by tokens flagged (p75 would fire on 12/50 and 11/50; the cost top decile is only 1/5 flagged
-  because the gate is tokens). One user, 50 sessions: a calibration check, not a validation. New nullable
-  `sessions.dominant_model` column (added idempotently). `AlarmConfig` and `check_alarm` stay backward
-  compatible. Method, tables and limits: `docs/ALARM.md`.
-* **`tracegauge quickstart` shows a real verdict and a finding again:** the rebuilt baseline raised the
-  research-recon turn gate from 44 to 143, so the 50-turn bundled sample had silently fallen to token economy
-  UNAVAILABLE and 0 waste events. The synthetic sample is now 146 turns (generated by
-  `scripts/gen_quickstart_sample.py`, labelled synthetic, no real session content) with one deterministic
-  REPEATED-FAILED-RETRY and the cost breakdown; a regression test fails on UNAVAILABLE, 0 events or no breakdown.
-* **CI runs the suite on Linux, macOS and Windows, and a coverage floor is enforced:** the full suite now runs on
-  ubuntu/macos/windows x Python 3.10-3.13 (12 legs, `fail-fast: false`), plus four core-only legs (no `patterns`
-  extra: a real wheel install, quickstart, score on the bundled sample, `tests/test_core_without_extras.py`) and the
-  existing ubuntu 3.14 leg; lint/format/mypy/release-version checks stay one job. `fail_under = 82` in
-  `[tool.coverage.report]` (measured 82.19% on Linux 3.12 and 82.17% on Windows 3.13) is enforced on ubuntu py3.12 only.
-  Found by actually running 3.10: `scripts/rebuild_baselines.py` imported `datetime.UTC` (3.11+), which broke test
-  collection on 3.10; fixed, with a static guard test. Check names are unchanged (see `docs/CI.md`).
-* **Cost: 1-hour cache writes are priced at 2x input, not 1.25x (USD was understated; `real_tokens` is unchanged):**
-  Claude Code records `usage.cache_creation.{ephemeral_5m,ephemeral_1h}_input_tokens`, a subset breakdown of
-  `cache_creation_input_tokens` (5m + 1h == total on 57,651 of 57,651 deduped set-B messages). `tes.cost` priced every
-  write at the 5-minute rate although the vendor page prices 1-hour writes at 2x. The split is now threaded through
-  `tes.adapt` (per `message.id`, per-field max; subagent aggregation per file+model), `TurnDigest`, `tes.cost` and the
-  store. A record without the breakdown is priced at 5 minutes (conservative default, a floor) and the cost note says
-  so ("assumed 5-minute (N of M cache-write tokens)"). Effect on Phase 0 set B (50 sessions, deduped, same prices):
-  main chain $1,328.60 -> $1,443.58, subagents $2,199.76 -> $2,200.13, total $3,528.36 -> $3,643.71 (+$115.35, +3.3%;
-  an independent verifier computed +$115.348). Stored `session_cost_usd` rows scored before this are stale: a new
-  `COST_VERSION` (record field plus additive `sessions.cost_version` column) marks them and `tes backfill-waste`
-  re-prices them. `ADAPTER_VERSION` stays 2 on purpose: `real_tokens` did not move, and that number gates the
-  self/alarm baselines and the shipped baseline provenance. New `docs/PRICING_FIELDS.md` maps every `usage` key to the
-  pricing page, and `scripts/check_usage_fields_priced.py` (with `config/usage_field_rules.json`) fails CI when a usage
-  field or a bill-changing value (`speed: fast`, `inference_geo: us`, a non-standard `service_tier`) has no pricing
-  rule. Not modelled, with their count in set B: web search (0 non-zero records), fast mode and data residency (every
-  record that carries the field says standard / not_available; 41,611 subagent records carry no `speed` at all).
-- **Upgrade path for stores written by 0.14 and earlier: legacy rows are excluded from corrected figures and
-  `tes rescore` recovers what can be recovered.** Rows with `adapter_version` or `cost_version` NULL/older
-  (every row of an old store) are derived as *legacy*; nothing is deleted or rewritten. They are left out of the
-  self-baselines, the alarm pool, `budget` (pace/projection) and `cost`/`--roi` totals; `cost` shows them once on
-  a separate `legacy (pre-0.15 accounting, overcounted ~2x)` line, never summed in, and `budget`/`cost --json`
-  gain `legacy_rows_excluded` (keys added, `schema_version` stays 1). The first store-opening command after the
-  upgrade prints a one-time stderr notice (counts of legacy / rescorable / unrecoverable rows and the fix);
-  `TES_NO_NOTICE=1` or `tes --quiet` silences it. New `tes rescore [--dry-run] [--json] [--limit N]` re-scores
-  legacy rows whose transcript still exists (idempotent; `--dry-run` leaves the store byte-identical; rows whose
-  transcript is gone are never touched; exit 4 if a readable row fails; an empty stub row, 0 turns and 0 tokens,
-  has nothing to rescore and is only marked current, so it cannot make `rescore` exit 4 forever). Also fixed: two processes opening one
-  old store at the same moment (the watcher and a CLI command) could raise `database is locked` or
-  `duplicate column name`. On the Phase 0 store copy (1,452 rows, none with a source transcript left) every row
-  is legacy and unrecoverable: the self-baselines restart from zero. See `docs/UPGRADING.md`.
-- **`export-contribution` (and `tes corpus contribute`) leave legacy rows out:** a legacy row's `real_tokens` is
-  overcounted about 2x, and the contribution builder would have written it into a file others can read. The preview
-  and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports
-  nothing and says why. `ContributionManifest` gains `legacy_rows_excluded` (default 0).
-- **README / PyPI page corrected where this release made it false or stale** (the published entries below are left
-  as history): the quickstart text (it now shows one REPEATED-FAILED-RETRY finding, and the
-  unmeasured "0.7s" timing is replaced by the conditions-labelled figures in `docs/INSTALL.md`), the optional
-  `tracegauge[patterns]` extra, the bundled baseline (71 ungated sessions, feature-build inactive; was "75
-  quality-gated"), the cache-read multiplier, the attribution and lever-hint examples, the `Priced coverage`
-  examples (regenerated from the 0.15.0 build), `tes budget` filtering on `source_mtime` (true since 0.12.1; the README
-  still said it was not fixed), and the alarm (p85 of recent same-era sessions, exit code 3). Dollar examples that
-  came from 0.11.0 stay as real output of that version and carry a scale caveat with the ledger's order-of-magnitude
-  values; none was re-priced or invented. `CURRENT_STATE.md`, `research/08` and `research/13` carry dated
-  supersession notes, `docs/audit/COMPETITIVE_GAP_ANALYSIS.md` an erratum, and `docs/digest_schema.md` the two
-  `usage_records` fields.
-- **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript:** `adapt_session`
-  returns zero usage for an empty, garbage or truncated file instead of raising, and the default `backfill-waste`
-  path (and `backfill_cost`) trusted it, replacing the row's `real_tokens`/cost with zeros and stamping it current.
-  It now follows the rule `tes rescore` already had: the row is counted as failed and left exactly as it was, the
-  command prints `rescored / skipped (source missing) / failed` and exits 4 when any row failed (it exited 0
-  whatever happened). A row due a refresh whose cost cannot be computed is a failure too, not a row stamped
-  current without a cost.
-- **Legacy rows are marked on `impact`, `patterns`, `ask` and the dashboard, and excluded from their aggregates:**
-  after the upgrade these surfaces still mixed pre-0.15 rows (tokens and dollars ~2x too high) into their figures.
-  `impact` and `patterns` now leave legacy rows out and say how many (text, and additive `legacy_rows_excluded` in
-  `--json`; `schema_version` stays 1); `ask` builds its context from current rows only and tells the model how many
-  were left out; the dashboard lists legacy rows with a `legacy: overcounted, not comparable` badge and a banner, shows
-  the same label on the session page and never compares a legacy cost with the baseline. A pattern cache built before
-  the count existed is recomputed. Per-command table in `docs/UPGRADING.md`.
-- **"Context dominates" is no longer presented as a finding; the cost is shown as an informational breakdown:**
-  the lever rule (context re-send + growth >= 60% of cost) fired on 76 of 76 audited sessions, always as "context"
-  (context was 69 to 99.5% of cost on every one of them, because Claude Code re-reads the whole context each turn),
-  so it told the user nothing about any particular session. `tes score` now prints a COST BREAKDOWN (dollars and
-  share of priced cost for context re-send, context growth, output, fresh input and detected waste; priced part
-  only, with a note naming unpriced models) and the dashboard session page shows the same table. The LEVER section
-  and `lever_hint` remain, but only for absolute findings that can be false for a session: detected waste
-  (>= $0.50, or >= 10% of cost and >= $0.05, proof turns in the waste section) or output >= 40% of cost; they did
-  not fire on the audited data, so the usual `lever_hint` is `null`. The "cost levers unavailable" text for
-  unpriced models is replaced by the breakdown's own "Not computed" note. `score --json` gains `cost_breakdown`
-  (additive; `schema_version` stays 1). No distribution-relative rule ships. Method and numbers: the W1A diag 4a/4b
-  report. The quickstart regression test now requires the verdict, the waste finding with proof turns and the
-  breakdown, and still fails on UNAVAILABLE or 0 waste events.
-- **The cost note states the cache-read multiplier each model was billed at:** `tes score` and `tes quickstart`
-  printed a flat `cache read 0.10x` even for Opus/Sonnet 5.5 (billed at 0.05x) and Fable/Mythos 5.1 (0.025x). The note
-  now names the multiplier per model (`cache read 0.05x (claude-opus-5-5)`), and states the write assumption
-  (`cache writes 1.25x (5m) / 2.00x (1h) by the transcript's tier, unspecified assumed 5m`). The dashboard, which spans
-  sessions, lists the default and the models that override it. `score --json` gains `cost_models` (additive; the
-  price-table keys of the priced turns). Pricing itself is unchanged: only what the note says.
+- **Usage counted once per API response, not once per content block.** Claude Code repeats a response's `usage`
+  on every content-block record; ccusage dedupes the same way (`ccusage/ccusage@c3a4eb0ecdcfbd3655dbcec8205644b046032332`,
+  `rust/adapters/claude/src/lib.rs:345-366`). Waste events and proof turns are unchanged.
+  [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); reproducible from `eval/manifest.json` with
+  `scripts/rebuild_baselines.py build`. [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Subagent usage is rolled into its parent session** (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`)
+  instead of scoring each subagent file as an empty session; `real_tokens` and the verdict stay main-chain.
+  [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **Prices for Opus 5.5, Sonnet 5.5, Fable 5.1, Mythos 5.1 and Haiku 5.5**, per-model cache-read multiplier, Haiku
+  5.5 long-context tier; CI derives the model list from the vendor page and fails on an unpriced model.
+  [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **1-hour cache writes are priced at 2x input (was 1.25x).** On the maintainer's 50 sessions the main chain was
+  $1,328.60 before the 1-hour fix and $1,443.58 after. [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Web search ($10 per 1,000), fast mode and `inference_geo: us` (1.1x) are priced**, each with a per-session note;
+  the Batch discount does not apply to Claude Code transcripts; code-execution time and errored searches remain
+  unmodelled. Prices from the vendor page (sha256 `67904e28...37ca9`). [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Unpriced models print `unpriced (<model>)` instead of `$0.00`**, and `priced` / `unpriced_models` are in JSON.
+  [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+- **COST BREAKDOWN replaces the "context dominates" lever.** The old rule fired on all 76 of the maintainer's
+  priced sessions; a LEVER finding now appears only for detected waste (>= $0.50, or >= 10.0% of cost and >= $0.05)
+  or output >= 40.0% of cost, compared unrounded. [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **The live alarm is the p85 of your own last 30 days of sessions in the same model era**, falls back to a
+  documented chain, and says what it used; `tes monitor` exits 3 when it fires. [docs/ALARM.md](docs/ALARM.md).
+- **`--json` on `cost`, `budget`, `monitor`, `impact` and `patterns`** (with `score`): `schema_version`, `command`
+  and `legacy_rows_excluded` in every document, fixed key sets. [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+- **`cost --roi --plan-config PATH` exits 1 when PATH does not exist** (it printed "no plan configured" and exited
+  0). [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
+- **`tes rescore [--dry-run] [--json] [--limit N]`** recovers legacy rows whose transcript still exists; a first
+  notice after the upgrade says how many rows need it; two processes opening an old store at once no longer fail
+  with `database is locked`. [docs/UPGRADING.md](docs/UPGRADING.md).
+- **Legacy rows are marked on `impact`, `patterns`, `ask` and the dashboard (including `/budget`) and left out of
+  their aggregates;** `export-contribution` leaves them out too. [docs/UPGRADING.md](docs/UPGRADING.md).
+- **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript** and exits 4
+  when a row fails. [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
+- **The cost note names the cache-read multiplier each model was billed at** (0.05x on Opus/Sonnet 5.5, 0.025x on
+  Fable/Mythos 5.1), not a flat 0.10x. [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Lighter default install:** core is 20.0 MiB (flask + httpx); the `[patterns]` extra adds numpy and
+  scikit-learn. [docs/INSTALL.md](docs/INSTALL.md).
+- **`tracegauge quickstart` shows a verdict and one deterministic finding again** (the rebuilt baseline had pushed
+  the bundled sample under its turn gate). [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **The JSONL reader no longer drops records containing U+2028, U+2029 or U+0085.**
+  [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **CI runs the suite on Linux, macOS and Windows x Python 3.10-3.13 plus four core-only legs; the coverage floor
+  is 86** (86.70% measured on the GitHub runner). [docs/CI.md](docs/CI.md).
+- **README example blocks are generated:** every `tes cost`, `cost --roi`, `budget`, `monitor` and `ask` example
+  is this version's output on synthetic sessions from
+  [`scripts/gen_readme_examples.py`](scripts/gen_readme_examples.py), pinned by `tests/test_readme_examples.py`;
+  the 0.11.0 blocks and every estimated equivalent were removed. README and PyPI text corrected where this
+  release made it false or stale. [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 

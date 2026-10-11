@@ -13,8 +13,8 @@ cannot silently point it elsewhere:
 
     python scripts/measure_subagent_spend.py \\
         --cc-path C:/Users/<you>/.claude/projects \\
-        --selection D:/tracegauge-audit/sections/C-raw/c2-selection.json \\
-        --out D:/tracegauge-w1a/w1a/item1_invisible_spend.md
+        --selection selection.json \\
+        --out invisible_spend.md
 
 Two bases are reported: "adapter" = what ``tes`` totals for the parent; "deduped" = each API
 response (``message.id``) counted once, computed here independently. Since adapter_version 2
