@@ -161,8 +161,57 @@ def test_unavailable_when_analysis_fails(
     churn = json.loads(out)["cache_churn"]
     assert code == 0  # churn must never break scoring
     assert churn["status"] == "unavailable" and churn["events"] is None
+    assert churn["reason"] == "read_error"
     assert churn["churn_usd"] is None  # unknown, not 0
     assert set(churn) == set(cache_churn_payload(None))
+
+
+def test_internal_error_is_logged_with_traceback_and_stdout_stays_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"})
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise RuntimeError("bug in the analysis")
+
+    monkeypatch.setattr(cc, "analyze_session", boom)
+    with caplog.at_level("WARNING", logger="tes.json_out"):
+        code, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    churn = json.loads(out)["cache_churn"]  # stdout is still exactly one valid JSON document
+    assert code == 0
+    assert churn["status"] == "unavailable" and churn["reason"] == "internal_error"
+    (rec,) = [r for r in caplog.records if r.name == "tes.json_out"]
+    assert rec.levelname == "WARNING" and rec.exc_info is not None
+    assert rec.exc_info[0] is RuntimeError  # the traceback is kept, not swallowed
+
+
+def test_ok_and_missing_source_reasons(tmp_path: Path) -> None:
+    from tes.cost import load_price_table
+    from tes.json_out import cache_churn_payload_for_path
+
+    path = _session(tmp_path, {})
+    good = cache_churn_payload_for_path(path, load_price_table())
+    assert good["status"] == "ok" and good["reason"] is None
+    assert cache_churn_payload_for_path(tmp_path / "nope.jsonl", {})["reason"] == "source_missing"
+
+
+def test_dashboard_helper_reports_internal_error_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tes.web.server import _compute_session_cache_churn
+
+    path = _session(tmp_path, {10: "TTL_GAP"})
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise ValueError("bug")
+
+    monkeypatch.setattr(cc, "analyze_session", boom)
+    got = _compute_session_cache_churn({"source_path": str(path)}, {})
+    assert got["status"] == "unavailable" and got["reason"] == "internal_error"
+    assert _compute_session_cache_churn({}, {})["reason"] == "source_missing"
 
 
 def test_payload_lists_at_most_the_largest_events() -> None:

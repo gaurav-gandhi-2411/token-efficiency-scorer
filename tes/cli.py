@@ -284,16 +284,12 @@ def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisR
 def _with_cache_churn(result: ThreeAxisResult, path: Path) -> ThreeAxisResult:
     """Attach the cache-churn object, computed on demand from the source JSONL (not stored).
 
-    Never raises: an unreadable transcript yields ``status: "unavailable"``, not a failure.
+    Never raises: an unreadable transcript yields ``status: "unavailable"`` with a ``reason``
+    (``read_error`` / ``internal_error``; the traceback goes to the log), not a failure.
     """
-    from tes.cache_churn import analyze_session  # noqa: PLC0415
-    from tes.json_out import cache_churn_payload  # noqa: PLC0415
+    from tes.json_out import cache_churn_payload_for_path  # noqa: PLC0415
 
-    try:
-        payload = cache_churn_payload(analyze_session(path, _PRICES))
-    except Exception:
-        payload = cache_churn_payload(None)
-    return dataclasses.replace(result, cache_churn=payload)
+    return dataclasses.replace(result, cache_churn=cache_churn_payload_for_path(path, _PRICES))
 
 
 def _legacy_count(store_conn: object) -> int:

@@ -77,18 +77,14 @@ def _compute_session_cache_churn(
     """Cache-churn payload for a session, computed on demand from its source JSONL.
 
     Same object as `score --json`'s `cache_churn`; status "unavailable" (figures null) when the
-    transcript is missing or unreadable, never an exception.
+    transcript is missing or unreadable (with a `reason`), never an exception.
     """
-    from tes.cache_churn import analyze_session  # noqa: PLC0415
-    from tes.json_out import cache_churn_payload  # noqa: PLC0415
+    from tes.json_out import cache_churn_payload, cache_churn_payload_for_path  # noqa: PLC0415
 
     source_path = session.get("source_path")
-    try:
-        if isinstance(source_path, str) and Path(source_path).exists():
-            return cache_churn_payload(analyze_session(Path(source_path), prices))
-    except Exception:
-        pass
-    return cache_churn_payload(None)
+    if not isinstance(source_path, str):
+        return cache_churn_payload(None)
+    return cache_churn_payload_for_path(Path(source_path), prices)
 
 
 def _build_attribution_rows(attr: AttributionResult) -> list[dict]:

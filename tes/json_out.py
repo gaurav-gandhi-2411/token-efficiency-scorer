@@ -16,7 +16,9 @@ The builders are pure (data in, dict out) so the shapes can be tested without a 
 """
 
 import json
+import logging
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tes.legacy import LEGACY_LABEL
@@ -192,7 +194,15 @@ def _churn_proof(p: Any) -> dict[str, Any]:
     }
 
 
-def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
+logger = logging.getLogger(__name__)
+
+#: `cache_churn.reason` values when status is "unavailable".
+REASON_SOURCE_MISSING = "source_missing"  # no source transcript on disk to analyse
+REASON_READ_ERROR = "read_error"  # the transcript exists but could not be read (OSError)
+REASON_INTERNAL_ERROR = "internal_error"  # a bug in the analysis; the traceback is logged
+
+
+def cache_churn_payload(churn: SessionChurn | None, reason: str | None = None) -> dict[str, Any]:
     """The `cache_churn` object of `score --json` (and the dashboard): a FIXED key set.
 
     `status` is `"ok"` (the session was analysed; zero events is a result) or `"unavailable"`
@@ -213,6 +223,7 @@ def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
     }
     base: dict[str, Any] = {
         "status": "unavailable" if churn is None else "ok",
+        "reason": (reason or REASON_SOURCE_MISSING) if churn is None else None,
         "events": None,
         "churn_tokens": None,
         "churn_usd": None,
@@ -291,6 +302,27 @@ def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
         "duplicate_turns_dropped": churn.duplicate_turns_dropped,
         "unsplit_cache_write_tokens": churn.unsplit_write_tokens,
     }
+
+
+def cache_churn_payload_for_path(path: Path, prices: dict[str, Any]) -> dict[str, Any]:
+    """`cache_churn_payload` for a transcript path; never raises.
+
+    A failure still yields `status: "unavailable"`, but with a machine-readable `reason`, and an
+    unexpected exception is logged with its traceback at WARNING (to stderr via the logging
+    last-resort handler, so a `--json` stdout stays one valid document).
+    """
+    from tes.cache_churn import analyze_session  # noqa: PLC0415
+
+    try:
+        if not path.exists():
+            return cache_churn_payload(None, REASON_SOURCE_MISSING)
+        return cache_churn_payload(analyze_session(path, prices))
+    except OSError:
+        logger.warning("cache churn: could not read %s", path.name, exc_info=True)
+        return cache_churn_payload(None, REASON_READ_ERROR)
+    except Exception:
+        logger.warning("cache churn: analysis failed for %s", path.name, exc_info=True)
+        return cache_churn_payload(None, REASON_INTERNAL_ERROR)
 
 
 # ----------------------------------------------------------------------------- rescore

@@ -93,6 +93,7 @@ IMPACT_KEYS = {
 CHURN_KEYS = {"path", "edits", "additions", "deletions", "sessions_touched"}
 CACHE_CHURN_KEYS = {
     "status",
+    "reason",
     "events",
     "churn_tokens",
     "churn_usd",

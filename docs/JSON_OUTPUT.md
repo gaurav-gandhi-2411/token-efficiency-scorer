@@ -121,7 +121,9 @@ the cache-read multiplier each model was billed at.
 `cache_churn` (additive, `schema_version` stays 1) is always an object with a fixed key set; see
 [CACHE_CHURN.md](CACHE_CHURN.md) for what it means. It is computed from the source transcript when
 `score` runs and is never stored. Keys: `status` (`"ok"`, or `"unavailable"` when the transcript could
-not be read, in which case every figure below is `null`, not 0), `events`, `churn_tokens`, `churn_usd`,
+not be analysed, in which case every figure below is `null`, not 0), `reason` (`null` when ok, else
+`"source_missing"`, `"read_error"` or `"internal_error"`; the traceback of an internal error goes to
+the log on stderr, never to stdout), `events`, `churn_tokens`, `churn_usd`,
 `priced`, `unpriced_events`, `by_cause`, `by_scope`, `avoidable_usd`, `unavoidable_usd`, `advice`,
 `events_listed`, `duplicate_turns_dropped`, `unsplit_cache_write_tokens`, `thresholds`,
 `judgement_note`.
