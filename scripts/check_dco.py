@@ -7,8 +7,10 @@
 
 Checks every commit reachable from ``--head`` and not from ``--base``. A sign-off is valid when a
 line ``Signed-off-by: Name <email>`` is present and its email equals the commit's author or committer
-email (case-insensitive), the same bar the DCO GitHub app applies. Merge commits and commits by bots
-(an author or committer name ending in ``[bot]``, e.g. dependabot) are skipped. Exit 0 when all
+email (case-insensitive), the same bar the DCO GitHub app applies. Merge commits and commits by GitHub bots are skipped; a bot is an author whose
+name ends in ``[bot]`` AND whose email is a GitHub bot noreply address
+(``<id>+<name>[bot]@users.noreply.github.com``), committed by that identity or by GitHub
+itself. A name alone never exempts a commit. Exit 0 when all
 commits pass, 1 when any fails (each failure is listed), 2 on a git error.
 """
 
@@ -53,9 +55,29 @@ def parse_log(raw: str) -> list[Commit]:
     return commits
 
 
+# GitHub App bot accounts commit as ``<numeric id>+<app>[bot]@users.noreply.github.com``.
+BOT_EMAIL_RE = re.compile(r"^\d+\+[A-Za-z0-9][A-Za-z0-9-]*\[bot\]@users\.noreply\.github\.com$")
+# Squash/merge/web commits made through the GitHub UI are committed by this identity.
+GITHUB_WEB_COMMITTER = ("GitHub", "noreply@github.com")
+
+
+def _is_bot_identity(name: str, email: str) -> bool:
+    return name.endswith("[bot]") and bool(BOT_EMAIL_RE.match(email))
+
+
 def is_bot(commit: Commit) -> bool:
-    """True for bot-authored commits such as ``dependabot[bot]``."""
-    return commit.author_name.endswith("[bot]") or commit.committer_name.endswith("[bot]")
+    """True only for a GitHub bot author (name ``...[bot]`` AND a bot noreply email).
+
+    The committer must be that bot or GitHub's own web committer. A matching name with any
+    other email, or a bot-looking committer on a human-authored commit, is not exempt, so a
+    contributor cannot skip the check by calling themselves ``x[bot]``.
+    """
+    if not _is_bot_identity(commit.author_name, commit.author_email):
+        return False
+    committer_ok = _is_bot_identity(commit.committer_name, commit.committer_email) or (
+        (commit.committer_name, commit.committer_email.lower()) == GITHUB_WEB_COMMITTER
+    )
+    return committer_ok
 
 
 def has_valid_signoff(commit: Commit) -> bool:
