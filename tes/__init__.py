@@ -66,6 +66,13 @@ class _AliasLoader(importlib.abc.Loader):
         if self._real_spec is not None:
             module.__spec__ = self._real_spec
 
+    def get_code(self, fullname: str) -> Any:
+        """Code object of the real ``tracegauge.<sub>``; ``python -m tes.<sub>`` (runpy) needs it."""
+        real = importlib.util.find_spec(self._target)
+        if real is None or real.loader is None or not hasattr(real.loader, "get_code"):
+            return None
+        return real.loader.get_code(self._target)
+
 
 class _AliasFinder(importlib.abc.MetaPathFinder):
     """Resolve ``tes`` and ``tes.<sub>...`` to the matching ``tracegauge`` module."""
@@ -87,6 +94,8 @@ class _AliasFinder(importlib.abc.MetaPathFinder):
         return importlib.machinery.ModuleSpec(
             fullname,
             _AliasLoader(real_name),
+            # why: ``python -m tes.<sub>`` sets sys.argv[0] to spec.origin (argparse reads it).
+            origin=real.origin,
             is_package=real.submodule_search_locations is not None,
         )
 

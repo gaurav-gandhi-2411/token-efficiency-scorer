@@ -15,6 +15,7 @@ import textwrap
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+MESSAGE_FRAGMENT = "tes is deprecated, import tracegauge"
 
 
 def _run(code: str, *flags: str) -> subprocess.CompletedProcess[str]:
@@ -134,6 +135,24 @@ def test_python_dash_m_tes_runs_the_cli() -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "0." in proc.stdout
+
+
+def test_python_dash_m_tes_submodule_behaves_like_the_real_one() -> None:
+    def run(module: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, "-W", "always", "-m", module, "--help"],
+            capture_output=True,
+            text=True,
+            cwd=REPO,
+            timeout=120,
+        )
+
+    old, new = run("tes.community_baseline"), run("tracegauge.community_baseline")
+    assert new.returncode == 0, new.stderr
+    assert old.returncode == 0, old.stderr
+    assert old.stdout == new.stdout
+    assert old.stderr.count(MESSAGE_FRAGMENT) == 1
+    assert MESSAGE_FRAGMENT not in new.stderr
 
 
 def test_shim_is_listed_for_the_wheel() -> None:
