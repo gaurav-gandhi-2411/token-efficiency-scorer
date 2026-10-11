@@ -69,12 +69,12 @@ def test_package_name_is_tracegauge() -> None:
     assert meta["Name"] == "tracegauge"
     # The version is deliberately not asserted here as a literal (it went stale on every release);
     # tests/test_version_consistency.py compares it with pyproject.toml, uv.lock and CHANGELOG.md.
-    # PEP 639: setuptools>=70 with license = "AGPL-3.0-only" (SPDX string) emits
+    # PEP 639: setuptools>=77 with license = "Apache-2.0" (SPDX string) emits
     # "License-Expression" in the METADATA file. Fall back to "License" for older
     # build backends that may use the legacy classifier-based field.
     license_expr = meta.get("License-Expression") or meta.get("License") or ""
-    assert "AGPL" in license_expr, (
-        f"Expected 'AGPL' in license metadata. "
+    assert license_expr == "Apache-2.0", (
+        f"Expected 'Apache-2.0' in license metadata. "
         f"License-Expression={meta.get('License-Expression')!r}, "
         f"License={meta.get('License')!r}"
     )
