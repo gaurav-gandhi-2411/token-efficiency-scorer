@@ -302,3 +302,25 @@ jobs:
             echo "gitleaks accepted a planted AWS key"
             exit 1
           fi
+
+  # Developer Certificate of Origin (CONTRIBUTING.md): every commit a PR adds must carry a
+  # Signed-off-by trailer matching its author or committer. Merge commits and bot commits
+  # (dependabot) are skipped. tests/test_check_dco.py proves the check fails on an unsigned commit
+  # and passes on a signed one, so this job cannot quietly stop finding anything.
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Every commit in the PR has a valid Signed-off-by
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/check_dco.py --base "$BASE_SHA" --head "$HEAD_SHA"
