@@ -52,11 +52,19 @@ def test_ofl_texts_are_declared_as_package_data() -> None:
 def test_no_name_record_of_any_shipped_font_contains_the_reserved_font_name() -> None:
     """Every record in every name table, including a variable font's named-instance names
     (name IDs 256+), not just the family/full/PostScript names. Needs fontTools and brotli (WOFF2),
-    which are test-only tools, not dependencies of the package."""
+    which are test-only tools, not dependencies of the package (they are in the `dev` group, which
+    CI installs with `uv sync --frozen`). Outside CI a missing tool skips with a reason; in CI
+    (`CI` set) a missing tool is a failure, so the check cannot silently stop running."""
+    import os
+
     import pytest
 
-    ttlib = pytest.importorskip("fontTools.ttLib")
-    pytest.importorskip("brotli")
+    if os.environ.get("CI"):
+        import brotli  # noqa: F401  # why: CI must fail, not skip, if the dev group lacks it
+        from fontTools import ttLib as ttlib
+    else:
+        ttlib = pytest.importorskip("fontTools.ttLib")
+        pytest.importorskip("brotli")
     checked = 0
     for woff in sorted(FONTS.glob("*.woff2")):
         font = ttlib.TTFont(woff)
