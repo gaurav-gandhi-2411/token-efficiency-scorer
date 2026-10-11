@@ -64,7 +64,7 @@ def isolated_store(tmp_path, monkeypatch):
 
 
 def _run(monkeypatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     monkeypatch.setattr("builtins.input", lambda *a, **k: "y")  # confirm the write prompt
     try:
         cli.main()

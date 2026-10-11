@@ -158,7 +158,7 @@ def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baselin
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
     monkeypatch.setattr(alarm_mod, "threshold_for_live", lambda *a, **k: baseline)
-    monkeypatch.setattr("sys.argv", ["tes", "monitor"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "monitor"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     return int(exc.value.code or 0)
@@ -186,12 +186,12 @@ def test_monitor_without_active_session_exits_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Nothing is running, so there is nothing to alarm on. A SessionEnd hook or cron job that
-    # runs `tes monitor` must not read "no session" as a failure.
+    # runs `tracegauge monitor` must not read "no session" as a failure.
     import tracegauge.live_monitor as lm
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: None)
-    monkeypatch.setattr("sys.argv", ["tes", "monitor", "--cc-path", str(tmp_path)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "monitor", "--cc-path", str(tmp_path)])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == EXIT_OK
@@ -218,7 +218,7 @@ def hermetic_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _main_code(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> int:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         code = cli.main()
     except SystemExit as exc:
@@ -281,7 +281,9 @@ def test_every_row_of_exit_codes_md_matches_behaviour(
     for want, why, argv in cases:
         got = _main_code(monkeypatch, argv)
         capsys.readouterr()
-        assert got == want, f"{why}: `tes {' '.join(argv)}` exited {got}, EXIT_CODES.md says {want}"
+        assert got == want, (
+            f"{why}: `tracegauge {' '.join(argv)}` exited {got}, EXIT_CODES.md says {want}"
+        )
 
 
 def test_monitor_alarm_row_of_exit_codes_md(

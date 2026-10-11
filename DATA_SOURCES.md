@@ -129,7 +129,7 @@ redistribution or fine-tuned-derivative distribution).
 
 | Model | Role | License | Obligation for this project's usage |
 |---|---|---|---|
-| Qwen3-30B-A3B | Trajectory judge (`tes score --judge`, local Ollama) | Apache 2.0 | None — permissive, no redistribution here |
+| Qwen3-30B-A3B | Trajectory judge (`tracegauge score --judge`, local Ollama) | Apache 2.0 | None — permissive, no redistribution here |
 | Gemma 3 27B | Cross-model corroboration check (`research/09-cross-model.md`) | Gemma Terms of Use | None — §3.1's distribution clause only triggers on redistributing the weights or a derivative model; not triggered by local inference + publishing results |
 | gpt-oss-120b | Groq free-tier judge path | Apache 2.0 | None — permissive, no redistribution here |
 

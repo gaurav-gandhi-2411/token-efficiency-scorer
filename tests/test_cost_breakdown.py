@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""The informational COST BREAKDOWN (tracegauge/takeaway.py, `tes score`, `score --json`).
+"""The informational COST BREAKDOWN (tracegauge/takeaway.py, `tracegauge score`, `score --json`).
 
 Dollars and share of priced cost per bucket. It is a breakdown, not a finding: the tests pin that
 the buckets partition the total, that unpriced models are named instead of read as $0.00, and
@@ -135,7 +135,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], argv: list[str]
 ) -> str:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:

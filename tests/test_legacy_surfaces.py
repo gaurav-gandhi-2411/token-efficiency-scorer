@@ -28,7 +28,7 @@ _LEGACY_OPS = json.dumps([{"path": "src/legacy_only.py", "additions": 5000, "del
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", "--quiet", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "--quiet", *argv])
     code = 0
     try:
         cli.main()

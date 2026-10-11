@@ -1,6 +1,6 @@
 # tracegauge brand system — Calibration
 
-Status: proposed, **for review** — not wired into `tes serve` or any shipped
+Status: proposed, **for review** — not wired into `tracegauge serve` or any shipped
 template yet. Full interactive review (color, type, the gauge component, all
 four favicon sizes, badge, OG preview) at the artifact linked in PR #21.
 
@@ -78,7 +78,7 @@ Reused, not reinvented, per context:
   band are dropped entirely, since neither reads below ~64px. This is the
   whole reason the favicon and the full gauge are visually related but not
   the same asset — proven at 16/32/64/512px in the review artifact.
-- **`tes serve` chart axes** (future): ticks + band, needle becomes the
+- **`tracegauge serve` chart axes** (future): ticks + band, needle becomes the
   plotted data point instead of a fixed pointer.
 - **Wrapped slide backdrops** (future): full gauge, oversized, threshold
   band at low opacity as background texture.
@@ -95,7 +95,7 @@ Reused, not reinvented, per context:
 - `og-preview.svg` — 1280×640 link-unfurl preview (GitHub/Slack/social).
   Direction B composition: motif left (dominates), outlined wordmark +
   tagline right. Every character in the wordmark/tagline is a real path
-  traced from this repo's own bundled font files (`tes/web/static/fonts/`)
+  traced from this repo's own bundled font files (`tracegauge/web/static/fonts/`)
   via `fontTools`, not a live `<text>` element — this rasterization
   environment's SVG renderer does not do real font-family matching (proven
   during the original AU1 rasterization: identical `font_extents`
@@ -120,9 +120,9 @@ None of these are referenced by any shipped template yet.
 
 ## Not done here (explicitly out of scope for this review)
 
-- Wiring any asset into `tes serve`'s HTML templates.
+- Wiring any asset into `tracegauge serve`'s HTML templates.
 - PNG/ICO rasterization of `favicon.svg` (real browsers want a rasterized
   favicon in most contexts; SVG-only favicons have inconsistent support —
   rasterize once the direction itself is approved, not before).
 - Final kerning pass on `wordmark.svg`.
-- Applying the palette/type tokens to `tes serve`'s existing dashboard CSS.
+- Applying the palette/type tokens to `tracegauge serve`'s existing dashboard CSS.

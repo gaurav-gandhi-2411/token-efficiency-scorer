@@ -5,7 +5,7 @@ from __future__ import annotations
 
 """Generates the README's example output blocks from SYNTHETIC sessions, with the real CLI.
 
-Every `tes cost`, `tes cost --roi`, `tes budget` and `tes monitor` block in the README is the
+Every `tracegauge cost`, `tracegauge cost --roi`, `tracegauge budget` and `tracegauge monitor` block in the README is the
 verbatim stdout of this build on invented transcripts: no real session content, no real prices
 beyond the bundled table. The clock is frozen at NOW (below) so the output is the same on every run;
 tests/test_readme_examples.py regenerates the blocks and fails when the README drifts from them.
@@ -114,7 +114,7 @@ class _Sandbox:
         os.environ.update({"TES_DB_PATH": str(self.db), "TES_NO_NOTICE": "1"})
         os.environ.pop("ANTHROPIC_API_KEY", None)
         os.environ["TES_PLAN_PATH"] = str(self.root / "no-plan-here.json")
-        sys.argv = ["tes", *argv]
+        sys.argv = ["tracegauge", *argv]
         buf, err, code = io.StringIO(), io.StringIO(), 0
         try:
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
@@ -150,7 +150,7 @@ def _trim(text: str) -> str:
 
 
 def scenario_cost(base: Path) -> dict[str, str]:
-    """`tes cost --week` / `--month` on priced sessions, one of them older than the week."""
+    """`tracegauge cost --week` / `--month` on priced sessions, one of them older than the week."""
     sb = _Sandbox(base, "cost")
     _write_session(sb.root, "demo-api", "api-1", "claude-sonnet-5-5", 1.0, turns=60, step=6_000)
     _write_session(sb.root, "demo-api", "api-2", "claude-sonnet-5-5", 3.0, turns=45, step=5_000)
@@ -200,7 +200,7 @@ def scenario_cost_unattributable(base: Path) -> dict[str, str]:
 
 
 def scenario_roi(base: Path) -> dict[str, str]:
-    """`tes cost --week --roi` against a plan history that starts before the window."""
+    """`tracegauge cost --week --roi` against a plan history that starts before the window."""
     sb = _Sandbox(base, "roi")
     for i in range(12):
         _write_session(
@@ -234,7 +234,7 @@ def scenario_roi(base: Path) -> dict[str, str]:
 
 
 def scenario_budget(base: Path) -> dict[str, str]:
-    """`tes budget` over a week of work, and on a store with nothing recent."""
+    """`tracegauge budget` over a week of work, and on a store with nothing recent."""
     sb = _Sandbox(base, "budget")
     for i in range(10):
         _write_session(
@@ -259,7 +259,7 @@ def scenario_budget(base: Path) -> dict[str, str]:
 
 
 def scenario_monitor(base: Path) -> dict[str, str]:
-    """`tes monitor` on a live session far above the maintainer's own recent sessions."""
+    """`tracegauge monitor` on a live session far above the maintainer's own recent sessions."""
     sb = _Sandbox(base, "monitor")
     for i in range(12):
         _write_session(

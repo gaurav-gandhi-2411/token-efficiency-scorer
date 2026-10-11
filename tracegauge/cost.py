@@ -74,7 +74,7 @@ class TurnCost:
     priced: bool = True
     # Added 0.10.2 (S1 fix): non-empty iff server-side tool usage (e.g. web
     # search, $10/1,000 searches) was detected on this turn's raw usage data
-    # but is NOT reflected in total_usd — tes has no verified per-search
+    # but is NOT reflected in total_usd — tracegauge has no verified per-search
     # billing wired through compute_turn_cost yet. Never silently omitted:
     # this field (and SessionCost.server_tool_warnings) is the loud signal
     # that total_usd is missing real, known-nonzero cost. Empty string when
@@ -322,7 +322,7 @@ def _server_tool_warning(turn: TurnDigest, web_search_priced: bool = False) -> s
         return ""
     return (
         f"turn {turn.turn_index}: server-side tool usage detected ({detail}) but NOT "
-        "priced — tes has no verified billing rate for these wired through cost "
+        "priced — tracegauge has no verified billing rate for these wired through cost "
         "computation yet (e.g. web search is $10/1,000 searches). total_usd for this "
         "turn excludes this cost; the true cost is higher than shown."
     )

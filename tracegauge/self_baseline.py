@@ -389,7 +389,7 @@ def compute_self_baselines(
         if tb.stale_n:
             tb.domain_of_validity += (
                 f" {tb.stale_n} stored {tb.task_type} session(s) were scored by the pre-dedupe "
-                "adapter (token counts inflated ~2.4x) and are excluded; run `tes backfill-waste` "
+                "adapter (token counts inflated ~2.4x) and are excluded; run `tracegauge backfill-waste` "
                 "to re-score them from their source transcripts."
             )
 

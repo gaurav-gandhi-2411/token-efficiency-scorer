@@ -89,7 +89,7 @@ def cost_roi_payload(report: PeriodCostReport, plan_config: str | None) -> dict[
 
 
 def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[str, Any]:
-    """`tes cost --json`. `roi` is null unless --roi was passed."""
+    """`tracegauge cost --json`. `roi` is null unless --roi was passed."""
     return envelope(
         "cost",
         period={
@@ -138,7 +138,7 @@ def cost_payload(report: PeriodCostReport, roi: dict[str, Any] | None) -> dict[s
 def budget_payload(
     projection: BudgetProjection | None, window_days: int, legacy_rows_excluded: int = 0
 ) -> dict[str, Any]:
-    """`tes budget --json`. `available` is false (fields null) when the window has no cost data."""
+    """`tracegauge budget --json`. `available` is false (fields null) when the window has no cost data."""
     if projection is None:
         return envelope(
             "budget",
@@ -174,7 +174,7 @@ def budget_payload(
 
 
 def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None) -> dict[str, Any]:
-    """`tes rescore --json`. On a dry run `rescored` is what WOULD be rescored (nothing written)."""
+    """`tracegauge rescore --json`. On a dry run `rescored` is what WOULD be rescored (nothing written)."""
     rescored = summary["refreshed"]
     stubs = summary["skipped_stub"]
     remaining = summary["legacy_rows"] - (0 if dry_run else rescored + stubs)
@@ -197,7 +197,7 @@ def rescore_payload(summary: dict[str, int], *, dry_run: bool, limit: int | None
 
 
 def impact_payload(report: ImpactReport, top_n: int) -> dict[str, Any]:
-    """`tes impact --json`: the counts, plus the two fractions that qualify them."""
+    """`tracegauge impact --json`: the counts, plus the two fractions that qualify them."""
 
     def churn(items: list[Any]) -> list[dict[str, Any]]:
         return [
@@ -241,7 +241,7 @@ def monitor_payload(
     threshold: AlarmThreshold | None = None,
     legacy_rows_excluded: int = 0,
 ) -> dict[str, Any]:
-    """`tes monitor --json`.
+    """`tracegauge monitor --json`.
 
     status: "no_active_session" | "insufficient_data" | "ok". Session fields are null unless
     status is "ok". `alarm` is null when none fired (exit code 0) and an object when it did
@@ -289,10 +289,10 @@ def monitor_payload(
 
 
 def patterns_payload(cache: dict[str, Any]) -> dict[str, Any]:
-    """`tes patterns --json`.
+    """`tracegauge patterns --json`.
 
     The fixed envelope keys are `valid`, `status`, `n_sessions`, `domain_of_validity` and
-    `analysis`; `analysis` is the intelligence cache exactly as `tes patterns` reads it
+    `analysis`; `analysis` is the intelligence cache exactly as `tracegauge patterns` reads it
     (archetypes, k, silhouette, anomaly_count ...) when valid, else null.
     """
     valid = bool(cache.get("valid"))

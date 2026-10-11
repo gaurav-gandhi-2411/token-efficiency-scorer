@@ -28,7 +28,7 @@ _RUNNER = textwrap.dedent(
     import runpy, sys
     for n in {block!r}:
         sys.modules[n] = None
-    sys.argv = ["tes", *{args!r}]
+    sys.argv = ["tracegauge", *{args!r}]
     runpy.run_module("tracegauge", run_name="__main__", alter_sys=True)
     """
 )

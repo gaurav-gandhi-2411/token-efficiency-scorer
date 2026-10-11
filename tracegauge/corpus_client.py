@@ -281,7 +281,7 @@ def build_corpus_consent_notice(sample_row: dict, contributor_id: str | None) ->
         "YOUR ROW (real data, exactly what would be sent):\n"
         f"{json.dumps(sample_row, indent=2, default=str)}\n\n"
         f"{_CONSENT_SEP}\n"
-        "WITHDRAWAL: run `tes corpus withdraw` at any time to permanently\n"
+        "WITHDRAWAL: run `tracegauge corpus withdraw` at any time to permanently\n"
         "delete every row tied to your contributor_id. This requires the file\n"
         "~/.tes/contributor_id.txt — if you delete or lose that file, your\n"
         "past rows can no longer be linked to you and CANNOT be withdrawn.\n"
@@ -431,7 +431,7 @@ def reset_contributor_id(contributor_id_path: Path = _CONTRIBUTOR_ID_FILE) -> st
     """Generate a fresh random contributor_id, overwriting the local file.
 
     Prior rows under the old ID become unlinked (they still exist in the
-    corpus but can no longer be withdrawn via `tes corpus withdraw`, since
+    corpus but can no longer be withdrawn via `tracegauge corpus withdraw`, since
     that command reads the current file). This is a LOCAL-ONLY operation —
     no network call.
     """

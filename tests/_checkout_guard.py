@@ -1,7 +1,7 @@
 # Copyright 2026 Gaurav Gandhi
 # SPDX-License-Identifier: Apache-2.0
 
-"""Refuse to run the suite against a ``tes`` that is not this checkout's.
+"""Refuse to run the suite against a ``tracegauge`` that is not this checkout's.
 
 pytest's ``pythonpath = [".", "src", "scripts"]`` (pyproject.toml) makes every IN-PROCESS import
 resolve to this checkout. A subprocess does not get it: ``tests/test_prior_features_intact.py`` and
@@ -61,7 +61,7 @@ def enforce(
     except (subprocess.TimeoutExpired, OSError) as exc:
         # fail closed with a message, not an INTERNALERROR traceback: "could not check" is not "fine"
         pytest.exit(
-            f"could not determine which tes the test interpreter ({sys.executable}) "
+            f"could not determine which tracegauge the test interpreter ({sys.executable}) "
             f"would import: {type(exc).__name__}: {exc}.\n"
             f"Check that interpreter works, then from {repo_root} run:  uv pip install -e .",
             returncode=4,
@@ -70,7 +70,7 @@ def enforce(
         return
     where = f"resolves to {found.resolve()}" if found is not None else "is not importable at all"
     pytest.exit(
-        f"tes in the test interpreter's environment ({sys.executable}) {where}, "
+        f"tracegauge in the test interpreter's environment ({sys.executable}) {where}, "
         f"not inside this checkout's {pkg}.\n"
         "Subprocess-based tests import the INSTALLED package, so they would test the wrong code "
         "and fail misleadingly.\n"

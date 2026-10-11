@@ -7,7 +7,7 @@ from __future__ import annotations
 
 scripts/gen_readme_examples.py runs the real CLI on synthetic sessions with a frozen clock. This
 test regenerates every block and fails when README.md has drifted from the code's actual output, so
-a change to `tes cost`, `budget` or `monitor` output must regenerate the README in the same change.
+a change to `tracegauge cost`, `budget` or `monitor` output must regenerate the README in the same change.
 """
 
 import sys

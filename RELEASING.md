@@ -25,8 +25,8 @@ This document describes the actual flow, written after running it for real for `
    page) reads to learn the tool exists at all. A feature with a CHANGELOG entry but no
    README section is invisible to anyone who hasn't already installed the package.
 
-   **Real incident, not hypothetical:** `0.11.0` (`tes cost --week/--month/--since`) shipped
-   to PyPI with a correct, detailed CHANGELOG entry and zero mentions of `tes cost` anywhere
+   **Real incident, not hypothetical:** `0.11.0` (`tracegauge cost --week/--month/--since`) shipped
+   to PyPI with a correct, detailed CHANGELOG entry and zero mentions of `tracegauge cost` anywhere
    in the README — caught only after the release was already published and permanently
    locked into that version's PyPI page (PyPI does not allow re-uploading a version's
    metadata). Fixed in the next release, `0.11.1`, but the gap in `0.11.0`'s own published
@@ -149,7 +149,7 @@ change across all PyPI-published repos in this portfolio, not built yet).
 uv venv --python 3.11 C:\tg-verify
 uv pip install --no-cache tracegauge==X.Y.Z --index-url https://pypi.org/simple/ --python C:\tg-verify\Scripts\python.exe
 
-C:\tg-verify\Scripts\tes.exe --version   # confirm it reports X.Y.Z
+C:\tg-verify\Scripts\tracegauge.exe --version   # confirm it reports X.Y.Z
 
 # Confirm the license files actually shipped in the distribution's own metadata --
 # not just the SPDX header comments in source, the dist-info itself

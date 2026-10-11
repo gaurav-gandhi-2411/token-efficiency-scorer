@@ -32,7 +32,7 @@ def test_watcher_behavior_preservation(tmp_path: Path) -> None:
     record = _load_first_adapted_record()
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
 
-    # Manual path (what `tes score` does)
+    # Manual path (what `tracegauge score` does)
     session_id: str = record.get("session_id", "test")
     turns: list[dict] = record.get("digest", {}).get("turns", [])
     waste_entry = build_waste_entry(session_id, turns)

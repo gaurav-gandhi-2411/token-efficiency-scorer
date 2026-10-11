@@ -32,7 +32,7 @@ def _insert_session(
     ``compute_budget_projection`` now filters/orders on (issue #12);
     ``scored_at_dt`` defaults to the same instant but can be set
     independently to simulate a batch-scoring workflow, where every session
-    in one ``tes scan`` run shares the same ``scored_at`` regardless of when
+    in one ``tracegauge scan`` run shares the same ``scored_at`` regardless of when
     the real usage happened."""
     scored_at_dt = scored_at_dt if scored_at_dt is not None else source_mtime_dt
     conn.execute(

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 """tracegauge/intelligence/cache.py — Persistent clustering result cache.
 
-Stores the ML results in ~/.tes/intelligence_cache.json so `tes ask` and the
+Stores the ML results in ~/.tes/intelligence_cache.json so `tracegauge ask` and the
 dashboard don't re-run KMeans on every invocation.
 
 Cache invalidation rules (all must pass for cache to be fresh):
@@ -51,7 +51,7 @@ def _cache_path(db_path: Path | str) -> Path:
     use. Before this fix, every caller shared one global cache file even
     when TES_DB_PATH pointed somewhere else entirely (e.g. an isolated test
     DB), so computing patterns against a scratch/test database silently
-    overwrote the real cache the next real `tes ask`/`tes patterns` call
+    overwrote the real cache the next real `tracegauge ask`/`tracegauge patterns` call
     would read -- confirmed live during RR1 verification, which is what
     surfaced this.
 

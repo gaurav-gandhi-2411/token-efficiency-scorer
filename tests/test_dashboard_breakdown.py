@@ -21,7 +21,7 @@ def _page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: Path) -> str:
     db = tmp_path / "dash.db"
     monkeypatch.setenv("TES_DB_PATH", str(db))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["tes", "--quiet", "score", str(path), "--no-judge"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "--quiet", "score", str(path), "--no-judge"])
     try:
         cli.main()
     except SystemExit:
@@ -73,7 +73,7 @@ def test_unpriced_session_page_says_not_computed(
 
 
 def test_dashboard_uses_the_shared_breakdown_function() -> None:
-    """No duplicated logic: the page's breakdown IS the one `tes score` prints."""
+    """No duplicated logic: the page's breakdown IS the one `tracegauge score` prints."""
     import tracegauge.web.server as server
     from tracegauge.takeaway import build_cost_breakdown
 

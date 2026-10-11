@@ -5,9 +5,9 @@ from __future__ import annotations
 
 """tracegauge/cost_period.py — Period-scoped spend report: total, session count, per-project breakdown.
 
-LL3 (GitHub issue #78148): `tes cost --week` / `--month` / `--since <date>`.
+LL3 (GitHub issue #78148): `tracegauge cost --week` / `--month` / `--since <date>`.
 A REPORT of real spend already incurred in a period -- distinct from
-`tes budget`'s rolling self-trend PROJECTION (budget.py answers "where is my
+`tracegauge budget`'s rolling self-trend PROJECTION (budget.py answers "where is my
 pace heading"; this module answers "what did I actually spend").
 
 **source_mtime vs scored_at (LL3.3) -- deliberate, and NOT the same choice
@@ -15,10 +15,10 @@ budget.py made:**
 
 This module filters on `source_mtime` -- the session FILE's own last-write
 time on disk, i.e. when the real Claude Code usage happened -- not
-`scored_at` (when the `tes score`/`tes scan` command that computed the cost
+`scored_at` (when the `tracegauge score`/`tracegauge scan` command that computed the cost
 happened to run). These are the same instant only under an immediate-scoring
 workflow (score right after each session ends). Under a batch-scoring
-workflow (run `tes scan` once over a week's worth of sessions), every one of
+workflow (run `tracegauge scan` once over a week's worth of sessions), every one of
 those sessions gets the SAME `scored_at` timestamp -- a `scored_at`-based
 period report would cluster a week of real spend onto one instant, or drop
 it outside the requested window entirely, silently misattributing spend
@@ -29,7 +29,7 @@ scorer.
 **Historical note, now resolved (issue #12):** `tracegauge/budget.py`'s rolling-
 window projection used to filter on `scored_at`, not `source_mtime`, for
 exactly the reason this module avoids it -- flagged here when this module
-was written (LL3, scoped to the new `tes cost` command only, not fixed
+was written (LL3, scoped to the new `tracegauge cost` command only, not fixed
 alongside an unrelated feature) and fixed as its own dedicated follow-up.
 `compute_budget_projection` now filters/orders on `source_mtime`, matching
 this module's own convention.
@@ -254,7 +254,7 @@ def resolve_period(
     ``DEFAULT_WINDOW_DAYS`` rolling-window precedent, deliberately NOT a
     calendar week/month. A calendar-aligned window needs a user timezone and
     a first-day-of-week convention this tool has no basis to guess, and
-    would silently disagree with `tes budget`'s own meaning of "window" for
+    would silently disagree with `tracegauge budget`'s own meaning of "window" for
     the same English words. ``--since <YYYY-MM-DD>`` is an explicit lower
     bound with no upper bound other than ``_now``.
     """

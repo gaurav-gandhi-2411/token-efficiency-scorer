@@ -83,14 +83,15 @@ def test_package_name_is_tracegauge() -> None:
     )
 
 
-def test_both_entry_points_resolve() -> None:
-    """Both 'tes' and 'tracegauge' console scripts resolve to tracegauge.cli:main."""
+def test_console_scripts_resolve() -> None:
+    """tracegauge and tgauge run the CLI; the deprecated tes runs it behind a stderr notice."""
     from importlib.metadata import entry_points
 
     eps = entry_points(group="console_scripts")
-    ep_map = {ep.name: ep.value for ep in eps if ep.name in ("tes", "tracegauge")}
+    ep_map = {ep.name: ep.value for ep in eps if ep.name in ("tes", "tgauge", "tracegauge")}
 
-    assert "tes" in ep_map, "console_script 'tes' not found in installed metadata"
-    assert "tracegauge" in ep_map, "console_script 'tracegauge' not found in installed metadata"
-    assert ep_map["tes"] == "tracegauge.cli:main"
-    assert ep_map["tracegauge"] == "tracegauge.cli:main"
+    assert ep_map == {
+        "tracegauge": "tracegauge.cli:main",
+        "tgauge": "tracegauge.cli:main",
+        "tes": "tracegauge.cli:tes_main",
+    }

@@ -1,6 +1,6 @@
 # Contributing
 
-`tracegauge` (import name `tes`) is a solo-maintained portfolio project —
+`tracegauge` (import name `tracegauge`; the old `tes` name is a deprecated alias) is a solo-maintained portfolio project —
 contributions are welcome, but the bar is the same one the maintainer
 holds their own commits to: real tests, honest documentation, no
 fabricated numbers.

@@ -9,9 +9,9 @@ transmits nothing.
 Three layers of proof:
 1. contribute(consent_given=False) makes ZERO network calls, unconditionally —
    even with a fully valid config and a legitimate payload.
-2. Nothing outside the explicit `tes corpus contribute` CLI branch (gated on
+2. Nothing outside the explicit `tracegauge corpus contribute` CLI branch (gated on
    the user typing 'y') ever imports/calls tracegauge.corpus_client — the watcher,
-   the web dashboard, and bare `tes` (dashboard launch) never transmit.
+   the web dashboard, and bare `tracegauge` (dashboard launch) never transmit.
 3. CorpusConfig.from_env() returns None (not a default/fallback destination)
    when the destination env vars are unset — a fresh install with no
    TES_CORPUS_* configuration cannot transmit even if a user somehow forced
@@ -136,7 +136,7 @@ def test_corpus_client_not_imported_by_web_dashboard() -> None:
 
 def test_corpus_client_only_referenced_in_cli_within_run_corpus() -> None:
     """tracegauge.cli must only import corpus_client inside _run_corpus() — the
-    function gated behind the explicit `tes corpus` subcommand. Confirms the
+    function gated behind the explicit `tracegauge corpus` subcommand. Confirms the
     reference isn't hoisted to module scope where it might run eagerly."""
     import tracegauge.cli as cli_module
 
@@ -151,8 +151,8 @@ def test_corpus_client_only_referenced_in_cli_within_run_corpus() -> None:
 
 
 def test_bare_tes_dashboard_launch_never_touches_corpus_client(monkeypatch) -> None:
-    """Bare `tes` (dashboard launch) must never construct a CorpusConfig or
-    call contribute()/withdraw() — those only run from the explicit `tes
+    """Bare `tracegauge` (dashboard launch) must never construct a CorpusConfig or
+    call contribute()/withdraw() — those only run from the explicit `tracegauge
     corpus` subcommand handler."""
     import tracegauge.corpus_client as cc_module
 
@@ -161,7 +161,7 @@ def test_bare_tes_dashboard_launch_never_touches_corpus_client(monkeypatch) -> N
         cc_module, "contribute", lambda *a, **k: called.__setitem__("contribute", True)
     )
     monkeypatch.setattr(cc_module, "withdraw", lambda *a, **k: called.__setitem__("withdraw", True))
-    # _run_serve is the bare-tes / `tes serve` entry point — never touches corpus_client.
+    # _run_serve is the bare-tes / `tracegauge serve` entry point — never touches corpus_client.
     import tracegauge.cli as cli_module
 
     assert "corpus_client" not in inspect.getsource(cli_module._run_serve)
@@ -188,7 +188,7 @@ def test_corpus_config_from_env_requires_all_three_vars(monkeypatch) -> None:
 
 
 def test_cli_contribute_fails_fast_when_unconfigured_before_any_prompt(monkeypatch, capsys) -> None:
-    """`tes corpus contribute` must check corpus availability BEFORE opening
+    """`tracegauge corpus contribute` must check corpus availability BEFORE opening
     the store or showing the preview/consent screen — walking a user through
     a full "Send to the community corpus? [y/N]" prompt only to reveal
     [NOT SENT] afterward looks functional right up until the last line."""

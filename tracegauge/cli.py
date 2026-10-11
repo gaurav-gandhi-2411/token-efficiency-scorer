@@ -3,15 +3,15 @@
 
 from __future__ import annotations
 
-"""tracegauge/cli.py — Command-line interface for the Token-Efficiency Scorer.
+"""tracegauge/cli.py — Command-line interface for tracegauge.
 
 Frictionless front door (the tool does the work; the user does almost nothing):
-    tes                          — bare command launches the dashboard (= tes serve)
-    tes score                    — scores your MOST RECENT session (no path needed)
-    tes score --pick             — pick from a list of recent sessions
-    tes score <path> [options]   — score a specific file/directory (power users)
-    tes score --judge            — run the trajectory judge (auto-detects Ollama/API)
-    tes serve [options]          — background watcher + localhost dashboard
+    tracegauge                          — bare command launches the dashboard (= tracegauge serve)
+    tracegauge score                    — scores your MOST RECENT session (no path needed)
+    tracegauge score --pick             — pick from a list of recent sessions
+    tracegauge score <path> [options]   — score a specific file/directory (power users)
+    tracegauge score --judge            — run the trajectory judge (auto-detects Ollama/API)
+    tracegauge serve [options]          — background watcher + localhost dashboard
 
 Session resolution order: explicit PATH > --pick > newest session by mtime.
 Sessions are adapted through the frozen CC adapter (secret redaction ON by
@@ -25,6 +25,7 @@ the API judge; the per-session consent screen still gates every byte that leaves
 import argparse
 import dataclasses
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -250,7 +251,7 @@ def _resolve_score_targets(args: argparse.Namespace) -> list[Path]:
     # First-run / orientation: tell the user exactly what was auto-selected.
     print(
         "No path given — scoring your most recent session "
-        "(use `tes score --pick` to choose, or pass a PATH):\n"
+        "(use `tracegauge score --pick` to choose, or pass a PATH):\n"
         f"  {newest.name}\n"
         f"  {_project_label(newest)} · modified {_fmt_age(newest.stat().st_mtime)}\n",
         file=sys.stderr,
@@ -558,7 +559,7 @@ def _run_serve(
     alarm_enabled: bool = False,
     plan_type: str = "usage_based",
 ) -> None:
-    """Launch the watcher + localhost dashboard. Shared by `tes serve` and bare `tes`.
+    """Launch the watcher + localhost dashboard. Shared by `tracegauge serve` and bare `tracegauge`.
 
     Blocks until Ctrl+C. Prints a first-run orientation line so the user is never
     left staring at a blank screen wondering whether anything happened.
@@ -623,7 +624,7 @@ def _run_serve(
 
 
 def _run_corpus(args: argparse.Namespace) -> None:
-    """Handle `tes corpus contribute|withdraw|reset-id`.
+    """Handle `tracegauge corpus contribute|withdraw|reset-id`.
 
     This is the ONLY code path that transmits session-derived data. Every
     branch goes through tracegauge.corpus_client, which enforces (unconditionally,
@@ -643,7 +644,7 @@ def _run_corpus(args: argparse.Namespace) -> None:
     corpus_command = getattr(args, "corpus_command", None)
 
     if corpus_command is None:
-        print("Usage: tes corpus {contribute|withdraw|reset-id}")
+        print("Usage: tracegauge corpus {contribute|withdraw|reset-id}")
         return
 
     if corpus_command == "reset-id":
@@ -690,7 +691,7 @@ def _run_corpus(args: argparse.Namespace) -> None:
         if CorpusConfig.from_env() is None:
             print(
                 "[NOT AVAILABLE] No community corpus is currently operated — "
-                "`tes corpus contribute` has nowhere to send data yet. The code "
+                "`tracegauge corpus contribute` has nowhere to send data yet. The code "
                 "path is built and tested (see PRIVACY.md); it activates once a "
                 "corpus is provisioned. Nothing is sent by this command today.",
                 file=sys.stderr,
@@ -719,7 +720,7 @@ def _run_corpus(args: argparse.Namespace) -> None:
             sys.exit(1)
 
         if payload.manifest.row_count == 0:
-            print("No sessions found in store. Run `tes score` or `tes serve` first.")
+            print("No sessions found in store. Run `tracegauge score` or `tracegauge serve` first.")
             conn.close()
             return
 
@@ -747,7 +748,7 @@ def _run_corpus(args: argparse.Namespace) -> None:
 
         if result.sent:
             print(f"Sent {result.row_count} row(s) to the community corpus. Thank you.")
-            print("Withdraw at any time with `tes corpus withdraw`.")
+            print("Withdraw at any time with `tracegauge corpus withdraw`.")
         else:
             print(f"[NOT SENT] {result.reason}", file=sys.stderr)
         return
@@ -836,13 +837,13 @@ def _run_patterns(
     )
     print(sep)
     print(
-        "\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language."
+        "\nTip: 'tracegauge ask \"<question>\"' to ask questions about these patterns in plain language."
     )
     return EXIT_OK
 
 
 def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool = False) -> int:
-    """Handle `tes impact` -- corpus-wide code-impact reconstruction from
+    """Handle `tracegauge impact` -- corpus-wide code-impact reconstruction from
     persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
     counts only; AB3.2: the untested-tool-shape and prior-content-unknown
     fractions are reported inline, next to the totals they qualify, never
@@ -962,7 +963,7 @@ def _run_ask(
     api_key: str | None = None,
     force_recompute: bool = False,
 ) -> None:
-    """Handle `tes ask "<question>"` — the conversational explainer."""
+    """Handle `tracegauge ask "<question>"` — the conversational explainer."""
     try:
         require_patterns_extra()
     except PatternsExtraMissing as exc:
@@ -1008,7 +1009,7 @@ def _run_ask(
             print(
                 "\nNo LLM available to answer. To enable:\n"
                 "  Option 1 — Local (free): install Ollama + pull any 7B+ model\n"
-                '  Option 2 — API: export ANTHROPIC_API_KEY=<key> then tes ask --api "<question>"\n'
+                '  Option 2 — API: export ANTHROPIC_API_KEY=<key> then tracegauge ask --api "<question>"\n'
             )
             return
 
@@ -1053,7 +1054,7 @@ def _run_rescore(
     limit: int | None = None,
     json_mode: bool = False,
 ) -> int:
-    """Handle `tes rescore` -- re-score LEGACY rows from their source transcripts.
+    """Handle `tracegauge rescore` -- re-score LEGACY rows from their source transcripts.
 
     Rows whose transcript is gone are left exactly as they are (counted, never touched). Exit 4
     when any readable row failed to re-score (the others still were), 1 when there is no usable
@@ -1101,7 +1102,7 @@ def _run_budget(
     window_days: int = 7,
     json_mode: bool = False,
 ) -> int:
-    """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
+    """Handle `tracegauge budget` — rolling-window pace + honest self-trend projection."""
     from tracegauge.budget import compute_budget_projection, legacy_rows_excluded_in_window
     from tracegauge.store import open_db, resolve_db_path
 
@@ -1122,7 +1123,7 @@ def _run_budget(
 
     legacy_note = (
         f"({legacy_excluded} legacy session{'s' if legacy_excluded != 1 else ''} in this window "
-        "left out: pre-0.15 accounting overcounted ~2x. `tes rescore` recovers those whose "
+        "left out: pre-0.15 accounting overcounted ~2x. `tracegauge rescore` recovers those whose "
         "transcript still exists.)"
         if legacy_excluded
         else ""
@@ -1158,8 +1159,8 @@ def _run_cost(
     plan_config: str | None = None,
     json_mode: bool = False,
 ) -> int:
-    """Handle `tes cost` -- a period-scoped spend REPORT (total, session
-    count, per-project breakdown), distinct from `tes budget`'s rolling
+    """Handle `tracegauge cost` -- a period-scoped spend REPORT (total, session
+    count, per-project breakdown), distinct from `tracegauge budget`'s rolling
     self-trend PROJECTION. See tracegauge/cost_period.py's module docstring for why
     this filters on source_mtime, not scored_at.
     """
@@ -1231,7 +1232,7 @@ def _run_cost(
         print(
             f"\n{LEGACY_LABEL}: ${report.legacy_total_usd:,.2f} across {n} session"
             f"{'s' if n != 1 else ''} -- NOT included in the total above; shown only as history. "
-            "`tes rescore` recovers those whose transcript still exists."
+            "`tracegauge rescore` recovers those whose transcript still exists."
         )
 
     if report.by_project:
@@ -1332,7 +1333,7 @@ def _run_monitor(
     plan_type: str = "usage_based",
     json_mode: bool = False,
 ) -> int:
-    """Handle `tes monitor` — one-shot live check of the currently active session.
+    """Handle `tracegauge monitor` — one-shot live check of the currently active session.
 
     Returns EXIT_ALARM when the alarm fires, else EXIT_OK (including "no active session": an
     idle machine is not a failure for a hook that calls this between sessions).
@@ -1423,8 +1424,10 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(
-        prog="tes",
-        description="Token-Efficiency Scorer — three-axis efficiency report for CC sessions.",
+        prog="tracegauge",
+        description=(
+            "tracegauge: token economy, trajectory quality and waste report for Claude Code sessions."
+        ),
     )
     parser.add_argument(
         "--version",
@@ -1438,7 +1441,7 @@ def main() -> None:
         action="store_true",
         help=(
             "Suppress the one-time notice about stored sessions from an older version "
-            "(same as TES_NO_NOTICE=1). Goes before the command: tes --quiet cost --week."
+            "(same as TES_NO_NOTICE=1). Goes before the command: tracegauge --quiet cost --week."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -1663,7 +1666,7 @@ def main() -> None:
             "Enable trajectory judge in the background watcher (local Ollama only). "
             "Requires Ollama + qwen3:30b-a3b (~18 GB VRAM). "
             "Setup: install Ollama (https://ollama.ai) then 'ollama pull qwen3:30b-a3b'. "
-            "For on-demand judging without a GPU: use 'tes score <path> --api-judge' instead."
+            "For on-demand judging without a GPU: use 'tracegauge score <path> --api-judge' instead."
         ),
     )
     serve_p.add_argument(
@@ -1781,7 +1784,7 @@ def main() -> None:
         description=(
             "Run or display the ML pattern analysis: validated clustering of your session corpus "
             "into behavioral archetypes, plus statistical anomaly detection. "
-            "Results are cached to ~/.tes/intelligence_cache.json and re-used by 'tes ask'."
+            "Results are cached to ~/.tes/intelligence_cache.json and re-used by 'tracegauge ask'."
         ),
     )
     patterns_p.add_argument(
@@ -1923,7 +1926,7 @@ def main() -> None:
         help="Spend report for a period: total, session count, per-project breakdown.",
         description=(
             "A period-scoped spend REPORT (what you actually spent), distinct from "
-            "`tes budget`'s rolling self-trend PROJECTION (where your pace is heading). "
+            "`tracegauge budget`'s rolling self-trend PROJECTION (where your pace is heading). "
             "--week/--month are rolling N-day windows ending now, not calendar-aligned."
         ),
     )
@@ -2027,8 +2030,8 @@ def main() -> None:
 
         maybe_notify(getattr(args, "db_path", None), quiet=args.quiet)
     if args.command is None:
-        # Bare `tes` does the obvious useful thing: launch the dashboard.
-        # (`tes --help` still shows help; `tes <unknown>` still errors via argparse.)
+        # Bare `tracegauge` does the obvious useful thing: launch the dashboard.
+        # (`tracegauge --help` still shows help; `tracegauge <unknown>` still errors via argparse.)
         _run_serve()
         sys.exit(0)
 
@@ -2063,9 +2066,9 @@ def main() -> None:
             "               backtracking or redundant exploration.\n"
         )
         print(
-            "This ran entirely from what shipped in the installed package. Next: `tes score` "
+            "This ran entirely from what shipped in the installed package. Next: `tracegauge score` "
             "(no path) scores your own most recent real Claude Code session, or "
-            "`tes score --judge` once you have a local Ollama judge or an API key configured."
+            "`tracegauge score --judge` once you have a local Ollama judge or an API key configured."
         )
         sys.exit(0)
 
@@ -2183,10 +2186,12 @@ def main() -> None:
                 print(
                     f"No current sessions to export: {payload.manifest.legacy_rows_excluded} "
                     "legacy session(s) were left out (overcounted ~2x). "
-                    "Run `tes rescore` or score new sessions."
+                    "Run `tracegauge rescore` or score new sessions."
                 )
             else:
-                print("No sessions found in store. Run `tes score` or `tes serve` first.")
+                print(
+                    "No sessions found in store. Run `tracegauge score` or `tracegauge serve` first."
+                )
             conn.close()
             sys.exit(0)
 
@@ -2407,3 +2412,21 @@ def main() -> None:
             file=sys.stderr,
         )
         sys.exit(EXIT_ADAPT_ERROR)
+
+
+# The old command name. Printed to stderr (never stdout, so --json and pipes are untouched), once per
+# process, before anything else, and not again per subcommand. Removed together with the name in 0.18.
+TES_DEPRECATION_NOTICE = (
+    "tes is deprecated; use tracegauge (or tgauge). It will be removed in 0.18."
+)
+NO_DEPRECATION_NOTICE_ENV = "TRACEGAUGE_NO_DEPRECATION_NOTICE"
+
+
+def tes_main() -> None:
+    """Entry point of the deprecated ``tes`` command: print the one-line notice, then run ``main``.
+
+    Set TRACEGAUGE_NO_DEPRECATION_NOTICE=1 (or true/yes) to silence the notice.
+    """
+    if os.environ.get(NO_DEPRECATION_NOTICE_ENV, "").strip().lower() not in ("1", "true", "yes"):
+        print(TES_DEPRECATION_NOTICE, file=sys.stderr)
+    main()

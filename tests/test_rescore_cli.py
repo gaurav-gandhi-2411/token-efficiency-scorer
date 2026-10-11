@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""`tes rescore` command: flags, JSON document, text output and exit codes."""
+"""`tracegauge rescore` command: flags, JSON document, text output and exit codes."""
 
 import json
 from pathlib import Path
@@ -18,7 +18,7 @@ from tests.legacy_store import MixedStore, build_mixed_store
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     code = 0
     try:
         cli.main()

@@ -12,9 +12,9 @@ _cache_path() was hardcoded to ~/.tes/intelligence_cache.json unconditionally
 -- computing patterns against an isolated test/scratch database (via
 TES_DB_PATH, exactly the pattern this project's own test suite and manual
 verification use) silently overwrote the REAL cache file, which a real
-`tes ask`/`tes patterns` call on the actual corpus would then read back as
+`tracegauge ask`/`tracegauge patterns` call on the actual corpus would then read back as
 if it were genuine. Found live during RR1 verification when a scratch-DB
-`tes patterns --recompute` run wrote 38-session clustering results from an
+`tracegauge patterns --recompute` run wrote 38-session clustering results from an
 unrelated test corpus into the real ~/.tes/intelligence_cache.json.
 """
 

@@ -1,7 +1,7 @@
 # Community Corpus Setup
 
 > **Status as of 2026-07-02: NOT DONE.** No Supabase project has been
-> provisioned for tracegauge's community corpus. `tes corpus contribute`
+> provisioned for tracegauge's community corpus. `tracegauge corpus contribute`
 > ships built and tested but dormant — see `CURRENT_STATE.md`'s "Activation
 > checklist" section. This file is the detailed how-to for that checklist;
 > follow it in full (through step 6 below) when the decision is made to
@@ -12,7 +12,7 @@ This is the one-time setup for standing up the tracegauge community corpus:
 a Supabase (hosted Postgres + Edge Functions) project that receives the
 content-free session-aggregate rows built by `tes.contribution` and sent by
 `tes.corpus_client`. Nothing here is required to use tracegauge locally —
-`tes corpus contribute` is entirely opt-in and does nothing unless
+`tracegauge corpus contribute` is entirely opt-in and does nothing unless
 `TES_CORPUS_URL` / `TES_CORPUS_ANON_KEY` / `TES_CORPUS_WITHDRAW_URL` are set.
 
 ## 1. Create the Supabase project
@@ -101,7 +101,7 @@ With a real tracegauge session already scored locally:
 TES_CORPUS_URL=https://xxxxx.supabase.co \
 TES_CORPUS_ANON_KEY=<anon-key> \
 TES_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
-tes corpus contribute
+tracegauge corpus contribute
 ```
 
 Confirm in the Supabase **Table Editor** that new row(s) appear in
@@ -114,12 +114,12 @@ Then run:
 TES_CORPUS_URL=https://xxxxx.supabase.co \
 TES_CORPUS_ANON_KEY=<anon-key> \
 TES_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
-tes corpus withdraw
+tracegauge corpus withdraw
 ```
 
 Confirm the row(s) tied to that contributor_id have disappeared from the
 Table Editor, and that the local `~/.tes/contributor_id.txt` has been
-removed (a future `tes corpus contribute` will generate a fresh,
+removed (a future `tracegauge corpus contribute` will generate a fresh,
 unlinked ID).
 
 ## 6. Close out the dormancy notices, then publish
@@ -136,7 +136,7 @@ Once step 5's round-trip is confirmed:
    dormant by choice" section with the live status, recording which Supabase
    project and region were used and the date the round-trip was confirmed.
 4. Re-run the full suite (`python -m pytest -q`) and
-   `git diff --exit-code tes/_waste_detectors.py` one more time.
+   `git diff --exit-code tracegauge/_waste_detectors.py` one more time.
 5. The PyPI publish itself remains escalation-gated per the project's
    standing rule on the transmission boundary — get sign-off before running it.
 

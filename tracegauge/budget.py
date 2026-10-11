@@ -14,9 +14,9 @@ message is always framed as "trending toward," never a promise.
 
 **source_mtime, not scored_at (issue #12)**: filters on the session FILE's
 own last-write time on disk -- when the real usage happened -- not on
-`scored_at` (when `tes score`/`tes scan` happened to run). These coincide
+`scored_at` (when `tracegauge score`/`tracegauge scan` happened to run). These coincide
 under an immediate-scoring workflow but diverge under batch-scoring: every
-session scored in one `tes scan` run gets the SAME `scored_at`, which would
+session scored in one `tracegauge scan` run gets the SAME `scored_at`, which would
 cluster a week of real spend onto one instant or drop it outside the
 window entirely. Same fix `tracegauge/cost_period.py`'s `compute_period_cost`
 already applies, for the identical reason -- see that module's own

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""tes/test_cli_ergonomics.py — 0.6.0 frictionless-UX ergonomics.
+"""tests/test_cli_ergonomics.py — 0.6.0 frictionless-UX ergonomics.
 
 These tests exercise the FRONT DOOR only (invocation + defaults). The scoring
 engine is stubbed via _score_path_with_api_judge so the tests are fast and assert
@@ -11,10 +11,10 @@ engine is stubbed via _score_path_with_api_judge so the tests are fast and asser
 the (frozen) scoring numbers.
 
 Covered:
-  - bare `tes` launches the dashboard (= serve)
-  - `tes score` with no path scores the newest session
-  - `tes score --pick` lists recent sessions and scores the chosen one
-  - `tes score --judge` is no longer an ambiguous option (the real friction bug)
+  - bare `tracegauge` launches the dashboard (= serve)
+  - `tracegauge score` with no path scores the newest session
+  - `tracegauge score --pick` lists recent sessions and scores the chosen one
+  - `tracegauge score --judge` is no longer an ambiguous option (the real friction bug)
   - explicit PATH still wins over the newest-session default
 """
 
@@ -61,7 +61,7 @@ def capture_scored(monkeypatch):
 
 
 def _run(monkeypatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:
@@ -69,7 +69,7 @@ def _run(monkeypatch, argv: list[str]) -> None:
 
 
 def test_bare_tes_launches_dashboard(monkeypatch, tmp_path):
-    """`tes` with no subcommand starts the localhost dashboard (serve), not help."""
+    """`tracegauge` with no subcommand starts the localhost dashboard (serve), not help."""
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
 
     captured: dict = {}
@@ -91,15 +91,15 @@ def test_bare_tes_launches_dashboard(monkeypatch, tmp_path):
     monkeypatch.setattr("tracegauge.web.server.start_server", _fake_start_server)
     monkeypatch.setattr("tracegauge.watcher.start_watcher", _fake_start_watcher)
 
-    _run(monkeypatch, [])  # bare `tes`
+    _run(monkeypatch, [])  # bare `tracegauge`
 
-    assert "config" in captured, "bare `tes` did not launch the dashboard"
+    assert "config" in captured, "bare `tracegauge` did not launch the dashboard"
     assert captured["config"].host == "127.0.0.1"  # moat: localhost-only bind preserved
     assert captured["config"].port == 4747
 
 
 def test_score_no_path_scores_newest(monkeypatch, tmp_path, isolated_store, capture_scored):
-    """`tes score` with no path scores the most-recently-modified session."""
+    """`tracegauge score` with no path scores the most-recently-modified session."""
     cc = tmp_path / "projects"
     cc.mkdir()
     _make_session(cc, "old.jsonl", mtime=1000.0)
@@ -113,7 +113,7 @@ def test_score_no_path_scores_newest(monkeypatch, tmp_path, isolated_store, capt
 
 
 def test_score_pick_lists_and_selects(monkeypatch, tmp_path, isolated_store, capture_scored):
-    """`tes score --pick` offers recent sessions newest-first; choice 2 selects the 2nd."""
+    """`tracegauge score --pick` offers recent sessions newest-first; choice 2 selects the 2nd."""
     cc = tmp_path / "projects"
     cc.mkdir()
     _make_session(cc, "a.jsonl", mtime=1000.0)  # oldest -> index 3
@@ -156,7 +156,7 @@ def test_explicit_path_wins_over_newest(monkeypatch, tmp_path, isolated_store, c
 
 
 def test_judge_flag_not_ambiguous(monkeypatch, tmp_path, isolated_store, capture_scored):
-    """`tes score --judge` must NOT raise the argparse 'ambiguous option' error.
+    """`tracegauge score --judge` must NOT raise the argparse 'ambiguous option' error.
 
     This is the headline friction bug: before 0.6.0, --judge collided with
     --judge-model/--judge-endpoint and argparse aborted with exit code 2.
@@ -165,7 +165,7 @@ def test_judge_flag_not_ambiguous(monkeypatch, tmp_path, isolated_store, capture
     cc.mkdir()
     _make_session(cc, "s.jsonl", mtime=1000.0)
 
-    monkeypatch.setattr("sys.argv", ["tes", "score", "--judge", "--cc-path", str(cc)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", "--judge", "--cc-path", str(cc)])
     # If --judge were still ambiguous, argparse raises SystemExit(2) before scoring.
     try:
         cli.main()
@@ -181,7 +181,9 @@ def test_judge_and_no_judge_mutually_exclusive(monkeypatch, tmp_path, isolated_s
     cc.mkdir()
     _make_session(cc, "s.jsonl", mtime=1000.0)
 
-    monkeypatch.setattr("sys.argv", ["tes", "score", "--judge", "--no-judge", "--cc-path", str(cc)])
+    monkeypatch.setattr(
+        "sys.argv", ["tracegauge", "score", "--judge", "--no-judge", "--cc-path", str(cc)]
+    )
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 1

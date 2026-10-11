@@ -2,11 +2,11 @@
 
 tracegauge is local by default. The watcher, scorer, and dashboard run on your
 machine. **Nothing is transmitted anywhere by default.** tracegauge includes
-the *code* for an opt-in community corpus contribution (`tes corpus
+the *code* for an opt-in community corpus contribution (`tracegauge corpus
 contribute`, described below), but that capability is **not active** — no
 public tracegauge corpus is currently operated, and the command has nowhere
-configured to send anything. Scoring, the dashboard, `tes patterns`, and local
-`tes ask` stay on-device with no server involved, unconditionally.
+configured to send anything. Scoring, the dashboard, `tracegauge patterns`, and local
+`tracegauge ask` stay on-device with no server involved, unconditionally.
 
 ## Contribution export (optional, off by default)
 
@@ -17,7 +17,7 @@ still only ever writes a local file — it never transmits anything, and
 tracegauge never reads the file back.
 
 The export exists so contributors can inspect exactly what a contribution would
-contain before opting in to the separate `tes corpus contribute` command
+contain before opting in to the separate `tracegauge corpus contribute` command
 (below), which is the ONLY tracegauge command that actually sends this data
 anywhere.
 
@@ -52,7 +52,7 @@ Each row is built field-by-field from the 14 fields above. No session object is
 serialized and filtered — a new field added to the store in a future release
 cannot appear in the export by construction.
 
-When you run `tes corpus contribute` (below), the exact bytes about to be sent
+When you run `tracegauge corpus contribute` (below), the exact bytes about to be sent
 are checked a second time, independently of how they were built, immediately
 before the network call:
 
@@ -79,16 +79,16 @@ local-only record of what tripped it is written to
 
 A random UUID generated on first export, stored in `~/.tes/contributor_id.txt`.
 Not derived from hostname, username, file paths, or any identifying information.
-Regenerate with `tes corpus reset-id` (or by deleting the file) — prior rows
+Regenerate with `tracegauge corpus reset-id` (or by deleting the file) — prior rows
 under the old ID become unlinked from future contributions. Omit entirely with
 `--anonymous`.
 
 ## Community corpus contribution (opt-in capability — NOT currently active)
 
-> **This capability is dormant.** `tes corpus contribute` is fully built and
+> **This capability is dormant.** `tracegauge corpus contribute` is fully built and
 > tested, but tracegauge does not currently operate a public corpus, and no
 > `TES_CORPUS_URL` / `TES_CORPUS_ANON_KEY` / `TES_CORPUS_WITHDRAW_URL` are
-> configured in any released build. Running `tes corpus contribute` today —
+> configured in any released build. Running `tracegauge corpus contribute` today —
 > even if you type `y` at the consent prompt — prints `[NOT SENT] the
 > community corpus is not configured on this install` and makes no network
 > call. This section describes what the feature would do *if and when* a
@@ -97,7 +97,7 @@ under the old ID become unlinked from future contributions. Omit entirely with
 > that ever changes, this section will say so, and the version that ships it
 > will call it out prominently in its release notes.
 
-`tes corpus contribute`, once activated, would be the only tracegauge command
+`tracegauge corpus contribute`, once activated, would be the only tracegauge command
 that sends data off your machine without a per-call API key you provide
 yourself. It would send the same content-free rows described above — never
 the local export file itself, never anything beyond the 14 allow-listed
@@ -147,7 +147,7 @@ dormancy notice above).
 automatic expiration — deletion would be a contributor-initiated action
 (below), not a time-based policy.
 
-**Withdrawal / deletion.** `tes corpus withdraw` is built and would, once a
+**Withdrawal / deletion.** `tracegauge corpus withdraw` is built and would, once a
 corpus exists, show what will be deleted, require confirmation, and delete
 every row tied to your `contributor_id` via a server-side function that
 validates the ID before deleting — your local client would have no ability to
@@ -159,7 +159,7 @@ a new, unlinked ID rather than silently reusing the one you just asked to be
 forgotten.
 
 > **If you ever contribute and later lose or delete `~/.tes/contributor_id.txt`
-> yourself (outside of `tes corpus withdraw`), your past rows can no longer be
+> yourself (outside of `tracegauge corpus withdraw`), your past rows can no longer be
 > linked back to you and cannot be withdrawn.** This file would be the only
 > key tying your contributions together — treat losing it as losing the
 > ability to withdraw them.
@@ -192,7 +192,7 @@ there is no community baseline to show, and none is shown.
 
 ## API judge (opt-in, explicit consent per session)
 
-`tes score <path> --api-judge` scores trajectory quality using an API-hosted model
+`tracegauge score <path> --api-judge` scores trajectory quality using an API-hosted model
 (default: `claude-haiku-4-5-20251001`) with your own API key. **This is the
 one feature in tracegauge that sends raw session content off-machine.**
 

@@ -268,7 +268,7 @@ def _message_dedup_key(msg: dict[str, Any]) -> str:
 ADAPTER_VERSION: int = 2
 
 # Bumped whenever the *cost* computed from a record changes without moving real_tokens, so
-# stored session_cost_usd rows can be recognised as stale and re-scored by `tes backfill-waste`.
+# stored session_cost_usd rows can be recognised as stale and re-scored by `tracegauge backfill-waste`.
 # Kept apart from ADAPTER_VERSION on purpose: that one gates self_baseline/alarm_baseline and the
 # shipped baseline provenance, and real_tokens did not change here.
 #   1 = every cache write priced at the 5-minute rate

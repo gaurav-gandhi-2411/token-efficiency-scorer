@@ -262,12 +262,12 @@ def test_cli_score_shows_subagent_breakdown(
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     parent = _make_session(tmp_path)
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(parent), "--no-judge"])
     cli.main()
     human = capsys.readouterr().out
     assert "Includes 2 subagent transcript(s)" in human
 
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge", "--json"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(parent), "--no-judge", "--json"])
     cli.main()
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])
@@ -286,7 +286,7 @@ def test_explicit_subagent_file_scores_without_crashing(
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     agent = _make_session(tmp_path).with_suffix("") / "subagents" / "agent-aaa.jsonl"
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(agent), "--no-judge", "--json"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(agent), "--no-judge", "--json"])
     cli.main()
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])

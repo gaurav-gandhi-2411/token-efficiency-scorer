@@ -6,7 +6,7 @@ from __future__ import annotations
 """tracegauge/plan.py — Plan-cost configuration and ROI computation.
 
 XX1.1: "Is my subscription worth it at API-equivalent prices?" -- the ROI
-side of `tes cost --roi`. Two deliberate design choices, both driven by
+side of `tracegauge cost --roi`. Two deliberate design choices, both driven by
 XX1.2's honesty requirements:
 
 **A plan HISTORY, not a single static plan.** A user's plan can change

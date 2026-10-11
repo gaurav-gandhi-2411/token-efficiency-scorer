@@ -6,7 +6,7 @@ from __future__ import annotations
 """Integration test: watcher scan cycle must not crash when db_path is None.
 
 Regression guard for the P4 integration bug: run_watcher passed config.db_path
-(None when tes serve runs without --db-path) directly to load_or_compute, which
+(None when tracegauge serve runs without --db-path) directly to load_or_compute, which
 called Path(None) → TypeError. open_db handled None correctly; load_or_compute
 did not. The outer except caught the crash and logged "Scan cycle error", so no
 sessions were ever scored.
@@ -38,7 +38,7 @@ def test_scan_cycle_reaches_scan_once_with_default_db_path(tmp_path: Path) -> No
     config = WatcherConfig(
         cc_path=cc_dir,
         stability_window=0,
-        db_path=None,  # the default — exactly what `tes serve` uses
+        db_path=None,  # the default — exactly what `tracegauge serve` uses
     )
 
     stop_event = threading.Event()
