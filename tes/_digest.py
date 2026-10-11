@@ -43,8 +43,8 @@ class TurnDigest:
     # non-empty. None when the field was absent/empty on this turn's raw
     # usage dict -- distinct from an empty dict, though tes.adapt never
     # actually produces an empty dict (see adapt.py's _parse_usage). Cost
-    # computation (tes.cost) reads this to warn that server-side tool
-    # billing is not reflected in total_usd, never to price it.
+    # computation (tes.cost) prices web_search_requests from it and warns that
+    # the kinds it cannot price (code execution) are not reflected in total_usd.
     server_tool_use: dict[str, int] | None = None
     # API requests this turn stands for: 1 for a real turn, >1 for an aggregated subagent
     # turn (tes.adapt.collect_subagent_usage). tes.cost needs it because tiered models

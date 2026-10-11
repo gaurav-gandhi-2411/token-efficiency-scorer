@@ -215,8 +215,8 @@ def _parse_server_tool_use(usage: dict[str, Any]) -> dict[str, int] | None:
     server-side tool calls (e.g. web search, billed at $10/1,000 searches on
     top of token costs) was priced as if those calls never happened, with
     zero warning. This function only detects and surfaces the counts —
-    tes.cost uses them to emit an explicit warning (never to compute a
-    price; see tes/cost.py's _server_tool_warning docstring for why not).
+    tes.cost prices web_search_requests ($10/1,000 searches) and warns about
+    the kinds it cannot price (see tes/cost.py's _server_tool_warning).
 
     Returns None when the field is absent, not a dict, or every count in it
     is zero/falsy -- distinguishing "no server-side tool usage" from "usage
