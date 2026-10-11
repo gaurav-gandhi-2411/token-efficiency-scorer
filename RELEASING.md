@@ -143,10 +143,10 @@ uv pip install --no-cache tracegauge==X.Y.Z --index-url https://pypi.org/simple/
 
 C:\tg-verify\Scripts\tes.exe --version   # confirm it reports X.Y.Z
 
-# Confirm both license files actually shipped in the distribution's own metadata --
+# Confirm the license files actually shipped in the distribution's own metadata --
 # not just the SPDX header comments in source, the dist-info itself
 find C:\tg-verify\Lib\site-packages\tracegauge-X.Y.Z.dist-info -iname "*LICENSE*"
-# expect: .../licenses/LICENSE and .../licenses/LICENSE-APACHE
+# expect: .../licenses/LICENSE, .../licenses/NOTICE and, in the package itself, tes/web/static/fonts/OFL-*.txt
 
 rm -rf C:\tg-verify
 ```
