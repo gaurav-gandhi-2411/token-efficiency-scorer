@@ -474,31 +474,7 @@ tes ask "Do I have any waste patterns in my sessions?" --api   # opt-in, consent
 
 A conversational explainer, constrained by construction to answer only from the same measured metrics/pattern output `tes patterns` produces — never invents analysis, predicts future cost, or judges session quality. Tries local Ollama first (`qwen3:8b` by default, or whatever 7B+ model is available); with no local judge but `ANTHROPIC_API_KEY` set, offers the API path with an explicit per-call consent prompt (sends metrics only, never session content/code).
 
-Real output of this version on a synthetic 36-session store, with a local Ollama `qwen3:8b` (one run on one machine; a language model's wording varies from run to run, unlike the other blocks in this README). Reproduce with `python scripts/gen_readme_examples.py --ask "<question>"` (needs the `[patterns]` extra and Ollama):
-
-```text
-$ tes ask "What kind of sessions do I run?"
-Looking up your session data...
-
-Based on the measured data, your sessions are primarily "medium high context re-send sessions." Most of your 36 content sessions (55.6% and 44.4% respectively) involve re-sending nearly all billed tokens as context, with minimal output and little to no growth in context tokens. All sessions are focused on the "debug-fix" task type, and none have detected waste. These patterns reflect your workflow, not population norms.
-
-(answered from measured metrics — local Ollama)
-```
-
-The constraint is real, not just a system-prompt claim: the parts of a question that are not measured are declined rather than answered with a plausible-sounding guess.
-
-```text
-$ tes ask "How much will I spend next month, and are my prompts any good?"
-Looking up your session data...
-
-I don't predict future behavior — I only explain what's already measured in your session history.
-
-Your sessions have a median cost of $2.86 per session, with the highest session costing $8.17. However, I don't have that measured — tracegauge hasn't collected that metric.
-
-tracegauge doesn't rate session quality — it describes measured patterns like token distribution and waste detection. Your sessions show no detected waste, and token usage patterns suggest consistent context re-send behavior.
-
-(answered from measured metrics — local Ollama)
-```
+`tes ask` answers from your measured session metrics using a local model; parts of a question that tracegauge does not measure (forecasts, prompt quality) are declined instead of guessed. Wording varies by model and run.
 
 ## What this does NOT do
 

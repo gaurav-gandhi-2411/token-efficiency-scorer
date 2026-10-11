@@ -9,8 +9,6 @@ tests/test_readme_examples.py regenerates the blocks and fails when the README d
 
     python scripts/gen_readme_examples.py                 # print every block
     python scripts/gen_readme_examples.py --check README.md   # exit 1 if a block is not in the file
-    python scripts/gen_readme_examples.py --ask "<question>"  # tes ask on a synthetic store (needs
-                                                              # the [patterns] extra and a local Ollama)
 
 Each scenario builds its own throw-away store and projects directory under a temp directory, so the
 real ~/.tes store and ~/.claude/projects are never read or written.
@@ -326,41 +324,13 @@ def generate() -> dict[str, str]:
     return blocks
 
 
-def run_ask(question: str) -> str:
-    """`tes ask` on a synthetic 36-session store against a local Ollama (not deterministic)."""
-    with tempfile.TemporaryDirectory(prefix="tes-ask-examples-") as tmp:
-        sb = _Sandbox(Path(tmp), "ask")
-        shapes = [
-            (30 + (i * 7) % 60, 3_000 + (i * 900) % 6_000, 400 + (i * 130) % 1_600)
-            for i in range(36)
-        ]
-        for i, (turns, step, out) in enumerate(shapes):
-            _write_session(
-                sb.root,
-                f"demo-{'api' if i % 3 == 0 else 'web' if i % 3 == 1 else 'jobs'}",
-                f"s{i}",
-                "claude-sonnet-5-5" if i % 4 else "claude-opus-5-5",
-                0.2 + 0.7 * i,
-                turns=turns,
-                step=step,
-                out=out,
-            )
-        sb.score_all()
-        code, out = sb.run("ask", question, "--db-path", str(sb.db))
-        return f"[exit {code}]\n{out}"
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate the README example blocks from synthetic sessions."
     )
     parser.add_argument("--check", metavar="README", help="fail unless every block is in this file")
-    parser.add_argument("--ask", metavar="QUESTION", help="run `tes ask` once on a synthetic store")
     args = parser.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]  # box-drawing characters
-    if args.ask:
-        print(run_ask(args.ask))
-        return 0
     blocks = generate()
     if args.check:
         text = Path(args.check).read_text(encoding="utf-8").replace("\r\n", "\n")

@@ -97,7 +97,7 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
 - **CI runs the suite on Linux, macOS and Windows x Python 3.10-3.13 plus four core-only legs; the coverage floor
   is 86** (86.70% measured on the GitHub runner, CI run 38091475996). [docs/CI.md](docs/CI.md).
-- **README example blocks are generated:** every `tes cost`, `cost --roi`, `budget`, `monitor` and `ask` example
+- **README example blocks are generated:** every `tes cost`, `cost --roi`, `budget` and `monitor` example
   is this version's output on synthetic sessions from
   [`scripts/gen_readme_examples.py`](scripts/gen_readme_examples.py), pinned by `tests/test_readme_examples.py`;
   the 0.11.0 blocks and every estimated equivalent were removed. README and PyPI text corrected where this
