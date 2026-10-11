@@ -47,7 +47,7 @@ pip install tracegauge
 tracegauge quickstart
 ```
 
-Two commands. Scores a bundled sample Claude Code session (token economy, deterministic waste detection, cost annotation) and prints a real three-axis report — nothing read from your machine, no local Ollama probe, no consent prompt. All three axes render something meaningful with zero configuration: token economy scores against the research-recon band (the bundled sample is synthetic and labeled so, sized to pass that task type's scope gate), trajectory quality states plainly that it's unavailable without a judge and shows a labeled, non-computed example of what that axis looks like once one is configured, and waste detection reports one deterministic `REPEATED-FAILED-RETRY` finding with its proof turns, followed by an informational cost breakdown (dollars per bucket). **Timing, measured on one Windows 11 machine (CPython 3.13) and not a guarantee: `pip install` of the core package into a fresh venv took 10.6 to 14.0 s, and the installed `tracegauge quickstart` then took 0.9 to 1.3 s (an independent verifier's runs); conditions and raw numbers are in [docs/INSTALL.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/INSTALL.md).**
+Two commands. Scores a bundled sample Claude Code session (token economy, deterministic waste detection, cost annotation) and prints a real three-axis report — nothing read from your machine, no local Ollama probe, no consent prompt. All three axes render something meaningful with zero configuration: token economy scores against the research-recon band (the bundled sample is synthetic and labeled so, sized to pass that task type's scope gate), trajectory quality states plainly that it's unavailable without a judge and shows a labeled, non-computed example of what that axis looks like once one is configured, and waste detection reports one deterministic `REPEATED-FAILED-RETRY` finding with its proof turns, followed by an informational cost breakdown (dollars per bucket). **Timing, measured on one Windows 11 machine (CPython 3.13) and not a guarantee: `pip install` of the core package into a fresh venv took 10.6 to 14.0 s, and the installed `tracegauge quickstart` then took 0.9 to 1.3 s (a second set of runs); conditions and raw numbers are in [docs/INSTALL.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/INSTALL.md).**
 
 ## Quick start
 
@@ -342,7 +342,7 @@ tes impact --top 20
 
 Corpus-wide, from `Edit`/`Write`/`MultiEdit`/`NotebookEdit` tool-call payloads reconstructed and persisted at score time — additions/deletions per file, and a plain, transparent churn ranking (most-edited files and directories). **Deliberately no composite "risk score"**: a hand-weighted blend of signals presented as one number is exactly the kind of invented-precision this project avoids elsewhere (see the CHANGELOG's `[0.12.0]` entry for the reasoning) — every figure here is a direct count or a plainly-labeled fraction.
 
-Real output, this session's own transcript:
+Real output on the maintainer's own transcript (an unpublished local measurement; that transcript is not in the repo):
 
 ```text
 291 edit operation(s) across 1 session(s) with impact data
@@ -355,7 +355,7 @@ Most-edited files:
     15 edits  +193/-127  (1 session(s))  tes/intelligence/cache.py
 ```
 
-**Extraction scope, checked against this project's own real corpus** (883 real transcript files, 434,774 lines): `Edit` (10,175 real occurrences) and `Write` (3,059) are fully supported. `MultiEdit`/`NotebookEdit` are real Claude Code tool names with **zero occurrences in that same real-corpus check** — extraction is written (best-effort, defensive) but every operation from either is flagged internally and surfaced in the output's own inline fraction whenever it contributes to a total, never presented with the same confidence as Edit/Write-derived numbers. `apply_patch`/`str_replace_editor` (Codex/computer-use tool names, not Claude Code ones) are out of scope entirely.
+**Extraction scope, checked against the maintainer's own local corpus** (883 transcript files, 434,774 lines; an unpublished local measurement): `Edit` (10,175 real occurrences) and `Write` (3,059) are fully supported. `MultiEdit`/`NotebookEdit` are real Claude Code tool names with **zero occurrences in that same real-corpus check** — extraction is written (best-effort, defensive) but every operation from either is flagged internally and surfaced in the output's own inline fraction whenever it contributes to a total, never presented with the same confidence as Edit/Write-derived numbers. `apply_patch`/`str_replace_editor` (Codex/computer-use tool names, not Claude Code ones) are out of scope entirely.
 
 **The `Write` ambiguity, stated plainly, not swallowed**: a `Write` call's payload contains the new file content but never the content it replaced — additions are exact, deletions are always 0 for that operation, and the report states what fraction of the total additions figure rests on this assumption (see the real output above: 66% on this real corpus).
 

@@ -49,16 +49,16 @@ previous behaviour (the verdict self-baseline's p75) for existing callers; every
 
 The alarm used to compare against `self_baseline`'s p75, which is the p75 of the **lean half** of your waste-free
 sessions over all time. That number sits near your overall median, so the alarm fired on most sessions: a
-retrospective run over a real user's 50 most recent sessions (Phase 0 set B, old accounting, a stale store) fired
-on **40/50 = 80%** (Phase 0 audit, workstream C2, `check_alarm` over `score_live_session`; not re-run here, old
+retrospective run over a real user's 50 most recent sessions (the maintainer's 50 most recent sessions, old accounting, a stale store) fired
+on **40/50 = 80%** (an earlier unpublished local measurement of `check_alarm` over `score_live_session`; not re-run here, old
 accounting no longer exists). It also mixed model eras, and its rows were inflated by the usage double-count.
-Under the corrected accounting on this branch the old design is mostly silent instead: on the same 50 sessions its
+Under the corrected accounting the old design is mostly silent instead: on the same 50 sessions its
 self-baseline was active for 1 of 98 checks (the stability guard rejects the wide bands), so it fired 0/50 and,
-on a copy of the Phase 0 store, 0/50 because all 1,452 rows are stale. Neither extreme is useful.
+on a copy of the maintainer's store, 0/50 because all 1,452 rows are stale. Neither extreme is useful.
 
 ## How the percentile was chosen (data)
 
-Setting: Phase 0 set B, the 50 most recent main sessions of one developer. 48 have tokens; one more was
+Setting: the 50 most recent main sessions of one developer (the maintainer; the transcripts are not published, the method is `tes.alarm_baseline`, so these figures are an unpublished local measurement). 48 have tokens; one more was
 extracted with 0 tokens and one has no assistant usage at all, so 49 sessions were extracted and the 2 that cannot
 exceed any threshold count as "no fire" in the denominator of 50. Counts below written "of 49" are over the 49
 extracted sessions (the 0-token one is placed in the `recent` tier, giving 9 rather than 8 there). Each finished session is scored once as if it were the live
@@ -79,7 +79,7 @@ Wilson 95% interval, with the re-send condition:
 | p90 | 7/50 = 14% [7, 26] | 5/50 = 10% [4, 21] | 4/5 / 3/5 |
 | p95 | 5/50 = 10% [4, 21] | 2/50 = 4% [1, 13] | 3/5 / 1/5 |
 
-Without the re-send condition every cell is identical (the condition is true for all 48 set-B sessions that have
+Without the re-send condition every cell is identical (the condition is true for all 48 of these sessions that have
 tokens). A synthetic runaway re-send session (twice the largest session in the pool, 99% re-send) fired in 49/49
 contexts at p80 to p95; `tests/test_alarm_baseline.py` also scores a generated 80-turn runaway transcript.
 

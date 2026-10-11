@@ -112,7 +112,7 @@ Post-correction, all medians are in the 500-720K range — consistent with real 
 | research-recon | 12 | 362,790 | 718,627 | 1,339,625 | 0.63 |
 | feature-build | 12 | 424,780 | 711,859 | 803,514 | 0.43 |
 
-> **Note, 0.15.0 draft (2026-10-10).** These bands are on the old scale (each API response's
+> **Note, 0.15.0.** These bands are on the old scale (each API response's
 > usage counted once per content block) and describe the June research pool. They are not the
 > shipped bands and were never rescaled (the raw sessions are gone). The bundled baseline since
 > 0.15.0 is a different, ungated 71-session population on the corrected scale (p25 / median /

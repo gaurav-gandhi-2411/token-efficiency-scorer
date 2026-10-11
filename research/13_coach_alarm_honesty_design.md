@@ -6,7 +6,7 @@ spec.md (0.10.0). This is the mandatory hold: the action layer
 the grounding design was reviewed before a line of `coach.py`/`alarm.py`/
 `budget.py` was written.
 
-> **Superseded in part, 0.15.0 draft (2026-10-10).** This is the 0.10.0 design record and is
+> **Superseded in part, 0.15.0.** This is the 0.10.0 design record and is
 > kept as written. The alarm it specifies (decision 4 and section 2.2: magnitude gate = the
 > type's self-baseline `p75`, silent while that baseline is `building`) is no longer what
 > ships. The gate is now the **p85 of the user's own sessions from the last 30 days in the

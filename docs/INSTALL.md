@@ -47,7 +47,7 @@ Local wheel `tracegauge-0.14.0-py3-none-any.whl`: 292,384 bytes at the commit th
 size, venv and `pip install` figures below were measured with that wheel), 299,510 bytes when rebuilt at `ef1de9f`
 (`uv build --wheel` from a `git archive` of that commit; it grows by a few hundred bytes per source commit). Venv:
 fresh `python -m venv` (CPython 3.13.5, Windows 11), `pip install <wheel>` with a warm pip cache unless stated.
-Raw commands and outputs are in the W1A-f report.
+These are the maintainer's unpublished local measurements, not CI output.
 
 | | core | core + `[patterns]` |
 |---|---|---|
@@ -78,8 +78,7 @@ waits of several minutes did not bring it down, so these are not idle-machine nu
 
 Earlier run on the same machine, wheel from the commit that introduced the extra, **load not recorded** (so it
 cannot be called uncontended): `quickstart` cold 4.53 / 4.96 / 3.06 / 5.07 s and warm 1.49 / 1.49 / 1.06 / 2.00 s;
-`score <sample session>` cold 5.47 / 5.05 / 4.54 / 7.06 s and warm 2.14 / 1.16 / 1.02 / 6.29 s. An independent
-verifier measured 6 to 27 s for uvx runs while the machine was also at 99 to 100% CPU, and 0.9 to 1.3 s for the
+`score <sample session>` cold 5.47 / 5.05 / 4.54 / 7.06 s and warm 2.14 / 1.16 / 1.02 / 6.29 s. A second run on the same machine measured 6 to 27 s for uvx runs while the machine was also at 99 to 100% CPU, and 0.9 to 1.3 s for the
 installed `tracegauge quickstart`. The honest reading: warm uvx is about 1 to 3 s, cold depends on the network and on
 machine load and ranged from 3 to 33 s here, and a cold-run claim of "under 10 s" has not been shown on an idle
 machine. These are single-machine measurements with network and antivirus variance; treat them as an order of
