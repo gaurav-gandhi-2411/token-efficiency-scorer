@@ -36,7 +36,7 @@ from PIL import Image
 ROOT = Path(__file__).parent.parent
 FONT_DIR = ROOT / "tes" / "web" / "static" / "fonts"
 DISPLAY_FONT = str(FONT_DIR / "spacegrotesk-700.woff2")
-BODY_FONT = str(FONT_DIR / "ibmplexsans-400.woff2")
+BODY_FONT = str(FONT_DIR / "tgsans-400.woff2")
 OUT_SVG = ROOT / "assets" / "brand" / "og-preview.svg"
 OUT_PNG = ROOT / "assets" / "brand" / "og-preview.png"
 

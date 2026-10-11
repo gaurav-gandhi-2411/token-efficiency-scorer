@@ -42,8 +42,8 @@ as a wall of alarms.
 | Role | Family | Weight(s) |
 |---|---|---|
 | Display | Space Grotesk | 700 |
-| Body | IBM Plex Sans | 400, 600 |
-| Data / mono | IBM Plex Mono | 400, 600 |
+| Body | IBM Plex Sans (shipped as the renamed subset "TG Sans") | 400, 600 |
+| Data / mono | IBM Plex Mono (shipped as the renamed subset "TG Mono") | 400, 600 |
 
 **Why:** Space Grotesk carries every number that *is* a reading — gauge
 values, hero metrics — and stands apart from surrounding prose on purpose,
