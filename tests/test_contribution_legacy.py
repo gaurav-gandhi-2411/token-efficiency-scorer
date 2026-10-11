@@ -18,7 +18,7 @@ from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
 
 def _run(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     monkeypatch.setattr("builtins.input", lambda *a, **k: "y")
     with pytest.raises(SystemExit):
         cli.main()

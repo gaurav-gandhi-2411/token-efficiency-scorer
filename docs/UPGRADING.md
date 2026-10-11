@@ -7,7 +7,7 @@ known to be wrong: tokens and dollars ~2x too high (usage was added once per con
 
 **What happens to them.** Nothing is deleted and no stored number is rewritten by the upgrade. A
 legacy row is *derived*: `adapter_version` or `cost_version` is empty or older than the running
-version (every row of a 0.14-or-earlier store, since those columns did not exist). `tes rescore`
+version (every row of a 0.14-or-earlier store, since those columns did not exist). `tracegauge rescore`
 clears it by writing the current versions. The columns are added by the first command that opens
 the store; adding them is idempotent, safe to run twice and safe if the watcher and a CLI command
 open the store at the same moment.
@@ -16,15 +16,15 @@ open the store at the same moment.
 
 | Command | Legacy rows |
 |---|---|
-| self-baselines (verdict bands, `tes score`, dashboard) | excluded. A task type with no current rows is `building` again; its DOV text says how many legacy rows were left out. |
+| self-baselines (verdict bands, `tracegauge score`, dashboard) | excluded. A task type with no current rows is `building` again; its DOV text says how many legacy rows were left out. |
 | live alarm (`monitor`, `serve --alarm`) | excluded from the pool the threshold is computed from. |
 | `budget` | excluded from the pace and projection. `--json` carries `legacy_rows_excluded` (legacy sessions with a cost in the window); text says how many were left out. If every session in the window is legacy there is no projection, not a legacy one. |
 | `cost` (periods, per-project, coverage) | excluded from `total_usd`, `session_count`, `by_project` and token coverage. They appear once, on a separate line labelled `legacy (pre-0.15 accounting, overcounted ~2x)`, never added to the corrected total. `--json`: `legacy_rows_excluded` and a `legacy` object `{label, session_count, total_usd, included_in_total_usd: false}`. |
 | `cost --roi` | built on the corrected total only, so the multiple is a floor; it says so when legacy rows were excluded. |
-| `export-contribution` (and `tes corpus contribute`, which uses the same builder) | **excluded.** A legacy row would write an overcounted `real_tokens` into a file others may read. The preview and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports nothing and says so. |
+| `export-contribution` (and `tracegauge corpus contribute`, which uses the same builder) | **excluded.** A legacy row would write an overcounted `real_tokens` into a file others may read. The preview and the written-file summary say how many legacy sessions were left out; a store with only legacy rows exports nothing and says so. |
 | `impact` | **excluded** from every figure. The edit counts themselves are not affected by the usage double-counting; legacy rows are left out anyway so `impact` describes the same set of sessions as every other command. Text says `N legacy sessions left out`; `--json` has `legacy_rows_excluded`. |
 | `patterns` (CLI and the dashboard `/patterns` page) | **excluded** from the clustering (their attribution shares came from overcounted usage). The analysis says how many were left out; `--json` has `legacy_rows_excluded`; a cached analysis built before the count was recorded is recomputed. |
-| dashboard `/budget` | **excluded** from the pace and projection, same as `tes budget`. A banner says how many legacy sessions in the window were left out. |
+| dashboard `/budget` | **excluded** from the pace and projection, same as `tracegauge budget`. A banner says how many legacy sessions in the window were left out. |
 | `ask` (CLI and the dashboard `/ask`) | **excluded** from every corpus number handed to the model (counts, cost and token percentiles, waste), and the model is told how many legacy sessions exist and not to estimate them. A single legacy session you name by id is still described, but labelled `legacy: overcounted, not comparable`. The CLI prints how many were left out after the answer. |
 | dashboard session list and session page | **listed, marked.** Every legacy row carries the badge `legacy: overcounted, not comparable`, a banner says how many there are, and a legacy cost is never compared with your baseline. The session page recomputes its attribution from the transcript with the current accounting and says so. |
 
@@ -33,7 +33,7 @@ Only `schema_version` 1 keys were added; none were removed or renamed.
 ## The one-time notice
 
 The first command that opens an existing store (`score`, `cost`, `budget`, `monitor`, `serve`,
-`impact`, `patterns`, `ask`, `export-contribution`, or bare `tes`) prints this to **stderr**
+`impact`, `patterns`, `ask`, `export-contribution`, or bare `tracegauge`) prints this to **stderr**
 (never into `--json` stdout):
 
 ```
@@ -42,15 +42,15 @@ tracegauge: 1452 of 1452 stored session(s) were scored by an older version ...
   unrecoverable (transcript gone):       1452
 ```
 
-It is shown once per store per tes version, and again only if more legacy rows appear later.
-Silence it with `TES_NO_NOTICE=1` or `tes --quiet <command>` (the flag goes before the command).
+It is shown once per store per tracegauge version, and again only if more legacy rows appear later.
+Silence it with `TES_NO_NOTICE=1` or `tracegauge --quiet <command>` (the flag goes before the command).
 It never creates a store, never raises, waits at most 0.25 s on a locked store, and is skipped by
 `rescore` and `backfill-waste`.
 
-## `tes rescore`
+## `tracegauge rescore`
 
 ```
-tes rescore [--dry-run] [--json] [--db-path PATH] [--limit N]
+tracegauge rescore [--dry-run] [--json] [--db-path PATH] [--limit N]
 ```
 
 Re-scores every legacy row whose transcript is still readable with the current adapter and price
@@ -73,7 +73,7 @@ when no `-wal` file exists), so it is not migrated and the file is byte-identica
 
 Idempotent: a second run rescores 0 rows and changes nothing. It never creates a store. Exit codes:
 `0` ok, `1` no store / unopenable store / `--limit < 1`, `4` at least one readable row failed (the
-rest were still rescored); see [EXIT_CODES.md](EXIT_CODES.md). `tes backfill-waste` still works as
+rest were still rescored); see [EXIT_CODES.md](EXIT_CODES.md). `tracegauge backfill-waste` still works as
 before (it also refreshes stale rows) and follows the same guard: a transcript with no usage records
 is counted as failed, its row is left as it was, and the exit code is 4. Before 0.15.0 it overwrote
 such a row with zeros.

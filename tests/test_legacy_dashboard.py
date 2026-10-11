@@ -72,7 +72,7 @@ def test_dashboard_patterns_page_reports_the_count(client: FlaskClient) -> None:
 
 
 def test_dashboard_budget_page_says_how_many_legacy_sessions_it_left_out(tmp_path: Path) -> None:
-    """/budget excludes legacy rows from the pace (as `tes budget` does) and now says so."""
+    """/budget excludes legacy rows from the pace (as `tracegauge budget` does) and now says so."""
     import time
 
     db = tmp_path / "budget.db"

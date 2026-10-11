@@ -249,7 +249,7 @@ JUDGE_SETUP_HINT_FULL: str = (
     "\n"
     "  Option 2 — API (opt-in, your own key, sends trajectory data to Anthropic):\n"
     "    export ANTHROPIC_API_KEY=<your-key>\n"
-    "    tes score <path> --api-judge\n"
+    "    tracegauge score <path> --api-judge\n"
     "    (Shows a consent screen before sending anything.)\n"
     "\n"
     "Without the judge, token and waste axes still run fully.\n"

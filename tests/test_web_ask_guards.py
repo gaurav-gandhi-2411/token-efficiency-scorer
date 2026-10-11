@@ -1,7 +1,7 @@
 # Copyright 2026 Gaurav Gandhi
 # SPDX-License-Identifier: Apache-2.0
 
-"""test_web_ask_guards.py — Web Ask endpoint carries identical guards to CLI tes ask.
+"""test_web_ask_guards.py — Web Ask endpoint carries identical guards to CLI tracegauge ask.
 
 These tests are the GATE for the web Ask panel. They must all pass before 0.8.0 can proceed.
 

@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-"""tracegauge/patterns_extra.py -- the single place that knows what `tes patterns` needs installed.
+"""tracegauge/patterns_extra.py -- the single place that knows what `tracegauge patterns` needs installed.
 
 numpy and scikit-learn (scipy comes with it) are the optional `[patterns]` extra. Every consumer calls
-require_patterns_extra() BEFORE it runs tracegauge.intelligence work: `tes patterns`, `tes ask`, and the
+require_patterns_extra() BEFORE it runs tracegauge.intelligence work: `tracegauge patterns`, `tracegauge ask`, and the
 dashboard /patterns and /ask routes. tracegauge.intelligence itself imports lazily, so importing it (as the
 CLI and the dashboard do at startup) never needs the extra.
 """

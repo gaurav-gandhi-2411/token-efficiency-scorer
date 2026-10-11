@@ -154,7 +154,7 @@ def format_human(
 
     # Header
     lines.append(_BORDER)
-    lines.append("  TOKEN-EFFICIENCY SCORER")
+    lines.append("  TRACEGAUGE")
     lines.append(f"  Session:   {result.session_id}")
     lines.append(f"  Task type: {result.task_type}")
     lines.append(_BORDER)

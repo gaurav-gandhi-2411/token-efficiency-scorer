@@ -15,10 +15,10 @@ import tracegauge.web.server as srv
 repo = pathlib.Path(r"C:\Users\USER\ml-projects\token-efficiency-scorer")
 pkg_path = pathlib.Path(tracegauge.__file__)
 if repo in pkg_path.parents:
-    print("FAIL: tes is loading from the REPO, not from the installed wheel.")
+    print("FAIL: tracegauge is loading from the REPO, not from the installed wheel.")
     print(f"  tracegauge.__file__ = {pkg_path}")
     sys.exit(1)
-print(f"[OK] tes loads from site-packages (NOT repo): {pkg_path}")
+print(f"[OK] tracegauge loads from site-packages (NOT repo): {pkg_path}")
 print(f"[OK] tracegauge.__version__ = {tracegauge.__version__}")
 
 assert tracegauge.__version__ == "0.8.0", f"Version mismatch: {tracegauge.__version__}"
@@ -89,7 +89,7 @@ assert data.get("answer"), f"No answer in response: {data}"
 assert data.get("source") == "local"
 print(f"[OK] POST /ask -> answer from local: '{data['answer']}'")
 
-# --- 7. tes --version ---
+# --- 7. tracegauge --version ---
 import subprocess
 
 result = subprocess.run(
@@ -98,10 +98,10 @@ result = subprocess.run(
     text=True,
 )
 ver_out = (result.stdout + result.stderr).strip()
-assert "0.8.0" in ver_out, f"tes --version output does not contain 0.8.0: {ver_out!r}"
-print(f"[OK] tes --version: {ver_out}")
+assert "0.8.0" in ver_out, f"tracegauge --version output does not contain 0.8.0: {ver_out!r}"
+print(f"[OK] tracegauge --version: {ver_out}")
 
-# --- 8. tes patterns import (ML deps available) ---
+# --- 8. tracegauge patterns import (ML deps available) ---
 from tracegauge.intelligence.chat import CHAT_SYSTEM_PROMPT
 
 print("[OK] tracegauge.intelligence imports OK (numpy/sklearn available)")

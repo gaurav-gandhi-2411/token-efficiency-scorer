@@ -14,7 +14,7 @@ Trigger: scheduled-scan + file-stability (sole P2 mechanism).
 - Judge is OFF by default; opt-in via background_judge=True (--background-judge flag).
 - Writes results to the shared SQLite store.
 
-SessionEnd hook: deferred to a future `tes install-hook` command (opt-in, explicit).
+SessionEnd hook: deferred to a future `tracegauge install-hook` command (opt-in, explicit).
 Rationale: configuring ~/.claude/settings.json without user consent violates the
 no-surprises/moat posture. The hook IS a real fast-path (exists in CC) but must
 be user-initiated, not automatic.
@@ -70,7 +70,7 @@ def score_session_file(
 
     Calling convention is identical to the P1 CLI (behavior-preservation guarantee):
       adapt → build_waste_entry → score_session(judge_entry=None unless use_judge).
-    Same session → same ThreeAxisResult whether called from the watcher or `tes score`.
+    Same session → same ThreeAxisResult whether called from the watcher or `tracegauge score`.
 
     self_baseline: pass load_or_compute() result to route through user's own baseline.
     When None, falls through to B2 corpus (backward-compatible default).
@@ -112,7 +112,7 @@ def score_session_file(
         # RR1: attribution fractions, persisted at score time -- this is the
         # background watcher's scoring path, the most common real-world way
         # sessions get scored at all, so this is the primary place the fix
-        # for tes patterns' file-lifetime dependency needs to land. See the
+        # for tracegauge patterns' file-lifetime dependency needs to land. See the
         # mirrored comment in tracegauge.cli.score_path.
         attribution = None
         if digest is not None:
@@ -254,7 +254,7 @@ def run_watcher(
     # Load price table once at startup — prices don't change between sessions.
     prices = load_price_table()
     # Resolve once so both open_db and load_or_compute use the same concrete path.
-    # config.db_path is None when tes serve runs without --db-path; Path(None) crashes.
+    # config.db_path is None when tracegauge serve runs without --db-path; Path(None) crashes.
     db_path = resolve_db_path(config.db_path)
     conn = open_db(db_path)
     logger.info(
@@ -299,7 +299,7 @@ def start_watcher(
         target=run_watcher,
         args=(config, stop_event),
         daemon=True,
-        name="tes-watcher",
+        name="tracegauge-watcher",
     )
     thread.start()
     return thread, stop_event

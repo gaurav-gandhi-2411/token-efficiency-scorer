@@ -19,7 +19,7 @@ cannot silently point it elsewhere:
         --selection selection.json \\
         --out invisible_spend.md
 
-Two bases are reported: "adapter" = what ``tes`` totals for the parent; "deduped" = each API
+Two bases are reported: "adapter" = what ``tracegauge`` totals for the parent; "deduped" = each API
 response (``message.id``) counted once, computed here independently. Since adapter_version 2
 the two agree (before it, the adapter counted every assistant *record*, and Claude Code writes
 one record per content block of the same API response, so "adapter" was ~2.4x "deduped"); the
@@ -167,7 +167,7 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
             "",
             "| | billed tokens | real tokens | output tokens | USD (priced) |",
             "|---|---:|---:|---:|---:|",
-            f"| main, adapter basis (what `tes` showed) | {ma.billed:,} | {ma.real:,} | "
+            f"| main, adapter basis (what `tracegauge` showed) | {ma.billed:,} | {ma.real:,} | "
             f"{ma.output:,} | ${ma.usd:,.2f} |",
             f"| main, deduped basis | {md.billed:,} | {md.real:,} | {md.output:,} | "
             f"${md.usd:,.2f} |",
@@ -235,7 +235,7 @@ def main() -> None:
         extra += [
             "## Phase 0 set A subagent files",
             "",
-            f"{len(set_a_sub)} subagent files (the ones `tes score` picked in Phase 0), belonging "
+            f"{len(set_a_sub)} subagent files (the ones `tracegauge score` picked in Phase 0), belonging "
             f"to {len(parents)} parent sessions; {sub_billed:,} billed tokens in total that "
             "scored as 0 tokens / UNAVAILABLE.",
             "",

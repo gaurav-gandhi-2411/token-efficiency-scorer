@@ -52,7 +52,7 @@ def capture_scored(monkeypatch):
 
 
 def _run(monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:

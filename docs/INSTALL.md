@@ -1,6 +1,6 @@
 # Installing tracegauge
 
-The package is `tracegauge` on PyPI. It installs two equivalent commands, `tracegauge` and `tes`.
+The package is `tracegauge` on PyPI. It installs two equivalent commands, `tracegauge` and `tracegauge`.
 Python 3.10 or newer. Nothing leaves your machine unless you opt in to something that says so.
 
 ## Fastest: run it without installing (uvx)
@@ -26,7 +26,7 @@ pip install tracegauge               # into the active environment (use a venv)
 | Install | Adds | Needed for |
 |---|---|---|
 | `tracegauge` (core) | flask, httpx (and their dependencies) | `quickstart`, `score`, `cost`, `budget`, `monitor`, `impact`, `serve` (dashboard), waste detection, lever hint |
-| `tracegauge[patterns]` | numpy, scikit-learn (scipy comes with it) | `tes patterns`, `tes ask`, the dashboard `/patterns` page and `/ask` box |
+| `tracegauge[patterns]` | numpy, scikit-learn (scipy comes with it) | `tracegauge patterns`, `tracegauge ask`, the dashboard `/patterns` page and `/ask` box |
 
 Without the extra, those commands exit 1 with one line on stderr:
 

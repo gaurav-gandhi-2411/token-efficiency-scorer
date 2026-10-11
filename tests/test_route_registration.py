@@ -5,7 +5,7 @@
 
 This test specifically guards against the "tests-pass-but-real-server-fails" gap:
   - pytest runs from the repo dir (repo is first on sys.path, repo code is imported)
-  - tes.exe / tes serve uses site-packages (PyPI-installed code)
+  - tes.exe / tracegauge serve uses site-packages (PyPI-installed code)
 
 A test that merely GETs a route via a test-fixture app passes in BOTH cases, because
 the fixture creates a fresh app from whatever `tracegauge.web.server` is imported — and in
@@ -14,7 +14,7 @@ the installed version.
 
 What this test does instead:
   1. Imports `create_app` and `start_server` from tracegauge.web.server (same import path
-     that `tes serve` uses).
+     that `tracegauge serve` uses).
   2. Calls create_app() — exactly what start_server does.
   3. Inspects url_map — the Flask route table that Werkzeug uses to dispatch requests.
      If a route is not in url_map, it 404s on a real server regardless of what any
@@ -37,7 +37,7 @@ from pathlib import Path
 
 import pytest
 from tracegauge.store import open_db
-from tracegauge.web.server import (  # same imports as `tes serve`
+from tracegauge.web.server import (  # same imports as `tracegauge serve`
     ServerConfig,
     create_app,
     start_server,
@@ -87,7 +87,7 @@ class TestProductionRouteTable:
             assert route in registered, (
                 f"Route {route!r} is missing from create_app url_map.\n"
                 f"Registered routes: {sorted(registered)}\n"
-                "If this test fails, `tes serve` will 404 on that path."
+                "If this test fails, `tracegauge serve` will 404 on that path."
             )
 
     def test_patterns_route_present(self, minimal_app) -> None:
@@ -122,7 +122,7 @@ class TestProductionRouteTable:
 
     def test_start_server_import_succeeds(self) -> None:
         """start_server must be importable — if its module has a syntax/import error,
-        `tes serve` would crash before registering any routes."""
+        `tracegauge serve` would crash before registering any routes."""
         # This is already proven by the import at the top of this file,
         # but make it an explicit named test so failure is obvious.
         assert callable(start_server), "start_server not callable after import"

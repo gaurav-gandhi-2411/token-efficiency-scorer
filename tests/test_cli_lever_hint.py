@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""`tes score` prints a neutral COST BREAKDOWN and, rarely, an absolute LEVER finding.
+"""`tracegauge score` prints a neutral COST BREAKDOWN and, rarely, an absolute LEVER finding.
 
 Synthetic sessions with a controlled token mix drive the outcomes: a context-heavy session (the
 usual case) gets the breakdown and NO lever; an output-heavy one fires the output finding; the
@@ -64,7 +64,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], argv: list[str]
 ) -> tuple[str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:

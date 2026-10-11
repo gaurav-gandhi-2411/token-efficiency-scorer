@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""tests/test_quickstart.py — HH1.2: end-to-end coverage for `tes quickstart`
+"""tests/test_quickstart.py — HH1.2: end-to-end coverage for `tracegauge quickstart`
 / `tracegauge quickstart`. Runs the real scoring pipeline against the bundled
 sample transcript (tracegauge/data/quickstart_sample_session.jsonl) -- deliberately
 not stubbed, since the entire point of this command is that it works out of
@@ -16,13 +16,13 @@ import tracegauge.cli as cli
 
 
 def test_quickstart_exits_zero_and_prints_a_real_report(monkeypatch, capsys):
-    monkeypatch.setattr("sys.argv", ["tes", "quickstart"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "quickstart"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 0
 
     out = capsys.readouterr().out
-    assert "TOKEN-EFFICIENCY SCORER" in out
+    assert "TRACEGAUGE" in out
     assert "quickstart_sample_session" in out
     assert "COST ANNOTATION" in out
     assert "This ran entirely from what shipped in the installed package" in out
@@ -34,7 +34,7 @@ def test_quickstart_never_probes_a_local_judge(monkeypatch, capsys):
     # that its result doesn't appear in the output.
     called = []
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: called.append(1) or False)
-    monkeypatch.setattr("sys.argv", ["tes", "quickstart"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "quickstart"])
     with pytest.raises(SystemExit):
         cli.main()
     assert called == []
@@ -63,7 +63,7 @@ def test_quickstart_shows_a_verdict_a_waste_finding_with_proof_and_the_breakdown
 ):
     # Regression for the rebuilt baseline raising the research-recon gate above the old 50-turn
     # sample: quickstart printed UNAVAILABLE / 0 waste events and no test noticed.
-    monkeypatch.setattr("sys.argv", ["tes", "quickstart"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "quickstart"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 0

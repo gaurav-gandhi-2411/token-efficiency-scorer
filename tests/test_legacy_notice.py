@@ -51,7 +51,7 @@ def test_first_run_names_counts_and_the_fix_then_stays_quiet(mixed: MixedStore) 
     assert "4 of 6 stored session(s)" in text
     assert "rescorable (transcript still on disk): 3" in text
     assert "unrecoverable (transcript gone):       1" in text
-    assert "tes rescore" in text
+    assert "tracegauge rescore" in text
     assert _marker(mixed.db) == {"version": tracegauge.__version__, "legacy": 4}
     assert _notify(mixed) == (False, "")  # once per store per version
 
@@ -181,7 +181,7 @@ def test_concurrent_callers_do_not_crash(mixed: MixedStore) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     code = 0
     try:
         cli.main()
@@ -198,7 +198,7 @@ def test_cli_notice_goes_to_stderr_once_and_keeps_json_stdout_clean(
     code, out, err = _run(monkeypatch, capsys, "cost", "--week", "--json")
     assert code == 0
     json.loads(out)  # stdout is exactly one JSON document
-    assert "tes rescore" in err and "4 of 6" in err
+    assert "tracegauge rescore" in err and "4 of 6" in err
     assert "tracegauge:" not in out
     _, out, err = _run(monkeypatch, capsys, "budget", "--json")
     assert "tracegauge:" not in err  # second command: already told

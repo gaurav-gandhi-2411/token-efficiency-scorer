@@ -7,7 +7,7 @@ from __future__ import annotations
 
 This test exists because 0.7.0 shipped with numpy and scikit-learn imported but
 not declared in pyproject.toml. Clean installs got ModuleNotFoundError on
-`tes patterns` and `tes ask` even though the gate passed (conda base had numpy).
+`tracegauge patterns` and `tracegauge ask` even though the gate passed (conda base had numpy).
 
 The test walks ALL of tracegauge/**/*.py recursively, extracts every absolute top-level
 import via AST, and asserts every external import is either stdlib or declared in

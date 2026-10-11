@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""tests/test_cost_period.py — LL3: `tes cost` period report.
+"""tests/test_cost_period.py — LL3: `tracegauge cost` period report.
 
 Covers: empty period, single session, cross-boundary (exactly-one-period
 membership), per-project breakdown, sessions_missing_cost accounting
@@ -212,7 +212,7 @@ def test_filters_by_source_mtime_not_scored_at(tmp_path: Path):
         scored_at=(now + timedelta(days=30)).isoformat(),
         cost_usd=4.0,
     )
-    # The inverse: scored_at falls inside the window (someone re-ran `tes
+    # The inverse: scored_at falls inside the window (someone re-ran `tracegauge
     # score` on an old file this week), but the real usage (source_mtime)
     # was months ago. Must be EXCLUDED -- a scored_at-based filter would
     # wrongly include this in "this week's" spend.

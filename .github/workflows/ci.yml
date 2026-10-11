@@ -97,7 +97,7 @@ jobs:
       # (a Windows-only path, a skipped test) cannot flip the total across the threshold.
       - name: Unit tests (with the coverage ratchet)
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
-        run: uv run pytest --cov=tes --cov-report=term-missing
+        run: uv run pytest --cov=tracegauge --cov-report=term-missing
 
       - name: Unit tests
         if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') }}
@@ -148,7 +148,7 @@ jobs:
 
       - name: score runs on the bundled sample
         run: |
-          SAMPLE=$("$PY" -c "import pathlib, tes; print(pathlib.Path(tracegauge.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
+          SAMPLE=$("$PY" -c "import pathlib, tracegauge; print(pathlib.Path(tracegauge.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
           "$PY" -m tracegauge score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
           "$PY" -c "import json, sys; d = json.load(open(sys.argv[1], encoding='utf-8')); assert d, 'empty score output'" "$RUNNER_TEMP/score.json"
 

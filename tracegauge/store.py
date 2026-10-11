@@ -221,7 +221,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # XX1.3: raw unresolved model string(s) for a session whose cost is NULL
     # because a model didn't resolve against the price table -- persisted at
     # score time (same RR1 lesson: source_cost.approximate_reasons is only
-    # available while the source file is still readable) so `tes cost --roi`
+    # available while the source file is still readable) so `tracegauge cost --roi`
     # can name unpriced models in its coverage report without re-reading
     # anything. Comma-joined raw model strings, NULL if the session priced
     # cleanly or was scored before this column existed.
@@ -234,7 +234,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # while the source transcript is still readable. JSON-encoded list of
     # {path, additions, deletions, tool, prior_content_unknown,
     # untested_tool_shape} dicts (see tracegauge.impact.EditOperation). NULL for
-    # every row scored before this migration -- tes impact's own report
+    # every row scored before this migration -- tracegauge impact's own report
     # names this as a legacy-row gap, same pattern as SS1.
     if "edit_operations" not in existing_cols:
         _add_column(conn, "ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
@@ -254,11 +254,11 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # Usage de-duplication (tracegauge.adapt.ADAPTER_VERSION 2): which adapter produced this row's
     # real_tokens/cost. NULL = scored before the column existed = the pre-dedupe adapter, which
     # summed usage once per content-block record (~2.4x too high). tracegauge.self_baseline ignores such
-    # rows; `tes backfill-waste` refreshes them from the source transcript. Additive, idempotent.
+    # rows; `tracegauge backfill-waste` refreshes them from the source transcript. Additive, idempotent.
     dedupe_cols = {
         "adapter_version": "ALTER TABLE sessions ADD COLUMN adapter_version INTEGER",
         # tracegauge.adapt.COST_VERSION: NULL/older = cache writes priced all at the 5-minute rate
-        # (1h writes under-priced); `tes backfill-waste` re-prices such rows. Separate from
+        # (1h writes under-priced); `tracegauge backfill-waste` re-prices such rows. Separate from
         # adapter_version because real_tokens (and so the baselines) did not change.
         "cost_version": "ALTER TABLE sessions ADD COLUMN cost_version INTEGER",
         "duplicate_usage_records": (
@@ -764,7 +764,7 @@ def backfill_waste(
 ) -> dict[str, int]:
     """Re-run frozen detectors on all accessible sessions; embed per-event costs.
 
-    ``only_legacy`` (what `tes rescore` uses) restricts the run to LEGACY rows (tracegauge.legacy) and
+    ``only_legacy`` (what `tracegauge rescore` uses) restricts the run to LEGACY rows (tracegauge.legacy) and
     refreshes every one whose transcript is readable; a row whose cost cannot be recomputed is
     counted in ``errors`` and left legacy. ``dry_run`` opens the store read-only, runs the same
     computation and writes nothing (not even a schema migration). ``limit`` stops after that many
@@ -853,7 +853,7 @@ def backfill_waste(
                 if _is_empty_stub(conn, session_id):
                     # ...except an empty stub: a row that never had a turn or a token has no
                     # number to protect and nothing to recompute. Stamp the versions only, so it
-                    # stops being legacy (and `tes rescore` can exit 0); no stored number moves.
+                    # stops being legacy (and `tracegauge rescore` can exit 0); no stored number moves.
                     if not dry_run:
                         _stamp_current_versions(conn, session_id)
                     skipped_stub += 1

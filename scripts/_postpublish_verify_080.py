@@ -161,15 +161,15 @@ with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
     assert costs == sorted(costs, reverse=True), f"FAIL: sort cost DESC wrong: {costs}"
     print(f"[OK] sort by cost DESC: {costs}")
 
-# ── 8. tes --version from installed entry point ──────────────────────────────
+# ── 8. tracegauge --version from installed entry point ──────────────────────────────
 import subprocess
 
 result = subprocess.run(
     [sys.executable, "-m", "tracegauge", "--version"], capture_output=True, text=True
 )
 ver = (result.stdout + result.stderr).strip()
-assert "0.8.0" in ver, f"FAIL: tes --version = {ver!r}"
-print(f"[OK] tes --version: {ver}")
+assert "0.8.0" in ver, f"FAIL: tracegauge --version = {ver!r}"
+print(f"[OK] tracegauge --version: {ver}")
 
 print()
 print("=" * 60)

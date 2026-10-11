@@ -67,7 +67,7 @@ def test_cost_total_excludes_legacy_and_reports_it_separately(tmp_path: Path) ->
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     code = 0
     try:
         cli.main()

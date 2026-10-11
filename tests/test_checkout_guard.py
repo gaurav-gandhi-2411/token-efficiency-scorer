@@ -73,7 +73,7 @@ def test_a_probe_that_cannot_answer_exits_with_a_message_not_a_traceback():
     with pytest.raises(pytest.exit.Exception) as excinfo:
         enforce(_REPO, probe=hung)
 
-    assert "could not determine which tes" in str(excinfo.value)
+    assert "could not determine which tracegauge" in str(excinfo.value)
     assert "TimeoutExpired" in str(excinfo.value)
     assert excinfo.value.returncode == 4
 

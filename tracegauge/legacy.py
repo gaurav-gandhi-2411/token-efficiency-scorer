@@ -11,7 +11,7 @@ cache writes were priced (``cost_version`` NULL or < ``tracegauge.adapt.COST_VER
 written by 0.14 or earlier has neither column, so all of its rows are legacy.
 
 LEGACY is DERIVED from those two version columns, never stored as a third flag: a flag could
-drift from the versions it summarises, and `tes rescore` clears legacy-ness by writing the
+drift from the versions it summarises, and `tracegauge rescore` clears legacy-ness by writing the
 current versions, which a derived predicate picks up for free. Nothing here ever deletes a row
 or rewrites a stored number; legacy rows are *excluded from corrected figures* (baselines, alarm
 pool, budget, cost/ROI) and counted, so the exclusion is always visible.
@@ -100,7 +100,7 @@ def excluded_note(n: int, what: str = "") -> str:
     where = f" from {what}" if what else ""
     return (
         f"{n} legacy session{'s' if n != 1 else ''} left out{where} ({LEGACY_ROW_LABEL}; "
-        "scored before 0.15). `tes rescore` recovers those whose transcript still exists."
+        "scored before 0.15). `tracegauge rescore` recovers those whose transcript still exists."
     )
 
 
@@ -139,7 +139,7 @@ def source_readable(source_path: str | None) -> bool:
 
 @dataclass(frozen=True)
 class LegacyCensus:
-    """Counts of legacy rows and whether `tes rescore` can recover them."""
+    """Counts of legacy rows and whether `tracegauge rescore` can recover them."""
 
     total: int
     legacy: int
@@ -167,20 +167,20 @@ def notice_text(c: LegacyCensus) -> str:
         f"tracegauge: {c.legacy} of {c.total} stored session(s) were scored by an older "
         "version (usage counted once per content block, ~2x too high; 1-hour cache writes "
         "under-priced).",
-        "  They are kept as-is but excluded from baselines, the alarm, `tes budget` and "
-        "`tes cost` totals.",
+        "  They are kept as-is but excluded from baselines, the alarm, `tracegauge budget` and "
+        "`tracegauge cost` totals.",
         f"  rescorable (transcript still on disk): {c.rescorable}",
         f"  unrecoverable (transcript gone):       {c.unrecoverable}",
     ]
     if c.rescorable:
         lines.append(
-            "  Fix the rescorable ones with:  tes rescore   (preview: tes rescore --dry-run)"
+            "  Fix the rescorable ones with:  tracegauge rescore   (preview: tracegauge rescore --dry-run)"
         )
     else:
         lines.append(
-            "  `tes rescore` has nothing to recover here; new sessions rebuild your baselines."
+            "  `tracegauge rescore` has nothing to recover here; new sessions rebuild your baselines."
         )
-    lines.append(f"  (shown once; silence with {NO_NOTICE_ENV}=1 or `tes --quiet ...`)")
+    lines.append(f"  (shown once; silence with {NO_NOTICE_ENV}=1 or `tracegauge --quiet ...`)")
     return "\n".join(lines)
 
 
@@ -215,7 +215,7 @@ def maybe_notify(
 ) -> bool:
     """Print the legacy-rows notice if it is due; return whether it was printed.
 
-    Due when the store has legacy rows AND (no marker yet, or the marker is from another tes
+    Due when the store has legacy rows AND (no marker yet, or the marker is from another tracegauge
     version, or there are more legacy rows than when it was last shown). Never creates a store,
     never raises and never waits: a locked or unwritable store just means no notice (or, if the
     marker cannot be saved, the notice again next time). Falling legacy counts (after a rescore)

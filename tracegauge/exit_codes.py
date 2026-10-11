@@ -16,11 +16,11 @@ EXIT_OK = 0
 # "nothing was done" code. Kept at 1 so every existing failure path is unchanged.
 EXIT_USAGE = 1
 # 2 = argparse usage error (unknown flag, missing argument). Not raised by our own code.
-# `tes monitor`: the cost/context alarm fired for the active session. A hook or cron job can act
-# on it (`tes monitor || notify`). Distinct from 1 so "alarm" is never confused with "error".
+# `tracegauge monitor`: the cost/context alarm fired for the active session. A hook or cron job can act
+# on it (`tracegauge monitor || notify`). Distinct from 1 so "alarm" is never confused with "error".
 EXIT_ALARM = 3
-# `tes score`: at least one session could not be read/parsed (the rest were still scored).
-# `tes rescore`: at least one legacy row's transcript could not be re-scored (the rest were).
+# `tracegauge score`: at least one session could not be read/parsed (the rest were still scored).
+# `tracegauge rescore`: at least one legacy row's transcript could not be re-scored (the rest were).
 EXIT_ADAPT_ERROR = 4
 
 EXIT_CODES_HEADING = "Exit codes:"

@@ -98,7 +98,7 @@ number of stored sessions scored before 0.15 that were left out of every figure;
 `valid`, `status`, `n_sessions`, `domain_of_validity`, `legacy_rows_excluded` (additive: stored sessions
 scored before 0.15 that the analysis left out; `n_sessions` counts current sessions only), `analysis`. `analysis` is `null` when
 `valid` is false (for example, not enough content sessions yet); otherwise it is the cached
-analysis as `tes patterns` reads it (`k`, `silhouette`, `archetypes`, `anomaly_count`,
+analysis as `tracegauge patterns` reads it (`k`, `silhouette`, `archetypes`, `anomaly_count`,
 `anomaly_pct`, ...). If the pattern-analysis dependencies are not installed the command prints a
 one-line hint to stderr (`pip install "tracegauge[patterns]"`) and exits 1; `require_patterns_extra()`
 in `tracegauge/patterns_extra.py` is the single check.

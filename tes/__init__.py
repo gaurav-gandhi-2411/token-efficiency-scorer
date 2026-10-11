@@ -29,9 +29,9 @@ _OLD = "tes"
 _NEW = "tracegauge"
 MESSAGE = "tes is deprecated, import tracegauge; removed in 0.18."
 
-# What ``python -m tes`` runs: the real command line, exactly as ``python -m tracegauge``. Guarded
+# What ``python -m tes`` runs: the ``tes`` command, which prints the one-line notice. Guarded
 # like tracegauge/__main__.py: merely importing tes.__main__ must not start the command.
-_MAIN_SOURCE = "from tracegauge.cli import main\nif __name__ == '__main__':\n    main()\n"
+_MAIN_SOURCE = "from tracegauge.cli import tes_main\nif __name__ == '__main__':\n    tes_main()\n"
 
 
 class _MainLoader(importlib.abc.Loader):

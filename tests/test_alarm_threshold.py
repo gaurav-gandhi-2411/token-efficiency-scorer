@@ -259,7 +259,7 @@ def test_monitor_cli_reads_the_store_end_to_end(
 
     def run(tokens: int) -> tuple[int, dict[str, Any]]:
         monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: _live(tokens))
-        monkeypatch.setattr("sys.argv", ["tes", "monitor", "--json"])
+        monkeypatch.setattr("sys.argv", ["tracegauge", "monitor", "--json"])
         with pytest.raises(SystemExit) as exc:
             cli.main()
         return int(exc.value.code or 0), json.loads(capsys.readouterr().out)

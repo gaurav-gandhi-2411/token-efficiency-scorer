@@ -2,7 +2,7 @@
 
 ![tracegauge](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/raw/master/assets/brand/badge.svg)
 
-Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tes corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md).
+Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tracegauge corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md).
 
 [![CI](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml/badge.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/LICENSE)
@@ -18,7 +18,7 @@ Three-axis efficiency scoring for Claude Code sessions — token economy, trajec
 > `0.10.1` or earlier.
 
 > **Note — Python 3.10: 0.12.3, 0.12.4 and 0.13.0 do not import on Python 3.10** (`ImportError: cannot import
-> name 'UTC' from 'datetime'`, also from the `tes` command). 0.14.0 fixes it; on 3.10 install 0.14.0 or later,
+> name 'UTC' from 'datetime'`, also from the `tracegauge` command). 0.14.0 fixes it; on 3.10 install 0.14.0 or later,
 > or pin `tracegauge<=0.12.2`. Python 3.11+ was never affected. See the
 > `[0.14.0]` entry in
 > [CHANGELOG.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/CHANGELOG.md).
@@ -33,8 +33,8 @@ tracegauge is feature-complete — the current release bundles the full validate
 - **Dollar cost attribution** — six reconciling buckets (B1–B6) that split every billed token into where the money actually went; token% and cost% shown side by side so the cache-read divergence (lots of tokens, little cost) is visible.
 - **Deterministic waste detection** — frozen, observable-invariant detectors (repeated-failed-retry, redundant-read) with proof turns and per-event wasted cost. No LLM judgment, no false-positive guessing.
 - **Trajectory judge** — purposefulness verdict from a local Ollama model ($0, GPU) *or* an opt-in API judge that sends snippets to your model provider only on explicit per-session consent. Renders UNAVAILABLE as a complete, expected state when no judge is configured.
-- **Diagnostic dashboard** — `tes serve` runs a localhost-only (`127.0.0.1`) web dashboard that auto-scores finished sessions and shows the three axes, attribution, and waste with every domain-of-validity caveat carried to the surface. No composite/blended score — each axis stands on its own.
-- **Community baseline (built, not yet active)** — `tes corpus contribute` would send content-free session aggregates (numbers and categories only — see [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md)) to a tracegauge-operated community corpus, and in return `tes corpus` would show your context-efficiency percentile against other opted-in developers, alongside — never replacing — your own self-baseline. The code, the content-free guard, the consent flow, and `tes corpus withdraw` are all built and tested, but **no corpus is currently provisioned** — until one is, `tes corpus contribute` sends nothing, by construction (see PRIVACY.md).
+- **Diagnostic dashboard** — `tracegauge serve` runs a localhost-only (`127.0.0.1`) web dashboard that auto-scores finished sessions and shows the three axes, attribution, and waste with every domain-of-validity caveat carried to the surface. No composite/blended score — each axis stands on its own.
+- **Community baseline (built, not yet active)** — `tracegauge corpus contribute` would send content-free session aggregates (numbers and categories only — see [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md)) to a tracegauge-operated community corpus, and in return `tracegauge corpus` would show your context-efficiency percentile against other opted-in developers, alongside — never replacing — your own self-baseline. The code, the content-free guard, the consent flow, and `tracegauge corpus withdraw` are all built and tested, but **no corpus is currently provisioned** — until one is, `tracegauge corpus contribute` sends nothing, by construction (see PRIVACY.md).
 
 Local by default: scoring and the dashboard make zero external network calls. The only working egress today is the opt-in API judge (your key, your consent, per session). The community corpus contribution above would be a second opt-in egress path once activated — see PRIVACY.md.
 
@@ -51,38 +51,38 @@ Two commands. Scores a bundled sample Claude Code session (token economy, determ
 
 ## Quick start
 
-The tool already knows where your sessions live (`~/.claude/projects`). You don't type paths or memorize flags — **just run `tes`**.
+The tool already knows where your sessions live (`~/.claude/projects`). You don't type paths or memorize flags — **just run `tracegauge`**.
 
 ```bash
 pip install tracegauge
 # Optional: pip install "tracegauge[patterns]" adds numpy + scikit-learn, needed only for
-# `tes patterns`, `tes ask` and the dashboard's Patterns/Ask pages
+# `tracegauge patterns`, `tracegauge ask` and the dashboard's Patterns/Ask pages
 
-# Just run it — bare `tes` launches the localhost dashboard (http://127.0.0.1:4747/)
-tes
+# Just run it — bare `tracegauge` launches the localhost dashboard (http://127.0.0.1:4747/)
+tracegauge
 
 # Score your most recent session — no path needed
-tes score
+tracegauge score
 
 # Pick from a list of your recent sessions
-tes score --pick
+tracegauge score --pick
 
 # Run the trajectory judge — auto-detects a local Ollama judge or an API key,
 # and guides you to the single simplest setup step if neither is present
-tes score --judge
+tracegauge score --judge
 ```
 
 That's the whole frictionless path. Power-user / scripting forms still work:
 
 ```bash
-tes serve                                  # same as bare `tes`, with flags (--port, --cc-path, …)
-tes score <path>.jsonl                     # score a specific file
-tes score ~/.claude/projects/<project>/    # score every session in a directory
-tes score <path> --json                    # machine-readable output (also cost, budget, monitor, impact, patterns)
-tes --version
+tracegauge serve                                  # same as bare `tracegauge`, with flags (--port, --cc-path, …)
+tracegauge score <path>.jsonl                     # score a specific file
+tracegauge score ~/.claude/projects/<project>/    # score every session in a directory
+tracegauge score <path> --json                    # machine-readable output (also cost, budget, monitor, impact, patterns)
+tracegauge --version
 ```
 
-Bare `tes` (and `tes serve`) start two things: a background scan loop that auto-scores finished Claude Code sessions (token economy + deterministic waste, judge OFF by default), and a web dashboard on `http://127.0.0.1:4747/` where scores accumulate. Session resolution for `tes score` is: explicit PATH > `--pick` > most recent session.
+Bare `tracegauge` (and `tracegauge serve`) start two things: a background scan loop that auto-scores finished Claude Code sessions (token economy + deterministic waste, judge OFF by default), and a web dashboard on `http://127.0.0.1:4747/` where scores accumulate. Session resolution for `tracegauge score` is: explicit PATH > `--pick` > most recent session.
 
 ---
 
@@ -102,7 +102,7 @@ Read this before installing. These are not caveats to hide — they're the hones
 
 **Local by default.** All scoring is local. No telemetry, no phone-home, no external network calls from scoring or the dashboard (except the optional local Ollama endpoint). The localhost bind is enforced by construction, not configuration. The only thing that currently leaves your machine is opt-in and separate from scoring: the API judge (your key, your consent). A second opt-in path, community corpus contribution, is built but not active — see below.
 
-**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. This command itself never transmits anything — the file is yours; the tool never reads it back or uploads it. A separate, further opt-in command, `tes corpus contribute`, is built to send that same content-free data to a tracegauge community corpus in exchange for a cross-developer baseline — but **no corpus is currently provisioned**, so that command sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md) for the complete field list, the send-time re-verification, the withdrawal path, and the dormancy notice.
+**Optional export (off by default, nothing transmitted).** `tracegauge export-contribution` writes a redacted, content-free local file you inspect and control — numeric token counts, the 5 known task types, detector names, and an opaque random UUID. No code, no prompts, no file paths, no session IDs, no error text, no timestamps. This command itself never transmits anything — the file is yours; the tool never reads it back or uploads it. A separate, further opt-in command, `tracegauge corpus contribute`, is built to send that same content-free data to a tracegauge community corpus in exchange for a cross-developer baseline — but **no corpus is currently provisioned**, so that command sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md) for the complete field list, the send-time re-verification, the withdrawal path, and the dormancy notice.
 
 ---
 
@@ -129,7 +129,7 @@ Requires a local GPU (~18 GB VRAM). Without the judge, this axis is `UNAVAILABLE
 Just add `--judge` — the tool detects what's available and does the work:
 
 ```bash
-tes score --judge
+tracegauge score --judge
 ```
 
 What `--judge` does, in order:
@@ -139,8 +139,8 @@ What `--judge` does, in order:
 
 To use the opt-in API judge directly (no GPU needed):
 ```bash
-tes score --api-judge                      # uses ANTHROPIC_API_KEY from the env
-tes score <path> --api-judge --api-judge-key YOUR_KEY
+tracegauge score --api-judge                      # uses ANTHROPIC_API_KEY from the env
+tracegauge score <path> --api-judge --api-judge-key YOUR_KEY
 # Sends session data — including 300-char snippets that may contain your code — to your provider.
 # Uses the same validated v3 rubric. Requires explicit consent per session (shown at prompt).
 # The API model is not part of the B3 cross-model corroboration — verdict is indicative.
@@ -162,47 +162,47 @@ Two observable-invariant detectors with proof turns attached to every event:
 
 ## Token attribution
 
-The session-detail view in `tes serve` breaks billed token spend into six named buckets — context re-send (cache reads), context growth (cache writes), output, fresh input, redundant-read waste, and retry-loop waste — reconciling exactly to total billed tokens.
+The session-detail view in `tracegauge serve` breaks billed token spend into six named buckets — context re-send (cache reads), context growth (cache writes), output, fresh input, redundant-read waste, and retry-loop waste — reconciling exactly to total billed tokens.
 
 Dollar and token percentages are shown side-by-side because they diverge significantly: in the bundled sample session (`tracegauge quickstart`), cache re-reads are 94% of billed tokens but 51% of cost (cache reads bill at 0.1× the input rate on most models, 0.05× on Opus/Sonnet 5.5 and 0.025× on Fable/Mythos 5.1), while output at 0.8% of tokens is 22% of cost (billed at the full output rate). The dollar column is what matters for spend; the token column is what the verdict axis measures. These should not be compared directly.
 
-Attribution is computed from the source JSONL on demand. `tes score` and the session page show a COST BREAKDOWN, labelled informational: dollars and share of priced cost for context re-send, context growth, output, fresh input and detected waste (`cost_breakdown` in `--json`; for a session with an unpriced model it says the cost was not computed instead of guessing). A LEVER finding (`lever_hint` in `--json`, `null` when none) appears only when an absolute rule fires: detected waste of at least $0.50 (or at least 10.0% of cost and $0.05), with its proof turns in the waste section, or output at 40.0% of cost or more (both compared unrounded). Context re-send is never a lever: re-reading the context every turn makes it most of the cost of nearly every session, so "context dominates" says nothing about any one of them (the bundled sample fires no lever).
+Attribution is computed from the source JSONL on demand. `tracegauge score` and the session page show a COST BREAKDOWN, labelled informational: dollars and share of priced cost for context re-send, context growth, output, fresh input and detected waste (`cost_breakdown` in `--json`; for a session with an unpriced model it says the cost was not computed instead of guessing). A LEVER finding (`lever_hint` in `--json`, `null` when none) appears only when an absolute rule fires: detected waste of at least $0.50 (or at least 10.0% of cost and $0.05), with its proof turns in the waste section, or output at 40.0% of cost or more (both compared unrounded). Context re-send is never a lever: re-reading the context every turn makes it most of the cost of nearly every session, so "context dominates" says nothing about any one of them (the bundled sample fires no lever).
 
 ---
 
-## `tes serve` — always-available local service
+## `tracegauge serve` — always-available local service
 
 ```bash
-tes serve [--port PORT] [--scan-interval SECONDS] [--stability-window SECONDS] \
+tracegauge serve [--port PORT] [--scan-interval SECONDS] [--stability-window SECONDS] \
           [--cc-path PATH] [--db-path PATH] [--background-judge]
 ```
 
 - **Watcher**: scans `~/.claude/projects` every 2 minutes (configurable), scores any session file stable for 5+ minutes (token + waste; judge OFF by default).
 - **Dashboard**: `http://127.0.0.1:4747/` — session list, per-session three-axis detail with domain-of-validity notes inline, trend views.
 - **Store**: SQLite at `~/.tes/tes.db` (WAL mode; watcher writes and dashboard reads concurrently without locks).
-- **Manual scores share the dashboard**: `tes score <path>` results also write to the store.
+- **Manual scores share the dashboard**: `tracegauge score <path>` results also write to the store.
 
 Moat properties: binds `127.0.0.1` only (never exposed to external interfaces), redaction on by default at ingestion, no external network calls.
 
 To enable the trajectory judge in the background watcher:
 ```bash
-tes serve --background-judge
+tracegauge serve --background-judge
 # WARNING: runs qwen3:30b-a3b (~18 GB VRAM) on your GPU for every new session continuously.
 ```
 
 ---
 
-## `tes cost` — period spend report
+## `tracegauge cost` — period spend report
 
 ```bash
-tes cost --week                 # rolling last 7 days
-tes cost --month                # rolling last 30 days
-tes cost --since YYYY-MM-DD      # from this date through now
+tracegauge cost --week                 # rolling last 7 days
+tracegauge cost --month                # rolling last 30 days
+tracegauge cost --since YYYY-MM-DD      # from this date through now
 ```
 
-Total spend, session count, and a per-project breakdown for a period — distinct from `tes budget`'s rolling self-trend *projection* (where your pace is heading); `tes cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
+Total spend, session count, and a per-project breakdown for a period — distinct from `tracegauge budget`'s rolling self-trend *projection* (where your pace is heading); `tracegauge cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
 
-> **About the examples.** The output blocks in this README are the real output of this version (0.15.0) on **synthetic sessions**: invented transcripts with a frozen clock, produced by [`scripts/gen_readme_examples.py`](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/scripts/gen_readme_examples.py) and pinned by `tests/test_readme_examples.py`, so they cannot drift from the code. No real session content appears in them. Rows stored by 0.14 and earlier are left out of `tes cost` totals and reported on a separate line; see [docs/UPGRADING.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/UPGRADING.md).
+> **About the examples.** The output blocks in this README are the real output of this version (0.15.0) on **synthetic sessions**: invented transcripts with a frozen clock, produced by [`scripts/gen_readme_examples.py`](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/scripts/gen_readme_examples.py) and pinned by `tests/test_readme_examples.py`, so they cannot drift from the code. No real session content appears in them. Rows stored by 0.14 and earlier are left out of `tracegauge cost` totals and reported on a separate line; see [docs/UPGRADING.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/UPGRADING.md).
 
 Real output on four synthetic sessions across two projects (one older than the 7-day window):
 
@@ -219,7 +219,7 @@ By project:
 ──────────────────────────────────────────────────────────────────────
 ```
 
-`tes cost --month` against the same data picks up the older session too:
+`tracegauge cost --month` against the same data picks up the older session too:
 
 ```text
 ──────────────────────────────────────────────────────────────────────
@@ -234,7 +234,7 @@ By project:
 ──────────────────────────────────────────────────────────────────────
 ```
 
-**Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tes score`/`tes scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tes budget` had the same divergence and was fixed to filter on `source_mtime` as well in 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
+**Filters on `source_mtime`, not `scored_at`** — the session file's own real last-write time (when the usage actually happened), not when `tracegauge score`/`tracegauge scan` happened to run. Under a batch-scoring workflow (scoring a week's worth of sessions in one sitting), these diverge: a `scored_at`-based filter would cluster a week of real spend onto one scoring-run instant, or drop it outside the requested window, silently misattributing spend across period boundaries. `source_mtime` reflects when the money was actually spent, regardless of when you got around to running the scorer. (`tracegauge budget` had the same divergence and was fixed to filter on `source_mtime` as well in 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12).)
 
 Sessions with no cost data yet are counted separately, not silently treated as `$0`. Real output of this version, with one of two synthetic sessions stored without a cost:
 
@@ -300,11 +300,11 @@ Priced coverage: 33% of sessions, 33% of tokens
 ──────────────────────────────────────────────────────────────────────
 ```
 
-### `tes cost --roi` — plan-cost ROI
+### `tracegauge cost --roi` — plan-cost ROI
 
 ```bash
-tes cost --week --roi
-tes cost --week --roi --plan-config /path/to/plan.json   # override the default location
+tracegauge cost --week --roi
+tracegauge cost --week --roi --plan-config /path/to/plan.json   # override the default location
 ```
 
 "Is my subscription worth it at API-equivalent prices?" Requires a plan config at `~/.tes/plan.json` (or `TES_PLAN_PATH`/`--plan-config`) — a **history**, not a single static cost, since a plan can change mid-window and each day should price at whichever plan was actually active that day, prorated by exact elapsed time (not calendar-day counting, which would inflate a rolling window that doesn't start/end at midnight — every real invocation):
@@ -333,11 +333,11 @@ The ROI is built on the corrected total only, so when rows from older versions w
 
 ---
 
-## `tes impact` — code-impact reconstruction
+## `tracegauge impact` — code-impact reconstruction
 
 ```bash
-tes impact
-tes impact --top 20
+tracegauge impact
+tracegauge impact --top 20
 ```
 
 Corpus-wide, from `Edit`/`Write`/`MultiEdit`/`NotebookEdit` tool-call payloads reconstructed and persisted at score time — additions/deletions per file, and a plain, transparent churn ranking (most-edited files and directories). **Deliberately no composite "risk score"**: a hand-weighted blend of signals presented as one number is exactly the kind of invented-precision this project avoids elsewhere (see the CHANGELOG's `[0.12.0]` entry for the reasoning) — every figure here is a direct count or a plainly-labeled fraction.
@@ -361,18 +361,18 @@ Most-edited files:
 
 **No cost-per-edit or cost-per-100-lines ratio here.** A bootstrap-CI implementation was built and measured (`docs/audit/EDIT_RATIO_BOOTSTRAP_COVERAGE.md`) before being adopted — coverage came in below nominal at every tested sample size, so no ratio statistic ships until a method with verified coverage exists. A number with a measured-wrong confidence interval is worse than no interval at all.
 
-**If you're upgrading**: sessions scored before this feature has no persisted edit data (same `0.11.1` lesson — `old_string`/`new_string`/`file_path` are only readable while the source transcript exists, so this can't be backfilled from already-scored rows). `tes impact` counts these separately and says so plainly rather than silently omitting them from the total.
+**If you're upgrading**: sessions scored before this feature has no persisted edit data (same `0.11.1` lesson — `old_string`/`new_string`/`file_path` are only readable while the source transcript exists, so this can't be backfilled from already-scored rows). `tracegauge impact` counts these separately and says so plainly rather than silently omitting them from the total.
 
 ---
 
-## `tes budget` — rolling self-trend pace
+## `tracegauge budget` — rolling self-trend pace
 
 ```bash
-tes budget                      # rolling last 7 days (default)
-tes budget --window-days 30
+tracegauge budget                      # rolling last 7 days (default)
+tracegauge budget --window-days 30
 ```
 
-A rolling-window spend PROJECTION — distinct from `tes cost`'s period REPORT above. `tes cost` answers "what did I actually spend"; `tes budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output of this version on ten synthetic sessions over the last week:
+A rolling-window spend PROJECTION — distinct from `tracegauge cost`'s period REPORT above. `tracegauge cost` answers "what did I actually spend"; `tracegauge budget` answers "where is my pace heading," extrapolating your own trailing-window spend linearly to the window's end. Always labeled with its sample size and window, never phrased as a promise ("trending toward," never "you will spend"). Real output of this version on ten synthetic sessions over the last week:
 
 ```text
 ──────────────────────────────────────────────────────────────────────
@@ -386,18 +386,18 @@ At this pace (~$40.32 so far across 10 sessions, 5.2 of 7 days) you're trending 
 
 Rows stored by older versions are left out of the pace, and the command says how many (`legacy_rows_excluded` in `--json`).
 
-At the default 7-day window, with no cost data that recent, `tes budget` says so plainly rather than fabricating a projection from stale data:
+At the default 7-day window, with no cost data that recent, `tracegauge budget` says so plainly rather than fabricating a projection from stale data:
 
 ```text
 No sessions with current cost data in the last 7 days — nothing to project yet.
 ```
 
-**Filters on `source_mtime`, not `scored_at`** (since 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)) — when the session file was last written, the same as `tes cost`. Before 0.12.1 it filtered on `scored_at` (when `tes score`/`tes scan` happened to run), so under a batch-scoring workflow it could cluster a batch of older spend onto one recent instant, or miss it once it aged out of the window.
+**Filters on `source_mtime`, not `scored_at`** (since 0.12.1, [#12](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues/12)) — when the session file was last written, the same as `tracegauge cost`. Before 0.12.1 it filtered on `scored_at` (when `tracegauge score`/`tracegauge scan` happened to run), so under a batch-scoring workflow it could cluster a batch of older spend onto one recent instant, or miss it once it aged out of the window.
 
-## `tes monitor` — live in-progress check
+## `tracegauge monitor` — live in-progress check
 
 ```bash
-tes monitor [--stability-window SECONDS] [--plan usage_based|max]
+tracegauge monitor [--stability-window SECONDS] [--plan usage_based|max]
 ```
 
 A one-shot check of whatever Claude Code session is currently being written under `~/.claude/projects` — scores it as-is (a partial transcript, not a finished session), prints an estimated cost/context figure explicitly labeled "in progress," and checks the same data-gated cost/context alarm the background watcher uses. A session more recently modified than `--stability-window` (default 300s) is considered "active"; if none is, it says so and does nothing further.
@@ -417,25 +417,25 @@ Live estimate of an IN-PROGRESS session — cost and context size are provisiona
 
 The command above exits 3 because the alarm fired.
 
-The alarm fires only when the live session's real tokens exceed the **p85 of your own sessions from the last 30 days in the same model era** (rows from the current accounting only) **and** re-sent context dominates. The pool is the first of these with at least 10 sessions: same era and task type, same era, same task type, any recent session; then the bundled band's upper bound; otherwise the alarm is disabled. `tes monitor` prints the threshold and where it came from (or why the alarm is disabled), and exits 3 only when the alarm fires (0 otherwise, including when no session is active). Method, false-alarm rate and limits: [docs/ALARM.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/ALARM.md); exit codes: [docs/EXIT_CODES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/EXIT_CODES.md).
+The alarm fires only when the live session's real tokens exceed the **p85 of your own sessions from the last 30 days in the same model era** (rows from the current accounting only) **and** re-sent context dominates. The pool is the first of these with at least 10 sessions: same era and task type, same era, same task type, any recent session; then the bundled band's upper bound; otherwise the alarm is disabled. `tracegauge monitor` prints the threshold and where it came from (or why the alarm is disabled), and exits 3 only when the alarm fires (0 otherwise, including when no session is active). Method, false-alarm rate and limits: [docs/ALARM.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/ALARM.md); exit codes: [docs/EXIT_CODES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/EXIT_CODES.md).
 
-## Session intelligence — `tes patterns` and `tes ask`
+## Session intelligence — `tracegauge patterns` and `tracegauge ask`
 
 The most differentiated thing either package does, and previously the least visible: unsupervised clustering of your own session corpus into behavioral archetypes, plus a constrained conversational explainer over the result.
 
-### `tes patterns`
+### `tracegauge patterns`
 
 ```bash
-tes patterns [--recompute]
+tracegauge patterns [--recompute]
 ```
 
-Needs the optional `patterns` extra (since 0.15.0): `pip install "tracegauge[patterns]"` adds numpy and scikit-learn. Without it `tes patterns` and `tes ask` print that one-line install hint and exit 1, and the dashboard shows an "extra not installed" page for Patterns; everything else keeps working.
+Needs the optional `patterns` extra (since 0.15.0): `pip install "tracegauge[patterns]"` adds numpy and scikit-learn. Without it `tracegauge patterns` and `tracegauge ask` print that one-line install hint and exit 1, and the dashboard shows an "extra not installed" page for Patterns; everything else keeps working.
 
-Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to a file named after and co-located with your TES database (`<db-name>.intelligence_cache.json` — e.g. `~/.tes/tes.intelligence_cache.json` for the default DB) and are reused by `tes ask` below.
+Runs (or displays the cached result of) validated KMeans clustering over your session corpus, plus statistical anomaly detection. Results cache to a file named after and co-located with your TES database (`<db-name>.intelligence_cache.json` — e.g. `~/.tes/tes.intelligence_cache.json` for the default DB) and are reused by `tracegauge ask` below.
 
-Requires **30+ content sessions**. Attribution fractions (the features clustering runs on) are computed once and persisted directly to the database at score time — a session scored by `tes score`/`tes serve` clusters correctly regardless of whether its original source JSONL still exists on disk later.
+Requires **30+ content sessions**. Attribution fractions (the features clustering runs on) are computed once and persisted directly to the database at score time — a session scored by `tracegauge score`/`tracegauge serve` clusters correctly regardless of whether its original source JSONL still exists on disk later.
 
-**If you're upgrading from `0.11.0` or earlier: read this before running `tes patterns`.** Sessions scored before this version cannot be backfilled — their attribution was never persisted, and recovering it now would require re-reading the original transcript file, which for most real setups no longer exists (transcripts age out, get cleaned up, or move). There is no partial recovery either: the fractions clustering needs (context re-send/growth, output, waste) aren't derivable from anything else this tool stores about a session — checked directly, not assumed (the closest available data, `waste_events`, records dollar cost per detected event, not the raw token breakdown clustering needs, and covers only 1 of the 4 features either way). **Concretely, on the machine this was measured on: 321 of 321 previously-scored content sessions (100%) are permanently unusable for clustering post-upgrade — the pattern corpus starts over at 0 and rebuilds only from sessions scored from this version forward.** Your own numbers will differ, but the mechanism is the same: nothing is lost or corrupted, `tes score`/`tes patterns`/`tes ask` on already-scored sessions keep working exactly as before this upgrade — only the *clustering* feature specifically restarts its corpus. If a legacy session's file is confirmed unreachable, the tool says so plainly rather than guessing:
+**If you're upgrading from `0.11.0` or earlier: read this before running `tracegauge patterns`.** Sessions scored before this version cannot be backfilled — their attribution was never persisted, and recovering it now would require re-reading the original transcript file, which for most real setups no longer exists (transcripts age out, get cleaned up, or move). There is no partial recovery either: the fractions clustering needs (context re-send/growth, output, waste) aren't derivable from anything else this tool stores about a session — checked directly, not assumed (the closest available data, `waste_events`, records dollar cost per detected event, not the raw token breakdown clustering needs, and covers only 1 of the 4 features either way). **Concretely, on the machine this was measured on: 321 of 321 previously-scored content sessions (100%) are permanently unusable for clustering post-upgrade — the pattern corpus starts over at 0 and rebuilds only from sessions scored from this version forward.** Your own numbers will differ, but the mechanism is the same: nothing is lost or corrupted, `tracegauge score`/`tracegauge patterns`/`tracegauge ask` on already-scored sessions keep working exactly as before this upgrade — only the *clustering* feature specifically restarts its corpus. If a legacy session's file is confirmed unreachable, the tool says so plainly rather than guessing:
 
 ```text
 Not enough content sessions for pattern analysis yet (12 < 30 needed) -- 8 previously-scored session(s) can't count because their original transcript file no longer exists on disk (scored before this version started saving what it needs at score time; those specific sessions can't be recovered -- re-scoring requires the same file, which is gone). Your pattern corpus rebuilds from sessions scored from now on; nothing else to do.
@@ -443,7 +443,7 @@ Not enough content sessions for pattern analysis yet (12 < 30 needed) -- 8 previ
 
 **How the archetypes are derived** (methodology, not invented): KMeans clustering over a 13-feature vector per session (attribution percentages — context re-send/growth/output — plus log-scaled size features), with `k` chosen by silhouette score over `k ∈ [2, 8]`, validated for stability via 10 reseeded runs (coefficient of variation `< 0.15` required to call the result "stable"). Each archetype's *name* is generated automatically from its centroid's most discriminating features relative to the corpus mean — never hand-labeled, and evaluative words (efficient/wasteful/good/bad) are prohibited by construction; a name describes measured shape, not quality.
 
-**A real, live result** — 38 real Claude Code sessions, scored fresh this session (`tes score --no-judge` against two real project directories, `--recompute`), demonstrating the score-time-persistence fix directly: `[features] extracted 38 / 39 sessions (persisted=38, stubs=1, no_source=0, failed=0)` — every one of those 38 came from the database, zero source-file re-reads. `k=3`, silhouette `0.479` (above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs):
+**A real, live result** — 38 real Claude Code sessions, scored fresh this session (`tracegauge score --no-judge` against two real project directories, `--recompute`), demonstrating the score-time-persistence fix directly: `[features] extracted 38 / 39 sessions (persisted=38, stubs=1, no_source=0, failed=0)` — every one of those 38 came from the database, zero source-file re-reads. `k=3`, silhouette `0.479` (above the `0.20` "meaningful structure" bar), stability CV `0.000` (perfectly stable across all 10 reseeded runs):
 
 ```text
 ARCHETYPES (measured behavioral patterns -- not quality labels):
@@ -465,23 +465,23 @@ ANOMALIES: 2 of 38 sessions (5.3%) are statistical outliers for their cluster.
 
 **What you do with this:** the archetypes are a description of your own measured behavior, not a scorecard — there's no "good" archetype to aim for. This particular corpus's three archetypes separate mainly on *size* and *waste presence*, not on dramatically different working styles (consistent with this project's own earlier B-phase clustering research on a larger corpus, `research/12_session_intelligence.md`) — useful context before over-reading meaning into which archetype a given session falls into.
 
-### `tes ask`
+### `tracegauge ask`
 
 ```bash
-tes ask "What kind of sessions do I run?"
-tes ask "Do I have any waste patterns in my sessions?" --api   # opt-in, consent-gated
+tracegauge ask "What kind of sessions do I run?"
+tracegauge ask "Do I have any waste patterns in my sessions?" --api   # opt-in, consent-gated
 ```
 
-A conversational explainer, constrained by construction to answer only from the same measured metrics/pattern output `tes patterns` produces — never invents analysis, predicts future cost, or judges session quality. Tries local Ollama first (`qwen3:8b` by default, or whatever 7B+ model is available); with no local judge but `ANTHROPIC_API_KEY` set, offers the API path with an explicit per-call consent prompt (sends metrics only, never session content/code).
+A conversational explainer, constrained by construction to answer only from the same measured metrics/pattern output `tracegauge patterns` produces — never invents analysis, predicts future cost, or judges session quality. Tries local Ollama first (`qwen3:8b` by default, or whatever 7B+ model is available); with no local judge but `ANTHROPIC_API_KEY` set, offers the API path with an explicit per-call consent prompt (sends metrics only, never session content/code).
 
-`tes ask` answers from your measured session metrics using a local model; parts of a question that tracegauge does not measure (forecasts, prompt quality) are declined instead of guessed. Wording varies by model and run.
+`tracegauge ask` answers from your measured session metrics using a local model; parts of a question that tracegauge does not measure (forecasts, prompt quality) are declined instead of guessed. Wording varies by model and run.
 
 ## What this does NOT do
 
 - No composite efficiency score. The three axes are independent by design — a single number would hide the axis-specific domain limitations.
 - No "catches all inefficiency." The waste detectors fire on observable-invariant patterns only.
 - No accuracy guarantee on the trajectory axis. It's an LLM judge, coherence-validated, not human-calibrated.
-- No cloud scoring. The scoring pipeline is fully local. `tracegauge export-contribution` (P7) provides a local-file-only contribution export: opt-in, content-free, nothing transmitted. Server-side aggregation of that data (`tes corpus contribute`) is built and tested but **not currently active** — no corpus is provisioned, so it sends nothing regardless of consent — and would never be a substitute for the local self-baseline even once activated.
+- No cloud scoring. The scoring pipeline is fully local. `tracegauge export-contribution` (P7) provides a local-file-only contribution export: opt-in, content-free, nothing transmitted. Server-side aggregation of that data (`tracegauge corpus contribute`) is built and tested but **not currently active** — no corpus is provisioned, so it sends nothing regardless of consent — and would never be a substitute for the local self-baseline even once activated.
 - No cross-agent support yet. The CC adapter is Claude Code–specific; OpenCode/Codex/Aider would need their own adapters and re-validation.
 
 ---
@@ -539,4 +539,4 @@ The scoring components were validated through a five-phase credibility arc (B1�
 - **Corpus de-biasing:** `tracegauge export-contribution` (P7) writes a local content-free digest for voluntary contribution. Server-side aggregation, pooled baselines, and legal review are follow-on work.
 - **Smaller judge:** a laptop-runnable quantized model for the trajectory axis (requires a new B3-equivalent corroboration run, not a swap).
 - **Cross-agent support:** adapters for OpenCode, Codex, Aider once tool_result data is available for re-validation.
-- **`tes install-hook`:** explicit opt-in SessionEnd hook for zero-latency scoring (modifies `~/.claude/settings.json` only on user request).
+- **`tracegauge install-hook`:** explicit opt-in SessionEnd hook for zero-latency scoring (modifies `~/.claude/settings.json` only on user request).
