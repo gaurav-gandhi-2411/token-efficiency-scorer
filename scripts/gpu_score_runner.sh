@@ -139,7 +139,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN is not set. Skipping git push."
     echo "[$(date)] To retrieve results manually, run from your local machine:"
-    echo "    gcloud compute scp <your-vm>:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=example-project-000001"
+    echo "    gcloud compute scp <your-vm>:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=<your-gcp-project>"
 else
     echo "[$(date)] GITHUB_TOKEN set. Pushing judge_scores.jsonl to GitHub..."
     git config user.email "gaurav.gandhi2411@gmail.com"
@@ -150,7 +150,7 @@ else
     # set -o pipefail means the pipeline returns git's exit code even through sed.
     git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/token-efficiency-scorer.git" master 2>&1 \
         | sed "s/${GITHUB_TOKEN}/***REDACTED***/g" \
-        || echo "[$(date)] Push FAILED — retrieve manually: gcloud compute scp <your-vm>:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=example-project-000001"
+        || echo "[$(date)] Push FAILED — retrieve manually: gcloud compute scp <your-vm>:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=<your-gcp-project>"
     echo "[$(date)] Push step done."
 fi
 

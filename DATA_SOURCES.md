@@ -1,7 +1,7 @@
 # Data sources
 
 Every external (non-self-collected) dataset used anywhere in this project, its
-license, and what was derived from it. Added AW1 in response to a real,
+license, and what was derived from it. Added in response to a real,
 previously-uncredited attribution gap — see the entry below.
 
 ## SWE-chat (SALT-NLP/SWE-chat)
@@ -122,7 +122,7 @@ a Latin subset of Space Grotesk (copyright The Space Grotesk Project Authors).
 
 ## Open-weight models used for local/offline inference
 
-Listed for transparency (rule 72: LLM usage is documented, not hidden) — none of
+Listed for transparency (LLM usage is documented, not hidden) — none of
 these carry an attribution or redistribution obligation for how this project
 uses them (local inference only, publishing aggregate results, no weight
 redistribution or fine-tuned-derivative distribution).

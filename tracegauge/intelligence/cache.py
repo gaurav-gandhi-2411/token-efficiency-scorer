@@ -46,21 +46,20 @@ INVALIDATION_DELTA: int = 5  # re-compute if session_count changed by more than 
 
 
 def _cache_path(db_path: Path | str) -> Path:
-    """RR2: co-located with, and named after, the resolved TES database --
+    """Co-located with, and named after, the resolved TES database --
     NOT a fixed ~/.tes/intelligence_cache.json regardless of which DB is in
     use. Before this fix, every caller shared one global cache file even
     when TRACEGAUGE_DB_PATH pointed somewhere else entirely (e.g. an isolated test
     DB), so computing patterns against a scratch/test database silently
     overwrote the real cache the next real `tracegauge ask`/`tracegauge patterns` call
-    would read -- confirmed live during RR1 verification, which is what
-    surfaced this.
+    would read -- confirmed live when the bug was found.
 
-    UU2: `db_path` is REQUIRED, not `| None = None` -- this function used to
+    `db_path` is REQUIRED, not `| None = None` -- this function used to
     silently resolve a missing db_path to the real default (~/.tes/tes.db)
     itself, which is exactly how a caller that only meant to inspect/verify
     something (no explicit target in mind) ended up writing to the real
-    cache file (found twice: RR2's own discovery, then again during 0.11.1's
-    own release verification). Resolution now happens exactly once, at each
+    cache file (found twice, the second time during 0.11.1's own release
+    verification). Resolution now happens exactly once, at each
     top-level entry point (CLI commands, tracegauge.intelligence.chat), via
     tracegauge.store.resolve_db_path -- everything below that boundary, including
     this function, only ever sees a concrete path it was explicitly handed.
@@ -85,8 +84,8 @@ def _tracegauge_version() -> str:
 
 def load_cache(db_path: Path | str) -> dict[str, Any] | None:
     """Return the parsed cache dict for db_path's DB, or None if not found /
-    invalid JSON. See _cache_path (RR2) for why this is DB-scoped, and its
-    UU2 note for why db_path is required rather than defaulted."""
+    invalid JSON. See _cache_path for why this is DB-scoped and why db_path is
+    required rather than defaulted."""
     p = _cache_path(db_path)
     if not p.exists():
         return None
@@ -118,9 +117,9 @@ def save_cache(
 ) -> None:
     """Write cache_dict to disk, stamped with version + session_count + timestamp.
 
-    Written to db_path's own cache file (RR2) -- see _cache_path. UU2:
+    Written to db_path's own cache file -- see _cache_path.
     db_path is required -- this function writes to disk, and a defaultable
-    path on a write is exactly the shape of bug RR2/UU2 both found.
+    path on a write is exactly the shape of bug found twice.
     """
     p = _cache_path(db_path)
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -198,12 +197,11 @@ def get_or_compute_intelligence(
     This is the single entry point for both the chat and the dashboard.
     Returns a dict with the clustering + anomaly results (serialised).
 
-    UU2: `db_path` is required, not `| None = None`. This function computes
+    `db_path` is required, not `| None = None`. This function computes
     AND WRITES (via save_cache) when the cache is stale or missing -- a
     defaultable path on a function with a write side effect is exactly how
     an interactive/diagnostic call that never meant to touch the real DB
-    ended up writing to the real ~/.tes/intelligence_cache.json (twice: the
-    original RR2 discovery, then again during 0.11.1's own release
+    ended up writing to the real ~/.tes/intelligence_cache.json (twice, the second time during 0.11.1's own release
     verification). Resolution (explicit arg -> TRACEGAUGE_DB_PATH env var ->
     ~/.tes/tes.db default) still happens, but now exactly once, at each
     top-level entry point (tracegauge.cli's command handlers, tracegauge.intelligence.chat's
@@ -260,7 +258,7 @@ def get_or_compute_intelligence(
     n_content = len(features)
 
     if n_content < MIN_CONTENT_FOR_CACHE:
-        # RR1.4: name the real cause rather than the generic "not enough
+        # Name the real cause rather than the generic "not enough
         # sessions" whenever unreachable source files (legacy rows scored
         # before attribution fractions were persisted at score time) are
         # what's actually blocking the count, not a genuinely thin corpus.

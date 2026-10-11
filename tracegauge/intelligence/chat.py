@@ -172,7 +172,7 @@ def build_chat_context(
 
     # --- Corpus-level stats (metrics only) ---
     content_rows = [r for r in rows if r.get("real_tokens", 0) > 0]
-    # W1A D7: unpriced sessions have a partial/zero cost; keep them out of the $ percentiles.
+    # Unpriced sessions have a partial/zero cost; keep them out of the $ percentiles.
     all_costs = [
         r["session_cost_usd"]
         for r in content_rows

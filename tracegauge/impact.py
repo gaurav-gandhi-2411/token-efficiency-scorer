@@ -11,8 +11,8 @@ argument names, observed in this project's real Claude Code transcripts and
 Anthropic's published tool schemas) — not ported from any external
 project's source. No code copied from any competitor.
 
-**Scope, per XX2.1's real-data finding** (see
-``docs/audit/COMPETITIVE_GAP_ANALYSIS.md`` WW1.3 — 883 real transcript
+**Scope, per a real-data scan** (see
+``docs/audit/COMPETITIVE_GAP_ANALYSIS.md`` — 883 real transcript
 files, 434,774 lines scanned): `Edit` (10,175 real occurrences) and `Write`
 (3,059) dominate and are fully supported with no ambiguity beyond `Write`'s
 own inherent one (see below). `MultiEdit`/`NotebookEdit` are real Claude
@@ -23,7 +23,7 @@ presented with the same confidence as Edit/Write-derived numbers.
 `apply_patch`/`str_replace_editor` are Codex/computer-use tool names, not
 Claude Code ones — out of scope entirely, not attempted.
 
-**The Write ambiguity, tracked not swallowed (XX2.3)**: a `Write` call's
+**The Write ambiguity, tracked not swallowed**: a `Write` call's
 payload contains the new file content but never the content it replaced —
 additions are countable, deletions are not. Every ``Write``-derived
 ``EditOperation`` carries ``prior_content_unknown=True`` so callers can
@@ -184,9 +184,9 @@ def extract_edit_operations(tool_name: str, tool_input: dict[str, Any]) -> list[
 
 
 # ---------------------------------------------------------------------------
-# Corpus-wide aggregation (XX2.5/AB3.2) — plain transparent counts, no
+# Corpus-wide aggregation — plain transparent counts, no
 # composite "risk score". Recommended against a weighted composite in
-# docs/audit/COMPETITIVE_GAP_ANALYSIS.md WW2.2: a hand-weighted blend of
+# docs/audit/COMPETITIVE_GAP_ANALYSIS.md: a hand-weighted blend of
 # signals presented as one number is exactly the "adds a number without
 # uncertainty attached" dilution that document flags. Every figure here is
 # a direct count or a plainly-labeled fraction, nothing inferred.

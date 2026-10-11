@@ -17,7 +17,7 @@ to tracegauge's own per-model ``as_of``/``source_url``/``retired`` fields
 via ``tracegauge.cost.check_price_table_staleness``, which does the actual date
 arithmetic (see that function's docstring for what's deliberately NOT
 ported: promo-expiry handling, tiering, multi-provider support, the
-regression gate — Phase 7 full-engine-move scope).
+regression gate — out of scope for a port this small).
 
 Pure date arithmetic against the bundled JSON file — no network calls, no
 paid API calls, zero cost. This is exactly the mechanism the S1 audit found

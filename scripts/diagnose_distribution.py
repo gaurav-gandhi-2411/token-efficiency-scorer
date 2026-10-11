@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 """
-diagnose_distribution.py - Phase 4 verdict distribution diagnosis.
+diagnose_distribution.py - verdict distribution diagnosis.
 
 Run LOCALLY after GPU scoring is retrieved. Answers:
   - Do H2=0 clean sessions score BETTER/MUCH_BETTER or WORSE?
@@ -262,7 +262,7 @@ def print_breakdown_table(title: str, groups: dict[str, list[str | None]]) -> No
 def main() -> None:
     """Run all breakdown tables and print diagnostics."""
     print("=" * 95)
-    print("  diagnose_distribution.py - Phase 4 verdict distribution diagnosis")
+    print("  diagnose_distribution.py - verdict distribution diagnosis")
     print("=" * 95)
 
     # Load

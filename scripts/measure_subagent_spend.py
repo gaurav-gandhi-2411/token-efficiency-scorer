@@ -5,7 +5,7 @@ from __future__ import annotations
 
 """Measure how much spend subagent transcripts add on top of their parent sessions.
 
-Before W1A the adapter ignored ``<project>/<sid>/subagents/agent-*.jsonl`` entirely (every
+Before 0.15.0 the adapter ignored ``<project>/<sid>/subagents/agent-*.jsonl`` entirely (every
 record is ``isSidechain: true``), so this spend was in no total. This script reports it, per
 session set, in tokens and USD, with prices as they stand in the bundled table, and flags
 models that are missing from it.
@@ -202,7 +202,11 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Measure subagent spend on top of parent sessions.")
     ap.add_argument("--cc-path", required=True, type=Path)
-    ap.add_argument("--selection", type=Path, help="c2-selection.json (frozen set B paths).")
+    ap.add_argument(
+        "--selection",
+        type=Path,
+        help="JSON with the frozen evaluation-set paths (sel.B) and subagent file paths (sel.A).",
+    )
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
 
@@ -215,9 +219,9 @@ def main() -> None:
         set_b = [Path(p) for p in sel["sel"]["B"]]
         missing = [p for p in set_b if not p.exists()]
         if missing:
-            raise SystemExit(f"{len(missing)} frozen set-B files no longer exist")
-        pops.append(measure(set_b, f"Phase 0 set B ({len(set_b)} frozen main sessions)", prices))
-        # Set A's 46 subagent files: which parents do they belong to, how big are they.
+            raise SystemExit(f"{len(missing)} frozen evaluation-set files no longer exist")
+        pops.append(measure(set_b, f"Evaluation set ({len(set_b)} frozen main sessions)", prices))
+        # The subagent files in sel.A: which parents do they belong to, how big are they.
         set_a_sub = [Path(p) for p in sel["sel"]["A"] if SUBAGENTS_DIRNAME in Path(p).parts]
         parents = defaultdict(int)
         sub_billed = 0
@@ -233,9 +237,9 @@ def main() -> None:
                     seen[k] = [max(a, b) for a, b in zip(seen.get(k, [0] * 4), c, strict=True)]
             sub_billed += sum(sum(v) for v in seen.values())
         extra += [
-            "## Phase 0 set A subagent files",
+            "## Earlier-scored subagent files",
             "",
-            f"{len(set_a_sub)} subagent files (the ones `tracegauge score` picked in Phase 0), belonging "
+            f"{len(set_a_sub)} subagent files (the ones `tracegauge score` picked before subagent roll-up), belonging "
             f"to {len(parents)} parent sessions; {sub_billed:,} billed tokens in total that "
             "scored as 0 tokens / UNAVAILABLE.",
             "",

@@ -5,12 +5,12 @@ from __future__ import annotations
 
 """tracegauge/cost_period.py — Period-scoped spend report: total, session count, per-project breakdown.
 
-LL3 (GitHub issue #78148): `tracegauge cost --week` / `--month` / `--since <date>`.
+`tracegauge cost --week` / `--month` / `--since <date>`.
 A REPORT of real spend already incurred in a period -- distinct from
 `tracegauge budget`'s rolling self-trend PROJECTION (budget.py answers "where is my
 pace heading"; this module answers "what did I actually spend").
 
-**source_mtime vs scored_at (LL3.3) -- deliberate, and NOT the same choice
+**source_mtime vs scored_at -- deliberate, and NOT the same choice
 budget.py made:**
 
 This module filters on `source_mtime` -- the session FILE's own last-write
@@ -29,7 +29,7 @@ scorer.
 **Historical note, now resolved (issue #12):** `tracegauge/budget.py`'s rolling-
 window projection used to filter on `scored_at`, not `source_mtime`, for
 exactly the reason this module avoids it -- flagged here when this module
-was written (LL3, scoped to the new `tracegauge cost` command only, not fixed
+was written (scoped to the new `tracegauge cost` command only, not fixed
 alongside an unrelated feature) and fixed as its own dedicated follow-up.
 `compute_budget_projection` now filters/orders on `source_mtime`, matching
 this module's own convention.
@@ -53,7 +53,7 @@ class ProjectCostBreakdown:
     project_label: str
     total_usd: float
     session_count: int
-    # Models whose turns are missing from total_usd for sessions in this project (W1A D7).
+    # Models whose turns are missing from total_usd for sessions in this project.
     unpriced_models: list[str] = field(default_factory=list)
 
 
@@ -66,13 +66,12 @@ class PeriodCostReport:
     session_count: int
     sessions_missing_cost: int
     by_project: list[ProjectCostBreakdown]
-    # XX1.3: unpriced coverage -- what fraction of this period's sessions
+    # Unpriced coverage -- what fraction of this period's sessions
     # and tokens are priced, and which models caused the gap. token_total
     # includes ALL sessions in the window regardless of pricing (a
     # denominator that only counted priced sessions would make 100%
     # coverage trivially true by construction). unpriced_models is
-    # aggregated only from rows that persisted it at score time (XX1.3 /
-    # RR1 lesson) -- legacy rows scored before that column existed
+    # aggregated only from rows that persisted it at score time -- legacy rows scored before that column existed
     # contribute to the coverage gap but can't name their own model;
     # unpriced_models_incomplete flags that distinction.
     token_total: int = 0
@@ -130,7 +129,7 @@ def compute_period_cost(
     docstring for why ``source_mtime``, not ``scored_at``.
 
     Boundary is INCLUSIVE of ``period_start``, EXCLUSIVE of ``period_end``
-    (LL3.4, cross-boundary case) -- a session sitting exactly on a boundary
+    (cross-boundary case) -- a session sitting exactly on a boundary
     instant belongs to exactly one of two adjacent periods run back-to-back,
     never both, never neither.
 
@@ -139,16 +138,16 @@ def compute_period_cost(
     ``total_usd``/``by_project`` but counted separately in
     ``sessions_missing_cost`` -- silently omitting them from the total
     without reporting the omission would make an incomplete total look
-    complete (rule 98a: a control's data fetch must fail closed, never
+    complete (a data fetch must fail closed, never
     silently drop coverage).
 
-    An EMPTY period (LL3.4, zero sessions of any kind) still returns a
+    An EMPTY period (zero sessions of any kind) still returns a
     valid, ordinary report with ``total_usd=0.0``, ``session_count=0`` --
     never ``None`` and never an exception; "checked, found nothing" always
     looks different from a raised error, and this function never raises on
     a normal (even empty) query.
 
-    A SINGLE matching session (LL3.4) is handled with no special case at
+    A SINGLE matching session is handled with no special case at
     all -- ``by_project`` just has one entry with ``session_count=1``.
 
     LEGACY rows (tracegauge.legacy) are excluded from every figure above and counted in
@@ -178,7 +177,7 @@ def compute_period_cost(
     token_priced = sum(r["real_tokens"] or 0 for r in fully_priced)
 
     missing_rows = [r for r in rows if r["session_cost_usd"] is None]
-    # W1A D7: a session whose model is missing from the price table is stored with
+    # A session whose model is missing from the price table is stored with
     # session_cost_usd = 0.0 (or a priced-turns-only subtotal), NOT NULL, so it used to look
     # fully priced. Name its models from EVERY row, not just the NULL-cost ones.
     named_models: set[str] = set()

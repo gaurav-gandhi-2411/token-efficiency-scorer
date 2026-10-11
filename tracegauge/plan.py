@@ -5,9 +5,9 @@ from __future__ import annotations
 
 """tracegauge/plan.py — Plan-cost configuration and ROI computation.
 
-XX1.1: "Is my subscription worth it at API-equivalent prices?" -- the ROI
+"Is my subscription worth it at API-equivalent prices?" -- the ROI
 side of `tracegauge cost --roi`. Two deliberate design choices, both driven by
-XX1.2's honesty requirements:
+the feature's honesty requirements:
 
 **A plan HISTORY, not a single static plan.** A user's plan can change
 mid-window (upgraded from Pro to Max, added a second seat) -- a single
@@ -168,7 +168,7 @@ def compute_roi(
     window_start: datetime,
     window_end: datetime,
 ) -> ROIResult | None:
-    """Refuses to compute a ratio the data can't support (XX1.2) -- returns
+    """Refuses to compute a ratio the data can't support -- returns
     None, never a misleading number, when:
       - no plan is configured at all (nothing to compare against), or
       - the window has zero priced sessions (a 0/N ratio looks like a real

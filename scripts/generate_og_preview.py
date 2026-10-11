@@ -12,7 +12,7 @@ not shipped code, and has no place in tracegauge's own dependency graph).
 Every character in the wordmark/tagline is a real path traced from this
 repo's own bundled font files via fontTools, never a live <text> element --
 this rasterization pipeline's SVG renderer does not do real font-family
-matching (proven during the original AU1 rasterization: identical
+matching (proven during the original rasterization: identical
 font_extents regardless of the requested font name), so text is a shape
 problem here, not a typography problem. The bundled font subsets
 (tracegauge/web/static/fonts/*.woff2) cover alphanumerics + space only (63
