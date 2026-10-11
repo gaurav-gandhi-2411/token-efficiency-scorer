@@ -252,9 +252,11 @@ def cache_read_multiplier(model_entry: dict[str, Any], prices: dict[str, Any]) -
     return float(prices["cache_multipliers"]["read"])
 
 
-def _is_number(value: Any) -> bool:
-    """True for an int/float that is not a bool (a price-table field, never a flag)."""
-    return isinstance(value, int | float) and not isinstance(value, bool)
+def _as_rate(value: Any) -> float | None:
+    """``value`` as a float if it is an int/float (not a bool) price-table field, else None."""
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return float(value)
+    return None
 
 
 def _select_rates(turn: TurnDigest, entry: dict[str, Any]) -> tuple[float, float, str]:
@@ -418,10 +420,10 @@ def compute_turn_cost(
     # it) is priced standard and counted, so the session note can say so.
     fast_requests = fast_unsupported = 0
     if turn.speed == "fast":
-        fast_in = entry.get("fast_input_usd_per_mtok")
-        fast_out = entry.get("fast_output_usd_per_mtok")
-        if _is_number(fast_in) and _is_number(fast_out):
-            input_rate, output_rate, pricing_caveat = float(fast_in), float(fast_out), ""
+        fast_in = _as_rate(entry.get("fast_input_usd_per_mtok"))
+        fast_out = _as_rate(entry.get("fast_output_usd_per_mtok"))
+        if fast_in is not None and fast_out is not None:
+            input_rate, output_rate, pricing_caveat = fast_in, fast_out, ""
             fast_requests = requests
         else:
             fast_unsupported = requests
@@ -432,10 +434,10 @@ def compute_turn_cost(
     # multipliers, which is equivalent because the cache prices are linear in the input rate.
     geo_us_requests = geo_us_unsupported = 0
     if turn.inference_geo == "us":
-        geo_mult = entry.get("geo_us_multiplier")
-        if _is_number(geo_mult):
-            input_rate *= float(geo_mult)
-            output_rate *= float(geo_mult)
+        geo_mult = _as_rate(entry.get("geo_us_multiplier"))
+        if geo_mult is not None:
+            input_rate *= geo_mult
+            output_rate *= geo_mult
             geo_us_requests = requests
         else:
             geo_us_unsupported = requests
