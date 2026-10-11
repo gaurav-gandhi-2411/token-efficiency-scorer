@@ -6,13 +6,13 @@ conventions.
 
 A note on version numbers: the published PyPI artifacts are `0.1.0`, `0.3.0`, `0.3.1`, `0.5.0`,
 `0.6.0`, `0.7.0`, `0.7.1`, `0.8.0`, `0.10.0`, `0.10.1`, `0.10.2`, `0.11.0`, `0.11.1`, `0.12.0`,
-`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, `0.13.0`, and `0.14.0` (confirmed live against PyPI's own JSON API;
+`0.12.1`, `0.12.2`, `0.12.3`, `0.12.4`, `0.13.0`, `0.14.0`, and `0.15.0` (the current release; the earlier ones confirmed live against PyPI's own JSON API;
 this note previously stopped enumerating at `0.10.2` for four releases running — corrected here
 rather than left standing, per the same "nothing re-checks this note against reality" gap
 RELEASING.md's own incident section already names). Versions `0.2.0` and `0.4.0` were built and
 tagged internally but never published to PyPI. `0.9.0` is built, tested, and committed, but
-**deliberately not published** — see its entry for why (corpus stays dormant). `0.14.0` is the
-**current published release**.
+**deliberately not published** — see its entry for why (corpus stays dormant). `0.15.0` is the
+**current release**.
 
 `0.12.3`, `0.12.4` and `0.13.0` are **yanked** on PyPI (reason: "ImportError on Python 3.10 (datetime.UTC); fixed in
 0.14.0"): they do not import on Python 3.10 and are fixed in `0.14.0`. A yank hides a version from unpinned and range
@@ -20,6 +20,88 @@ installs (`pip install tracegauge`, `tracegauge<0.14`) but not from an exact pin
 still installs, with pip's yanked-release warning. Checked against the real index on 2026-10-09.
 
 ## [Unreleased]
+
+## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
+
+Measurements and migration detail: [docs/releases/0.15.0.md](docs/releases/0.15.0.md). Figures called "the
+maintainer's" are unpublished local measurements on the maintainer's own transcripts.
+
+### BREAKING: read before upgrading
+
+1. **Usage is deduplicated per `message.id`, so token counts drop ~2.4x on affected sessions, and the shipped
+   bands are rebuilt.** `real_tokens`, `total_tokens`, `session_cost_usd` and every figure derived from them
+   change (the maintainer's 10 sessions: 35,895,367 -> 14,889,709 tokens, x2.41; per-session factor 1.0x to
+   4.0x). The bundled `tes/data/cc_baselines.json` is a re-baseline (71 ungated sessions, `adapter_version` 2),
+   not a correction. New bands (tokens, p25 / median / p75): ml-eval n=13: 1,335,924 / 1,515,851 / 2,796,600;
+   debug-fix n=19: 397,878 / 802,486 / 3,381,684; infra-deploy n=15: 376,422 / 1,577,905 / 3,119,425;
+   research-recon n=16: 411,052 / 620,842 / 1,194,136; feature-build n=8 is inactive (below the minimum of 10)
+   and reports no band. Anything you published or stored from an earlier version is on the old scale. The bands
+   describe one developer's work (small n, sessions not independent): "above_p75" means heavier than that
+   developer's typical session, not wasteful and not heavier than other developers.
+2. **numpy and scikit-learn moved to the `[patterns]` extra; the core install is flask + httpx.** `tes patterns`
+   and `tes ask` now need `pip install "tracegauge[patterns]"`; without it they print that one-line hint and
+   exit 1.
+3. **New exit codes** (see [docs/EXIT_CODES.md](docs/EXIT_CODES.md)): 1 = bad usage or nothing to do (no
+   sessions found, store cannot be opened), 3 = the `tes monitor` alarm fired (it exited 0 before), 4 = a session
+   could not be read or scored (`tes score` printed `[ERROR]` and exited 0 before). Scripts that treated every
+   exit as success must handle these.
+4. **Rows written by older versions are labelled legacy and excluded until `tes rescore`.** They are left out of
+   the self-baselines, the alarm pool, `budget`, `cost` totals, `impact`, `patterns`, `ask` and contribution
+   exports; nothing is deleted. `tes rescore` re-scores those whose source transcript still exists; where the
+   transcript is gone the row cannot be corrected. See [docs/UPGRADING.md](docs/UPGRADING.md).
+
+### Added and fixed
+
+- **Usage counted once per API response, not once per content block.** Claude Code repeats a response's `usage`
+  on every content-block record; ccusage dedupes the same way (`ccusage/ccusage@c3a4eb0ecdcfbd3655dbcec8205644b046032332`,
+  `rust/adapters/claude/src/lib.rs:345-366`). Waste events and proof turns are unchanged.
+  [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); reproducible from `eval/manifest.json` with
+  `scripts/rebuild_baselines.py build`. [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Subagent usage is rolled into its parent session** (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`)
+  instead of scoring each subagent file as an empty session; `real_tokens` and the verdict stay main-chain.
+  [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **Prices for Opus 5.5, Sonnet 5.5, Fable 5.1, Mythos 5.1 and Haiku 5.5**, per-model cache-read multiplier, Haiku
+  5.5 long-context tier; CI derives the model list from the vendor page and fails on an unpriced model.
+  [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **1-hour cache writes are priced at 2x input (was 1.25x).** On the maintainer's 50 sessions the main chain was
+  $1,328.60 before the 1-hour fix and $1,443.58 after. [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Web search ($10 per 1,000), fast mode and `inference_geo: us` (1.1x) are priced**, each with a per-session note;
+  the Batch discount does not apply to Claude Code transcripts; code-execution time and errored searches remain
+  unmodelled. Prices from the vendor page (sha256 `67904e28...37ca9`). [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Unpriced models print `unpriced (<model>)` instead of `$0.00`**, and `priced` / `unpriced_models` are in JSON.
+  [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+- **COST BREAKDOWN replaces the "context dominates" lever.** The old rule fired on all 76 of the maintainer's
+  priced sessions; a LEVER finding now appears only for detected waste (>= $0.50, or >= 10.0% of cost and >= $0.05)
+  or output >= 40.0% of cost, compared unrounded. [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **The live alarm is the p85 of your own last 30 days of sessions in the same model era**, falls back to a
+  documented chain, and says what it used; `tes monitor` exits 3 when it fires. [docs/ALARM.md](docs/ALARM.md).
+- **`--json` on `cost`, `budget`, `monitor`, `impact` and `patterns`** (with `score`): `schema_version`, `command`
+  and `legacy_rows_excluded` in every document emitted, fixed key sets. [docs/JSON_OUTPUT.md](docs/JSON_OUTPUT.md).
+- **`cost --roi --plan-config PATH` exits 1 when PATH does not exist** (it printed "no plan configured" and exited
+  0). [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
+- **`tes rescore [--dry-run] [--json] [--limit N]`** recovers legacy rows whose transcript still exists; a first
+  notice after the upgrade says how many rows need it; two processes opening an old store at once no longer fail
+  with `database is locked`. [docs/UPGRADING.md](docs/UPGRADING.md).
+- **Legacy rows are marked on `impact`, `patterns`, `ask` and the dashboard (including `/budget`) and left out of
+  their aggregates;** `export-contribution` leaves them out too. [docs/UPGRADING.md](docs/UPGRADING.md).
+- **`backfill-waste` no longer overwrites a stored row from a zero-usage or unreadable transcript** and exits 4
+  when a row fails. [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
+- **The cost note names the cache-read multiplier each model was billed at** (0.05x on Opus/Sonnet 5.5, 0.025x on
+  Fable/Mythos 5.1), not a flat 0.10x. [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
+- **Lighter default install:** core is 20.0 MiB (flask + httpx); the `[patterns]` extra adds numpy and
+  scikit-learn. [docs/INSTALL.md](docs/INSTALL.md).
+- **`tracegauge quickstart` shows a verdict and one deterministic finding again** (the rebuilt baseline had pushed
+  the bundled sample under its turn gate). [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **The JSONL reader no longer drops records containing U+2028, U+2029 or U+0085.**
+  [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
+- **CI runs the suite on Linux, macOS and Windows x Python 3.10-3.13 plus four core-only legs; the coverage floor
+  is 86** (86.70% measured on the GitHub runner, CI run 38091475996). [docs/CI.md](docs/CI.md).
+- **README example blocks are generated:** every `tes cost`, `cost --roi`, `budget` and `monitor` example
+  is this version's output on synthetic sessions from
+  [`scripts/gen_readme_examples.py`](scripts/gen_readme_examples.py), pinned by `tests/test_readme_examples.py`;
+  the 0.11.0 blocks and every estimated equivalent were removed. README and PyPI text corrected where this
+  release made it false or stale. [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
 
 ## [0.14.0] — the package imports on Python 3.10 again, plus packaging metadata
 

@@ -14,14 +14,16 @@ Public API:
 """
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
+from tes.alarm_baseline import dominant_model
 from tes.attribution import compute_attribution
 from tes.classify import classify_session
 from tes.cost import compute_session_cost, load_price_table
+from tes.discovery import iter_session_files
 from tes.waste import build_waste_entry
 
 LIVE_ESTIMATE_DOV: str = (
@@ -50,6 +52,16 @@ class LiveSessionState:
     )
     ai_turn_count: int
     domain_of_validity: str
+    # Models in this session missing from the price table (W1A D7); live_cost_usd is then a
+    # priced subtotal. Empty when everything priced. `live_priced` is the boolean twin.
+    live_unpriced_models: list[str] = field(default_factory=list)
+    # Normalized model that did most of the session's token work (the alarm baseline's "era");
+    # "" when no turn names a model.
+    dominant_model: str = ""
+
+    @property
+    def live_priced(self) -> bool:
+        return not self.live_unpriced_models
 
 
 def find_active_session(
@@ -69,7 +81,7 @@ def find_active_session(
         return None
 
     candidates: list[tuple[Path, float]] = []
-    for p in cc_path.rglob("*.jsonl"):
+    for p in iter_session_files(cc_path):
         try:
             mtime = p.stat().st_mtime
         except OSError:
@@ -129,6 +141,8 @@ def score_live_session(
         context_resend_dominant=resend > (output + fresh),
         ai_turn_count=session_cost.ai_turn_count,
         domain_of_validity=LIVE_ESTIMATE_DOV,
+        live_unpriced_models=list(session_cost.unpriced_models),
+        dominant_model=dominant_model(turns),
     )
 
 

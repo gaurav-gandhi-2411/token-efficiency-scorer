@@ -8,6 +8,7 @@ message construction (both $ and token framings always present).
 """
 
 from tes.alarm import PLAN_MAX, PLAN_USAGE_BASED, AlarmConfig, check_alarm, format_alarm_message
+from tes.alarm_baseline import AlarmThreshold
 from tes.live_monitor import LIVE_ESTIMATE_DOV, LiveSessionState
 from tes.self_baseline import SelfBaselineState, TypeBaseline
 
@@ -65,6 +66,35 @@ def _self_baseline_building(task_type: str = "infra-deploy") -> SelfBaselineStat
         domain_of_validity="building your baseline",
     )
     return SelfBaselineState(by_type={task_type: tb}, total_sessions=2)
+
+
+def _threshold_active(threshold_tokens: int = 140_000) -> AlarmThreshold:
+    """An active recent same-era threshold, as tes.alarm_baseline would resolve it."""
+    return AlarmThreshold(
+        status="active",
+        tier="recent_era_type",
+        threshold_tokens=threshold_tokens,
+        n=12,
+        percentile=0.8,
+        window_days=30,
+        era="claude-sonnet-5-5",
+        task_type="infra-deploy",
+        reason=f"p80 of your last 30 days of claude-sonnet-5-5 infra-deploy (n=12): {threshold_tokens:,} tokens",
+    )
+
+
+def _threshold_disabled() -> AlarmThreshold:
+    return AlarmThreshold(
+        status="disabled",
+        tier="disabled",
+        threshold_tokens=None,
+        n=0,
+        percentile=0.8,
+        window_days=30,
+        era="claude-sonnet-5-5",
+        task_type="infra-deploy",
+        reason="alarm disabled: needs at least 10 of your sessions from the last 30 days (have 2)",
+    )
 
 
 # ---------------------------------------------------------------------------

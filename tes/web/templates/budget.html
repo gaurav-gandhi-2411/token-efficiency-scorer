@@ -9,10 +9,18 @@
   forecast of future work. Work volume varies; treat this as a pace check, not a promise.
 </div>
 
+{% if legacy_excluded %}
+<div class="caveat" id="legacy-banner">
+  {{ legacy_excluded }} legacy session{{ "s" if legacy_excluded != 1 }} in this window left out of
+  the pace and projection below (legacy: overcounted, not comparable; scored before 0.15).
+  <code>tes rescore</code> recovers those whose transcript still exists.
+</div>
+{% endif %}
+
 {% if projection %}
 <div class="section">
   <div class="metric-box">
-    <span class="metric-highlight">${{ "%.2f"|format(projection.total_usd_so_far) }}</span>
+    <span class="metric-highlight">{{ projection.total_usd_so_far | cost_display(projection.unpriced_models) }}</span>
     so far across {{ projection.session_count }} session{{ "s" if projection.session_count != 1 }}
     ({{ "%.1f"|format(projection.days_observed) }} of {{ projection.window_days }} days observed)
   </div>

@@ -20,6 +20,7 @@ the API judge; the per-session consent screen still gates every byte that leaves
 """
 
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -31,6 +32,25 @@ from tes.adapt import adapt_session
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
 from tes.cost_period import PeriodCostReport
+from tes.discovery import iter_session_files
+from tes.exit_codes import (
+    EXIT_ADAPT_ERROR,
+    EXIT_ALARM,
+    EXIT_OK,
+    EXIT_USAGE,
+    ExitCodeHelpFormatter,
+    epilog,
+)
+from tes.json_out import (
+    budget_payload,
+    cost_payload,
+    cost_roi_payload,
+    emit,
+    impact_payload,
+    monitor_payload,
+    patterns_payload,
+    rescore_payload,
+)
 from tes.judge import (
     JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
@@ -41,13 +61,16 @@ from tes.judge import (
     score_trajectory,
     score_trajectory_api,
 )
+from tes.legacy import LEGACY_LABEL, excluded_note, partition_legacy
+from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
 from tes.report import format_human, format_json
-from tes.score import score_session
+from tes.score import ThreeAxisResult, score_session
 from tes.waste import (
     annotate_waste_costs,
     build_waste_entry,
 )
 from tes.watcher import DEFAULT_CC_PATH
+from tes.web.cost_format import format_cost_display, format_unpriced
 
 # Load price table once at import time — prices don't change between sessions in a run.
 _PRICES: dict = load_price_table()
@@ -109,7 +132,7 @@ def _recent_sessions(cc_path: Path, limit: int | None = None) -> list[tuple[Path
     if not cc_path.exists():
         return []
     found: list[tuple[Path, float]] = []
-    for p in cc_path.rglob("*.jsonl"):
+    for p in iter_session_files(cc_path):
         try:
             found.append((p, p.stat().st_mtime))
         except OSError:
@@ -232,6 +255,60 @@ def _resolve_score_targets(args: argparse.Namespace) -> list[Path]:
     return [newest]
 
 
+class SessionAdaptError(Exception):
+    """A session file could not be read/parsed. The scoring loop reports it and keeps going."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(str(path))
+        self.path = path
+
+
+def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisResult:
+    """Attach the cost breakdown (informational) and the lever hint (an absolute finding, or None).
+
+    Never raises: a hint failure must not break scoring output.
+    """
+    if attribution is None:
+        return result
+    try:
+        from tes.takeaway import build_cost_breakdown, build_lever_hint  # noqa: PLC0415
+
+        unpriced = tuple(result.unpriced_models)
+        hint = build_lever_hint(attribution, unpriced)  # type: ignore[arg-type]
+        breakdown = build_cost_breakdown(attribution, unpriced)  # type: ignore[arg-type]
+    except Exception:
+        return result
+    return dataclasses.replace(result, lever_hint=hint, cost_breakdown=breakdown)
+
+
+def _legacy_count(store_conn: object) -> int:
+    """Pre-0.15 rows in the open store, or 0 when there is no store or it cannot be read."""
+    if store_conn is None:
+        return 0
+    try:
+        from tes.legacy import count_legacy  # noqa: PLC0415
+
+        return count_legacy(store_conn)  # type: ignore[arg-type]
+    except Exception:
+        return 0
+
+
+def _db_legacy_count(db_path: Path) -> int:
+    """Pre-0.15 rows in the store at db_path; 0 when it does not exist or cannot be read."""
+    if not db_path.exists():
+        return 0
+    try:
+        from tes.store import open_db  # noqa: PLC0415
+
+        conn = open_db(db_path)
+        try:
+            return _legacy_count(conn)
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
 def score_path(
     path: Path,
     baselines: dict,
@@ -250,7 +327,7 @@ def score_path(
         record = adapt_session(path)
     except Exception as exc:
         print(f"[ERROR] Failed to adapt {path.name}: {exc}", file=sys.stderr)
-        return
+        raise SessionAdaptError(path) from exc
 
     session_id: str = record.get("session_id", path.stem)
     turns: list[dict] = record.get("digest", {}).get("turns", [])
@@ -325,8 +402,10 @@ def score_path(
         except Exception:
             pass  # baseline band lookup failure is non-fatal
 
+    result = _with_lever_hint(result, attribution)
+
     if json_mode:
-        print(format_json(result))
+        print(format_json(result, _legacy_count(store_conn)))
     else:
         print(format_human(result, baseline_cost_band=baseline_cost_band))
 
@@ -360,7 +439,7 @@ def _score_path_with_api_judge(
         record = adapt_session(path)
     except Exception as exc:
         print(f"[ERROR] Failed to adapt {path.name}: {exc}", file=sys.stderr)
-        return
+        raise SessionAdaptError(path) from exc
 
     session_id: str = record.get("session_id", path.stem)
     turns: list[dict] = record.get("digest", {}).get("turns", [])
@@ -430,8 +509,10 @@ def _score_path_with_api_judge(
         except Exception:
             pass
 
+    result = _with_lever_hint(result, attribution)
+
     if json_mode:
-        print(format_json(result))
+        print(format_json(result, _legacy_count(store_conn)))
     else:
         print(format_human(result, baseline_cost_band=baseline_cost_band))
 
@@ -675,25 +756,41 @@ def _run_patterns(
     *,
     db_path: str | None = None,
     force_recompute: bool = False,
-) -> None:
+    json_mode: bool = False,
+) -> int:
     """Show the ML pattern analysis for the session corpus."""
+    try:
+        require_patterns_extra()
+    except PatternsExtraMissing as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
     from tes.intelligence.cache import get_or_compute_intelligence
     from tes.store import resolve_db_path
 
-    print("Computing session patterns...", flush=True)
+    # verbose output goes to stdout; --json must leave stdout as the one document.
+    if not json_mode:
+        print("Computing session patterns...", flush=True)
     cache = get_or_compute_intelligence(
         db_path=resolve_db_path(db_path),
         force_recompute=force_recompute,
-        verbose=True,
+        verbose=not json_mode,
     )
+
+    if json_mode:
+        emit(patterns_payload(cache))
+        return EXIT_OK
 
     if not cache.get("valid"):
         print(f"\n{cache.get('status', 'Pattern analysis unavailable.')}")
+        legacy_line = excluded_note(int(cache.get("legacy_rows_excluded") or 0), "this analysis")
+        if legacy_line:
+            print(legacy_line)
         if cache.get("n_sessions") is not None:
             print(
                 f"Content sessions: {cache['n_sessions']} (need {cache.get('n_content_sessions_needed', 30)}+)"
             )
-        return
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -704,6 +801,9 @@ def _run_patterns(
         f"silhouette={cache['silhouette']:.3f}  |  {'stable' if cache['stable'] else 'variable'}"
     )
     print(f"  {cache['status']}")
+    legacy_line = excluded_note(int(cache.get("legacy_rows_excluded") or 0), "this analysis")
+    if legacy_line:
+        print(f"  {legacy_line}")
     print()
     print("ARCHETYPES (measured behavioral patterns — not quality labels):")
     for a in cache["archetypes"]:
@@ -735,9 +835,10 @@ def _run_patterns(
     print(
         "\nTip: 'tes ask \"<question>\"' to ask questions about these patterns in plain language."
     )
+    return EXIT_OK
 
 
-def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
+def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool = False) -> int:
     """Handle `tes impact` -- corpus-wide code-impact reconstruction from
     persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
     counts only; AB3.2: the untested-tool-shape and prior-content-unknown
@@ -752,12 +853,19 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     rows = list_sessions(conn, limit=5000, offset=0)
     conn.close()
 
-    report = compute_impact_report(rows, top_n=top_n)
+    # Legacy rows (pre-0.15 accounting) stay out of every aggregate and are counted instead.
+    current_rows, legacy_excluded = partition_legacy(rows)
+    report = compute_impact_report(current_rows, top_n=top_n, legacy_rows_excluded=legacy_excluded)
+    legacy_line = excluded_note(legacy_excluded, "these figures")
+
+    if json_mode:
+        emit(impact_payload(report, top_n))
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
@@ -773,8 +881,10 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
             )
         else:
             print("\nNo sessions found in this store.")
+        if legacy_line:
+            print(f"\n{legacy_line}")
         print(sep)
-        return
+        return EXIT_OK
 
     print(
         f"\n{report.total_operations} edit operation(s) across "
@@ -787,6 +897,8 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
         )
     )
     print(f"  +{report.total_additions} / -{report.total_deletions} lines")
+    if legacy_line:
+        print(f"  {legacy_line}")
 
     if report.prior_content_unknown_pct is not None:
         print(
@@ -819,6 +931,23 @@ def _run_impact(*, db_path: str | None = None, top_n: int = 10) -> None:
             )
 
     print(sep)
+    return EXIT_OK
+
+
+def _print_ask_legacy_note(db_path: str | None) -> None:
+    """Say how many legacy sessions `ask` left out of the numbers it answered from."""
+    from tes.legacy import count_legacy
+    from tes.store import open_db, resolve_db_path
+
+    try:
+        conn = open_db(resolve_db_path(db_path))
+        n = count_legacy(conn)
+        conn.close()
+    except Exception:  # noqa: BLE001 -- a note about exclusions must never fail the answer
+        return
+    note = excluded_note(n, "the numbers above")
+    if note:
+        print(f"({note})")
 
 
 def _run_ask(
@@ -831,6 +960,12 @@ def _run_ask(
     force_recompute: bool = False,
 ) -> None:
     """Handle `tes ask "<question>"` — the conversational explainer."""
+    try:
+        require_patterns_extra()
+    except PatternsExtraMissing as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        sys.exit(EXIT_USAGE)
+
     from tes.intelligence.chat import (
         CHAT_EGRESS_NOTICE,
         ChatApiConfig,
@@ -850,6 +985,7 @@ def _run_ask(
         if answer:
             print(f"\n{answer}\n")
             print("(answered from measured metrics — local Ollama)")
+            _print_ask_legacy_note(db_path)
             return
 
         # Local unavailable — offer API if key is present
@@ -902,17 +1038,68 @@ def _run_ask(
     if answer:
         print(f"\n{answer}\n")
         print(f"(answered from measured metrics — {api_model})")
+        _print_ask_legacy_note(db_path)
     else:
         print("[ERROR] API call failed. Check your key and try again.", file=sys.stderr)
+
+
+def _run_rescore(
+    *,
+    db_path: str | None = None,
+    dry_run: bool = False,
+    limit: int | None = None,
+    json_mode: bool = False,
+) -> int:
+    """Handle `tes rescore` -- re-score LEGACY rows from their source transcripts.
+
+    Rows whose transcript is gone are left exactly as they are (counted, never touched). Exit 4
+    when any readable row failed to re-score (the others still were), 1 when there is no usable
+    store, else 0.
+    """
+    from tes.store import backfill_waste, resolve_db_path
+
+    resolved = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    if limit is not None and limit < 1:
+        print("[ERROR] --limit must be at least 1.", file=sys.stderr)
+        return EXIT_USAGE
+    if not resolved.exists():
+        print(f"[ERROR] No TES store at {resolved}.", file=sys.stderr)
+        return EXIT_USAGE
+    try:
+        summary = backfill_waste(resolved, only_legacy=True, dry_run=dry_run, limit=limit)
+    except Exception as exc:
+        print(f"[ERROR] Cannot rescore the TES store: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+
+    if json_mode:
+        emit(rescore_payload(summary, dry_run=dry_run, limit=limit))
+        return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
+
+    verb = "would be rescored" if dry_run else "rescored"
+    print(
+        f"{'DRY RUN -- nothing written. ' if dry_run else ''}Legacy sessions: {summary['legacy_rows']}"
+    )
+    print(f"  {verb}:{' ' * (24 - len(verb))}{summary['refreshed']}")
+    print(f"  skipped (source missing):  {summary['missing_source']}")
+    print(f"  skipped (empty stub):      {summary['skipped_stub']}")
+    print(f"  failed (parse error):      {summary['errors']}")
+    if limit is not None:
+        print(f"  not attempted (--limit):   {summary['not_attempted']}")
+    if summary["missing_source"]:
+        print("  Rows whose transcript is gone were left exactly as they were.")
+    if summary["skipped_stub"]:
+        print("  Empty stubs (0 turns, 0 tokens) have nothing to rescore: marked current.")
+    return EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK
 
 
 def _run_budget(
     *,
     db_path: str | None = None,
     window_days: int = 7,
-) -> None:
+    json_mode: bool = False,
+) -> int:
     """Handle `tes budget` — rolling-window pace + honest self-trend projection."""
-    from tes.budget import compute_budget_projection
+    from tes.budget import compute_budget_projection, legacy_rows_excluded_in_window
     from tes.store import open_db, resolve_db_path
 
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
@@ -920,23 +1107,42 @@ def _run_budget(
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     projection = compute_budget_projection(conn, window_days=window_days)
+    legacy_excluded = legacy_rows_excluded_in_window(conn, window_days)
     conn.close()
+
+    if json_mode:
+        emit(budget_payload(projection, window_days, legacy_excluded))
+        return EXIT_OK
+
+    legacy_note = (
+        f"({legacy_excluded} legacy session{'s' if legacy_excluded != 1 else ''} in this window "
+        "left out: pre-0.15 accounting overcounted ~2x. `tes rescore` recovers those whose "
+        "transcript still exists.)"
+        if legacy_excluded
+        else ""
+    )
 
     if projection is None:
         print(
-            f"No sessions with cost data in the last {window_days} days — nothing to project yet."
+            f"No sessions with current cost data in the last {window_days} days — "
+            "nothing to project yet."
         )
-        return
+        if legacy_note:
+            print(legacy_note)
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
     print("BUDGET / PACE")
     print(sep)
     print(f"\n{projection.message}\n")
+    if legacy_note:
+        print(f"{legacy_note}\n")
     print(sep)
+    return EXIT_OK
 
 
 def _run_cost(
@@ -947,7 +1153,8 @@ def _run_cost(
     since: str | None = None,
     roi: bool = False,
     plan_config: str | None = None,
-) -> None:
+    json_mode: bool = False,
+) -> int:
     """Handle `tes cost` -- a period-scoped spend REPORT (total, session
     count, per-project breakdown), distinct from `tes budget`'s rolling
     self-trend PROJECTION. See tes/cost_period.py's module docstring for why
@@ -960,35 +1167,54 @@ def _run_cost(
         period_start, period_end, period_label = resolve_period(week=week, month=month, since=since)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
+
+    # An explicitly named plan file that does not exist is a usage error, not "no plan configured"
+    # (that message is for the default location, which a new user legitimately lacks).
+    if roi and plan_config is not None and not Path(plan_config).expanduser().is_file():
+        print(f"[ERROR] --plan-config: no such file: {plan_config}", file=sys.stderr)
+        return EXIT_USAGE
 
     resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
     try:
         conn = open_db(resolved_db)
     except Exception as exc:
         print(f"[ERROR] Cannot open TES store: {exc}", file=sys.stderr)
-        return
+        return EXIT_USAGE
 
     report = compute_period_cost(conn, period_start, period_end, period_label=period_label)
     conn.close()
+
+    if json_mode:
+        emit(cost_payload(report, cost_roi_payload(report, plan_config) if roi else None))
+        return EXIT_OK
 
     sep = "─" * 70
     print(f"\n{sep}")
     print(f"COST -- {report.period_label}")
     print(sep)
 
-    if report.session_count == 0 and report.sessions_missing_cost == 0:
+    if (
+        report.session_count == 0
+        and report.sessions_missing_cost == 0
+        and report.legacy_rows_excluded == 0
+    ):
         print(
             f"\nNo sessions found in this period ({report.period_start.date()} "
             f"to {report.period_end.date()})."
         )
         print(sep)
-        return
+        return EXIT_OK
 
     print(
-        f"\nTotal: ${report.total_usd:.2f}  ({report.session_count} session"
-        f"{'s' if report.session_count != 1 else ''})"
+        f"\nTotal: {format_cost_display(report.total_usd, report.unpriced_models)}  "
+        f"({report.session_count} session{'s' if report.session_count != 1 else ''})"
     )
+    if report.unpriced_models:
+        print(
+            "  (priced subtotal only: turns of the unpriced model(s) below are NOT in this "
+            "figure -- the real total is higher)"
+        )
     if report.sessions_missing_cost:
         print(
             f"  ({report.sessions_missing_cost} additional session"
@@ -997,25 +1223,42 @@ def _run_cost(
             "data yet -- excluded from the total above, not counted as $0)"
         )
 
+    if report.legacy_rows_excluded:
+        n = report.legacy_rows_excluded
+        print(
+            f"\n{LEGACY_LABEL}: ${report.legacy_total_usd:,.2f} across {n} session"
+            f"{'s' if n != 1 else ''} -- NOT included in the total above; shown only as history. "
+            "`tes rescore` recovers those whose transcript still exists."
+        )
+
     if report.by_project:
         print("\nBy project:")
         for b in report.by_project:
+            amount = format_cost_display(b.total_usd, b.unpriced_models)
             print(
-                f"  {b.project_label:<40}  ${b.total_usd:>8.2f}  ({b.session_count} session"
+                f"  {b.project_label:<40}  {amount:>8}  ({b.session_count} session"
                 f"{'s' if b.session_count != 1 else ''})"
             )
 
     # XX1.3: unpriced coverage -- always shown, not gated behind --roi.
     sess_cov = report.session_coverage_pct
     tok_cov = report.token_coverage_pct
-    if sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0)):
-        print(
-            f"\nPriced coverage: {sess_cov:.0f}% of sessions"
-            + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else "")
-        )
+    if report.unpriced_models or (
+        sess_cov is not None and (sess_cov < 100.0 or (tok_cov is not None and tok_cov < 100.0))
+    ):
+        if sess_cov is not None:
+            print(
+                f"\nPriced coverage: {sess_cov:.0f}% of sessions"
+                + (f", {tok_cov:.0f}% of tokens" if tok_cov is not None else "")
+            )
         if report.unpriced_models:
-            models_str = ", ".join(report.unpriced_models)
-            print(f"  Unpriced model(s): {models_str}")
+            print(f"  {format_unpriced(report.unpriced_models)}")
+            print(
+                f"  ({report.sessions_unpriced} session"
+                f"{'s' if report.sessions_unpriced != 1 else ''} not fully priced, "
+                f"{report.tokens_unpriced:,} tokens: a session with any unpriced turn "
+                "counts as unpriced in full)"
+            )
         if report.unpriced_models_incomplete:
             print("  (some unpriced sessions predate model tracking -- can't name their model)")
 
@@ -1023,6 +1266,7 @@ def _run_cost(
         _print_cost_roi(report, plan_config)
 
     print(sep)
+    return EXIT_OK
 
 
 def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
@@ -1061,10 +1305,20 @@ def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
         f"ROI: ${result.api_equivalent_usd:.2f} API-equivalent / "
         f"${result.plan_cost_usd:.2f} plan cost = {result.multiple:.1f}x"
     )
+    if report.legacy_rows_excluded:
+        print(
+            f"  (corrected spend only: {report.legacy_rows_excluded} legacy session(s) are "
+            "excluded, so the multiple is a floor.)"
+        )
     print(
         "  (API-equivalent value at measured token rates, not a bill you'd "
         "actually pay under a flat plan.)"
     )
+    if report.unpriced_models:
+        print(
+            f"  (API-equivalent excludes {format_unpriced(report.unpriced_models)} -- "
+            "the multiple is a floor.)"
+        )
 
 
 def _run_monitor(
@@ -1073,45 +1327,90 @@ def _run_monitor(
     db_path: str | None = None,
     stability_window: int = 300,
     plan_type: str = "usage_based",
-) -> None:
-    """Handle `tes monitor` — one-shot live check of the currently active session."""
-    from tes.alarm import AlarmConfig, check_alarm
+    json_mode: bool = False,
+) -> int:
+    """Handle `tes monitor` — one-shot live check of the currently active session.
+
+    Returns EXIT_ALARM when the alarm fires, else EXIT_OK (including "no active session": an
+    idle machine is not a failure for a hook that calls this between sessions).
+    """
+    from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
     from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
     from tes.live_monitor import find_active_session, score_live_session
-    from tes.self_baseline import load_or_compute
+    from tes.self_baseline import SelfBaselineState
     from tes.store import resolve_db_path
 
     cc_path = _resolve_cc_path(cc_path_arg)
     active = find_active_session(cc_path, stability_window)
     if active is None:
-        print(
-            f"No active session detected under {cc_path} "
-            f"(nothing modified in the last {stability_window}s)."
-        )
-        return
+        if json_mode:
+            emit(monitor_payload("no_active_session", str(cc_path)))
+        else:
+            print(
+                f"No active session detected under {cc_path} "
+                f"(nothing modified in the last {stability_window}s)."
+            )
+        return EXIT_OK
 
     live = score_live_session(active, _PRICES)
     if live is None:
-        print(f"Active session found ({active.name}) but not enough data to score yet.")
-        return
+        if json_mode:
+            emit(monitor_payload("insufficient_data", str(cc_path), source_path=str(active)))
+        else:
+            print(f"Active session found ({active.name}) but not enough data to score yet.")
+        return EXIT_OK
+
+    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
+    baselines = load_baselines(BUNDLED_BASELINES_PATH)
+    config = AlarmConfig(enabled=True, plan_type=plan_type)
+    threshold = threshold_for_live(live, resolved_db, baselines, config)
+    alarm = check_alarm(live, SelfBaselineState(), config, threshold)
+
+    if json_mode:
+        emit(
+            monitor_payload(
+                "ok",
+                str(cc_path),
+                live=live,
+                alarm=alarm,
+                threshold=threshold,
+                legacy_rows_excluded=_db_legacy_count(resolved_db),
+            )
+        )
+        return EXIT_ALARM if alarm is not None else EXIT_OK
 
     print(f"Session: {live.session_id}  ({live.task_type})")
-    print(f"  ~${live.live_cost_usd:.2f} (estimated, in progress)")
+    live_cost = format_cost_display(live.live_cost_usd, live.live_unpriced_models, approx=True)
+    print(f"  {live_cost} (estimated, in progress)")
     print(f"  ~{live.live_context_tokens:,} context tokens (estimated, in progress)")
     print(f"  {live.live_resend_ratio * 100:.0f}% context re-send (measured)")
     print(f"\n{live.domain_of_validity}")
 
-    resolved_db = Path(db_path).expanduser() if db_path else resolve_db_path(None)
-    baselines = load_baselines(BUNDLED_BASELINES_PATH)
-    self_bl = load_or_compute(resolved_db, baselines)
-    config = AlarmConfig(enabled=True, plan_type=plan_type)
-    alarm = check_alarm(live, self_bl, config)
     if alarm is not None:
         print(f"\n[ALARM] {alarm.message}")
+        return EXIT_ALARM
+    if threshold.status != "active":
+        print(f"\nNo alarm: {threshold.reason}.")
     else:
-        print(
-            "\nNo alarm (measured thresholds not tripped, or baseline still building for this type)."
-        )
+        print(f"\nNo alarm (threshold: {threshold.reason}).")
+    return EXIT_OK
+
+
+# Commands that open the store: the first run after an upgrade tells the user about legacy rows.
+# (`rescore` and `backfill-waste` are the fix, `quickstart` never reads the store.)
+_STORE_COMMANDS = frozenset(
+    {
+        "score",
+        "cost",
+        "budget",
+        "monitor",
+        "serve",
+        "impact",
+        "patterns",
+        "ask",
+        "export-contribution",
+    }
+)
 
 
 def main() -> None:
@@ -1130,10 +1429,21 @@ def main() -> None:
         action="version",
         version=f"%(prog)s {__version__}",
     )
+    parser.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help=(
+            "Suppress the one-time notice about stored sessions from an older version "
+            "(same as TES_NO_NOTICE=1). Goes before the command: tes --quiet cost --week."
+        ),
+    )
     sub = parser.add_subparsers(dest="command")
 
     score_p = sub.add_parser(
         "score",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
         help="Score CC session log(s).",
         description=(
             "Score one or more Claude Code session JSONL files. "
@@ -1235,12 +1545,17 @@ def main() -> None:
     backfill_p = sub.add_parser(
         "backfill-waste",
         help="Re-run frozen detectors on all stored sessions; fix stale waste counts.",
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
         description=(
             "Re-run REPEATED-FAILED-RETRY and REDUNDANT-READ detectors on every session "
             "in the store whose source file is accessible, embed per-event wasted_cost_usd "
             "(redundant turns only, P5 cost model), and write correct waste_event_count + "
             "waste_events to the store. Fixes the stale-zeros bug from sessions scored "
-            "before waste detection was fully wired. Detectors are frozen (byte-verbatim)."
+            "before waste detection was fully wired. Detectors are frozen (byte-verbatim). "
+            "Also re-scores rows whose token counts came from the pre-dedupe adapter "
+            "(Claude Code writes one record per content block, each repeating the response's "
+            "usage; those rows were counted ~2.4x too high): real_tokens, cost and the verdict "
+            "band are refreshed from the source transcript."
         ),
     )
     backfill_p.add_argument(
@@ -1249,6 +1564,46 @@ def main() -> None:
         dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+
+    rescore_p = sub.add_parser(
+        "rescore",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ADAPT_ERROR),
+        help="Re-score legacy (pre-0.15 accounting) sessions from their source transcripts.",
+        description=(
+            "Re-score every stored session written before usage de-duplication / 1-hour cache "
+            "pricing whose source transcript still exists, with the current adapter and price "
+            "table. Rows whose transcript is gone are left untouched (and stay excluded from "
+            "baselines, the alarm, budget and cost totals). Idempotent: a second run changes "
+            "nothing. Waste events are re-detected for the rescored rows; judge verdicts are kept."
+        ),
+    )
+    rescore_p.add_argument(
+        "--db-path",
+        default=None,
+        dest="db_path",
+        metavar="PATH",
+        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    rescore_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Compute and report what would change; open the store read-only and write nothing.",
+    )
+    rescore_p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Re-score at most N sessions this run (most recently written first).",
+    )
+    rescore_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (counts) instead of text.",
     )
 
     serve_p = sub.add_parser(
@@ -1417,6 +1772,8 @@ def main() -> None:
 
     patterns_p = sub.add_parser(
         "patterns",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Show the session archetypes and anomaly summary (ML pattern analysis).",
         description=(
             "Run or display the ML pattern analysis: validated clustering of your session corpus "
@@ -1436,9 +1793,17 @@ def main() -> None:
         action="store_true",
         help="Force re-computation even if a fresh cache exists.",
     )
+    patterns_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, valid, status, analysis) instead of text.",
+    )
 
     impact_p = sub.add_parser(
         "impact",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Code-impact reconstruction: additions/deletions, churn ranking, from Edit/Write payloads.",
         description=(
             "Corpus-wide, from Edit/Write/MultiEdit/NotebookEdit tool-call payloads persisted at "
@@ -1453,6 +1818,12 @@ def main() -> None:
         dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    impact_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, counts, top files/directories) instead of text.",
     )
     impact_p.add_argument(
         "--top",
@@ -1512,6 +1883,8 @@ def main() -> None:
 
     budget_p = sub.add_parser(
         "budget",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Show your rolling-window spend pace and an honest self-trend projection.",
         description=(
             "Rolling-window spend/token pace tracking. The projection is YOUR OWN trend, "
@@ -1526,6 +1899,12 @@ def main() -> None:
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
     )
     budget_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, pace, projection, priced) instead of text.",
+    )
+    budget_p.add_argument(
         "--window-days",
         type=int,
         default=7,
@@ -1536,6 +1915,8 @@ def main() -> None:
 
     cost_p = sub.add_parser(
         "cost",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2),
         help="Spend report for a period: total, session count, per-project breakdown.",
         description=(
             "A period-scoped spend REPORT (what you actually spent), distinct from "
@@ -1549,6 +1930,12 @@ def main() -> None:
         dest="db_path",
         metavar="PATH",
         help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+    )
+    cost_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, totals, by_project, priced, roi) instead of text.",
     )
     cost_period_group = cost_p.add_mutually_exclusive_group(required=True)
     cost_period_group.add_argument(
@@ -1586,6 +1973,8 @@ def main() -> None:
 
     monitor_p = sub.add_parser(
         "monitor",
+        formatter_class=ExitCodeHelpFormatter,
+        epilog=epilog(EXIT_OK, EXIT_USAGE, 2, EXIT_ALARM),
         help="One-shot live check of the currently active (in-progress) CC session.",
         description=(
             "Score the session currently being written, print its estimated cost/context "
@@ -1621,8 +2010,19 @@ def main() -> None:
         choices=["usage_based", "max"],
         help="Billing plan, for alarm display emphasis only (default: usage_based).",
     )
+    monitor_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",
+        help="Print one JSON document (schema_version, status, live figures, alarm) instead of text.",
+    )
 
     args = parser.parse_args()
+    if args.command in _STORE_COMMANDS or args.command is None:
+        # stderr, once per store per version; never raises, never blocks (see tes.legacy).
+        from tes.legacy import maybe_notify
+
+        maybe_notify(getattr(args, "db_path", None), quiet=args.quiet)
     if args.command is None:
         # Bare `tes` does the obvious useful thing: launch the dashboard.
         # (`tes --help` still shows help; `tes <unknown>` still errors via argparse.)
@@ -1640,9 +2040,16 @@ def main() -> None:
         )
         sample_path = resources.files("tes.data") / "quickstart_sample_session.jsonl"
         with resources.as_file(sample_path) as concrete_path:
-            score_path(
-                concrete_path, load_baselines(), JudgeConfig(), use_judge=False, json_mode=False
-            )
+            try:
+                score_path(
+                    concrete_path,
+                    load_baselines(),
+                    JudgeConfig(),
+                    use_judge=False,
+                    json_mode=False,
+                )
+            except SessionAdaptError:
+                sys.exit(EXIT_ADAPT_ERROR)
         print(
             "Example -- what TRAJECTORY QUALITY looks like with a judge configured\n"
             "(illustrative only: a fixed example, not computed from this session --\n"
@@ -1670,10 +2077,31 @@ def main() -> None:
         print(f"  Sessions with waste written: {summary['updated']}")
         print(f"  Sessions confirmed 0-waste:  {summary['no_waste']}")
         print(f"  Source files not accessible: {summary['missing_source']}")
-        print(f"  Errors (skipped):            {summary['errors']}")
+        print(f"  Errors (left unchanged):     {summary['errors']}")
+        print(f"  Rows re-scored (pre-dedupe usage): {summary['refreshed']}")
         total_processed = summary["updated"] + summary["no_waste"]
         print(f"  Total processed: {total_processed}")
-        sys.exit(0)
+        print(
+            f"  Summary: rescored: {summary['refreshed']}, "
+            f"skipped (source missing): {summary['missing_source']}, "
+            f"failed: {summary['errors']}"
+        )
+        if summary["errors"]:
+            print(
+                "  A failed row (transcript has no usage records, is unreadable, or its cost "
+                "could not be computed) was left exactly as it was."
+            )
+        sys.exit(EXIT_ADAPT_ERROR if summary["errors"] else EXIT_OK)
+
+    if args.command == "rescore":
+        sys.exit(
+            _run_rescore(
+                db_path=args.db_path,
+                dry_run=args.dry_run,
+                limit=args.limit,
+                json_mode=args.json_mode,
+            )
+        )
 
     if args.command == "serve":
         _run_serve(
@@ -1689,28 +2117,35 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "budget":
-        _run_budget(db_path=args.db_path, window_days=args.window_days)
-        sys.exit(0)
+        sys.exit(
+            _run_budget(
+                db_path=args.db_path, window_days=args.window_days, json_mode=args.json_mode
+            )
+        )
 
     if args.command == "cost":
-        _run_cost(
-            db_path=args.db_path,
-            week=args.week,
-            month=args.month,
-            since=args.since,
-            roi=args.roi,
-            plan_config=args.plan_config,
+        sys.exit(
+            _run_cost(
+                db_path=args.db_path,
+                week=args.week,
+                month=args.month,
+                since=args.since,
+                roi=args.roi,
+                plan_config=args.plan_config,
+                json_mode=args.json_mode,
+            )
         )
-        sys.exit(0)
 
     if args.command == "monitor":
-        _run_monitor(
-            cc_path_arg=args.cc_path,
-            db_path=args.db_path,
-            stability_window=args.stability_window,
-            plan_type=args.plan_type,
+        sys.exit(
+            _run_monitor(
+                cc_path_arg=args.cc_path,
+                db_path=args.db_path,
+                stability_window=args.stability_window,
+                plan_type=args.plan_type,
+                json_mode=args.json_mode,
+            )
         )
-        sys.exit(0)
 
     if args.command == "export-contribution":
         from datetime import date as _date
@@ -1741,7 +2176,14 @@ def main() -> None:
             sys.exit(1)
 
         if payload.manifest.row_count == 0:
-            print("No sessions found in store. Run `tes score` or `tes serve` first.")
+            if payload.manifest.legacy_rows_excluded:
+                print(
+                    f"No current sessions to export: {payload.manifest.legacy_rows_excluded} "
+                    "legacy session(s) were left out (overcounted ~2x). "
+                    "Run `tes rescore` or score new sessions."
+                )
+            else:
+                print("No sessions found in store. Run `tes score` or `tes serve` first.")
             conn.close()
             sys.exit(0)
 
@@ -1781,6 +2223,8 @@ def main() -> None:
                     fh.write(json.dumps(row) + "\n")
             print(f"\nWritten: {out_path}")
             print(f"  {payload.manifest.row_count} row(s)")
+            if payload.manifest.legacy_rows_excluded:
+                print(f"  {payload.manifest.legacy_rows_excluded} legacy session(s) left out")
             print("  Open the file to inspect it. Nothing has been transmitted.")
         except Exception as exc:
             print(f"[ERROR] Failed to write file: {exc}", file=sys.stderr)
@@ -1795,15 +2239,16 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "patterns":
-        _run_patterns(
-            db_path=args.db_path,
-            force_recompute=args.recompute,
+        sys.exit(
+            _run_patterns(
+                db_path=args.db_path,
+                force_recompute=args.recompute,
+                json_mode=args.json_mode,
+            )
         )
-        sys.exit(0)
 
     if args.command == "impact":
-        _run_impact(db_path=args.db_path, top_n=args.top_n)
-        sys.exit(0)
+        sys.exit(_run_impact(db_path=args.db_path, top_n=args.top_n, json_mode=args.json_mode))
 
     if args.command == "ask":
         import os as _os
@@ -1929,20 +2374,33 @@ def main() -> None:
     except Exception:
         pass
 
+    failed: list[Path] = []
     try:
         for sp in session_paths:
-            _score_path_with_api_judge(
-                sp,
-                baselines,
-                judge_config,
-                use_local_judge,
-                args.json_mode,
-                store_conn=store_conn,
-                api_judge_config=api_judge_config,
-                api_judge_consent=api_judge_consent,
-            )
+            try:
+                _score_path_with_api_judge(
+                    sp,
+                    baselines,
+                    judge_config,
+                    use_local_judge,
+                    args.json_mode,
+                    store_conn=store_conn,
+                    api_judge_config=api_judge_config,
+                    api_judge_consent=api_judge_consent,
+                )
+            except SessionAdaptError:
+                # Already reported on stderr; keep scanning the rest, fail at the end.
+                failed.append(sp)
             if not args.json_mode and len(session_paths) > 1:
                 print()
     finally:
         if store_conn is not None:
             store_conn.close()
+
+    if failed:
+        print(
+            f"[ERROR] {len(failed)} of {len(session_paths)} session(s) could not be parsed: "
+            + ", ".join(str(f) for f in failed),
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_ADAPT_ERROR)

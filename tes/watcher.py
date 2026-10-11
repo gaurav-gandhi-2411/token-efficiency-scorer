@@ -3,7 +3,8 @@ from __future__ import annotations
 """tes/watcher.py — Background scan loop for auto-scoring finished CC sessions.
 
 Trigger: scheduled-scan + file-stability (sole P2 mechanism).
-- Scans cc_path recursively for *.jsonl files.
+- Scans cc_path recursively for *.jsonl files (subagent transcripts excluded; their
+  usage is rolled up into the parent session by tes.adapt).
 - Skips files modified within the stability window (not yet "finished").
 - Skips sessions already scored with the same file hash (incremental ledger).
 - Scores token + waste axes via the unchanged P1 pipeline.
@@ -26,9 +27,10 @@ from typing import Any
 
 from tes._digest import reconstruct_digest
 from tes.adapt import adapt_session
-from tes.alarm import AlarmConfig, check_alarm
+from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
 from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import SessionCost, compute_session_cost, load_price_table
+from tes.discovery import iter_session_files
 from tes.live_monitor import find_active_session, score_live_session
 from tes.score import ThreeAxisResult, score_session
 from tes.self_baseline import load_or_compute
@@ -157,7 +159,7 @@ def _scan_once(
         logger.debug("cc_path %s does not exist — skipping scan", config.cc_path)
         return 0
 
-    for jsonl_path in config.cc_path.rglob("*.jsonl"):
+    for jsonl_path in iter_session_files(config.cc_path):
         try:
             mtime = jsonl_path.stat().st_mtime
         except OSError:
@@ -207,6 +209,8 @@ def _check_live_alarm(
     config: WatcherConfig,
     self_baseline,
     prices: dict,
+    db_path: Path | None = None,
+    baselines: dict[str, Any] | None = None,
 ) -> None:
     """One-shot live-monitor + alarm check for the currently active session.
 
@@ -224,7 +228,10 @@ def _check_live_alarm(
         if live is None:
             return
         alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
-        result = check_alarm(live, self_baseline, alarm_cfg)
+        threshold = (
+            threshold_for_live(live, db_path, baselines, alarm_cfg) if db_path is not None else None
+        )
+        result = check_alarm(live, self_baseline, alarm_cfg, threshold)
         if result is not None:
             logger.warning("[ALARM] %s", result.message)
             print(f"[ALARM] {result.message}", file=sys.stderr)
@@ -263,7 +270,7 @@ def run_watcher(
             count = _scan_once(config, conn, baselines, self_baseline=self_bl, prices=prices)
             if count:
                 logger.info("Scan complete: %d session(s) scored", count)
-            _check_live_alarm(config, self_bl, prices)
+            _check_live_alarm(config, self_bl, prices, db_path, baselines)
         except Exception:
             logger.exception("Scan cycle error — continuing")
 

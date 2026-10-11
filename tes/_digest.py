@@ -21,7 +21,7 @@ wheel does not depend on the repo's src/ tree.
 These are internal to the tes package — not part of the public API.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -43,9 +43,29 @@ class TurnDigest:
     # non-empty. None when the field was absent/empty on this turn's raw
     # usage dict -- distinct from an empty dict, though tes.adapt never
     # actually produces an empty dict (see adapt.py's _parse_usage). Cost
-    # computation (tes.cost) reads this to warn that server-side tool
-    # billing is not reflected in total_usd, never to price it.
+    # computation (tes.cost) prices web_search_requests from it and warns that
+    # the kinds it cannot price (code execution) are not reflected in total_usd.
     server_tool_use: dict[str, int] | None = None
+    # API requests this turn stands for: 1 for a real turn, >1 for an aggregated subagent
+    # turn (tes.adapt.collect_subagent_usage). tes.cost needs it because tiered models
+    # bill per request, which an aggregate no longer shows.
+    request_count: int = 1
+    # Cache-write tier split (usage.cache_creation.ephemeral_{5m,1h}_input_tokens, a subset
+    # breakdown of cache_creation). cache_creation_1h = tokens written with the 1-hour TTL
+    # (billed 2x input); cache_creation_tier_known = tokens of cache_creation covered by a
+    # transcript record that carried the breakdown. The rest (cache_creation -
+    # cache_creation_tier_known) is of unspecified tier and is priced at the 5-minute rate,
+    # the documented conservative default. Both 0 on records stored before this field existed.
+    cache_creation_1h: int = 0
+    cache_creation_tier_known: int = 0
+    # Per-request billing modifiers from usage.speed / usage.inference_geo, normalised by
+    # tes.adapt._parse_billing_modifiers: speed is "fast" or "" (standard/absent), inference_geo
+    # is "us" or "" (global/not_available/absent). They scale the WHOLE request, so a main-chain
+    # turn (one request) carries its own and an aggregated subagent turn is only ever built
+    # from requests sharing the same pair (tes.adapt.collect_subagent_usage). "" on records
+    # stored before these fields existed, which therefore price exactly as before.
+    speed: str = ""
+    inference_geo: str = ""
 
 
 @dataclass
@@ -63,6 +83,20 @@ class SessionDigest:
     output_tokens_available: bool  # True when per-turn output tokens are recorded
     task_description: str  # first user turn content, first 800 chars
     turns: list[TurnDigest]  # all turns, ordered by turn_index
+    # Subagent usage rolled up into this (parent) session: one AI-role TurnDigest per
+    # (subagent file, model). Deliberately NOT part of `turns` -- waste detection, the judge
+    # text and the real_tokens verdict stay main-chain; tes.cost and tes.attribution add
+    # these on top. Empty for sessions without subagents and for records stored before
+    # this field existed.
+    subagent_turns: list[TurnDigest] = field(default_factory=list)
+    subagent_count: int = 0  # number of subagent transcripts that contributed usage
+    # Usage de-duplication (adapter_version 2): Claude Code writes one assistant record per
+    # content block of an API response, each repeating the response's usage; tes.adapt counts
+    # each distinct message.id once. usage_records = main-chain assistant records that carried
+    # a usage dict; usage_records_deduped = distinct responses among them (0/0 on digests
+    # stored before this field existed). duplicates = usage_records - usage_records_deduped.
+    usage_records: int = 0
+    usage_records_deduped: int = 0
 
 
 def reconstruct_digest(d: dict) -> SessionDigest:
@@ -72,9 +106,10 @@ def reconstruct_digest(d: dict) -> SessionDigest:
     defaulting the field to False when absent (safe: swe_agent sessions lack it).
     """
     turns = [TurnDigest(**t) for t in d["turns"]]
-    fields = {k: v for k, v in d.items() if k != "turns"}
+    subagent_turns = [TurnDigest(**t) for t in d.get("subagent_turns", [])]
+    fields = {k: v for k, v in d.items() if k not in ("turns", "subagent_turns")}
     fields.setdefault("output_tokens_available", False)
-    return SessionDigest(**fields, turns=turns)
+    return SessionDigest(**fields, turns=turns, subagent_turns=subagent_turns)
 
 
 def digest_to_text(digest: SessionDigest) -> str:

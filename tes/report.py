@@ -11,8 +11,16 @@ import json
 import textwrap
 from typing import Any
 
+from tes.json_out import SCHEMA_VERSION as JSON_SCHEMA_VERSION
 from tes.score import ThreeAxisResult
-from tes.web.cost_format import format_cost_usd, format_cost_vs_baseline, format_price_provenance
+from tes.takeaway import BREAKDOWN_NOTE, format_cost_breakdown_lines
+from tes.web.cost_format import (
+    format_cost_display,
+    format_cost_usd,
+    format_cost_vs_baseline,
+    format_price_provenance,
+    format_unpriced,
+)
 
 _WIDTH = 76
 _BORDER = "═" * _WIDTH
@@ -140,18 +148,46 @@ def format_human(
             from tes.cost import load_price_table  # noqa: PLC0415
 
             _prices = load_price_table()
-            provenance_line = format_price_provenance(_prices)
+            provenance_line = format_price_provenance(_prices, result.cost_models)
         except Exception:
             provenance_line = "Prices: see ~/.tes/prices.json or bundled tes/data/prices.json"
 
-        cost_str = format_cost_usd(result.session_cost_usd)
-        vs_str = format_cost_vs_baseline(result.session_cost_usd, baseline_cost_band)
+        cost_str = format_cost_display(result.session_cost_usd, result.unpriced_models)
+        # A partial/absent total is not comparable with a fully-priced baseline.
+        vs_str = (
+            "not comparable: includes unpriced turns"
+            if result.unpriced_models
+            else format_cost_vs_baseline(result.session_cost_usd, baseline_cost_band)
+        )
 
-        if baseline_cost_band is not None:
+        if baseline_cost_band is not None or result.unpriced_models:
             lines.append(f"  Cost:  {cost_str}  ({vs_str})")
         else:
             lines.append(f"  Cost:  {cost_str}  (no baseline cost comparison yet)")
-        lines.append(f"         {provenance_line}")
+        lines.append(
+            textwrap.fill(
+                provenance_line,
+                width=_WIDTH,
+                initial_indent=" " * 9,
+                subsequent_indent=" " * 11,
+            )
+        )
+        if result.unpriced_models:
+            lines.append(
+                f"         [{format_unpriced(result.unpriced_models)}: these models are not in the "
+                "price table, so their turns are EXCLUDED from the figure above — the true "
+                "cost is higher. Add them via TES_PRICE_TABLE or ~/.tes/prices.json.]"
+            )
+        if result.subagent_count:
+            # With unpriced models in play the subagent figure is a priced-part subtotal.
+            sub_cost = format_cost_usd(result.subagent_cost_usd) + (
+                " (priced part)" if result.unpriced_models else ""
+            )
+            lines.append(
+                f"         Includes {result.subagent_count} subagent transcript(s): "
+                f"{result.subagent_tokens:,} tokens, {sub_cost} "
+                "(counted here, not in the TOKEN ECONOMY verdict above)."
+            )
         if result.cost_approximate:
             lines.append(
                 "         [APPROXIMATE: some turns had an unresolvable model and are "
@@ -160,6 +196,8 @@ def format_human(
             )
         for warning in result.cost_server_tool_warnings:
             lines.append(f"         [NOT PRICED: {warning}]")
+        for caveat in result.cost_pricing_caveats:
+            lines.append(f"         [FLOOR: {caveat}]")
 
     lines.append("")
     lines.append(
@@ -168,12 +206,39 @@ def format_human(
             "Flat-plan users: marginal cost differs; token consumption is the honest metric."
         )
     )
+
+    # COST BREAKDOWN: informational dollars per bucket; never a finding (see tes.takeaway).
+    if result.cost_breakdown:
+        bd = result.cost_breakdown
+        lines.append("")
+        lines.append(_section_divider("COST BREAKDOWN"))
+        lines.append(_wrap(f"({bd['label']})"))
+        lines.extend(format_cost_breakdown_lines(bd))
+        if bd["note"]:
+            lines.append(_wrap(f"[{bd['note']}]"))
+        lines.append(_wrap(BREAKDOWN_NOTE))
+
+    # LEVER: only when an absolute finding fires (waste above its threshold, or output >= 40%).
+    if result.lever_hint:
+        lines.append("")
+        lines.append(_section_divider("LEVER"))
+        lines.append(_wrap(result.lever_hint))
     lines.append(_BORDER)
 
     return "\n".join(lines)
 
 
-def format_json(result: ThreeAxisResult) -> str:
-    """Serialize the full ThreeAxisResult to indented JSON."""
-    d: dict[str, Any] = dataclasses.asdict(result)
+def format_json(result: ThreeAxisResult, legacy_rows_excluded: int = 0) -> str:
+    """Serialize the full ThreeAxisResult to indented JSON.
+
+    `command` and `legacy_rows_excluded` follow the envelope every other --json document has.
+    `legacy_rows_excluded` is the store's pre-0.15 row count (0 when no store is open); a single
+    score reads none of them, so it is context, not an adjustment.
+    """
+    d: dict[str, Any] = {
+        "schema_version": JSON_SCHEMA_VERSION,
+        "command": "score",
+        "legacy_rows_excluded": legacy_rows_excluded,
+        **dataclasses.asdict(result),
+    }
     return json.dumps(d, indent=2, ensure_ascii=False)

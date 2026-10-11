@@ -23,8 +23,11 @@ column (unlike `scored_at`'s ISO-string column), so this module compares
 """
 
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+
+from tes.legacy import current_clause, legacy_clause
+from tes.web.cost_format import format_unpriced
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -42,6 +45,13 @@ class BudgetProjection:
     total_usd_so_far: float
     projected_usd_for_window: float
     message: str
+    # Models missing from the price table across the window's sessions (W1A D7): the dollar
+    # figures are then priced-subtotal-only. Empty when everything priced.
+    unpriced_models: list[str] = field(default_factory=list)
+
+    @property
+    def priced(self) -> bool:
+        return not self.unpriced_models
 
 
 def compute_budget_projection(
@@ -53,15 +63,20 @@ def compute_budget_projection(
 
     Returns None when there are no sessions with cost data in the window —
     silence rather than a fabricated $0 projection (nothing to project).
+
+    LEGACY rows (tes.legacy: scored before usage de-duplication / 1-hour cache pricing) are
+    excluded: their dollars are overcounted ~2x, so folding them into a pace would project a
+    spend rate that never happened. Use :func:`legacy_rows_excluded_in_window` for their count.
     """
     now = _now if _now is not None else datetime.now(UTC)
     window_start = now - timedelta(days=window_days)
 
+    current_sql, current_params = current_clause(conn)
     rows = conn.execute(
-        "SELECT source_mtime, session_cost_usd FROM sessions "
-        "WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? "
+        "SELECT source_mtime, session_cost_usd, cost_unpriced_models FROM sessions "
+        f"WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? AND {current_sql} "  # noqa: S608
         "ORDER BY source_mtime ASC",
-        (window_start.timestamp(),),
+        (window_start.timestamp(), *current_params),
     ).fetchall()
 
     if not rows:
@@ -69,6 +84,11 @@ def compute_budget_projection(
 
     total_usd = sum(float(r["session_cost_usd"]) for r in rows)
     session_count = len(rows)
+    unpriced: set[str] = set()
+    for r in rows:
+        if r["cost_unpriced_models"]:
+            unpriced.update(r["cost_unpriced_models"].split(","))
+    unpriced_models = sorted(unpriced)
 
     first_ts = datetime.fromtimestamp(float(rows[0]["source_mtime"]), tz=UTC)
     days_observed = max((now - first_ts).total_seconds() / 86400.0, _MIN_DAYS_OBSERVED)
@@ -76,13 +96,29 @@ def compute_budget_projection(
     daily_rate = total_usd / days_observed
     projected = daily_rate * window_days
 
-    message = (
-        f"At this pace (~${total_usd:.2f} so far across {session_count} session"
-        f"{'s' if session_count != 1 else ''}, {days_observed:.1f} of {window_days} days) "
-        f"you're trending toward ~${projected:.2f} over a {window_days}-day window — "
-        f"based on your last {days_observed:.1f} days, not a forecast of future work; "
-        "work volume varies."
-    )
+    sessions_str = f"{session_count} session{'s' if session_count != 1 else ''}"
+    if unpriced_models and total_usd <= 0:
+        # Nothing priced at all: a "$0.00 trend" would be a lie, so no projection is made.
+        message = (
+            f"Spend so far across {sessions_str} is {format_unpriced(unpriced_models)} -- "
+            "no dollar projection is possible until a price is known for these models "
+            "(set TES_PRICE_TABLE or ~/.tes/prices.json)."
+        )
+        projected = 0.0
+    else:
+        suffix = f" + {format_unpriced(unpriced_models)}" if unpriced_models else ""
+        note = (
+            " The figures are a priced subtotal; the unpriced models' spend is NOT included."
+            if unpriced_models
+            else ""
+        )
+        message = (
+            f"At this pace (~${total_usd:.2f}{suffix} so far across {sessions_str}, "
+            f"{days_observed:.1f} of {window_days} days) "
+            f"you're trending toward ~${projected:.2f}{suffix} over a {window_days}-day window — "
+            f"based on your last {days_observed:.1f} days, not a forecast of future work; "
+            f"work volume varies.{note}"
+        )
 
     return BudgetProjection(
         window_days=window_days,
@@ -91,11 +127,29 @@ def compute_budget_projection(
         total_usd_so_far=round(total_usd, 4),
         projected_usd_for_window=round(projected, 4),
         message=message,
+        unpriced_models=unpriced_models,
     )
+
+
+def legacy_rows_excluded_in_window(
+    conn: sqlite3.Connection,
+    window_days: int = DEFAULT_WINDOW_DAYS,
+    _now: datetime | None = None,
+) -> int:
+    """Legacy rows with cost data inside the window that the projection leaves out."""
+    now = _now if _now is not None else datetime.now(UTC)
+    legacy_sql, legacy_params = legacy_clause(conn)
+    row = conn.execute(
+        "SELECT COUNT(*) FROM sessions "
+        f"WHERE session_cost_usd IS NOT NULL AND source_mtime >= ? AND {legacy_sql}",  # noqa: S608
+        ((now - timedelta(days=window_days)).timestamp(), *legacy_params),
+    ).fetchone()
+    return int(row[0])
 
 
 __all__ = [
     "DEFAULT_WINDOW_DAYS",
     "BudgetProjection",
     "compute_budget_projection",
+    "legacy_rows_excluded_in_window",
 ]

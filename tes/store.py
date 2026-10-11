@@ -19,10 +19,17 @@ import hashlib
 import json
 import os
 import sqlite3
+import time
 from datetime import timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from tes.score import ThreeAxisResult
+from tes.web.cost_format import cost_is_known
+
+if TYPE_CHECKING:
+    from tes._digest import SessionDigest
+    from tes.cost import SessionCost
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -103,6 +110,42 @@ def resolve_db_path(path: Path | str | None = None) -> Path:
     return _DEFAULT_DB
 
 
+def _add_column(conn: sqlite3.Connection, alter_sql: str) -> None:
+    """Run one additive ``ALTER TABLE ... ADD COLUMN``, tolerating a concurrent migrator.
+
+    The watcher and a CLI command can open the same pre-migration store at the same moment;
+    both see the column missing and both ALTER. SQLite lets only one win and raises
+    "duplicate column name" for the other, which used to crash that process. That error means
+    the column exists, which is exactly what this wants, so it is swallowed (nothing else is).
+    """
+    try:
+        conn.execute(alter_sql)
+        conn.commit()
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc):
+            raise
+
+
+def _enable_wal(conn: sqlite3.Connection) -> None:
+    """Switch the store to WAL, tolerating another process doing the same at this moment.
+
+    Changing the journal mode of a not-yet-WAL file needs a lock SQLite's busy handler does not
+    wait on, so two simultaneous first opens (watcher + CLI) made one raise "database is locked".
+    WAL is persistent in the file, so the loser only has to retry (or skip: the winner set it).
+    """
+    for _ in range(40):
+        try:
+            if conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal":
+                return
+            conn.execute("PRAGMA journal_mode=WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc):
+                raise
+            time.sleep(0.05)
+    # Still contended after ~2s: carry on in the current mode; a later open will set WAL.
+
+
 def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     """Open (or create) the TES database.
 
@@ -119,7 +162,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         ) from exc
 
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    _enable_wal(conn)
     conn.row_factory = sqlite3.Row
 
     existing_version: int = conn.execute("PRAGMA user_version").fetchone()[0]
@@ -140,14 +183,13 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # ALTER TABLE is safe to re-run guard: check column presence first.
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()}
     if "turn_count" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN turn_count INTEGER")
 
     if "baseline_source" not in existing_cols:
-        conn.execute(
-            "ALTER TABLE sessions ADD COLUMN baseline_source TEXT NOT NULL DEFAULT 'b2_corpus'"
+        _add_column(
+            conn,
+            "ALTER TABLE sessions ADD COLUMN baseline_source TEXT NOT NULL DEFAULT 'b2_corpus'",
         )
-        conn.commit()
 
     cost_cols = {
         "session_cost_usd": "ALTER TABLE sessions ADD COLUMN session_cost_usd REAL",
@@ -156,8 +198,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in cost_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
 
     # RR1: attribution fractions, persisted at score time so tes.intelligence
     # can cluster ANY scored session without re-reading its source JSONL --
@@ -172,8 +213,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     }
     for col_name, alter_sql in attribution_cols.items():
         if col_name not in existing_cols:
-            conn.execute(alter_sql)
-            conn.commit()
+            _add_column(conn, alter_sql)
 
     # XX1.3: raw unresolved model string(s) for a session whose cost is NULL
     # because a model didn't resolve against the price table -- persisted at
@@ -183,8 +223,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # anything. Comma-joined raw model strings, NULL if the session priced
     # cleanly or was scored before this column existed.
     if "cost_unpriced_models" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
 
     # XX2.2: reconstructed code-impact per session (Edit/Write/MultiEdit/
     # NotebookEdit operations), persisted at score time -- same RR1 lesson,
@@ -195,8 +234,44 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     # every row scored before this migration -- tes impact's own report
     # names this as a legacy-row gap, same pattern as SS1.
     if "edit_operations" not in existing_cols:
-        conn.execute("ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
-        conn.commit()
+        _add_column(conn, "ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
+
+    # W1A D6: subagent roll-up. session_cost_usd already INCLUDES subagent spend; these
+    # expose the split (subagent_tokens in real_tokens units). NULL for rows scored before
+    # this migration -- indistinguishable from "no subagents" until the session is re-scored.
+    subagent_cols = {
+        "subagent_tokens": "ALTER TABLE sessions ADD COLUMN subagent_tokens INTEGER",
+        "subagent_cost_usd": "ALTER TABLE sessions ADD COLUMN subagent_cost_usd REAL",
+        "subagent_count": "ALTER TABLE sessions ADD COLUMN subagent_count INTEGER",
+    }
+    for col_name, alter_sql in subagent_cols.items():
+        if col_name not in existing_cols:
+            _add_column(conn, alter_sql)
+
+    # Usage de-duplication (tes.adapt.ADAPTER_VERSION 2): which adapter produced this row's
+    # real_tokens/cost. NULL = scored before the column existed = the pre-dedupe adapter, which
+    # summed usage once per content-block record (~2.4x too high). tes.self_baseline ignores such
+    # rows; `tes backfill-waste` refreshes them from the source transcript. Additive, idempotent.
+    dedupe_cols = {
+        "adapter_version": "ALTER TABLE sessions ADD COLUMN adapter_version INTEGER",
+        # tes.adapt.COST_VERSION: NULL/older = cache writes priced all at the 5-minute rate
+        # (1h writes under-priced); `tes backfill-waste` re-prices such rows. Separate from
+        # adapter_version because real_tokens (and so the baselines) did not change.
+        "cost_version": "ALTER TABLE sessions ADD COLUMN cost_version INTEGER",
+        "duplicate_usage_records": (
+            "ALTER TABLE sessions ADD COLUMN duplicate_usage_records INTEGER"
+        ),
+        # Model era for the live alarm baseline (tes.alarm_baseline); NULL = unknown era.
+        "dominant_model": "ALTER TABLE sessions ADD COLUMN dominant_model TEXT",
+    }
+    for col_name, alter_sql in dedupe_cols.items():
+        if col_name not in existing_cols:
+            _add_column(conn, alter_sql)
+
+    # Key/value store-level state (e.g. the one-time legacy-rows notice marker, tes.legacy).
+    # Additive and idempotent; never holds anything a score depends on.
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    conn.commit()
 
     return conn
 
@@ -271,7 +346,8 @@ def upsert_session(
                 turn_count,
                 session_cost_usd, cost_approximate, cost_domain_of_validity,
                 context_resend_pct, context_growth_pct, output_pct, waste_pct,
-                cost_unpriced_models, edit_operations
+                cost_unpriced_models, edit_operations,
+                subagent_tokens, subagent_cost_usd, subagent_count
             ) VALUES (
                 ?, ?,
                 ?, ?, ?, ?, ?,
@@ -284,7 +360,8 @@ def upsert_session(
                 ?,
                 ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?
+                ?, ?,
+                ?, ?, ?
             )
             """,
             (
@@ -323,6 +400,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
             ),
         )
 
@@ -344,7 +424,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -382,6 +463,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
@@ -402,7 +486,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -435,6 +520,9 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
@@ -457,7 +545,8 @@ def upsert_session(
                 turn_count = ?,
                 session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?,
                 context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, waste_pct = ?,
-                cost_unpriced_models = ?, edit_operations = ?
+                cost_unpriced_models = ?, edit_operations = ?,
+                subagent_tokens = ?, subagent_cost_usd = ?, subagent_count = ?
             WHERE session_id = ?
             """,
             (
@@ -495,10 +584,24 @@ def upsert_session(
                 result.waste_pct,
                 result.cost_unpriced_models,
                 result.edit_operations,
+                result.subagent_tokens,
+                result.subagent_cost_usd,
+                result.subagent_count,
                 result.session_id,
             ),
         )
 
+    conn.execute(
+        "UPDATE sessions SET adapter_version = ?, cost_version = ?, "
+        "duplicate_usage_records = ?, dominant_model = ? WHERE session_id = ?",
+        (
+            result.adapter_version,
+            result.cost_version,
+            result.duplicate_usage_records,
+            result.dominant_model,
+            result.session_id,
+        ),
+    )
     conn.commit()
 
 
@@ -515,7 +618,7 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
     if not p.exists():
         return None
     try:
-        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = p.read_text(encoding="utf-8", errors="replace").split("\n")
         turn_count = 0
         for line in lines:
             line = line.strip()
@@ -545,49 +648,220 @@ def _count_turns_from_jsonl(source_path: str) -> int | None:
         return None
 
 
+def _has_usage(record: dict[str, Any]) -> bool:
+    """True iff the adapted transcript carried at least one usage record.
+
+    ``adapt_session`` returns zero usage for an empty, garbage or truncated file instead of
+    raising; every writer that refreshes a stored row from a transcript must check this first.
+    """
+    return bool(record.get("usage_dedupe", {}).get("usage_records"))
+
+
+def _is_empty_stub(conn: sqlite3.Connection, session_id: str) -> bool:
+    """True iff the STORED row recorded no turns and no tokens (a session that never started).
+
+    Decided from the stored numbers, not from the transcript: a row that once had turns or
+    tokens and whose transcript is now empty or damaged is a failure, not a stub.
+    """
+    row = conn.execute(
+        "SELECT turn_count, real_tokens FROM sessions WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    return row is not None and row[0] == 0 and row[1] == 0
+
+
+def _stamp_current_versions(conn: sqlite3.Connection, session_id: str) -> None:
+    """Mark one row as scored by the current accounting without changing any number."""
+    from tes.adapt import ADAPTER_VERSION, COST_VERSION
+
+    conn.execute(
+        "UPDATE sessions SET adapter_version = ?, cost_version = ? WHERE session_id = ?",
+        (ADAPTER_VERSION, COST_VERSION, session_id),
+    )
+    conn.commit()
+
+
+def _refresh_usage_columns(
+    conn: sqlite3.Connection,
+    record: dict[str, Any],
+    waste_entry: dict[str, Any],
+    session_cost: SessionCost | None,
+    digest: SessionDigest | None,
+    prices: dict[str, Any],
+    session_id: str,
+) -> None:
+    """Re-derive every usage-derived column of one row from a freshly adapted record.
+
+    Used by backfill_waste for rows written by the pre-dedupe adapter (real_tokens and cost
+    over-counted ~2.4x). The verdict columns are recomputed against the BUNDLED corpus baseline
+    (the stored self-baseline would be built from the very rows being repaired); judge columns
+    and waste columns are not touched here.
+    """
+    from tes.attribution import attribution_fractions, compute_attribution
+    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tes.score import score_session
+
+    attribution = compute_attribution(digest, waste_entry, prices) if digest is not None else None
+    r = score_session(
+        record,
+        load_baselines(BUNDLED_BASELINES_PATH),
+        waste_entry=waste_entry,
+        session_cost=session_cost,
+        attribution=attribution,
+    )
+    resend, growth, out_pct, waste_pct = (
+        attribution_fractions(attribution) if attribution is not None else (None,) * 4
+    )
+    conn.execute(
+        "UPDATE sessions SET real_tokens = ?, scope_status = ?, baseline_available = ?, "
+        "p25 = ?, p75 = ?, median = ?, band_verdict = ?, interpretation = ?, "
+        "token_domain_of_validity = ?, baseline_source = ?, "
+        "session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
+        "cost_unpriced_models = ?, subagent_tokens = ?, subagent_cost_usd = ?, "
+        "subagent_count = ?, context_resend_pct = ?, context_growth_pct = ?, output_pct = ?, "
+        "waste_pct = ?, adapter_version = ?, cost_version = ?, duplicate_usage_records = ?, "
+        "dominant_model = ? WHERE session_id = ?",
+        (
+            r.real_tokens,
+            r.scope_status,
+            int(r.baseline_available),
+            r.p25,
+            r.p75,
+            r.median,
+            r.band_verdict,
+            r.interpretation,
+            r.token_domain_of_validity,
+            r.baseline_source,
+            r.session_cost_usd,
+            int(r.cost_approximate),
+            r.cost_domain_of_validity or "",
+            r.cost_unpriced_models,
+            r.subagent_tokens,
+            r.subagent_cost_usd,
+            r.subagent_count,
+            resend,
+            growth,
+            out_pct,
+            waste_pct,
+            r.adapter_version,
+            r.cost_version,
+            r.duplicate_usage_records,
+            r.dominant_model,
+            session_id,
+        ),
+    )
+
+
 def backfill_waste(
     db_path: Path | str | None = None,
     prices: dict | None = None,
+    *,
+    only_legacy: bool = False,
+    dry_run: bool = False,
+    limit: int | None = None,
 ) -> dict[str, int]:
     """Re-run frozen detectors on all accessible sessions; embed per-event costs.
+
+    ``only_legacy`` (what `tes rescore` uses) restricts the run to LEGACY rows (tes.legacy) and
+    refreshes every one whose transcript is readable; a row whose cost cannot be recomputed is
+    counted in ``errors`` and left legacy. ``dry_run`` opens the store read-only, runs the same
+    computation and writes nothing (not even a schema migration). ``limit`` stops after that many
+    readable rows (the rest are counted in ``not_attempted``). With ``only_legacy``,
+    ``legacy_rows`` is how many legacy rows the run started with.
+
+    Also refreshes the usage-derived columns (real_tokens, cost, verdict band, attribution) of
+    rows produced by the pre-dedupe adapter (adapter_version NULL/older) or priced before
+    1-hour cache writes were split out (cost_version NULL/older), counted in ``refreshed``; rows already current are left as they were.
+
+    A transcript that is empty, unreadable or carries no usage records is never written over a
+    stored row, on any path (``adapt_session`` returns zero usage for it rather than raising):
+    the row is counted in ``errors`` and left exactly as it was. The same holds when a row due a
+    refresh cannot be priced.
 
     Safe to call repeatedly (hash-independent; fixes the stale-zeros bug where sessions
     scored before waste detection was wired show waste_event_count=0 in the store).
 
-    Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E}
+    An empty stub (stored ``turn_count`` 0 and ``real_tokens`` 0, transcript without usage) is
+    counted in ``skipped_stub`` and only has its two version columns stamped, so it stops being
+    legacy; no stored number changes. Any other usage-less row is still a failure.
+
+    Returns summary: {"updated": N, "no_waste": M, "missing_source": K, "errors": E,
+    "refreshed": R, "skipped_stub": S}
     where "updated" = sessions that had >= 1 waste event written, "no_waste" = sessions
-    processed with 0 detected events, "missing_source" = source file not accessible.
+    processed with 0 detected events, "missing_source" = source file not accessible,
+    "errors" = failed rows (left unchanged), "refreshed" = rows re-scored.
     """
     from tes._digest import reconstruct_digest
-    from tes.adapt import adapt_session
+    from tes.adapt import ADAPTER_VERSION, COST_VERSION, adapt_session
     from tes.cost import compute_session_cost, load_price_table
     from tes.waste import annotate_waste_costs, build_waste_entry
 
     if prices is None:
         prices = load_price_table()
 
-    conn = open_db(db_path)
-    rows = conn.execute(
-        "SELECT session_id, source_path FROM sessions WHERE source_path IS NOT NULL"
-    ).fetchall()
+    if dry_run:
+        # No migration, no checkpoint, no side files: a dry run leaves the store as it found it.
+        # A read-only handle on a WAL store creates -wal/-shm when none exist, so a store that
+        # is idle (no -wal: everything is in the main file) is opened immutable instead.
+        resolved = resolve_db_path(db_path).resolve()
+        mode = "mode=ro" if Path(f"{resolved}-wal").exists() else "immutable=1"
+        conn = sqlite3.connect(f"{resolved.as_uri()}?{mode}", uri=True)
+        conn.row_factory = sqlite3.Row
+    else:
+        conn = open_db(db_path)
+    if only_legacy:
+        from tes.legacy import legacy_sources
+
+        # (session_id, source_path); every one of these is refreshed, whatever its versions say.
+        rows: list[Any] = [
+            {"session_id": sid, "source_path": path, "adapter_version": None, "cost_version": None}
+            for sid, path in legacy_sources(conn)
+        ]
+    else:
+        rows = conn.execute(
+            "SELECT session_id, source_path, adapter_version, cost_version FROM sessions "
+            "WHERE source_path IS NOT NULL"
+        ).fetchall()
 
     updated = 0
     no_waste = 0
     missing = 0
     errors = 0
+    refreshed = 0
+    skipped_stub = 0
+    attempted = 0
+    not_attempted = 0
 
     for row in rows:
         session_id: str = row["session_id"]
-        p = Path(row["source_path"])
-        if not p.exists():
+        if not row["source_path"] or not Path(row["source_path"]).exists():
             missing += 1
             continue
+        p = Path(row["source_path"])
+        if limit is not None and attempted >= limit:
+            not_attempted += 1  # readable, but past --limit: left legacy for the next run
+            continue
+        attempted += 1
         try:
             record = adapt_session(p)
+            if not _has_usage(record):
+                # The adapter tolerates garbage/empty/truncated files by returning zero usage;
+                # writing that over a stored row would erase its numbers (and stamp it current).
+                # Every path counts it as failed and leaves the row exactly as it was...
+                if _is_empty_stub(conn, session_id):
+                    # ...except an empty stub: a row that never had a turn or a token has no
+                    # number to protect and nothing to recompute. Stamp the versions only, so it
+                    # stops being legacy (and `tes rescore` can exit 0); no stored number moves.
+                    if not dry_run:
+                        _stamp_current_versions(conn, session_id)
+                    skipped_stub += 1
+                    continue
+                raise ValueError(f"no usage records in {p.name}")
             turns: list[dict] = record.get("digest", {}).get("turns", [])
             waste_entry = build_waste_entry(session_id, turns)
 
             per_turn_cost: dict[int, float] = {}
+            sc = None
+            digest = None
             try:
                 digest = reconstruct_digest(record.get("digest", {}))
                 sc = compute_session_cost(digest, prices)
@@ -598,12 +872,31 @@ def backfill_waste(
             waste_events = waste_entry["waste_events"]
             annotate_waste_costs(waste_events, per_turn_cost)
 
-            count = len(waste_events)
-            conn.execute(
-                "UPDATE sessions SET waste_event_count = ?, waste_events = ? WHERE session_id = ?",
-                (count, json.dumps(waste_events), session_id),
+            needs_refresh = (
+                only_legacy
+                or row["adapter_version"] != ADAPTER_VERSION
+                or (row["cost_version"] or 0) != COST_VERSION
             )
-            conn.commit()
+            if needs_refresh and sc is None:
+                # Refreshing would stamp the row current with no cost at all: report a failure
+                # and leave it legacy rather than launder it into the corrected figures.
+                raise ValueError(f"cost could not be computed for {session_id}")
+
+            if needs_refresh:
+                if not dry_run:
+                    _refresh_usage_columns(
+                        conn, record, waste_entry, sc, digest, prices, session_id
+                    )
+                refreshed += 1
+
+            count = len(waste_events)
+            if not dry_run:
+                conn.execute(
+                    "UPDATE sessions SET waste_event_count = ?, waste_events = ? "
+                    "WHERE session_id = ?",
+                    (count, json.dumps(waste_events), session_id),
+                )
+                conn.commit()
 
             if count > 0:
                 updated += 1
@@ -611,9 +904,20 @@ def backfill_waste(
                 no_waste += 1
         except Exception:
             errors += 1
+            if not dry_run:
+                conn.rollback()  # drop a half-applied row so the next commit cannot persist it
 
     conn.close()
-    return {"updated": updated, "no_waste": no_waste, "missing_source": missing, "errors": errors}
+    return {
+        "updated": updated,
+        "no_waste": no_waste,
+        "missing_source": missing,
+        "errors": errors,
+        "refreshed": refreshed,
+        "legacy_rows": len(rows) if only_legacy else 0,
+        "not_attempted": not_attempted,
+        "skipped_stub": skipped_stub,
+    }
 
 
 def backfill_cost(
@@ -648,16 +952,21 @@ def backfill_cost(
             continue
         try:
             record = adapt_session(p)
+            if not _has_usage(record):
+                raise ValueError(f"no usage records in {p.name}")  # unknown must not become 0.0
             digest = reconstruct_digest(record["digest"])
             session_cost = compute_session_cost(digest, prices)
             conn.execute(
                 "UPDATE sessions SET "
-                "  session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ? "
+                "  session_cost_usd = ?, cost_approximate = ?, cost_domain_of_validity = ?, "
+                "  cost_unpriced_models = ?, subagent_cost_usd = ? "
                 "WHERE session_id = ?",
                 (
                     session_cost.total_usd,
                     int(session_cost.approximate),
                     session_cost.domain_of_validity,
+                    ",".join(session_cost.unpriced_models) or None,
+                    session_cost.subagent_usd,
                     session_id,
                 ),
             )
@@ -687,6 +996,10 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
         d["judge_verdict"] and d["judge_source_hash"] and d["judge_source_hash"] != d["source_hash"]
     )
     d["cost_approximate"] = bool(d.get("cost_approximate", 0))
+    # W1A D7: machine-readable pricing status derived from the persisted unpriced model ids.
+    d["unpriced_models"] = [m for m in (d.get("cost_unpriced_models") or "").split(",") if m]
+    d["priced"] = d.get("session_cost_usd") is not None and not d["unpriced_models"]
+    d["cost_known"] = cost_is_known(d.get("session_cost_usd"), d["unpriced_models"])
     return d
 
 

@@ -14,6 +14,7 @@ This path protects new users whose corpora are too small for stable clustering.
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.intelligence.cache import (
     MIN_CONTENT_FOR_CACHE,
     format_intelligence_summary,
@@ -108,6 +109,10 @@ class TestSmallCorpusCacheLayer:
                 "context_growth_pct": None,
                 "output_pct": None,
                 "waste_pct": None,
+                # Current accounting: "legacy" in this test means no persisted attribution, which
+                # is a different thing from a pre-0.15 row (those are excluded before counting).
+                "adapter_version": ADAPTER_VERSION,
+                "cost_version": COST_VERSION,
             }
             for i in range(n_total)
         ]

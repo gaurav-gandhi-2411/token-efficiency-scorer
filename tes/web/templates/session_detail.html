@@ -10,9 +10,46 @@
   &middot; <span style="color:var(--tick);">{{ session.source_path }}</span>
 </p>
 
+{% if is_legacy %}
+<div class="caveat" id="legacy-banner">
+  <strong>{{ legacy_label }}.</strong> This session was scored before 0.15: the tokens, cost and
+  verdict stored for it count each response's usage once per content block (about 2x too high) and
+  are not compared with your baseline. {% if attribution %}The attribution below is recomputed from
+  the transcript with the current accounting. {% endif %}<code>tes rescore</code> replaces the stored
+  figures when the transcript still exists.
+</div>
+{% endif %}
+
 {# ── Takeaway ────────────────────────────────────────────────────── #}
 {% if attribution_takeaway %}
-<div class="takeaway">{{ attribution_takeaway }}</div>
+<div class="takeaway" id="finding">{{ attribution_takeaway }}</div>
+{% endif %}
+
+{% if cost_breakdown %}
+<div class="card" id="cost-breakdown">
+  <div class="card-title">Cost breakdown <span class="badge badge-unavailable">{{ cost_breakdown.label }}</span></div>
+  {% if cost_breakdown.total_usd %}
+  <table style="width:auto;">
+    <thead><tr><th>Bucket</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Share</th></tr></thead>
+    <tbody>
+    {% for b in cost_breakdown.buckets %}
+      <tr>
+        <td>{{ b.label }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.2f"|format(b.usd) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if b.share_pct is not none %}{{ "%.1f"|format(b.share_pct) }}%{% else %}n/a{% endif %}</td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td><strong>Total (priced)</strong></td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;"><strong>${{ "%.2f"|format(cost_breakdown.total_usd) }}</strong></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if cost_breakdown.note %}<p class="cost-approx">{{ cost_breakdown.note }}</p>{% endif %}
+  <p class="text-faint" style="font-size:0.78rem; margin-top:0.6rem;">{{ breakdown_note }}</p>
+</div>
 {% endif %}
 
 {# ── Attribution ─────────────────────────────────────────────────── #}
@@ -128,7 +165,7 @@
         <td style="font-weight:600;">{{ row.bucket }} <span class="text-muted" style="font-weight:400; font-size:0.82em;">{{ row.label }}</span></td>
         <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">{{ row.cost_pct }}%</td>
         <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--graphite);">{{ row.tok_pct }}%</td>
-        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.4f" | format(row.usd) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if session.unpriced_models and row.usd == 0 %}unpriced{% else %}${{ "%.4f" | format(row.usd) }}{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -138,7 +175,7 @@
         <td>TOTAL (billed)</td>
         <td style="text-align:right;">100%</td>
         <td style="text-align:right; color:var(--graphite);">100%</td>
-        <td style="text-align:right;">${{ "%.4f" | format(attribution.total_usd) }}</td>
+        <td style="text-align:right;">{{ attribution.total_usd | cost_display(session.unpriced_models, 4) }}</td>
       </tr>
     </tfoot>
   </table>
@@ -368,7 +405,10 @@
         <tr>
           <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
           <td>
-            <span class="cost-amount">${{ "%.2f" | format(session.session_cost_usd) }}</span>
+            <span class="cost-amount">{{ session.session_cost_usd | cost_display(session.unpriced_models) }}</span>
+            {% if session.get("subagent_count") %}
+              <span class="cost-approx">includes {{ session.subagent_count }} subagent transcript(s): {{ session.subagent_cost_usd | cost_display([], 2) }}</span>
+            {% endif %}
             {% if session.get("cost_approximate") %}
               <span class="cost-approx">[~] approximate</span>
             {% endif %}
@@ -383,6 +423,8 @@
               {% else %}
                 <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
               {% endif %}
+            {% elif is_legacy %}
+              <span class="badge badge-unavailable">{{ legacy_label }}: not compared</span>
             {% else %}
               <span class="badge badge-unavailable">no baseline yet</span>
             {% endif %}
