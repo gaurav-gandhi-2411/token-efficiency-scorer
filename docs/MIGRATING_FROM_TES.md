@@ -88,4 +88,29 @@ writes anywhere else; `tests/test_store_location.py` checks that every default p
 | 0.17 | work; warn |
 | 0.18 | removed |
 
-Nothing else changes in the tool's output: scores, JSON schemas and exit codes are the same.
+## Strings that changed in the output: update anything that parses them
+
+Scores, JSON schemas (field names and types) and exit codes are the same. Three human-readable
+strings are not, so a script that matches on them must be updated:
+
+| Where | Before | Now |
+|---|---|---|
+| `--version` | `tes <version>` | `tracegauge <version>` (the program name is fixed, so the `tgauge` and `tes` commands print it too) |
+| JSON field `cost_domain_of_validity` (prose) | "... override with TES_PRICE_TABLE env var or ~/.tes/prices.json ..." | "... override with TRACEGAUGE_PRICE_TABLE env var or ~/.tes/prices.json ..." (the field name and its position are unchanged; only the sentence differs) |
+| Text report banner | `TOKEN-EFFICIENCY SCORER` | `TRACEGAUGE` |
+
+Match on the field names, not on these sentences. The same variable-name change appears in the
+other place that tells you how to override the price table (the "set TRACEGAUGE_PRICE_TABLE ..."
+hints in `budget` and `takeaway` output).
+
+## The bundled price table
+
+`tracegauge/data/prices.json` (was `tes/data/prices.json`) holds the same rates, dates and model
+entries as 0.15.0. Exactly two strings in it changed, both prose: the table-level `note` (internal
+work-item labels removed, the module path `tes/cost.py` became `tracegauge/cost.py`) and the `note`
+of the retired `claude-3-haiku` entry (one internal label removed). No rate, `as_of`, `source_url`,
+multiplier or retirement flag changed; a user's own `~/.tes/prices.json` override is read exactly
+as before. Reproduce: load both files with `json` and compare the parsed objects; only
+`/note` and `/models/claude-3-haiku/note` differ.
+
+Nothing else changes in the tool's output.
