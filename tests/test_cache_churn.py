@@ -616,3 +616,19 @@ def test_empty_split_dict_is_not_a_split() -> None:
     rec["message"]["usage"]["cache_creation"] = {}
     (t,) = _chain([rec]).turns
     assert t.has_split is False and t.unsplit_cc == 10
+
+
+def test_nested_subagent_file_is_ignored_by_churn_and_by_cost_scope(tmp_path: Path) -> None:
+    from tes.adapt import collect_subagent_usage
+
+    rng = random.Random(3)
+    main_p = tmp_path / "proj" / "s.jsonl"
+    _write(main_p, build_chain(rng, 6, {}, prefix="main"))
+    subs = main_p.with_suffix("") / "subagents"
+    _write(subs / "agent-flat.jsonl", build_chain(rng, 10, {5: "TTL_GAP"}, prefix="flat"))
+    _write(subs / "deeper" / "agent-nested.jsonl", build_chain(rng, 10, {5: "TTL_GAP"}, prefix="n"))
+    assert [f.name for f in cc.subagent_files(main_p)] == ["agent-flat.jsonl"]
+    s = cc.analyze_session(main_p)
+    assert len(s.chains) == 2 and s.by_kind["subagent"].events == 1
+    usage = collect_subagent_usage(main_p)
+    assert usage is not None and usage["file_count"] == 1  # the cost scope sees the same one file

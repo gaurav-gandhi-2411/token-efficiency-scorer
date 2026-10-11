@@ -124,6 +124,8 @@ seconds and the lifetime used. No transcript text is ever included.
   and never as plausibly avoidable, and no TTL advice is built from it. The dollar figure of such an
   event still prices the re-write at the 5-minute rate, so it is a lower bound if those writes were
   1-hour writes.
+* Subagent transcripts are the files `<session>/subagents/agent-*.jsonl`, the same flat set `tes cost`
+  reads; a file nested deeper under `subagents/` is in neither the cost nor the churn figures.
 * A message that appears in two transcript files of one session is counted once.
 * Claude Code 2.1.260 and later already shows a live `likely cause` for the last cache miss in
   `/usage`. tracegauge does not compete with that: it adds history across sessions, dollar

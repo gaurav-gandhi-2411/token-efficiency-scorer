@@ -785,11 +785,15 @@ def summarise(
 
 
 def subagent_files(session_path: Path) -> list[Path]:
-    """The session's subagent transcripts (``<sid>/subagents/**/agent-*.jsonl``), sorted."""
+    """The session's subagent transcripts (``<sid>/subagents/agent-*.jsonl``), sorted.
+
+    Flat on purpose, exactly like ``tes.adapt.collect_subagent_usage``, so the churn scope and
+    the cost scope are the same set of files (a nested file is in neither).
+    """
     sub_dir = session_path.with_suffix("") / SUBAGENTS_DIRNAME
     if not sub_dir.is_dir():
         return []
-    return sorted(sub_dir.rglob("agent-*.jsonl"))
+    return sorted(sub_dir.glob("agent-*.jsonl"))
 
 
 def analyze_session(
