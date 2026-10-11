@@ -13,7 +13,7 @@ a Supabase (hosted Postgres + Edge Functions) project that receives the
 content-free session-aggregate rows built by `tes.contribution` and sent by
 `tes.corpus_client`. Nothing here is required to use tracegauge locally —
 `tracegauge corpus contribute` is entirely opt-in and does nothing unless
-`TES_CORPUS_URL` / `TES_CORPUS_ANON_KEY` / `TES_CORPUS_WITHDRAW_URL` are set.
+`TRACEGAUGE_CORPUS_URL` / `TRACEGAUGE_CORPUS_ANON_KEY` / `TRACEGAUGE_CORPUS_WITHDRAW_URL` are set.
 
 ## 1. Create the Supabase project
 
@@ -67,7 +67,7 @@ After deploy, the function's invoke URL is:
 {project_url}/functions/v1/withdraw-contributor
 ```
 
-This is the value for `TES_CORPUS_WITHDRAW_URL` below.
+This is the value for `TRACEGAUGE_CORPUS_WITHDRAW_URL` below.
 
 ## 4. Configure environment variables
 
@@ -75,9 +75,9 @@ Three environment variables point the tracegauge client at this project:
 
 | Variable | Value | Notes |
 |---|---|---|
-| `TES_CORPUS_URL` | Project URL from Settings → API | e.g. `https://xxxxx.supabase.co` |
-| `TES_CORPUS_ANON_KEY` | `anon` `public` key from Settings → API | **Safe to embed/publish** — see below |
-| `TES_CORPUS_WITHDRAW_URL` | `{project_url}/functions/v1/withdraw-contributor` | From step 3 |
+| `TRACEGAUGE_CORPUS_URL` | Project URL from Settings → API | e.g. `https://xxxxx.supabase.co` |
+| `TRACEGAUGE_CORPUS_ANON_KEY` | `anon` `public` key from Settings → API | **Safe to embed/publish** — see below |
+| `TRACEGAUGE_CORPUS_WITHDRAW_URL` | `{project_url}/functions/v1/withdraw-contributor` | From step 3 |
 
 **The anon key is safe to make public.** It is not a secret in the usual
 sense — it identifies the `anon` Postgres role, which is scoped entirely by
@@ -87,7 +87,7 @@ such policy exists for that role. This is why it can be embedded directly in
 a distributed CLI tool without secret-management infrastructure.
 
 **The service role key must never be given to the client, checked into this
-repo, or set as a `TES_CORPUS_*` variable anywhere.** It lives only inside
+repo, or set as a `TRACEGAUGE_CORPUS_*` variable anywhere.** It lives only inside
 the Edge Function's Supabase-managed runtime (step 3) and bypasses RLS
 entirely — that is precisely why deletion is only possible through that one
 validated, service-role-authenticated function, never directly from the
@@ -98,9 +98,9 @@ client.
 With a real tracegauge session already scored locally:
 
 ```bash
-TES_CORPUS_URL=https://xxxxx.supabase.co \
-TES_CORPUS_ANON_KEY=<anon-key> \
-TES_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
+TRACEGAUGE_CORPUS_URL=https://xxxxx.supabase.co \
+TRACEGAUGE_CORPUS_ANON_KEY=<anon-key> \
+TRACEGAUGE_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
 tracegauge corpus contribute
 ```
 
@@ -111,9 +111,9 @@ paths, no prompt/code text — see the field list in step 2).
 Then run:
 
 ```bash
-TES_CORPUS_URL=https://xxxxx.supabase.co \
-TES_CORPUS_ANON_KEY=<anon-key> \
-TES_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
+TRACEGAUGE_CORPUS_URL=https://xxxxx.supabase.co \
+TRACEGAUGE_CORPUS_ANON_KEY=<anon-key> \
+TRACEGAUGE_CORPUS_WITHDRAW_URL=https://xxxxx.supabase.co/functions/v1/withdraw-contributor \
 tracegauge corpus withdraw
 ```
 

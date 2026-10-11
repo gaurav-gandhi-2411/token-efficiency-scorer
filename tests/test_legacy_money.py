@@ -80,7 +80,7 @@ def _run(
 @pytest.fixture
 def recent_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     s = build_mixed_store(tmp_path, now=time.time() - 3600)
-    monkeypatch.setenv("TES_DB_PATH", str(s.db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(s.db))
     return s.db
 
 

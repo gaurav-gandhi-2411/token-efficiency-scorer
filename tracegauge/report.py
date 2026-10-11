@@ -265,7 +265,7 @@ def format_human(
             lines.append(
                 f"         [{format_unpriced(result.unpriced_models)}: these models are not in the "
                 "price table, so their turns are EXCLUDED from the figure above — the true "
-                "cost is higher. Add them via TES_PRICE_TABLE or ~/.tes/prices.json.]"
+                "cost is higher. Add them via TRACEGAUGE_PRICE_TABLE or ~/.tes/prices.json.]"
             )
         if result.subagent_count:
             # With unpriced models in play the subagent figure is a priced-part subtotal.

@@ -137,7 +137,7 @@ def build_cost_breakdown(
     elif unpriced:
         note = (
             f"Not computed: cost is {format_unpriced(unpriced)}. Add the model(s) to "
-            "TES_PRICE_TABLE or ~/.tes/prices.json."
+            "TRACEGAUGE_PRICE_TABLE or ~/.tes/prices.json."
         )
     return {
         "label": BREAKDOWN_LABEL,

@@ -111,9 +111,9 @@ class _Sandbox:
         import tracegauge.cli as cli
 
         old_argv, old_env = sys.argv, dict(os.environ)
-        os.environ.update({"TES_DB_PATH": str(self.db), "TES_NO_NOTICE": "1"})
+        os.environ.update({"TRACEGAUGE_DB_PATH": str(self.db), "TRACEGAUGE_NO_NOTICE": "1"})
         os.environ.pop("ANTHROPIC_API_KEY", None)
-        os.environ["TES_PLAN_PATH"] = str(self.root / "no-plan-here.json")
+        os.environ["TRACEGAUGE_PLAN_PATH"] = str(self.root / "no-plan-here.json")
         sys.argv = ["tracegauge", *argv]
         buf, err, code = io.StringIO(), io.StringIO(), 0
         try:

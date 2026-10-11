@@ -57,7 +57,7 @@ UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 # The community corpus destination is NOT embedded as a hardcoded constant:
 # no production Supabase project exists yet (this ships pre-launch). A
 # caller (CLI or test) must supply a CorpusConfig, normally built from
-# TES_CORPUS_URL / TES_CORPUS_ANON_KEY / TES_CORPUS_WITHDRAW_URL env vars.
+# TRACEGAUGE_CORPUS_URL / TRACEGAUGE_CORPUS_ANON_KEY / TRACEGAUGE_CORPUS_WITHDRAW_URL env vars.
 # This also lets the pre-publish round-trip proof point at a disposable test
 # project without touching code.
 
@@ -96,11 +96,12 @@ class CorpusConfig:
 
     @classmethod
     def from_env(cls) -> CorpusConfig | None:
-        import os
 
-        url = os.environ.get("TES_CORPUS_URL")
-        key = os.environ.get("TES_CORPUS_ANON_KEY")
-        withdraw_url = os.environ.get("TES_CORPUS_WITHDRAW_URL")
+        from tracegauge._env import env_value
+
+        url = env_value("CORPUS_URL")
+        key = env_value("CORPUS_ANON_KEY")
+        withdraw_url = env_value("CORPUS_WITHDRAW_URL")
         if not (url and key and withdraw_url):
             return None
         return cls(supabase_url=url, supabase_anon_key=key, withdraw_function_url=withdraw_url)

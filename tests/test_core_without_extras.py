@@ -8,7 +8,7 @@ from __future__ import annotations
 numpy, scikit-learn and scipy are an optional extra. These tests simulate their absence by
 setting sys.modules[name] = None in a subprocess (any import of them then raises ImportError), so
 they hold even though the dev environment has them installed. Every root (HOME, USERPROFILE,
-TES_DB_PATH) is redirected into tmp_path.
+TRACEGAUGE_DB_PATH) is redirected into tmp_path.
 """
 
 import json
@@ -39,7 +39,7 @@ def _env(tmp_path: Path) -> dict[str, str]:
     env.pop("ANTHROPIC_API_KEY", None)
     env["HOME"] = env["USERPROFILE"] = str(tmp_path)
     env["PYTHONIOENCODING"] = "utf-8"  # the report prints box-drawing characters
-    env["TES_DB_PATH"] = str(tmp_path / "core.db")
+    env["TRACEGAUGE_DB_PATH"] = str(tmp_path / "core.db")
     return env
 
 

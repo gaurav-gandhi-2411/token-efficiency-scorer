@@ -19,7 +19,7 @@ from tests.test_cli_lever_hint import PRICED, UNPRICED, _session
 
 def _page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: Path) -> str:
     db = tmp_path / "dash.db"
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr("sys.argv", ["tracegauge", "--quiet", "score", str(path), "--no-judge"])
     try:

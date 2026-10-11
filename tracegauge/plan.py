@@ -28,10 +28,11 @@ count, never a flat monthly figure regardless of window length.
 """
 
 import json
-import os
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+
+from tracegauge._env import env_value
 
 DAYS_PER_MONTH: float = 30.0  # same convention as DEFAULT_MONTH_DAYS elsewhere
 
@@ -52,17 +53,17 @@ class ROIResult:
 
 
 def resolve_plan_config_path(explicit_path: str | Path | None = None) -> Path:
-    """explicit arg -> TES_PLAN_PATH env var -> ~/.tes/plan.json default.
+    """explicit arg -> TRACEGAUGE_PLAN_PATH (or deprecated TES_PLAN_PATH) -> ~/.tes/plan.json.
 
     Mirrors tracegauge.store.resolve_db_path's own resolution order, and
-    tracegauge.cost's TES_PRICE_TABLE / ~/.tes/prices.json precedent -- JSON, not
+    tracegauge.cost's TRACEGAUGE_PRICE_TABLE / ~/.tes/prices.json precedent -- JSON, not
     YAML, matching this project's only existing user-editable config
     convention rather than introducing a new file format and a new
     dependency for one small feature.
     """
     if explicit_path is not None:
         return Path(explicit_path)
-    if env_val := os.environ.get("TES_PLAN_PATH"):
+    if env_val := env_value("PLAN_PATH"):
         return Path(env_val)
     return Path.home() / ".tes" / "plan.json"
 

@@ -87,7 +87,7 @@ under the old ID become unlinked from future contributions. Omit entirely with
 
 > **This capability is dormant.** `tracegauge corpus contribute` is fully built and
 > tested, but tracegauge does not currently operate a public corpus, and no
-> `TES_CORPUS_URL` / `TES_CORPUS_ANON_KEY` / `TES_CORPUS_WITHDRAW_URL` are
+> `TRACEGAUGE_CORPUS_URL` / `TRACEGAUGE_CORPUS_ANON_KEY` / `TRACEGAUGE_CORPUS_WITHDRAW_URL` are
 > configured in any released build. Running `tracegauge corpus contribute` today —
 > even if you type `y` at the consent prompt — prints `[NOT SENT] the
 > community corpus is not configured on this install` and makes no network

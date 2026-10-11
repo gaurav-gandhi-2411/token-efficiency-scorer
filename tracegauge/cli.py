@@ -25,13 +25,13 @@ the API judge; the per-session consent screen still gates every byte that leaves
 import argparse
 import dataclasses
 import json
-import os
 import sys
 import time
 from pathlib import Path
 
 from tracegauge import __version__
 from tracegauge._digest import reconstruct_digest
+from tracegauge._env import deprecation_line, notice_suppressed
 from tracegauge.adapt import adapt_session
 from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tracegauge.cost import SessionCost, compute_session_cost, load_price_table
@@ -1434,6 +1434,10 @@ def main() -> None:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+    # Deprecated TES_* variables still work; say so once, on stderr, before anything else.
+    if (env_line := deprecation_line()) is not None:
+        print(env_line, file=sys.stderr)
+
     parser = argparse.ArgumentParser(
         prog="tracegauge",
         description=(
@@ -1452,7 +1456,7 @@ def main() -> None:
         action="store_true",
         help=(
             "Suppress the one-time notice about stored sessions from an older version "
-            "(same as TES_NO_NOTICE=1). Goes before the command: tracegauge --quiet cost --week."
+            "(same as TRACEGAUGE_NO_NOTICE=1). Goes before the command: tracegauge --quiet cost --week."
         ),
     )
     sub = parser.add_subparsers(dest="command")
@@ -1580,7 +1584,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
 
     rescore_p = sub.add_parser(
@@ -1601,7 +1605,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     rescore_p.add_argument(
         "--dry-run",
@@ -1667,7 +1671,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     serve_p.add_argument(
         "--background-judge",
@@ -1733,7 +1737,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
 
     ask_p = sub.add_parser(
@@ -1779,7 +1783,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     ask_p.add_argument(
         "--recompute",
@@ -1803,7 +1807,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     patterns_p.add_argument(
         "--recompute",
@@ -1834,7 +1838,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     impact_p.add_argument(
         "--json",
@@ -1883,7 +1887,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
 
     corpus_sub.add_parser(
@@ -1913,7 +1917,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     budget_p.add_argument(
         "--json",
@@ -1946,7 +1950,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     cost_p.add_argument(
         "--json",
@@ -1985,7 +1989,7 @@ def main() -> None:
         default=None,
         dest="plan_config",
         metavar="PATH",
-        help="Path to plan config JSON (default: ~/.tes/plan.json, or TES_PLAN_PATH env var).",
+        help="Path to plan config JSON (default: ~/.tes/plan.json, or TRACEGAUGE_PLAN_PATH env var).",
     )
 
     monitor_p = sub.add_parser(
@@ -2010,7 +2014,7 @@ def main() -> None:
         default=None,
         dest="db_path",
         metavar="PATH",
-        help="Path to TES database (default: ~/.tes/tes.db, or TES_DB_PATH env var).",
+        help="Path to the tracegauge database (default: ~/.tes/tes.db, or TRACEGAUGE_DB_PATH env var).",
     )
     monitor_p.add_argument(
         "--stability-window",
@@ -2213,7 +2217,7 @@ def main() -> None:
             # Issue #17: default output derived from the RESOLVED db_path
             # (same class of fix as intelligence/cache.py's _cache_path,
             # RR2/UU2) -- not a fixed ~/.tes/ regardless of --db-path/
-            # TES_DB_PATH, which used to drop this file into the real
+            # TRACEGAUGE_DB_PATH, which used to drop this file into the real
             # ~/.tes/ even when running against an isolated/scratch DB.
             else _resolve_db_path(db_path).parent / f"contribution-{today_str}.jsonl"
         )
@@ -2430,7 +2434,6 @@ def main() -> None:
 TES_DEPRECATION_NOTICE = (
     "tes is deprecated; use tracegauge (or tgauge). It will be removed in 0.18."
 )
-NO_DEPRECATION_NOTICE_ENV = "TRACEGAUGE_NO_DEPRECATION_NOTICE"
 
 
 def tes_main() -> None:
@@ -2438,6 +2441,6 @@ def tes_main() -> None:
 
     Set TRACEGAUGE_NO_DEPRECATION_NOTICE=1 (or true/yes) to silence the notice.
     """
-    if os.environ.get(NO_DEPRECATION_NOTICE_ENV, "").strip().lower() not in ("1", "true", "yes"):
+    if not notice_suppressed():
         print(TES_DEPRECATION_NOTICE, file=sys.stderr)
     main()

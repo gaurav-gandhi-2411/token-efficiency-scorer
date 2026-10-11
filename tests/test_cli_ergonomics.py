@@ -35,7 +35,7 @@ def _make_session(dirpath, name: str, mtime: float) -> object:
 @pytest.fixture
 def isolated_store(tmp_path, monkeypatch):
     """Point the store at a throwaway DB and stub the judge probe (no real Ollama)."""
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -70,7 +70,7 @@ def _run(monkeypatch, argv: list[str]) -> None:
 
 def test_bare_tes_launches_dashboard(monkeypatch, tmp_path):
     """`tracegauge` with no subcommand starts the localhost dashboard (serve), not help."""
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
 
     captured: dict = {}
 

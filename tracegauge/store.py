@@ -20,13 +20,13 @@ Migration: turn_count column added via ALTER TABLE if absent (added after initia
 import enum
 import hashlib
 import json
-import os
 import sqlite3
 import time
 from datetime import timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from tracegauge._env import env_value
 from tracegauge.score import ThreeAxisResult
 from tracegauge.web.cost_format import cost_is_known
 
@@ -105,10 +105,10 @@ _DEFAULT_DB = _DEFAULT_DIR / "tes.db"
 
 
 def resolve_db_path(path: Path | str | None = None) -> Path:
-    """Canonical DB path resolution: explicit arg → TES_DB_PATH env var → ~/.tes/tes.db."""
+    """Canonical DB path: explicit arg → TRACEGAUGE_DB_PATH (or deprecated TES_DB_PATH) → ~/.tes/tes.db."""
     if path is not None:
         return Path(path)
-    if env_val := os.environ.get("TES_DB_PATH"):
+    if env_val := env_value("DB_PATH"):
         return Path(env_val)
     return _DEFAULT_DB
 
@@ -152,7 +152,7 @@ def _enable_wal(conn: sqlite3.Connection) -> None:
 def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     """Open (or create) the TES database.
 
-    Path resolution: explicit arg → TES_DB_PATH env var → ~/.tes/tes.db.
+    Path resolution: explicit arg → TRACEGAUGE_DB_PATH (or deprecated TES_DB_PATH) → ~/.tes/tes.db.
     Raises RuntimeError on PermissionError or schema version mismatch.
     """
     db_path = resolve_db_path(path)
@@ -161,7 +161,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         db_path.parent.mkdir(parents=True, exist_ok=True)
     except PermissionError as exc:
         raise RuntimeError(
-            f"Cannot create {db_path.parent} — check permissions or set TES_DB_PATH. ({exc})"
+            f"Cannot create {db_path.parent} — check permissions or set TRACEGAUGE_DB_PATH. ({exc})"
         ) from exc
 
     conn = sqlite3.connect(db_path)

@@ -105,7 +105,7 @@ def compute_budget_projection(
         message = (
             f"Spend so far across {sessions_str} is {format_unpriced(unpriced_models)} -- "
             "no dollar projection is possible until a price is known for these models "
-            "(set TES_PRICE_TABLE or ~/.tes/prices.json)."
+            "(set TRACEGAUGE_PRICE_TABLE or ~/.tes/prices.json)."
         )
         projected = 0.0
     else:
