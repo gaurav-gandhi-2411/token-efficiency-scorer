@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Write manual Sonnet spot-check labels to the sample file."""
 
 from __future__ import annotations

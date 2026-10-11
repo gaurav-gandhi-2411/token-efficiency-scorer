@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_adapt_edit_operations.py — XX2.2: adapt_session extracts

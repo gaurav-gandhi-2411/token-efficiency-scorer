@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Load CC-Bench-trajectories with verification bypass and inspect schema."""
 
 from __future__ import annotations

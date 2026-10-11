@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """scripts/measure_edit_ratio_bootstrap_coverage.py — ZZ1: coverage

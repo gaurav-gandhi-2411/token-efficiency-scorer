@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Synthetic stores for the legacy-row (upgrade path) tests. No real data: the transcript is the

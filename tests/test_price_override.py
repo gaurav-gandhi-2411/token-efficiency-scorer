@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_price_override.py — Tests for the price-table override mechanism."""

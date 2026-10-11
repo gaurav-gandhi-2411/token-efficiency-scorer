@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Static guard for Python 3.10 compatibility (the package claims 3.10-3.14).
 
 `datetime.UTC` is 3.11+. The 3.10 CI leg found `scripts/rebuild_baselines.py` importing it, which

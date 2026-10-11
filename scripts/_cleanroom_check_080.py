@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Clean-room gate script for 0.8.0: runs from the INSTALLED wheel, not the repo."""
 
 from __future__ import annotations

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 score.py — Compose final efficiency_score per session from Layer 1 + judge scores.
 

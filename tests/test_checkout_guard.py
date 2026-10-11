@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """The stale-editable-install guard, exercised in both directions."""
 
 from __future__ import annotations

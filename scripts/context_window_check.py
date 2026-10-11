@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 context_window_check.py -- Check that all 191 session digests fit inside Qwen3-8B's
 context window when combined with the judge prompt scaffolding and output budget.

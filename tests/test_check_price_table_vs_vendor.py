@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """tests/test_check_price_table_vs_vendor.py — deterministic tests for
 scripts/check_price_table_vs_vendor.py against a SAVED excerpt of Anthropic's real pricing.md
 (tests/fixtures/pricing/anthropic_pricing_2026-10-09_excerpt.md, retrieved 2026-10-09) -- no live

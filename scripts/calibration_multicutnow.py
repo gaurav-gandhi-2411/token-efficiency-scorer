@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 calibration_multicutnow.py — Multi-cut calibration rho report.
 

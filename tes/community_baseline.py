@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tes/community_baseline.py — Cross-developer COMMUNITY token baseline (0.9.0).

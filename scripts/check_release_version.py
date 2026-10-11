@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Refuse a release whose version sources disagree, or whose version is already on PyPI.
 
 tracegauge keeps its version in ``pyproject.toml`` ``[project].version`` (``tes.__version__`` is read from

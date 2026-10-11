@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/verify_pool_pathb.py — GUARDRAIL 3: verify PATH-B pool re-run is byte-identical to B4.

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_release_version.py: the release must not go out with disagreeing versions.
 
 Run against tiny synthetic trees (so every disagreement is constructed on purpose) and once against

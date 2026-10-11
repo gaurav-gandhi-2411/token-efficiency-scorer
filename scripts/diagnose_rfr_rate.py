@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """diagnose_rfr_rate.py — Diagnose why RFR fires 4.7x less on SWE-chat CC vs pool.

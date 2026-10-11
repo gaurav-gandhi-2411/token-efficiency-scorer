@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_usage_fields_priced.py -- fail when a usage key path (or value) that appears in
 Claude Code transcripts has no entry in the committed pricing-rule registry.
 

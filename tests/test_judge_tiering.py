@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_judge_tiering.py — Unit tests for tes/judge.py tiered availability logic.

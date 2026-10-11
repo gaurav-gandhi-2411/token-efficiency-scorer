@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Refuse to run the suite against a ``tes`` that is not this checkout's.
 
 pytest's ``pythonpath = [".", "src", "scripts"]`` (pyproject.toml) makes every IN-PROCESS import

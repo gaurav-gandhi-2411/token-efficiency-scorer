@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Always-on CI guard (and unit tests) for scripts/check_usage_fields_priced.py.
 
 CI has no real transcripts, so tests/fixtures/usage_fields/ is a committed, content-free file of

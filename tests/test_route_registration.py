@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """test_route_registration.py — Assert /patterns and /ask are on the production app.
 
 This test specifically guards against the "tests-pass-but-real-server-fails" gap:

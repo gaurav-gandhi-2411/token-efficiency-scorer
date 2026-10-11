@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """test_session_sort.py — Verify server-side session-list sorting.
 
 Tests:

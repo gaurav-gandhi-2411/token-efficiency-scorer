@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail CI if a .portfolio/metrics.json metric has no committed artifact backing it.
 
 A number without a committed source is a build failure, not a warning (2026-08-05

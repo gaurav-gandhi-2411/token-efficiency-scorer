@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tes/self_baseline.py — Per-user, per-type lean-subset self-baselines from the SQLite store.

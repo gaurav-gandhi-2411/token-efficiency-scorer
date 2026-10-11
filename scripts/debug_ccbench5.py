@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Inspect CC-Bench and write OOD traces to disk."""
 
 from __future__ import annotations

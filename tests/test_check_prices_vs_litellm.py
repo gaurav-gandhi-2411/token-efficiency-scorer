@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for scripts/check_prices_vs_litellm.py (optional, non-fatal LiteLLM cross-check).
 
 The LiteLLM data below is a hand-written miniature in LiteLLM's real shape (per-token USD,

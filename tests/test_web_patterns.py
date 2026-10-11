@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """test_web_patterns.py — Patterns page: honest framing, floor honored, validity shown.
 
 Tests:

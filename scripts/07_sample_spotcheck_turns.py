@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Sample 20 diverse assistant turns for manual spot-check labeling."""
 
 from __future__ import annotations

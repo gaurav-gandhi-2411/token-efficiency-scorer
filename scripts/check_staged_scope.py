@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 # ruff: noqa: E402 -- pending PR #45's repo-wide E402 config exemption
 # landing on master (see that PR for the full reasoning); until then this
 # matches every other file's existing pattern under the same constraint.

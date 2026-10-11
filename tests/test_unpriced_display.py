@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """A model missing from the price table must read `unpriced (<model>)`, never `$0.00` (D7).
