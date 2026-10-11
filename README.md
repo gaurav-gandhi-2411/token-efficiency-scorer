@@ -211,10 +211,10 @@ Real output on four synthetic sessions across two projects (one older than the 7
 COST -- last 7 days
 ──────────────────────────────────────────────────────────────────────
 
-Total: $8.19  (3 sessions)
+Total: $8.43  (3 sessions)
 
 By project:
-  demo-web                                     $4.29  (1 session)
+  demo-web                                     $4.54  (1 session)
   demo-api                                     $3.89  (2 sessions)
 ──────────────────────────────────────────────────────────────────────
 ```
@@ -226,11 +226,11 @@ By project:
 COST -- last 30 days
 ──────────────────────────────────────────────────────────────────────
 
-Total: $11.27  (4 sessions)
+Total: $11.51  (4 sessions)
 
 By project:
   demo-api                                     $6.97  (3 sessions)
-  demo-web                                     $4.29  (1 session)
+  demo-web                                     $4.54  (1 session)
 ──────────────────────────────────────────────────────────────────────
 ```
 

@@ -153,7 +153,7 @@ def scenario_cost(base: Path) -> dict[str, str]:
     sb = _Sandbox(base, "cost")
     _write_session(sb.root, "demo-api", "api-1", "claude-sonnet-5-5", 1.0, turns=60, step=6_000)
     _write_session(sb.root, "demo-api", "api-2", "claude-sonnet-5-5", 3.0, turns=45, step=5_000)
-    _write_session(sb.root, "demo-web", "web-1", "claude-opus-5-5", 2.0, turns=50, step=7_000)
+    _write_session(sb.root, "demo-web", "web-1", "claude-opus-5-5", 2.0, turns=52, step=7_000)
     _write_session(sb.root, "demo-api", "api-old", "claude-sonnet-5-5", 12.0, turns=70, step=6_000)
     sb.score_all()
     return {
