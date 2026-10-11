@@ -21,10 +21,12 @@ consumers receive the honesty — not bolted on in CLI formatting only (spec dec
 import json
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from tes.alarm_baseline import dominant_model
 from tes.baselines import compute_real_tokens, load_baselines
 from tes.classify import classify_session
+from tes.web.cost_format import cost_is_known
 
 if TYPE_CHECKING:
     from tes.attribution import AttributionResult
@@ -38,9 +40,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 TOKEN_DOMAIN_OF_VALIDITY: str = (
-    "Calibrated to a high-waste infra/ML-ops corpus (1 developer, 75 quality-gated "
-    "sessions; B2 report). Scope-gated by per-task-type p10 turn floor. Verdict is "
-    "relative to quality-certified sessions of the same task type. "
+    "Calibrated to a high-waste infra/ML-ops corpus (1 developer, ungated sessions, "
+    "usage counted once per API response; eval/manifest.json). Scope-gated by "
+    "per-task-type p10 turn floor. Verdict is relative to the typical sessions of "
+    "this one developer for the same task type, not to quality-certified runs. "
     "Baseline reflects high-intensity infra work (corpus characterization: report 11); "
     "ordinary coding sessions may read below-band without being inefficient — "
     "interpret with the trajectory verdict. "
@@ -168,6 +171,10 @@ class ThreeAxisResult:
     # (e.g. web search) detected but not reflected in session_cost_usd. Empty
     # list when none detected. See tes.cost.SessionCost.server_tool_warnings.
     cost_server_tool_warnings: list[str] = field(default_factory=list)
+    # Pricing simplifications applied to turns that ARE in session_cost_usd (e.g. a tiered
+    # model's long-context tier not recoverable from an aggregated subagent turn).
+    # See tes.cost.SessionCost.pricing_caveats.
+    cost_pricing_caveats: list[str] = field(default_factory=list)
 
     # --- attribution fractions (RR1: persisted at score time so tes.intelligence
     # can cluster ANY scored session regardless of whether its source JSONL is
@@ -184,6 +191,29 @@ class ThreeAxisResult:
     # session priced cleanly or cost wasn't computed at all. ---
     cost_unpriced_models: str | None = None
 
+    # --- explicit pricing status (W1A D7). `priced` is True iff a cost was computed and every
+    # turn's model resolved; `unpriced_models` lists the model ids that did not. Machine-
+    # readable twins of cost_unpriced_models / cost_approximate (kept for back-compat:
+    # cost_approximate only trips past a >25% unresolved-turn threshold, `priced` on any). ---
+    priced: bool = False
+    unpriced_models: list[str] = field(default_factory=list)
+    # False when session_cost_usd is a placeholder 0.0 / null rather than a measurement (no turn
+    # could be priced). Additive JSON key; session_cost_usd itself stays numeric (see
+    # docs/JSON_OUTPUT.md).
+    cost_known: bool = False
+    # Price-table keys of the priced turns (main + subagent), so the cost note can state the
+    # cache-read multiplier each model was actually billed at. Additive JSON key.
+    cost_models: list[str] = field(default_factory=list)
+
+    # --- subagent roll-up (W1A D6). session_cost_usd and the attribution fractions already
+    # INCLUDE subagent usage; these expose the split. subagent_tokens is in real_tokens units
+    # (input - cache_read + output). real_tokens itself stays main-chain only so the
+    # baseline-calibrated verdict is unchanged; real_tokens_incl_subagents is the sum. ---
+    subagent_tokens: int = 0
+    subagent_cost_usd: float | None = None
+    subagent_count: int = 0
+    real_tokens_incl_subagents: int = 0
+
     # --- code impact (XX2.2: persisted at score time, same RR1 lesson --
     # tool_use.input.old_string/new_string/file_path are only readable
     # while the source transcript still exists). JSON-encoded list of
@@ -195,10 +225,51 @@ class ThreeAxisResult:
     # tes.impact's report distinguishes these at read time. ---
     edit_operations: str | None = None
 
+    # --- usage de-duplication (adapter_version 2). Claude Code writes one assistant record
+    # per content block of an API response, each repeating the response's usage; tes.adapt
+    # counts each distinct message.id once. These make the correction observable:
+    # duplicate_usage_records = usage_records - usage_records_deduped. adapter_version is None
+    # for a record that did not come from tes.adapt (e.g. a pool_adapted.jsonl fixture). ---
+    adapter_version: int | None = None
+    # tes.adapt.COST_VERSION of the adapter that priced this record (None = not from tes.adapt
+    # or scored before cost versioning, i.e. every cache write priced at the 5-minute rate).
+    cost_version: int | None = None
+    usage_records: int = 0
+    usage_records_deduped: int = 0
+    duplicate_usage_records: int = 0
+
+    # --- model era for the live alarm's baseline: the (normalized) model that did most of the
+    # token work, see tes.alarm_baseline.dominant_model. None when no turn names a model. ---
+    dominant_model: str | None = None
+
+    # --- lever hint (W1A item 4): the data-gated cost lever (waste / long context / output
+    # share) from tes.takeaway.build_lever_hint, the same function the dashboard uses. None when
+    # no lever fires (or attribution was unavailable). Set by the CLI after scoring, not by
+    # score_session, because it needs the AttributionResult, which is not part of this result. ---
+    lever_hint: str | None = None
+    # Informational dollars and shares per bucket (tes.takeaway.build_cost_breakdown); not a
+    # finding. None when attribution was unavailable. Set by the CLI after scoring, like lever_hint.
+    cost_breakdown: dict[str, Any] | None = None
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _priced_model_keys(session_cost: SessionCost | None) -> list[str]:
+    """Distinct price-table keys of the turns that were priced (main chain and subagents)."""
+    if session_cost is None:
+        return []
+    turns = [*session_cost.turn_costs, *session_cost.subagent_turn_costs]
+    # <synthetic> stubs are zero-cost non-models: naming a multiplier for them would be noise.
+    return sorted(
+        {
+            tc.model_key
+            for tc in turns
+            if tc.priced and tc.model_key and tc.model_key != "<synthetic>"
+        }
+    )
 
 
 def _lean_judgment(judge_verdict: str | None) -> str:
@@ -471,6 +542,7 @@ def score_session(
     cost_approx = session_cost.approximate if session_cost else False
     cost_dov = session_cost.domain_of_validity if session_cost else ""
     cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
+    cost_pricing_caveats = session_cost.pricing_caveats if session_cost else []
 
     # XX1.3: pull the raw unresolved model name(s) out of
     # approximate_reasons (e.g. "unknown model 'foo-bar-2026' — cost
@@ -478,13 +550,23 @@ def score_session(
     # regex over an already-computed, in-memory list, not a new lookup.
     _unpriced_models: list[str] = []
     if session_cost is not None:
-        for reason in session_cost.approximate_reasons:
-            m = re.search(r"unknown model '([^']*)'", reason)
-            if m:
-                _unpriced_models.append(m.group(1))
-            elif "empty model string" in reason:
-                _unpriced_models.append("(empty)")
-    cost_unpriced_models = ",".join(sorted(set(_unpriced_models))) or None
+        if session_cost.unpriced_models:
+            _unpriced_models = list(session_cost.unpriced_models)
+        else:
+            # SessionCost built without unpriced_models (older callers/fixtures).
+            for reason in session_cost.approximate_reasons:
+                m = re.search(r"unknown model '([^']*)'", reason)
+                if m:
+                    _unpriced_models.append(m.group(1))
+                elif "empty model string" in reason:
+                    _unpriced_models.append("(empty)")
+    unpriced_models_list = sorted(set(_unpriced_models))
+    cost_unpriced_models = ",".join(unpriced_models_list) or None
+
+    _sub_usage: dict[str, int] = record.get("subagent_usage") or {}
+    subagent_tokens = int(_sub_usage.get("real_tokens", 0))
+    subagent_count = int(_sub_usage.get("file_count", 0))
+    _usage_dedupe: dict[str, int] = record.get("usage_dedupe") or {}
 
     # XX2.2: persist whatever tes.adapt already extracted from tool_use
     # blocks in its single pass over the source JSONL -- "edit_operations"
@@ -544,8 +626,23 @@ def score_session(
         cost_approximate=cost_approx,
         cost_domain_of_validity=cost_dov,
         cost_server_tool_warnings=cost_server_tool_warnings,
+        cost_pricing_caveats=cost_pricing_caveats,
         cost_unpriced_models=cost_unpriced_models,
+        priced=session_cost is not None and not unpriced_models_list,
+        unpriced_models=unpriced_models_list,
+        cost_known=cost_is_known(cost_usd, unpriced_models_list),
+        cost_models=_priced_model_keys(session_cost),
+        subagent_tokens=subagent_tokens,
+        subagent_cost_usd=session_cost.subagent_usd if session_cost else None,
+        subagent_count=subagent_count,
+        real_tokens_incl_subagents=real_tokens + subagent_tokens,
         edit_operations=edit_operations_json,
+        adapter_version=record.get("adapter_version"),
+        cost_version=record.get("cost_version"),
+        usage_records=int(_usage_dedupe.get("usage_records", 0)),
+        usage_records_deduped=int(_usage_dedupe.get("usage_records_deduped", 0)),
+        duplicate_usage_records=int(_usage_dedupe.get("duplicate_usage_records", 0)),
+        dominant_model=dominant_model(record.get("digest", {}).get("turns", [])) or None,
         # --- attribution fractions (RR1) ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,

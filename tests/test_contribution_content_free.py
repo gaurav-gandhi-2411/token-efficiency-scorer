@@ -17,6 +17,8 @@ from tes.contribution import build_contribution_payload
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
 
+from tests.legacy_store import stamp_current
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # Sensitive strings that must NEVER appear in the serialized payload
@@ -81,6 +83,7 @@ def _payload_json(result: ThreeAxisResult, source_path: str = "/nonexistent/path
     conn = _make_conn()
     mtime = datetime(2026, 6, 9, 0, 0, 0, tzinfo=UTC).timestamp()
     upsert_session(conn, result, source_path, mtime, "hash-test", turn_count=20)
+    stamp_current(conn)
     payload = build_contribution_payload(
         conn,
         contributor_id="safe-test-uuid",
@@ -155,6 +158,7 @@ def test_exotic_model_string_becomes_other() -> None:
     result = _make_result_with_secrets()
     mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-exotic", turn_count=20)
+    stamp_current(conn)
     payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     serialized = json.dumps([{"rows": payload.rows}])
     assert "custom-self-hosted-model-v99" not in serialized
@@ -189,6 +193,7 @@ def test_unknown_task_type_becomes_other() -> None:
     )
     mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-tasktype", turn_count=5)
+    stamp_current(conn)
     payload = build_contribution_payload(conn, contributor_id=None, include_source_components=False)
     serialized = json.dumps([{"rows": payload.rows}])
     assert "IDENTIFYING-PROJECT-NAME-AS-TYPE" not in serialized

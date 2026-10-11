@@ -12,6 +12,8 @@ from tes.contribution import ALLOWED_FIELDS, build_contribution_payload
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
 
+from tests.legacy_store import stamp_current
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 
@@ -54,6 +56,7 @@ def _make_session(conn, session_id: str = "allowlist-test", task_type: str = "de
     )
     mtime = datetime(2026, 6, 10, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-al", turn_count=25)
+    stamp_current(conn)
 
 
 def test_each_row_has_exactly_allowed_keys() -> None:

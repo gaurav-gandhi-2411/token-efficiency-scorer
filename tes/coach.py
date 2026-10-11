@@ -51,18 +51,23 @@ class HabitResult:
 
 
 def _fetch_sessions(conn: sqlite3.Connection, task_type: str | None) -> list[dict]:
+    # W1A D7: sessions with unpriced models carry a partial (possibly $0) cost, so every
+    # "$ per session" comparison below would be skewed by them -- they are left out of the
+    # habit statistics rather than counted as cheap.
     if task_type is not None:
         rows = conn.execute(
             "SELECT session_id, task_type, source_path, session_cost_usd, "
             "waste_event_count, waste_events, band_verdict "
-            "FROM sessions WHERE task_type = ? AND session_cost_usd IS NOT NULL",
+            "FROM sessions WHERE task_type = ? AND session_cost_usd IS NOT NULL "
+            "AND (cost_unpriced_models IS NULL OR cost_unpriced_models = '')",
             (task_type,),
         ).fetchall()
     else:
         rows = conn.execute(
             "SELECT session_id, task_type, source_path, session_cost_usd, "
             "waste_event_count, waste_events, band_verdict "
-            "FROM sessions WHERE session_cost_usd IS NOT NULL"
+            "FROM sessions WHERE session_cost_usd IS NOT NULL "
+            "AND (cost_unpriced_models IS NULL OR cost_unpriced_models = '')"
         ).fetchall()
     return [dict(r) for r in rows]
 

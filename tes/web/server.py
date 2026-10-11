@@ -20,17 +20,22 @@ from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
 from tes.cost import load_price_table
 from tes.intelligence.cache import get_or_compute_intelligence
 from tes.intelligence.chat import ChatApiConfig, ask_api, ask_local
-from tes.self_baseline import compute_baseline_cost_band, load_or_compute
+from tes.legacy import LEGACY_ROW_LABEL, is_legacy_row
+from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
+from tes.self_baseline import SelfBaselineState, compute_baseline_cost_band, load_or_compute
 from tes.store import (
     _SORT_COLUMN_WHITELIST,
     TrajectoryRenderState,
     get_session,
     list_sessions,
     open_db,
+    resolve_db_path,
     trajectory_render_state,
 )
+from tes.takeaway import BREAKDOWN_NOTE, build_cost_breakdown, build_lever_hint
 from tes.waste import build_waste_entry
 from tes.web.cost_format import (
+    format_cost_display,
     format_cost_pct_vs_baseline,
     format_price_provenance,
 )
@@ -64,77 +69,6 @@ def _compute_session_attribution(
         return compute_attribution(digest, waste_entry, prices)
     except Exception:
         return None
-
-
-def _build_attribution_takeaway(attr: AttributionResult) -> str:
-    """Deterministic takeaway with data-gated actionable hints (multiple can fire).
-
-    Hint rules checked in order — each fires independently:
-      1. Waste lever  : waste_usd >= 0.50  OR  (waste_pct >= 10 AND waste_usd >= 0.05)
-                        → "$X.XX in detectable waste; see the waste events for exact proof turns."
-                        Threshold keeps sub-$0.50 rounding-noise sessions silent.
-      2. Context lever: context_pct (re-send + growth) >= 60% of total cost
-                        → "a long context drove most of the cost; checkpointing or /compact reduces re-send."
-      3. Output lever : output_pct >= 40% AND context_pct < 60%
-                        → "output was a large cost share; shorter responses or fewer regenerations reduce this."
-      No hint fires   → description only (no dominant lever — correct to stay quiet).
-    """
-    total_usd = attr.total_usd
-    if total_usd == 0:
-        return "No cost data — token bucket counts available in attribution table."
-
-    def pct(v: float) -> int:
-        return round(v / total_usd * 100)
-
-    resend_pct = pct(attr.context_resend_usd)
-    growth_pct = pct(attr.context_growth_usd)
-    output_pct = pct(attr.output_usd)
-    context_pct = resend_pct + growth_pct
-    waste_usd = attr.rr_waste_usd + attr.rfr_waste_usd
-    waste_pct = pct(waste_usd)
-
-    parts: list[str] = []
-    if context_pct > 0:
-        parts.append(f"context ({resend_pct}% re-send + {growth_pct}% growth)")
-    if output_pct > 0:
-        parts.append(f"output ({output_pct}%)")
-
-    cost_desc = "Cost: " + " and ".join(parts) if parts else "Cost: distributed across buckets"
-    waste_str = (
-        f"; detectable waste ${waste_usd:.2f}" if waste_usd > 0.001 else "; no detectable waste"
-    )
-
-    # Data-gated hints — each checked independently, waste first
-    hints: list[str] = []
-
-    # Waste lever: real waste, not rounding noise
-    # Absolute: >= $0.50 catches large-session waste regardless of share
-    # Relative: >= 10% share AND >= $0.05 catches small-session disproportionate waste
-    if waste_usd >= 0.50 or (waste_pct >= 10 and waste_usd >= 0.05):
-        hints.append(
-            f"${waste_usd:.2f} in detectable waste; see the waste events for exact proof turns."
-        )
-
-    # Context lever: context is the majority of cost
-    if context_pct >= 60:
-        hints.append(
-            "a long context drove most of the cost; checkpointing or /compact mid-session reduces re-send."
-        )
-    elif output_pct >= 40:
-        # Output lever: only when context is not already dominant
-        hints.append(
-            "output was a large cost share; shorter responses or fewer regenerations reduce this."
-        )
-
-    if not hints:
-        return cost_desc + waste_str + "."
-
-    # First hint: " — "; subsequent: " Also, "
-    hint_text = " — " + hints[0]
-    for h in hints[1:]:
-        hint_text += " Also, " + h
-
-    return cost_desc + waste_str + "." + hint_text
 
 
 def _build_attribution_rows(attr: AttributionResult) -> list[dict]:
@@ -228,9 +162,16 @@ def _stored_attribution_line(session: dict) -> str | None:
     waste_usd = sum(e.get("wasted_cost_usd") or 0 for e in waste_events)
     n_events = session.get("waste_event_count", 0) or 0
 
+    unpriced = session.get("unpriced_models") or ()
+    total = format_cost_display(float(cost_usd), unpriced)
     if n_events > 0:
-        return f"${float(cost_usd):.2f} total · waste ${waste_usd:.2f} ({n_events} event{'s' if n_events != 1 else ''})"
-    return f"${float(cost_usd):.2f} total · no waste detected"
+        plural = "s" if n_events != 1 else ""
+        if unpriced and waste_usd <= 0:
+            # Nothing priced: "$0.00" would read as free waste. Say how many events, not what.
+            return f"{total} total · {n_events} waste event{plural} (waste cost unpriced)"
+        waste = format_cost_display(waste_usd, unpriced)
+        return f"{total} total · waste {waste} ({n_events} event{plural})"
+    return f"{total} total · no waste detected"
 
 
 # Historical anchor: B2-era scored sessions among content sessions (turn_count > 0).
@@ -332,6 +273,9 @@ def _per_type_status(conn: sqlite3.Connection, self_bl_state) -> list[dict]:
 def create_app(config: ServerConfig) -> Flask:
     """Create and configure the Flask dashboard application."""
     app = Flask(__name__, template_folder="templates")
+    # W1A D7: templates never format a $ by hand -- unpriced models must show as
+    # "unpriced (<model>)", not "$0.00".
+    app.jinja_env.filters["cost_display"] = format_cost_display
 
     baselines_path = config.cc_baselines_path or BUNDLED_BASELINES_PATH
     _b2 = load_baselines(baselines_path)
@@ -402,6 +346,15 @@ def create_app(config: ServerConfig) -> Flask:
                 s["cost_vs_baseline_pct"] = None
                 s["baseline_cost_median"] = None
 
+        # Legacy rows (pre-0.15 accounting) stay listed but are marked, and are never compared
+        # with a baseline built from corrected sessions.
+        for s in sessions:
+            s["is_legacy"] = is_legacy_row(s)
+            if s["is_legacy"]:
+                s["cost_vs_baseline_pct"] = None
+                s["baseline_cost_median"] = None
+        legacy_count = sum(1 for s in sessions if s["is_legacy"])
+
         pairs = [(s, trajectory_render_state(s)) for s in sessions]
 
         # Annotate each session with a stored-data attribution line (no file I/O).
@@ -418,6 +371,8 @@ def create_app(config: ServerConfig) -> Flask:
             price_provenance=_price_provenance,
             sort_key=sort_key,
             sort_dir=sort_dir,
+            legacy_count=legacy_count,
+            legacy_label=LEGACY_ROW_LABEL,
         )
 
     @app.route("/session/<session_id>")
@@ -435,8 +390,13 @@ def create_app(config: ServerConfig) -> Flask:
         scope_floor = type_bl.scope_floor if type_bl is not None else 20
         cost_band = compute_baseline_cost_band(conn, task_type, scope_floor)
 
+        is_legacy = is_legacy_row(session)
         cost_usd = session.get("session_cost_usd")
-        if cost_band is not None and cost_usd is not None:
+        if is_legacy:
+            # An overcounted cost must not be compared with a corrected baseline.
+            cost_vs_baseline_pct = None
+            baseline_cost_median = None
+        elif cost_band is not None and cost_usd is not None:
             pct = format_cost_pct_vs_baseline(float(cost_usd), cost_band)
             cost_vs_baseline_pct = pct
             baseline_cost_median = cost_band[1]
@@ -446,7 +406,11 @@ def create_app(config: ServerConfig) -> Flask:
 
         # Attribution — requires source JSONL file; gracefully returns None if unavailable.
         attribution = _compute_session_attribution(session, _prices)
-        attribution_takeaway = _build_attribution_takeaway(attribution) if attribution else None
+        unpriced = session.get("unpriced_models") or ()
+        # An absolute finding (waste above its threshold, output >= 40%) or None; the breakdown
+        # is informational and always shown when attribution is available.
+        attribution_takeaway = build_lever_hint(attribution, unpriced) if attribution else None
+        cost_breakdown = build_cost_breakdown(attribution, unpriced) if attribution else None
         attribution_rows = _build_attribution_rows(attribution) if attribution else None
 
         return render_template(
@@ -455,11 +419,15 @@ def create_app(config: ServerConfig) -> Flask:
             traj_state=traj_state,
             TrajectoryRenderState=TrajectoryRenderState,
             price_provenance=_price_provenance,
+            is_legacy=is_legacy,
+            legacy_label=LEGACY_ROW_LABEL,
             cost_band=cost_band,
             cost_vs_baseline_pct=cost_vs_baseline_pct,
             baseline_cost_median=baseline_cost_median,
             attribution=attribution,
             attribution_takeaway=attribution_takeaway,
+            cost_breakdown=cost_breakdown,
+            breakdown_note=BREAKDOWN_NOTE,
             attribution_rows=attribution_rows,
         )
 
@@ -525,6 +493,11 @@ def create_app(config: ServerConfig) -> Flask:
     def patterns() -> str:
         from tes.store import resolve_db_path
 
+        try:
+            require_patterns_extra()
+        except PatternsExtraMissing as exc:
+            return render_template("extra_missing.html", feature="Session patterns", hint=str(exc))
+
         cache = get_or_compute_intelligence(db_path=resolve_db_path(config.db_path))
         ollama_available = _check_ollama()
         api_key_available = bool(os.environ.get("ANTHROPIC_API_KEY", ""))
@@ -545,12 +518,21 @@ def create_app(config: ServerConfig) -> Flask:
     @app.route("/budget")
     def budget() -> str:
         """Rolling-window pace + honest self-trend projection, always labeled."""
-        from tes.budget import DEFAULT_WINDOW_DAYS, compute_budget_projection
+        from tes.budget import (
+            DEFAULT_WINDOW_DAYS,
+            compute_budget_projection,
+            legacy_rows_excluded_in_window,
+        )
 
         conn = get_db()
         window_days = request.args.get("window_days", DEFAULT_WINDOW_DAYS, type=int)
         projection = compute_budget_projection(conn, window_days=window_days)
-        return render_template("budget.html", projection=projection, window_days=window_days)
+        return render_template(
+            "budget.html",
+            projection=projection,
+            window_days=window_days,
+            legacy_excluded=legacy_rows_excluded_in_window(conn, window_days),
+        )
 
     @app.route("/monitor")
     def monitor() -> str:
@@ -559,7 +541,7 @@ def create_app(config: ServerConfig) -> Flask:
         Read-only, best-effort — the active session may not exist right now,
         in which case this shows an honest 'no active session' state, not an error.
         """
-        from tes.alarm import AlarmConfig, check_alarm
+        from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
         from tes.live_monitor import find_active_session, score_live_session
         from tes.watcher import DEFAULT_CC_PATH
 
@@ -570,14 +552,17 @@ def create_app(config: ServerConfig) -> Flask:
         live = score_live_session(active_path, _prices) if active_path is not None else None
 
         alarm_result = None
-        if live is not None and self_bl is not None:
+        threshold = None
+        if live is not None:
             alarm_cfg = AlarmConfig(enabled=True, plan_type=config.plan_type)
-            alarm_result = check_alarm(live, self_bl, alarm_cfg)
+            threshold = threshold_for_live(live, resolve_db_path(config.db_path), _b2, alarm_cfg)
+            alarm_result = check_alarm(live, self_bl or SelfBaselineState(), alarm_cfg, threshold)
 
         return render_template(
             "monitor.html",
             live=live,
             alarm=alarm_result,
+            threshold=threshold,
             plan_type=config.plan_type,
         )
 
@@ -588,6 +573,11 @@ def create_app(config: ServerConfig) -> Flask:
         if not question:
             return jsonify({"error": "No question provided."}), 400
         question = question[:500]  # length cap — no runaway prompts
+
+        try:
+            require_patterns_extra()
+        except PatternsExtraMissing as exc:
+            return jsonify({"error": str(exc), "needs_extra": "patterns"}), 501  # type: ignore[return-value]  # as the other /ask returns
 
         db_path_str = str(config.db_path) if config.db_path else None
 

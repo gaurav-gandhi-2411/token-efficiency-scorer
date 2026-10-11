@@ -7,6 +7,7 @@ These helpers format dollar amounts, baseline-relative framing, and price proven
 """
 
 
+import pytest
 from tes.web.cost_format import (
     format_cost_pct_vs_baseline,
     format_cost_usd,
@@ -153,3 +154,66 @@ def test_price_provenance_missing_multipliers_uses_defaults() -> None:
 def test_price_provenance_unknown_date() -> None:
     result = format_price_provenance({})
     assert "unknown" in result
+
+
+# ---------------------------------------------------------------------------
+# format_price_provenance: the read multiplier named is the one the model was billed at
+# ---------------------------------------------------------------------------
+
+_PER_MODEL_PRICES = {
+    "as_of": "2026-10-09",
+    "cache_multipliers": {"read": 0.1, "write_5min": 1.25, "write_1hr": 2.0},
+    "models": {
+        "claude-opus-5-5": {"cache_read_multiplier": 0.05},
+        "claude-sonnet-5-5": {"cache_read_multiplier": 0.05},
+        "claude-fable-5-1": {"cache_read_multiplier": 0.025},
+        "claude-sonnet-4-6": {},
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("claude-opus-5-5", "cache read 0.05×"),
+        ("claude-sonnet-5-5", "cache read 0.05×"),
+        ("claude-fable-5-1", "cache read 0.025×"),
+        ("claude-sonnet-4-6", "cache read 0.10×"),
+    ],
+)
+def test_price_provenance_names_the_per_model_read_multiplier(model: str, expected: str) -> None:
+    result = format_price_provenance(_PER_MODEL_PRICES, [model])
+    assert expected in result
+    assert model in result
+
+
+def test_price_provenance_mixed_models_names_each_multiplier() -> None:
+    result = format_price_provenance(_PER_MODEL_PRICES, ["claude-opus-5-5", "claude-sonnet-4-6"])
+    assert "0.05× (claude-opus-5-5)" in result
+    assert "0.10× (claude-sonnet-4-6)" in result
+
+
+def test_price_provenance_states_the_cache_write_assumption() -> None:
+    result = format_price_provenance(_PER_MODEL_PRICES, ["claude-opus-5-5"])
+    assert "1.25× (5m)" in result
+    assert "2.00× (1h)" in result
+    assert "unspecified assumed 5m" in result
+
+
+def test_price_provenance_without_models_lists_the_overrides() -> None:
+    result = format_price_provenance(_PER_MODEL_PRICES)
+    assert "cache read 0.10× by default" in result
+    assert "0.05× on claude-opus-5-5, claude-sonnet-5-5" in result
+    assert "0.025× on claude-fable-5-1" in result
+
+
+def test_price_provenance_matches_the_multiplier_compute_turn_cost_uses() -> None:
+    from tes.cost import cache_read_multiplier, load_price_table
+
+    prices = load_price_table()
+    for key, entry in prices["models"].items():
+        used = cache_read_multiplier(entry, prices)
+        text = format_price_provenance(prices, [key])
+        expected = f"{used:.3f}"
+        expected = expected[:-1] if expected.endswith("0") else expected
+        assert f"cache read {expected}×" in text, key

@@ -113,6 +113,8 @@ class ContributionManifest:
     fields_excluded: list[str]  # explicit list of excluded content-bearing fields
     contributor_id: str | None
     built_at_week: str  # ISO week only, NOT precise timestamp
+    # Legacy rows (pre-0.15 accounting, tokens overcounted ~2x) are never exported.
+    legacy_rows_excluded: int = 0
 
 
 @dataclass
@@ -243,9 +245,14 @@ def build_contribution_payload(
         token_count_output, cache_creation, cache_read, and model.
         When False (or source is inaccessible), those fields are None.
     """
+    from tes.legacy import is_legacy_row
     from tes.store import list_sessions
 
-    session_rows = list_sessions(conn, limit=100_000)
+    all_rows = list_sessions(conn, limit=100_000)
+    # A legacy row's real_tokens is overcounted ~2x; exporting it would put a known-wrong
+    # number into a file other people may read. Skip it and report how many were skipped.
+    session_rows = [r for r in all_rows if not is_legacy_row(r)]
+    legacy_excluded = len(all_rows) - len(session_rows)
     rows: list[dict] = []
 
     tracegauge_version = tes.__version__
@@ -292,6 +299,7 @@ def build_contribution_payload(
         fields_excluded=_FIELDS_EXCLUDED,
         contributor_id=contributor_id,
         built_at_week=built_at_week,
+        legacy_rows_excluded=legacy_excluded,
     )
     return ContributionPayload(rows=rows, manifest=manifest)
 

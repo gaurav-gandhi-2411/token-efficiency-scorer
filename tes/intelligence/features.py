@@ -170,11 +170,15 @@ def extract_features(
             for v in persisted  # type: ignore[arg-type]
         )
         # fresh_input_pct is not persisted (dropped from the feature vector
-        # anyway, kept only for provenance on legacy rows) -- the remainder
-        # after the 4 persisted buckets, since all 5 non-waste-detail
-        # buckets should sum to ~1.0. Approximate, not re-derived exactly;
-        # provenance-only, never fed into the feature vector.
-        fresh_input_pct = max(0.0, 1.0 - context_resend_pct - context_growth_pct - output_pct)
+        # anyway, kept only for provenance) -- the remainder after the 4
+        # persisted buckets. waste_pct (B1+B2, whole waste turns) is disjoint
+        # from B3/B4/B5/B6 (clean turns only), so the five buckets partition
+        # total_billed_tokens and the remainder must exclude waste too;
+        # leaving it out overstated fresh_input_pct by waste_pct. Provenance-
+        # only, never fed into the feature vector.
+        fresh_input_pct = max(
+            0.0, 1.0 - context_resend_pct - context_growth_pct - output_pct - waste_pct
+        )
     else:
         # --- Legacy fallback: compute attribution from source JSONL ---
         if not source_path or not Path(source_path).exists():

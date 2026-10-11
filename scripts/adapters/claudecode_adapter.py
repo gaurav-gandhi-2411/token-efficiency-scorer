@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+# NOTE (2026-10): this FROZEN research adapter still sums usage per assistant RECORD, which
+# over-counts ~2.4x on current Claude Code transcripts (one record per content block, each
+# repeating the response's usage). Its logic is left unchanged on purpose, with ONE deliberate
+# exception (commit 5aadc5e): transcripts are now split into lines with .split("\n") instead of
+# .splitlines() (in adapt_session and _load_existing_ids), because splitlines() also breaks on a
+# raw U+2028/U+2029/U+0085 inside a JSON string and silently dropped that record. For input
+# without those characters the output is identical (1 of 1,005 local transcripts had any); the
+# published research artifacts (pool_adapted.jsonl, B5) predate the change. Anything that ships numbers
+# (baselines, scores, cost) must use tes.adapt.adapt_session, which counts each message.id once.
+
 """claudecode_adapter.py — Convert Claude Code session JSONL transcripts to layer1_outputs format.
 
 Reads raw Claude Code session JSONL files (from ~/.claude/projects/<project>/<uuid>.jsonl)
@@ -170,7 +180,7 @@ def adapt_session(session_path: Path) -> dict[str, Any]:
     """
     session_id: str = session_path.stem
 
-    raw_lines: list[str] = session_path.read_text(encoding="utf-8").splitlines()
+    raw_lines: list[str] = session_path.read_text(encoding="utf-8").split("\n")
     messages: list[dict[str, Any]] = []
     for line in raw_lines:
         line = line.strip()
@@ -354,7 +364,7 @@ def _load_existing_ids(output_path: Path) -> set[str]:
     if not output_path.exists():
         return set()
     existing: set[str] = set()
-    for line in output_path.read_text(encoding="utf-8").splitlines():
+    for line in output_path.read_text(encoding="utf-8").split("\n"):
         line = line.strip()
         if not line:
             continue

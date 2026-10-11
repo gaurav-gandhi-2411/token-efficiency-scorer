@@ -29,6 +29,8 @@ from tes.corpus_client import (
 from tes.score import ThreeAxisResult
 from tes.store import open_db, upsert_session
 
+from tests.legacy_store import stamp_current
+
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
 # Same planted-secret set as tests/test_contribution_content_free.py — the
@@ -98,6 +100,7 @@ def _make_conn_with_secrets(session_id: str = "send-leak-check") -> object:
         "hash-send-test",
         turn_count=20,
     )
+    stamp_current(conn)
     return conn
 
 
@@ -328,6 +331,7 @@ def _conn_with_one_session() -> object:
     )
     mtime = datetime(2026, 6, 9, tzinfo=UTC).timestamp()
     upsert_session(conn, result, "/nonexistent/path.jsonl", mtime, "hash-guard-e2e", turn_count=5)
+    stamp_current(conn)
     return conn
 
 

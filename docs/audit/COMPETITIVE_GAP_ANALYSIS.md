@@ -258,6 +258,13 @@ published-artifact check. VERIFIED root cause, traced to source:
   cumulative billed tokens grow much faster than session count would
   suggest; this is mechanism, not anomaly.
 
+> **Erratum, 0.15.0.** The statement above that there is "no
+> double-counting" is wrong for the main chain: `tes.adapt` added each API response's usage
+> once per content block (about 2.4x on tokens and 2.26x on cost on the maintainer's other
+> sessions, an unpublished local measurement). The mechanism given for the 68x gap, session
+> length, is still real. Corrected values for this session need its transcript, which is gone,
+> so none is given.
+
 **3.2 — Not seeded**, so this doesn't apply, but the underlying caution is
 taken: checked every README/CHANGELOG example this session's earlier
 verification steps produced (`grep` for `452`, `432.74`, the exact token

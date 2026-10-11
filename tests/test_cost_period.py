@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from tes.adapt import ADAPTER_VERSION, COST_VERSION
 from tes.cli import _project_label
 from tes.cost_period import (
     _project_label_from_source_path,
@@ -53,7 +54,7 @@ def _insert_session(
             trajectory_domain_of_validity, judge_source_hash,
             waste_event_count, waste_events, waste_domain_of_validity,
             turn_count, session_cost_usd, cost_approximate, cost_domain_of_validity,
-            cost_unpriced_models
+            cost_unpriced_models, adapter_version, cost_version
         ) VALUES (
             ?, 'infra-deploy', ?, ?, 'hash', ?,
             '["token"]', ?, 'in_scope', 1,
@@ -62,10 +63,20 @@ def _insert_session(
             '', NULL,
             0, '[]', '',
             30, ?, 0, '',
-            ?
+            ?, ?, ?
         )
         """,
-        (session_id, source_path, source_mtime, scored_at, real_tokens, cost_usd, unpriced_models),
+        (
+            session_id,
+            source_path,
+            source_mtime,
+            scored_at,
+            real_tokens,
+            cost_usd,
+            unpriced_models,
+            ADAPTER_VERSION,
+            COST_VERSION,
+        ),
     )
     conn.commit()
 
@@ -304,6 +315,43 @@ def test_coverage_fractions_reflect_missing_sessions_and_tokens(tmp_path: Path):
     assert report.token_coverage_pct == pytest.approx(30.0)  # 300 of 1000 tokens
     assert report.unpriced_models == ["claude-future-9"]
     assert report.unpriced_models_incomplete is False
+
+
+def test_session_with_an_unpriced_model_is_not_counted_as_priced_coverage(tmp_path: Path):
+    """Regression (verifier 1 #4): an unpriced session is stored with a NON-NULL cost (0.0 or a
+    priced-turns subtotal), which made coverage read 100% of sessions / 100% of tokens."""
+    conn = open_db(tmp_path / "tes.db")
+    now = _now()
+    ts, iso = (now - timedelta(days=1)).timestamp(), (now - timedelta(days=1)).isoformat()
+    _insert_session(conn, "ok", source_mtime=ts, scored_at=iso, cost_usd=3.0, real_tokens=600)
+    _insert_session(
+        conn,
+        "zero",
+        source_mtime=ts,
+        scored_at=iso,
+        cost_usd=0.0,
+        real_tokens=300,
+        unpriced_models="claude-future-9",
+    )
+    _insert_session(
+        conn,
+        "part",
+        source_mtime=ts,
+        scored_at=iso,
+        cost_usd=1.0,
+        real_tokens=100,
+        unpriced_models="claude-future-9",
+    )
+
+    report = compute_period_cost(conn, now - timedelta(days=7), now)
+
+    assert report.priced is False
+    assert report.sessions_unpriced == 2
+    assert report.session_coverage_pct == pytest.approx(100.0 / 3)
+    assert report.token_total == 1000
+    assert report.token_priced == 600
+    assert report.tokens_unpriced == 400
+    assert report.token_coverage_pct == pytest.approx(60.0)
 
 
 def test_unpriced_models_deduplicated_and_sorted(tmp_path: Path):
