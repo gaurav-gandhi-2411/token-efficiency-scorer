@@ -55,7 +55,7 @@ class LiveSessionState:
     )
     ai_turn_count: int
     domain_of_validity: str
-    # Models in this session missing from the price table (W1A D7); live_cost_usd is then a
+    # Models in this session missing from the price table; live_cost_usd is then a
     # priced subtotal. Empty when everything priced. `live_priced` is the boolean twin.
     live_unpriced_models: list[str] = field(default_factory=list)
     # Normalized model that did most of the session's token work (the alarm baseline's "era");

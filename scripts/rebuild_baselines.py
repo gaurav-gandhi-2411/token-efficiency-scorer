@@ -12,7 +12,7 @@ sessions are gone, so it cannot be re-run. Subcommands:
             eval/manifest.json (id, task_type, turns, real_tokens, size/mtime/sha256; no text/paths)
   build     derive the baseline from the manifest ALONE (reproducible after transcripts expire;
             deterministic: order statistics, bootstrap with random.Random(42))
-  evaluate  score Phase 0 set B with disjoint and leave-one-out bands, Wilson 95% intervals
+  evaluate  score the evaluation set with disjoint and leave-one-out bands, Wilson 95% intervals
   verify    re-hash the transcripts that still exist against the manifest
 
 The population is single-developer and NOT quality-gated; see POPULATION_LIMITATIONS.
@@ -368,7 +368,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("freeze", help="scan transcripts and write the manifest")
     f.add_argument("--projects-root", type=Path, default=Path.home() / ".claude" / "projects")
-    f.add_argument("--eval-selection", type=Path, help="c2-selection.json (key sel[B])")
+    f.add_argument(
+        "--eval-selection",
+        type=Path,
+        help="selection JSON; the evaluation set is the list under sel.B",
+    )
     f.add_argument("--eval-key", default="B")
     f.add_argument("--frozen-at", default=date.today().isoformat())
     sub.add_parser("build", help="derive cc_baselines.json from the manifest")

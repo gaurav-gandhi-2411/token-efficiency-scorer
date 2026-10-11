@@ -3,14 +3,14 @@
 
 from __future__ import annotations
 
-"""scripts/measure_edit_ratio_bootstrap_coverage.py — ZZ1: coverage
+"""scripts/measure_edit_ratio_bootstrap_coverage.py — coverage
 measurement for the cost-per-edit / cost-per-100-lines ratio-of-sums
 bootstrap CI, BEFORE adopting any constant for it.
 
 **Why this exists, and why adk-tracegauge's own confidence=0.98/n_boot=
-10,000/min_n=30 are NOT inherited here (ZZ1.1):** adk-tracegauge's
+10,000/min_n=30 are NOT inherited here:** adk-tracegauge's
 _regression.py validates a two-sample DIFFERENCE-IN-MEANS estimator
-(mean(current) - mean(baseline)), resampling each side independently. XX2's
+(mean(current) - mean(baseline)), resampling each side independently. This
 estimator is a RATIO-OF-SUMS (sum(cost) / sum(edits)) over a single sample
 of sessions, resampled as (cost_i, edits_i) PAIRS so the real session-level
 correlation between cost and edit count survives resampling. A ratio
@@ -34,7 +34,7 @@ edits tends to cost more) without being a fixed multiple of it.
 
 **Methods measured**: percentile bootstrap (the naive approach) and BCa
 (bias-corrected and accelerated -- Efron 1987) side by side at every grid
-cell. ZZ1.4 is explicit that Phase 4's "percentile vs BCa, no improvement"
+cell. adk-tracegauge's "percentile vs BCa, no improvement"
 result was for a DIFFERENT estimator (difference-in-means) and does not
 transfer -- this script re-measures BCa's actual value for THIS estimator
 rather than assuming either the adk-tracegauge finding or its opposite.
@@ -60,8 +60,8 @@ from scipy import stats
 
 CONFIDENCE_GRID = [0.95, 0.98, 0.99]
 N_GRID = [10, 30, 50, 100, 250]
-N_TRIALS = 2_000  # ZZ1.3's stated floor
-N_BOOT_SURVEY = 10_000  # generous starting point for the coverage grid itself (see module docstring: NOT adopted as final without ZZ1.6's separate sufficiency check)
+N_TRIALS = 2_000  # the stated floor for coverage trials
+N_BOOT_SURVEY = 10_000  # generous starting point for the coverage grid itself (see module docstring: NOT adopted as final without the separate sufficiency check below)
 TRUE_RATIO = 2.50  # arbitrary but fixed -- $2.50/edit, a plausible real figure
 EDIT_LOG_MEAN = 1.5  # median edits/session = exp(1.5) ~= 4.5
 EDIT_LOG_SIGMA = 1.0  # realistic skew: ~90th pct edits/session ~= exp(1.5+1.28) ~= 20
@@ -79,7 +79,7 @@ def wilson_score_interval(successes: int, n: int, z: float = WILSON_Z) -> tuple[
     """Wilson score CI for a binomial proportion. See adk-tracegauge's
     measure_regression_confidence_grid.py for the full rationale (same
     method, ported here rather than imported -- these are independent
-    packages by design, see ZZ2)."""
+    packages by design)."""
     if n == 0:
         return (0.0, 1.0)
     phat = successes / n
@@ -208,7 +208,7 @@ def run_coverage_grid(
 def measure_n_boot_sufficiency(
     confidence: float, n: int, n_boot_options: list[int], n_repeats: int = 200
 ) -> dict[int, dict[str, float]]:
-    """ZZ1.6: for a FIXED dataset (single seed), re-run the bootstrap
+    """For a FIXED dataset (single seed), re-run the bootstrap
     n_repeats times at each n_boot, measuring the std dev of the resulting
     interval's lower/upper bound across repeats. n_boot is "sufficient"
     once that replicate-to-replicate std dev stops shrinking materially."""
@@ -263,7 +263,7 @@ def main() -> int:
     _print_grid(grid["percentile"], "PERCENTILE bootstrap", CONFIDENCE_GRID, N_GRID)
     _print_grid(grid["bca"], "BCa bootstrap", CONFIDENCE_GRID, N_GRID)
 
-    print("\n=== n_boot sufficiency (ZZ1.6): std dev of interval bounds across 200 repeats ===")
+    print("\n=== n_boot sufficiency: std dev of interval bounds across 200 repeats ===")
     for confidence, n in [(0.98, 30), (0.98, 250)]:
         print(f"\nconfidence={confidence} n={n}:")
         results = measure_n_boot_sufficiency(

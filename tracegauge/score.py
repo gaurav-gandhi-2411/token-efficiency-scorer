@@ -179,7 +179,7 @@ class ThreeAxisResult:
     # See tracegauge.cost.SessionCost.pricing_caveats.
     cost_pricing_caveats: list[str] = field(default_factory=list)
 
-    # --- attribution fractions (RR1: persisted at score time so tracegauge.intelligence
+    # --- attribution fractions (persisted at score time so tracegauge.intelligence
     # can cluster ANY scored session regardless of whether its source JSONL is
     # still reachable on disk) ---
     context_resend_pct: float | None = None
@@ -187,14 +187,14 @@ class ThreeAxisResult:
     output_pct: float | None = None
     waste_pct: float | None = None
 
-    # --- unpriced model names (XX1.3: persisted at score time, same RR1
-    # lesson -- tracegauge.cost.SessionCost.approximate_reasons is only available
+    # --- unpriced model names (persisted at score time, for the same
+    # reason -- tracegauge.cost.SessionCost.approximate_reasons is only available
     # while the source file is still readable). Comma-joined raw model
     # strings that failed to resolve against the price table; None if the
     # session priced cleanly or cost wasn't computed at all. ---
     cost_unpriced_models: str | None = None
 
-    # --- explicit pricing status (W1A D7). `priced` is True iff a cost was computed and every
+    # --- explicit pricing status. `priced` is True iff a cost was computed and every
     # turn's model resolved; `unpriced_models` lists the model ids that did not. Machine-
     # readable twins of cost_unpriced_models / cost_approximate (kept for back-compat:
     # cost_approximate only trips past a >25% unresolved-turn threshold, `priced` on any). ---
@@ -208,7 +208,7 @@ class ThreeAxisResult:
     # cache-read multiplier each model was actually billed at. Additive JSON key.
     cost_models: list[str] = field(default_factory=list)
 
-    # --- subagent roll-up (W1A D6). session_cost_usd and the attribution fractions already
+    # --- subagent roll-up. session_cost_usd and the attribution fractions already
     # INCLUDE subagent usage; these expose the split. subagent_tokens is in real_tokens units
     # (input - cache_read + output). real_tokens itself stays main-chain only so the
     # baseline-calibrated verdict is unchanged; real_tokens_incl_subagents is the sum. ---
@@ -217,7 +217,7 @@ class ThreeAxisResult:
     subagent_count: int = 0
     real_tokens_incl_subagents: int = 0
 
-    # --- code impact (XX2.2: persisted at score time, same RR1 lesson --
+    # --- code impact (persisted at score time, for the same reason --
     # tool_use.input.old_string/new_string/file_path are only readable
     # while the source transcript still exists). JSON-encoded list of
     # {path, additions, deletions, tool, prior_content_unknown,
@@ -245,7 +245,7 @@ class ThreeAxisResult:
     # token work, see tracegauge.alarm_baseline.dominant_model. None when no turn names a model. ---
     dominant_model: str | None = None
 
-    # --- lever hint (W1A item 4): the data-gated cost lever (waste / long context / output
+    # --- lever hint: the data-gated cost lever (waste / long context / output
     # share) from tracegauge.takeaway.build_lever_hint, the same function the dashboard uses. None when
     # no lever fires (or attribution was unavailable). Set by the CLI after scoring, not by
     # score_session, because it needs the AttributionResult, which is not part of this result. ---
@@ -450,7 +450,7 @@ def score_session(
         (same digest/waste_entry/prices the caller already has for session_cost). When
         provided, the four clustering-feature fractions (context_resend_pct,
         context_growth_pct, output_pct, waste_pct) are populated on the result and
-        persisted to the store — see tracegauge.attribution.attribution_fractions. RR1: this is
+        persisted to the store — see tracegauge.attribution.attribution_fractions. This is
         what lets tracegauge.intelligence cluster a session without re-reading its source JSONL.
 
     Returns
@@ -547,7 +547,7 @@ def score_session(
     cost_server_tool_warnings = session_cost.server_tool_warnings if session_cost else []
     cost_pricing_caveats = session_cost.pricing_caveats if session_cost else []
 
-    # XX1.3: pull the raw unresolved model name(s) out of
+    # Pull the raw unresolved model name(s) out of
     # approximate_reasons (e.g. "unknown model 'foo-bar-2026' — cost
     # unknown, ..." or "empty model string — cost unknown, ...") -- a
     # regex over an already-computed, in-memory list, not a new lookup.
@@ -571,7 +571,7 @@ def score_session(
     subagent_count = int(_sub_usage.get("file_count", 0))
     _usage_dedupe: dict[str, int] = record.get("usage_dedupe") or {}
 
-    # XX2.2: persist whatever tracegauge.adapt already extracted from tool_use
+    # Persist whatever tracegauge.adapt already extracted from tool_use
     # blocks in its single pass over the source JSONL -- "edit_operations"
     # is always present (possibly []) on a record from a current
     # adapt_session(); a record missing the key entirely (records loaded
@@ -646,7 +646,7 @@ def score_session(
         usage_records_deduped=int(_usage_dedupe.get("usage_records_deduped", 0)),
         duplicate_usage_records=int(_usage_dedupe.get("duplicate_usage_records", 0)),
         dominant_model=dominant_model(record.get("digest", {}).get("turns", [])) or None,
-        # --- attribution fractions (RR1) ---
+        # --- attribution fractions ---
         context_resend_pct=_resend_pct,
         context_growth_pct=_growth_pct,
         output_pct=_out_pct,

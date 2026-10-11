@@ -12,7 +12,7 @@ import sys
 import tracegauge
 import tracegauge.web.server as srv
 
-repo = pathlib.Path(r"C:\Users\USER\ml-projects\token-efficiency-scorer")
+repo = pathlib.Path(__file__).resolve().parent.parent
 pkg_path = pathlib.Path(tracegauge.__file__)
 if repo in pkg_path.parents:
     print("FAIL: tracegauge is loading from the REPO, not from the installed wheel.")

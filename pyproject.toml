@@ -45,7 +45,7 @@ patterns = [
 ]
 
 [dependency-groups]
-# Wave 15 (gg-portfolio) — this repo had no declared dev dependencies at all;
+# This repo once had no declared dev dependencies at all;
 # lint/type-check/test were only ever run against a global/conda environment,
 # never reproducibly. Needed to make CI (added this same change) actually work.
 dev = [
@@ -94,30 +94,30 @@ line-length = 100
 # `timezone.utc` to `datetime.UTC` (3.11+) and broke the package on 3.10 from 0.12.3 on.
 target-version = "py310"
 src = ["src", "tracegauge", "tes"]
-# tracegauge/_waste_detectors.py is a project invariant: byte-frozen since B4
+# tracegauge/_waste_detectors.py is a project invariant: byte-frozen
 # (tests/test_prior_features_intact.py::test_waste_detectors_byte_frozen
 # enforces `git diff --exit-code` on it), so it must never be touched by
-# `ruff check --fix` or `ruff format` -- AW2's repo-wide autofix pass caught
+# `ruff check --fix` or `ruff format` -- a repo-wide autofix pass once caught
 # this the hard way (reformatted it, broke the frozen-file test, reverted).
 extend-exclude = ["tracegauge/_waste_detectors.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-# E402: this repo's own convention (maintainer rule 1) puts
+# E402: this repo's own convention puts
 # `from __future__ import annotations` before the module docstring, which
 # pycodestyle's E402 reads as "imports after a statement" for every import
 # that follows -- 608 pre-existing findings across 118/174 files, confirmed
 # by direct sampling to be ~93% this exact structural pattern (the remainder
 # are a handful of frozen, one-off release-verification scripts under
 # scripts/ that deliberately interleave imports with sequential executable
-# checks -- also not a real defect). AW2: decided as a permanent config
+# checks -- also not a real defect). Decided as a permanent config
 # exemption rather than reordering 118 files' docstrings (would violate
-# rule 1) or accumulating one-off `noqa`s PR by PR (the anti-pattern this
+# the convention) or accumulating one-off `noqa`s PR by PR (the anti-pattern this
 # decision exists to end).
 ignore = ["E501", "E402"]
 
 [tool.ruff.lint.per-file-ignores]
-# AW2: pre-existing findings that are NOT the E402 structural artifact above
+# Pre-existing findings that are NOT the E402 structural artifact above
 # -- genuine, individually-judged minor issues (unstrict zip(), unused loop
 # vars, ambiguous single-letter names, suppressible exceptions, etc.) that
 # would need real per-call review to fix correctly (e.g. B905's strict=True

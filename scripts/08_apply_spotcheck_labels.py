@@ -37,7 +37,7 @@ LABELS: dict[tuple[str, int], dict] = {
         "redundant_read": False,
         "notes": "first read of automotive/__init__.py based on grep hit; result used in next turn",
     },
-    # crate-python-474 t100: Phase 8 FINAL REVIEW — creates verification file (write op)
+    # crate-python-474 t100: final-review step of that trajectory — creates verification file (write op)
     ("8fe3ae31394917df", 100): {
         "is_retry": False,
         "is_backtrack": False,

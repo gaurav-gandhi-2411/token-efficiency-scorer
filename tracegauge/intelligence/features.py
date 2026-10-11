@@ -133,7 +133,7 @@ def extract_features(
 ) -> SessionFeatures | None:
     """Extract a 13-feature vector from a session store row.
 
-    RR1: prefers attribution fractions already PERSISTED on the row (from
+    Prefers attribution fractions already PERSISTED on the row (from
     tracegauge.store, written at score time by tracegauge.cli/tracegauge.watcher via
     tracegauge.attribution.attribution_fractions) — this is the common, fast path
     for anything scored since that fix landed, and needs no source JSONL at
@@ -159,7 +159,7 @@ def extract_features(
 
     source_path = row.get("source_path")
 
-    # --- Fast path: fractions already persisted at score time (RR1) ---
+    # --- Fast path: fractions already persisted at score time ---
     persisted = (
         row.get("context_resend_pct"),
         row.get("context_growth_pct"),
@@ -293,7 +293,7 @@ def build_feature_matrix(
     X:
         (N, 13) float64 array, one row per SessionFeatures, same order.
     diagnostics:
-        {"n_persisted", "n_stub", "n_no_source", "n_failed"} -- RR1: lets a
+        {"n_persisted", "n_stub", "n_no_source", "n_failed"} -- lets a
         caller (tracegauge.intelligence.cache) distinguish "genuinely too few
         sessions scored yet" from "N sessions exist but their source JSONL
         is unreachable" (legacy rows, scored before attribution fractions
@@ -309,7 +309,7 @@ def build_feature_matrix(
     n_stub = 0
     n_no_source = 0
     n_failed = 0
-    n_persisted = 0  # RR1: served from score-time-persisted fractions, no source JSONL touched
+    n_persisted = 0  # Served from score-time-persisted fractions, no source JSONL touched
 
     for row in rows:
         if row.get("real_tokens", 0) == 0:

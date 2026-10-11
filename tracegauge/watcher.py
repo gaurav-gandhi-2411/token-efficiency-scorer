@@ -109,7 +109,7 @@ def score_session_file(
             per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
             annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
-        # RR1: attribution fractions, persisted at score time -- this is the
+        # Attribution fractions, persisted at score time -- this is the
         # background watcher's scoring path, the most common real-world way
         # sessions get scored at all, so this is the primary place the fix
         # for tracegauge patterns' file-lifetime dependency needs to land. See the

@@ -118,7 +118,7 @@ class SessionCost:
     # server-side tool usage is excluded from total_usd — see
     # TurnCost.server_tool_warning. Empty list when no turn detected any.
     server_tool_warnings: list[str] = field(default_factory=list)
-    # Subagent roll-up (W1A D6): total_usd INCLUDES subagent_usd; the split is exposed so the
+    # Subagent roll-up: total_usd INCLUDES subagent_usd; the split is exposed so the
     # breakdown stays visible. subagent_turn_costs is kept apart from turn_costs because
     # turn_costs is indexed by main-chain turn_index (waste costing joins on it).
     subagent_usd: float = 0.0
@@ -692,7 +692,7 @@ def check_price_table_staleness(
     back to the table-level date) is itself treated as stale — fail closed,
     never silently skipped. Deliberately does NOT port promo-expiry
     handling, tiering, multi-provider support, or the regression gate —
-    Phase 7 (per-entry) full-engine-move scope, out of bounds here.
+    A per-entry, full-engine port is out of scope here.
 
     Pure date arithmetic; no network calls, no paid API calls, zero cost.
     Empty list means every entry is fresh. See

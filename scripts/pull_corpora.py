@@ -42,21 +42,8 @@ from adapters.claudecode_adapter import adapt_session  # noqa: E402
 _DEFAULT_OUTPUT: Path = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
 
 _LOCAL_PROJECTS_ROOT: Path = Path.home() / ".claude" / "projects"
-_LOCAL_PROJECT_DIRS: list[str] = [
-    "C--Users-USER-ml-projects",
-    "C--Users-USER-ml-projects-project-e",
-    "C--Users-USER-ml-projects-agentgauge",
-    "C--Users-USER-ml-projects-project-g",
-    "C--Users-USER-ml-projects-project-f",
-    "C--Users-USER-ml-projects-project-a",
-    "C--Users-USER-ml-projects-project-h",
-    "C--Users-USER-ml-projects-project-v",
-    "C--Users-USER-ml-projects-project-j",
-    "C--Users-USER-ml-projects-project-d",
-    "C--Users-USER-ml-projects-project-i",
-    "C--Users-USER-ml-projects-token-efficiency-scorer",
-    "C--Users-USER-ml-projects-project-c",
-]
+# Every project directory under ~/.claude/projects is collected (the original run used a fixed
+# list of the author's own project directories, which has no meaning on another machine).
 
 _HF_REPO_ARMAND: str = "armand0e/kimi-k2.6-claude-code-traces"
 _HF_REPO_CFAHLGREN: str = "cfahlgren1/agent-sessions-list"
@@ -202,12 +189,12 @@ def _adapt_from_lines(lines: list[str], session_id: str, source_label: str) -> A
 
 
 def _collect_local_files() -> list[Path]:
-    """Return all *.jsonl files from the known local CC project directories."""
+    """Return all *.jsonl files from the local CC project directories."""
     files: list[Path] = []
-    for dir_name in _LOCAL_PROJECT_DIRS:
-        project_dir = _LOCAL_PROJECTS_ROOT / dir_name
-        if project_dir.is_dir():
-            files.extend(sorted(project_dir.glob("*.jsonl")))
+    if not _LOCAL_PROJECTS_ROOT.is_dir():
+        return files
+    for project_dir in sorted(p for p in _LOCAL_PROJECTS_ROOT.iterdir() if p.is_dir()):
+        files.extend(sorted(project_dir.glob("*.jsonl")))
     return files
 
 

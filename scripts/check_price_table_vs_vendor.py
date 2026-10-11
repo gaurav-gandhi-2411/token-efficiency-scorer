@@ -5,7 +5,7 @@
 page and compares it, in BOTH directions, against this repo's price table
 (tracegauge/data/prices.json).
 
-History: GG1 introduced this check. It looped over the table's own keys, filtered through a
+History: this check originally looped over the table's own keys, filtered through a
 hand-maintained display-name map, and compared only input/output. So a model the vendor page
 lists but the table lacks (claude-opus-5-5, claude-sonnet-5-5: 84,140 unpriced turns in the
 author's own transcripts) was structurally undetectable, and the cache columns (0.05x / 0.025x

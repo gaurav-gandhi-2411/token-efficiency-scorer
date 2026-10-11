@@ -18,7 +18,7 @@ from unittest.mock import patch
 # ── 1. Confirm site-packages (NOT repo) ─────────────────────────────────────
 import tracegauge
 
-repo = pathlib.Path(r"C:\Users\USER\ml-projects\token-efficiency-scorer")
+repo = pathlib.Path(__file__).resolve().parent.parent
 pkg = pathlib.Path(tracegauge.__file__)
 assert repo not in pkg.parents, f"FAIL: still loading from repo: {pkg}"
 print(f"[OK] tracegauge.__file__ = {pkg}  (site-packages, not repo)")

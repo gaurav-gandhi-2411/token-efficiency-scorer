@@ -92,7 +92,7 @@ class AttributionResult:
     # --- domain of validity — always populated ---
     domain_of_validity: str
 
-    # --- subagent roll-up (W1A D6): the share of total_billed_tokens / total_usd that came
+    # --- subagent roll-up: the share of total_billed_tokens / total_usd that came
     # from subagent transcripts. Already INCLUDED in the buckets and totals above (as clean
     # turns -- waste detection is main-chain only); exposed so the split stays visible. ---
     subagent_billed_tokens: int = 0
@@ -297,7 +297,7 @@ def attribution_fractions(attr: AttributionResult) -> tuple[float, float, float,
     """Returns (context_resend_pct, context_growth_pct, output_pct, waste_pct).
 
     The single source of truth for the 4 attribution fractions
-    tracegauge.intelligence.features derives for ML clustering (RR1) -- factored
+    tracegauge.intelligence.features derives for ML clustering -- factored
     out here so both score-time persistence (tracegauge.store.upsert_session, via
     tracegauge.cli/tracegauge.watcher) and any legacy on-demand extraction from a source
     JSONL (tracegauge.intelligence.features.extract_features, for rows scored

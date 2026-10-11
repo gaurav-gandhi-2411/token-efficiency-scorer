@@ -276,7 +276,7 @@ def _per_type_status(conn: sqlite3.Connection, self_bl_state) -> list[dict]:
 def create_app(config: ServerConfig) -> Flask:
     """Create and configure the Flask dashboard application."""
     app = Flask(__name__, template_folder="templates")
-    # W1A D7: templates never format a $ by hand -- unpriced models must show as
+    # Templates never format a $ by hand -- unpriced models must show as
     # "unpriced (<model>)", not "$0.00".
     app.jinja_env.filters["cost_display"] = format_cost_display
 

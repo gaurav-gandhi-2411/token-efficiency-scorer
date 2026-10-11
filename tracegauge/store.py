@@ -203,7 +203,7 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         if col_name not in existing_cols:
             _add_column(conn, alter_sql)
 
-    # RR1: attribution fractions, persisted at score time so tracegauge.intelligence
+    # Attribution fractions, persisted at score time so tracegauge.intelligence
     # can cluster ANY scored session without re-reading its source JSONL --
     # see tracegauge.attribution.attribution_fractions. NULL for every row scored
     # before this migration (additive, same pattern as the cost columns above);
@@ -218,9 +218,9 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
         if col_name not in existing_cols:
             _add_column(conn, alter_sql)
 
-    # XX1.3: raw unresolved model string(s) for a session whose cost is NULL
+    # Raw unresolved model string(s) for a session whose cost is NULL
     # because a model didn't resolve against the price table -- persisted at
-    # score time (same RR1 lesson: source_cost.approximate_reasons is only
+    # score time (same reason: source_cost.approximate_reasons is only
     # available while the source file is still readable) so `tracegauge cost --roi`
     # can name unpriced models in its coverage report without re-reading
     # anything. Comma-joined raw model strings, NULL if the session priced
@@ -228,18 +228,18 @@ def open_db(path: Path | str | None = None) -> sqlite3.Connection:
     if "cost_unpriced_models" not in existing_cols:
         _add_column(conn, "ALTER TABLE sessions ADD COLUMN cost_unpriced_models TEXT")
 
-    # XX2.2: reconstructed code-impact per session (Edit/Write/MultiEdit/
-    # NotebookEdit operations), persisted at score time -- same RR1 lesson,
+    # Reconstructed code-impact per session (Edit/Write/MultiEdit/
+    # NotebookEdit operations), persisted at score time -- same reason,
     # tool_use.input.old_string/new_string/file_path are only available
     # while the source transcript is still readable. JSON-encoded list of
     # {path, additions, deletions, tool, prior_content_unknown,
     # untested_tool_shape} dicts (see tracegauge.impact.EditOperation). NULL for
     # every row scored before this migration -- tracegauge impact's own report
-    # names this as a legacy-row gap, same pattern as SS1.
+    # names this as a legacy-row gap.
     if "edit_operations" not in existing_cols:
         _add_column(conn, "ALTER TABLE sessions ADD COLUMN edit_operations TEXT")
 
-    # W1A D6: subagent roll-up. session_cost_usd already INCLUDES subagent spend; these
+    # Subagent roll-up. session_cost_usd already INCLUDES subagent spend; these
     # expose the split (subagent_tokens in real_tokens units). NULL for rows scored before
     # this migration -- indistinguishable from "no subagents" until the session is re-scored.
     subagent_cols = {
@@ -999,7 +999,7 @@ def _deserialize_row(row: sqlite3.Row) -> dict:
         d["judge_verdict"] and d["judge_source_hash"] and d["judge_source_hash"] != d["source_hash"]
     )
     d["cost_approximate"] = bool(d.get("cost_approximate", 0))
-    # W1A D7: machine-readable pricing status derived from the persisted unpriced model ids.
+    # Machine-readable pricing status derived from the persisted unpriced model ids.
     d["unpriced_models"] = [m for m in (d.get("cost_unpriced_models") or "").split(",") if m]
     d["priced"] = d.get("session_cost_usd") is not None and not d["unpriced_models"]
     d["cost_known"] = cost_is_known(d.get("session_cost_usd"), d["unpriced_models"])

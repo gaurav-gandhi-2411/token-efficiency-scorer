@@ -181,7 +181,7 @@ def _project_label(path: Path) -> str:
     """A short, readable label for the project a session belongs to.
 
     CC encodes the project path as the parent directory name under
-    ~/.claude/projects (e.g. 'C--Users-USER-ml-projects-token-efficiency-scorer').
+    ~/.claude/projects (e.g. 'C--Users-alice-projects-myrepo').
     Show the tail so the user can recognize it without a wall of path encoding.
     """
     name = path.parent.name
@@ -357,7 +357,7 @@ def score_path(
         per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
         annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
-    # RR1: attribution fractions, computed from the same digest/waste_entry/prices
+    # Attribution fractions, computed from the same digest/waste_entry/prices
     # already in scope for session_cost above, persisted at score time so
     # tracegauge.intelligence can cluster this session without ever re-reading its
     # source JSONL — see tracegauge.attribution.attribution_fractions.
@@ -469,7 +469,7 @@ def _score_path_with_api_judge(
         per_turn_cost = {tc.turn_index: tc.total_usd for tc in session_cost.turn_costs}
         annotate_waste_costs(waste_entry["waste_events"], per_turn_cost)
 
-    # RR1: see the mirrored comment in score_path (no-API-judge sibling above).
+    # See the mirrored comment in score_path (no-API-judge sibling above).
     attribution = None
     if digest is not None:
         try:
@@ -844,8 +844,8 @@ def _run_patterns(
 
 def _run_impact(*, db_path: str | None = None, top_n: int = 10, json_mode: bool = False) -> int:
     """Handle `tracegauge impact` -- corpus-wide code-impact reconstruction from
-    persisted Edit/Write/MultiEdit/NotebookEdit operations (XX2). Plain
-    counts only; AB3.2: the untested-tool-shape and prior-content-unknown
+    persisted Edit/Write/MultiEdit/NotebookEdit operations. Plain
+    counts only; the untested-tool-shape and prior-content-unknown
     fractions are reported inline, next to the totals they qualify, never
     buried.
     """
@@ -1244,7 +1244,7 @@ def _run_cost(
                 f"{'s' if b.session_count != 1 else ''})"
             )
 
-    # XX1.3: unpriced coverage -- always shown, not gated behind --roi.
+    # Unpriced coverage -- always shown, not gated behind --roi.
     sess_cov = report.session_coverage_pct
     tok_cov = report.token_coverage_pct
     if report.unpriced_models or (
@@ -1274,9 +1274,9 @@ def _run_cost(
 
 
 def _print_cost_roi(report: PeriodCostReport, plan_config: str | None) -> None:
-    """XX1: plan-cost ROI -- refuses to print a ratio the data can't
+    """Plan-cost ROI -- refuses to print a ratio the data can't
     support (no plan configured, or zero priced sessions in the window),
-    per XX1.2's explicit honesty requirement."""
+    by design: an unsupported ratio would mislead."""
     from tracegauge.plan import compute_roi, load_plan_config, resolve_plan_config_path
 
     try:
@@ -2204,8 +2204,8 @@ def main() -> None:
             Path(args.output).expanduser()
             if args.output
             # Issue #17: default output derived from the RESOLVED db_path
-            # (same class of fix as intelligence/cache.py's _cache_path,
-            # RR2/UU2) -- not a fixed ~/.tes/ regardless of --db-path/
+            # (same class of fix as intelligence/cache.py's _cache_path)
+            # -- not a fixed ~/.tes/ regardless of --db-path/
             # TRACEGAUGE_DB_PATH, which used to drop this file into the real
             # ~/.tes/ even when running against an isolated/scratch DB.
             else _resolve_db_path(db_path).parent / f"contribution-{today_str}.jsonl"

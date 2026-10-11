@@ -1,6 +1,6 @@
 #!/bin/bash
 # provision_gpu_vm.sh — Run LOCALLY after GPUS_ALL_REGIONS quota is approved.
-# Creates <your-vm> spot VM in example-project-000001.
+# Creates <your-vm> spot VM in <your-gcp-project>.
 #
 # Usage: bash scripts/provision_gpu_vm.sh [ZONE]
 #   ZONE defaults to us-central1-a; pass us-central1-b as $1 if -a is out of spot capacity.
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-PROJECT="example-project-000001"
+PROJECT="${GCP_PROJECT:?set GCP_PROJECT to your GCP project id}"
 VM_NAME="<your-vm>"
 ZONE="${1:-us-central1-a}"
 FALLBACK_ZONE="us-central1-b"
@@ -32,7 +32,7 @@ print(int(q['limit']) if q else 0)
 ")
 if [[ "$GLOBAL_LIMIT" -eq 0 ]]; then
   echo "ERROR: GPUS_ALL_REGIONS limit is still 0. Wait for quota approval."
-  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=example-project-000001"
+  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=<your-gcp-project>"
   exit 1
 fi
 echo "[$(date)] GPUS_ALL_REGIONS limit = $GLOBAL_LIMIT — quota approved."

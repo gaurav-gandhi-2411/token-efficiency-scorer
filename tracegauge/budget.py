@@ -48,7 +48,7 @@ class BudgetProjection:
     total_usd_so_far: float
     projected_usd_for_window: float
     message: str
-    # Models missing from the price table across the window's sessions (W1A D7): the dollar
+    # Models missing from the price table across the window's sessions: the dollar
     # figures are then priced-subtotal-only. Empty when everything priced.
     unpriced_models: list[str] = field(default_factory=list)
 
