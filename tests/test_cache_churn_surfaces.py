@@ -83,6 +83,7 @@ def test_score_json_reports_events_with_proof_turns(
         "avoidability",
         "gap_s",
         "ttl_s",
+        "note",
         "marker_index",
         "churn_tokens",
         "churn_usd",

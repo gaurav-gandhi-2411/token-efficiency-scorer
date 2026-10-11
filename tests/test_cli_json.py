@@ -105,6 +105,7 @@ CACHE_CHURN_KEYS = {
     "advice",
     "events_listed",
     "duplicate_turns_dropped",
+    "unsplit_cache_write_tokens",
     "thresholds",
     "judgement_note",
 }

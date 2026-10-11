@@ -225,6 +225,7 @@ def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
         "advice": [],
         "events_listed": [],
         "duplicate_turns_dropped": None,
+        "unsplit_cache_write_tokens": None,
         "thresholds": thresholds,
         "judgement_note": cc.JUDGEMENT_NOTE,
     }
@@ -277,6 +278,7 @@ def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
                 "avoidability": e.avoidability,
                 "gap_s": e.gap_s,
                 "ttl_s": e.ttl_s,
+                "note": e.note,
                 "marker_index": e.marker_index,
                 "churn_tokens": e.churn_tokens,
                 "churn_usd": e.churn_usd,
@@ -287,6 +289,7 @@ def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
             for e in listed
         ],
         "duplicate_turns_dropped": churn.duplicate_turns_dropped,
+        "unsplit_cache_write_tokens": churn.unsplit_write_tokens,
     }
 
 

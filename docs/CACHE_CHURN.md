@@ -50,8 +50,10 @@ handling) leave no marker in the transcript, so the tool does not guess.
 
 The gap is measured start to start (the timestamp of the user or tool-result record that triggered
 each request, falling back to the assistant record's own timestamp). The lifetime in force is
-inferred from the most recent turn that wrote to the cache: 1 hour if at least half of its writes
-were 1-hour writes, otherwise 5 minutes. A gap is over the lifetime when it is strictly greater than
+inferred from the most recent turn that wrote to the cache and records the 5-minute / 1-hour split
+of its writes (`usage.cache_creation`): 1 hour if at least half of its writes were 1-hour writes,
+otherwise 5 minutes. Turns without that split are never assumed to be 5-minute writes; if the chain
+has no turn with the split at all, the lifetime is unknown (see Limits). A gap is over the lifetime when it is strictly greater than
 it (`TTL_GRACE_S` in `tes/cache_churn.py` can add a margin; the default is 0, the documented
 boundary). Transcript timestamps are when records were written, not when requests arrived, so the
 5-minute edge is blurred over roughly 300 to 360 seconds: on the maintainer's snapshot a 30 s grace
@@ -113,6 +115,15 @@ seconds and the lifetime used. No transcript text is ever included.
   by a session the transcript does not show. A gap-based cause is a proxy.
 * The 1-hour main / 5-minute subagent pattern is what a subscription session writes. A session that
   uses an API key writes 5-minute entries everywhere and will show a different mix.
+* Records without the `usage.cache_creation` split (older Claude Code versions, other writers) have
+  an unknown cache tier. Their writes are carried as "unsplit" (`unsplit_cache_write_tokens` in the
+  JSON), are left out of the 5-minute premium of the advice and out of the lifetime inference. When
+  a chain has the split on some turns, the tier comes from those turns (the nearest earlier one, else
+  the first later one). When a chain has it on none, the lifetime is unknown: a gap over 5 minutes is
+  reported as `UNEXPLAINED` with avoidability `unknown` and a note saying why, never as a `TTL_GAP`
+  and never as plausibly avoidable, and no TTL advice is built from it. The dollar figure of such an
+  event still prices the re-write at the 5-minute rate, so it is a lower bound if those writes were
+  1-hour writes.
 * A message that appears in two transcript files of one session is counted once.
 * Claude Code 2.1.260 and later already shows a live `likely cause` for the last cache miss in
   `/usage`. tracegauge does not compete with that: it adds history across sessions, dollar

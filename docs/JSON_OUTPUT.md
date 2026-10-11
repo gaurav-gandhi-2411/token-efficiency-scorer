@@ -123,7 +123,8 @@ the cache-read multiplier each model was billed at.
 `score` runs and is never stored. Keys: `status` (`"ok"`, or `"unavailable"` when the transcript could
 not be read, in which case every figure below is `null`, not 0), `events`, `churn_tokens`, `churn_usd`,
 `priced`, `unpriced_events`, `by_cause`, `by_scope`, `avoidable_usd`, `unavoidable_usd`, `advice`,
-`events_listed`, `duplicate_turns_dropped`, `thresholds`, `judgement_note`.
+`events_listed`, `duplicate_turns_dropped`, `unsplit_cache_write_tokens`, `thresholds`,
+`judgement_note`.
 
 * `churn_usd` sums the priced events only; when a model is not in the price table `priced` is `false`,
   `unpriced_events` counts the events left out, and `churn_usd` is a floor. An unpriced event has
@@ -139,8 +140,13 @@ not be read, in which case every figure below is `null`, not 0), `events`, `chur
   entry: `{scope, setting, env_var, value, premium_usd, saved_usd, net_usd, events_avoided, chains,
   assumptions}`.
 * `events_listed` is the (at most 10) largest events by dollars: `{scope, chain, cause, avoidability,
-  gap_s, ttl_s, marker_index, churn_tokens, churn_usd, priced, previous_turn, current_turn}`, where each
+  gap_s, ttl_s, note, marker_index, churn_tokens, churn_usd, priced, previous_turn, current_turn}`, where each
   proof turn is `{turn_index, record_index, message_id, model, cache_read, cache_creation,
   cache_creation_1h}`. `avoidability` is `plausibly_avoidable`, `unavoidable` or `unknown`.
+* `unsplit_cache_write_tokens` is the number of cache-write tokens, over all chains, of requests whose
+  usage has no `cache_creation` 5-minute / 1-hour split. Their tier is unknown: they are not priced as
+  5-minute writes in the advice premium and are not used to infer the cache lifetime. `ttl_s` is `null`
+  (and `note` says why) on an event of a chain where no request has the split; such an event is
+  `UNEXPLAINED` with `avoidability: "unknown"`. `note` is `""` when there is nothing to add.
 * `thresholds` records the constants the detector used (`min_prefix_tokens`, `read_drop_ratio`,
   `rewrite_share`, `ttl_grace_s`).

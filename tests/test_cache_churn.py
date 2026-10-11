@@ -550,3 +550,69 @@ def test_committed_fixture_events() -> None:
     causes = [e.cause for e in res.events]
     assert causes == [cc.CAUSE_TTL_GAP, cc.CAUSE_MODEL_SWITCH, cc.CAUSE_COMPACTION]
     assert [e.cur.turn_index for e in res.events] == [4, 8, 12]
+
+
+# ------------------------------------------------------------------ unsplit (tier unknown) writes
+
+
+def _unsplit_pair(gap: float, *, split_first: bool = False) -> list[dict[str, Any]]:
+    """Two turns like ``_pair`` (prefix lost on the second) with no 5m/1h split on the writes."""
+    return [
+        user_rec(T0),
+        asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 2, split=split_first),
+        user_rec(T0 + gap),
+        asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + gap + 2, split=False),
+    ]
+
+
+def test_chain_without_any_split_has_unknown_tier_and_no_avoidable_gap() -> None:
+    res = _detect(_unsplit_pair(1_800.0))
+    (e,) = res.events
+    assert e.cause == cc.CAUSE_UNEXPLAINED and e.avoidability == cc.UNKNOWN
+    assert e.ttl_s is None and e.note == cc.UNKNOWN_TIER_NOTE
+    assert res.write_5m_tokens == 0 and res.premium_1h_usd == 0.0
+    assert res.unsplit_write_tokens == 91_000
+
+
+def test_unknown_tier_short_gap_has_no_note() -> None:
+    (e,) = _detect(_unsplit_pair(100.0)).events
+    assert e.cause == cc.CAUSE_UNEXPLAINED and e.ttl_s is None and e.note == ""
+
+
+def test_unsplit_chain_gives_no_ttl_advice_and_reports_tokens(tmp_path: Path) -> None:
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, _unsplit_pair(1_800.0))
+    s = cc.analyze_session(p)
+    assert s.advice == [] and s.avoidable_usd == 0.0
+    assert s.unsplit_write_tokens == 91_000
+
+
+def test_mixed_chain_takes_tier_from_turns_that_have_the_split() -> None:
+    recs = [
+        user_rec(T0),
+        asst_rec("a", SONNET, cr=0, cc=50_000, cc_1h=50_000, ts=T0 + 1),  # split: 1h
+        user_rec(T0 + 30),
+        asst_rec("b", SONNET, cr=50_000, cc=49_000, ts=T0 + 31, split=False),  # unsplit
+        user_rec(T0 + 60),
+        asst_rec("c", SONNET, cr=99_000, cc=1_000, ts=T0 + 61, split=False),
+        user_rec(T0 + 60 + 1_800),
+        asst_rec("d", SONNET, cr=2_000, cc=98_000, ts=T0 + 1_862, split=False),
+    ]
+    res = _detect(recs)
+    (e,) = res.events
+    # the tier is 1h (from turn a, the only turn with a split), so 1,800 s is inside the lifetime
+    assert e.ttl_s == 3_600.0 and e.cause == cc.CAUSE_UNEXPLAINED and e.note == ""
+    assert res.write_5m_tokens == 0 and res.unsplit_write_tokens == 49_000 + 1_000 + 98_000
+
+
+def test_mixed_chain_five_minute_split_still_makes_a_gap_avoidable() -> None:
+    recs = _unsplit_pair(1_800.0, split_first=True)
+    (e,) = _detect(recs).events
+    assert e.ttl_s == 300.0 and e.cause == cc.CAUSE_TTL_GAP and e.avoidability == cc.AVOIDABLE
+
+
+def test_empty_split_dict_is_not_a_split() -> None:
+    rec = asst_rec("a", SONNET, cr=0, cc=10, ts=T0)
+    rec["message"]["usage"]["cache_creation"] = {}
+    (t,) = _chain([rec]).turns
+    assert t.has_split is False and t.unsplit_cc == 10

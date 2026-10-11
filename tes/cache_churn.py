@@ -94,6 +94,12 @@ MARK_COMPACT_SUMMARY = "compact_summary"
 #: How many events a report carries in full (the rest are only counted and summed).
 MAX_EVENTS_LISTED = 10
 
+UNKNOWN_TIER_NOTE = (
+    "The gap exceeds the 5-minute lifetime, but no turn of this chain records the 5-minute / "
+    "1-hour split of its cache writes, so the cache lifetime is unknown; the gap is not called a "
+    "TTL gap and is not counted as avoidable."
+)
+
 JUDGEMENT_NOTE = (
     "Avoidable vs unavoidable is a judgement, not a measurement: 'plausibly avoidable' is a "
     "TTL gap of 5 minutes to 1 hour on a 5-minute-TTL cache, or a model switch; idle over an hour "
@@ -151,6 +157,14 @@ class CacheTurn:
     trig_i: int | None = None
     speed: str = ""
     geo: str = ""
+    #: False when no record of this turn carried the ``usage.cache_creation`` 5m/1h split: the
+    #: tier of its writes is then UNKNOWN (not assumed to be 5 minutes).
+    has_split: bool = True
+
+    @property
+    def unsplit_cc(self) -> int:
+        """Cache-write tokens whose tier the transcript does not say (0 when the split exists)."""
+        return 0 if self.has_split else self.cc
 
     @property
     def prompt(self) -> int:
@@ -276,12 +290,15 @@ class ChurnEvent:
     prev: ProofTurn
     cur: ProofTurn
     gap_s: float | None
-    ttl_s: float
+    #: None = the cache tier could not be inferred (no turn of the chain has the 5m/1h split).
+    ttl_s: float | None
     marker_index: int | None
     churn_tokens: int
     #: None = the turn's model is not in the price table (unpriced), never 0.0.
     churn_usd: float | None
     avoidability: str
+    #: Why the event is what it is when that needs saying (empty otherwise).
+    note: str = ""
 
 
 @dataclass
@@ -292,15 +309,26 @@ class ChainResult:
     label: str
     n_turns: int
     events: list[ChurnEvent]
-    #: tokens written at the 5-minute rate (incl. writes of unspecified tier) across the chain.
+    #: tokens written at the 5-minute tier across the chain (writes of unspecified tier are NOT
+    #: included: they are in ``unsplit_write_tokens``).
     write_5m_tokens: int
     #: USD to reprice those writes at the 1-hour rate; None when any such turn is unpriced.
     premium_1h_usd: float | None
     unpriced_write_turns: int
+    #: cache-write tokens of turns without the 5m/1h split (tier unknown), excluded from the
+    #: 5-minute premium and from the TTL inference.
+    unsplit_write_tokens: int = 0
 
 
-def _tier_ttl(one_hour: bool) -> float:
+def _tier_ttl(one_hour: bool | None) -> float | None:
+    """TTL of a tier; None when the tier is unknown."""
+    if one_hour is None:
+        return None
     return TTL_1H_S if one_hour else TTL_5M_S
+
+
+def _writes_one_hour(t: CacheTurn) -> bool:
+    return t.cc_1h >= ONE_HOUR_TIER_SHARE * t.cc
 
 
 def _proof(k: int, t: CacheTurn) -> ProofTurn:
@@ -323,12 +351,12 @@ def _starts(turns: list[CacheTurn]) -> list[float | None]:
     return out
 
 
-def _classify_avoidability(cause: str, gap_s: float | None, ttl_s: float) -> str:
+def _classify_avoidability(cause: str, gap_s: float | None, ttl_s: float | None) -> str:
     if cause == CAUSE_MODEL_SWITCH:
         return AVOIDABLE
     if cause == CAUSE_COMPACTION:
         return UNAVOIDABLE
-    if cause == CAUSE_TTL_GAP and gap_s is not None:
+    if cause == CAUSE_TTL_GAP and gap_s is not None and ttl_s is not None:
         if gap_s > AVOIDABLE_MAX_GAP_S:
             return UNAVOIDABLE
         if ttl_s <= TTL_5M_S:
@@ -356,13 +384,19 @@ def detect_chain(
     mark_pos = [m[0] for m in chain.compact_marks]
     starts = _starts(turns)
     events: list[ChurnEvent] = []
-    last_1h = False
+    # Tier in force: the most recent earlier turn that wrote cache AND has the 5m/1h split; when
+    # none exists yet, the first later such turn of the chain; None when the chain has no split.
+    split_writers = [t for t in turns if t.cc > 0 and t.has_split]
+    first_split_tier = _writes_one_hour(split_writers[0]) if split_writers else None
+    last_1h: bool | None = first_split_tier
     w5_tokens = 0
+    unsplit_tokens = 0
     premium = 0.0
     unpriced_write_turns = 0
 
     for k, t in enumerate(turns):
-        c5 = t.cc - t.cc_1h
+        unsplit_tokens += t.unsplit_cc
+        c5 = (t.cc - t.cc_1h) if t.has_split else 0
         if c5 > 0:
             w5_tokens += c5
             r = rates.rates(t)
@@ -387,8 +421,8 @@ def detect_chain(
                         chain, k, p, t, starts, mark_pos, last_1h, prev_prefix, rates, params
                     )
                 )
-        if t.cc > 0:
-            last_1h = t.cc_1h >= ONE_HOUR_TIER_SHARE * t.cc
+        if t.cc > 0 and t.has_split:
+            last_1h = _writes_one_hour(t)
 
     return ChainResult(
         kind=chain.kind,
@@ -398,6 +432,7 @@ def detect_chain(
         write_5m_tokens=w5_tokens,
         premium_1h_usd=None if unpriced_write_turns else premium,
         unpriced_write_turns=unpriced_write_turns,
+        unsplit_write_tokens=unsplit_tokens,
     )
 
 
@@ -408,7 +443,7 @@ def _make_event(
     t: CacheTurn,
     starts: list[float | None],
     mark_pos: list[int],
-    last_1h: bool,
+    last_1h: bool | None,
     prev_prefix: int,
     rates: RateTable,
     params: ChurnParams,
@@ -419,11 +454,16 @@ def _make_event(
     s_t, s_p = starts[k], starts[k - 1]
     gap = (s_t - s_p) if (s_t is not None and s_p is not None) else None
     ttl = _tier_ttl(last_1h)
+    note = ""
 
     if marker is not None:
         cause = CAUSE_COMPACTION
     elif t.model != p.model:
         cause = CAUSE_MODEL_SWITCH
+    elif ttl is None:
+        cause = CAUSE_UNEXPLAINED
+        if gap is not None and gap > TTL_5M_S + params.ttl_grace_s:
+            note = UNKNOWN_TIER_NOTE
     elif gap is not None and gap > ttl + params.ttl_grace_s:
         cause = CAUSE_TTL_GAP
     else:
@@ -447,6 +487,7 @@ def _make_event(
         churn_tokens=churn_tokens,
         churn_usd=usd,
         avoidability=_classify_avoidability(cause, gap, ttl),
+        note=note,
     )
 
 
@@ -509,6 +550,10 @@ def read_chain_records(
                 continue
             split = usage.get("cache_creation")
             split = split if isinstance(split, dict) else {}
+            has_split = any(
+                isinstance(split.get(key), int | float) and not isinstance(split.get(key), bool)
+                for key in ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
+            )
             ts = parse_ts(rec.get("timestamp"))
             key = str(msg.get("id") or rec.get("requestId") or rec.get("uuid") or f"@{i}")
             cc = _int(usage.get("cache_creation_input_tokens"))
@@ -527,6 +572,7 @@ def read_chain_records(
                     ts_last=ts,
                     trig_ts=last_user_ts,
                     trig_i=last_user_i,
+                    has_split=False,
                 )
                 groups[key] = cur
                 order.append(cur)
@@ -534,6 +580,7 @@ def read_chain_records(
             cur.cc = max(cur.cc, cc)
             cur.cr = max(cur.cr, _int(usage.get("cache_read_input_tokens")))
             cur.cc_1h = max(cur.cc_1h, _int(split.get("ephemeral_1h_input_tokens")))
+            cur.has_split = cur.has_split or has_split
             cur.i_last = i
             cur.ts_last = ts if ts is not None else cur.ts_last
             if usage.get("speed") == "fast":
@@ -637,6 +684,11 @@ class SessionChurn:
     duplicate_turns_dropped: int = 0
 
     @property
+    def unsplit_write_tokens(self) -> int:
+        """Cache-write tokens, over all chains, whose 5m/1h tier the transcript does not say."""
+        return sum(c.unsplit_write_tokens for c in self.chains)
+
+    @property
     def events(self) -> list[ChurnEvent]:
         return [e for c in self.chains for e in c.events]
 
@@ -672,6 +724,7 @@ def _advice_for(kind: str, chains: list[ChainResult]) -> TtlAdvice | None:
             if (
                 e.cause == CAUSE_TTL_GAP
                 and e.avoidability == AVOIDABLE
+                and e.ttl_s is not None
                 and e.ttl_s <= TTL_5M_S
                 and e.churn_usd is not None
             ):

@@ -101,7 +101,12 @@ def format_cache_churn_lines(churn: dict[str, Any] | None) -> list[str]:
         )
     )
     for ev in churn["events_listed"][:_TOP_EVENTS_IN_TEXT]:
-        gap = "" if ev["gap_s"] is None else f", gap {ev['gap_s']:,.0f}s vs {ev['ttl_s']:,.0f}s TTL"
+        if ev["gap_s"] is None:
+            gap = ""
+        elif ev["ttl_s"] is None:
+            gap = f", gap {ev['gap_s']:,.0f}s, cache lifetime unknown"
+        else:
+            gap = f", gap {ev['gap_s']:,.0f}s vs {ev['ttl_s']:,.0f}s TTL"
         where = "main" if ev["scope"] == "main" else f"subagent {ev['chain']}"
         lines.append(
             _wrap(
