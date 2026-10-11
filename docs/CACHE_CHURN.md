@@ -75,7 +75,7 @@ measurement, and the output says so:
 Claude Code's documentation names the controls for the cache lifetime: `promptCacheTtl` /
 `CLAUDE_CODE_PROMPT_CACHE_TTL` for the main conversation and `subagentPromptCacheTtl` /
 `CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL` for everything else (subagents, compaction, forks), each `5m`
-or `1h`, in Claude Code 2.1.242 and later. A 1-hour lifetime is not free: 1-hour writes cost 2.0x the
+or `1h`, in Claude Code 2.1.242 and later (same page, retrieved 2026-10-10). A 1-hour lifetime is not free: 1-hour writes cost 2.0x the
 input price instead of 1.25x.
 
 So tracegauge never prints a generic "use 1h". For each session it prices the counterfactual:
@@ -127,9 +127,13 @@ seconds and the lifetime used. No transcript text is ever included.
 * Subagent transcripts are the files `<session>/subagents/agent-*.jsonl`, the same flat set `tes cost`
   reads; a file nested deeper under `subagents/` is in neither the cost nor the churn figures.
 * A message that appears in two transcript files of one session is counted once.
-* Claude Code 2.1.260 and later already shows a live `likely cause` for the last cache miss in
-  `/usage`. tracegauge does not compete with that: it adds history across sessions, dollar
-  accounting per session, subagent coverage and the priced break-even above.
+* The `/usage` command of Claude Code adds a `Prompt cache (main)` line with the session hit ratio
+  and miss count, and that line names a `likely cause` for the last miss when Claude Code can
+  identify one (the likely-cause text needs Claude Code v2.1.260 or later; source: [How Claude Code
+  uses prompt caching](https://code.claude.com/docs/en/prompt-caching.md), retrieved 2026-10-10).
+  It covers the last miss of the main conversation. tracegauge works from the transcript instead
+  and adds the history across sessions, dollars per session, subagent chains and the priced
+  break-even above.
 
 ## Validation status
 
