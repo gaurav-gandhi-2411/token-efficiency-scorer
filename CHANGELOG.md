@@ -89,7 +89,7 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   when a row fails. [docs/EXIT_CODES.md](docs/EXIT_CODES.md).
 - **The cost note names the cache-read multiplier each model was billed at** (0.05x on Opus/Sonnet 5.5, 0.025x on
   Fable/Mythos 5.1), not a flat 0.10x. [docs/PRICING_FIELDS.md](docs/PRICING_FIELDS.md).
-- **Lighter default install:** core is 20.0 MiB (flask + httpx); the `[patterns]` extra adds numpy and
+- **Lighter default install:** core is 10.1 MiB of installed package files, excluding pip (flask + httpx); the `[patterns]` extra adds numpy and
   scikit-learn. [docs/INSTALL.md](docs/INSTALL.md).
 - **`tracegauge quickstart` shows a verdict and one deterministic finding again** (the rebuilt baseline had pushed
   the bundled sample under its turn gate). [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).

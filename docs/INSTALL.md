@@ -11,9 +11,7 @@ uvx tracegauge score                 # scores your most recent real Claude Code 
 ```
 
 `uvx` (from [uv](https://docs.astral.sh/uv/)) builds a cached throwaway environment for the core
-install, so the second run is fast. (Pre-publish note: the timings below were measured by running
-`uvx --from <local wheel> tracegauge ...`; the same command against the published package can only be
-measured after publish.)
+install, so the second run is fast.
 
 ## Persistent install
 
@@ -43,43 +41,36 @@ which blocks numpy, scipy and sklearn in a subprocess and runs the core commands
 
 ## Measured facts
 
-Local wheel `tracegauge-0.14.0-py3-none-any.whl`: 292,384 bytes at the commit that introduced the extra (the
-size, venv and `pip install` figures below were measured with that wheel), 299,510 bytes when rebuilt at `ef1de9f`
-(`uv build --wheel` from a `git archive` of that commit; it grows by a few hundred bytes per source commit). Venv:
-fresh `python -m venv` (CPython 3.13.5, Windows 11), `pip install <wheel>` with a warm pip cache unless stated.
-These are the maintainer's unpublished local measurements, not CI output.
+Everything below was measured on 2026-10-11 against the published `tracegauge==0.15.0` from PyPI, on one
+Windows 11 machine with CPython 3.13.5, in fresh throw-away venvs. These are the maintainer's local
+measurements, not CI output, and **the machine was not idle**: `Win32_Processor.LoadPercentage` was 65% before and
+77% after the pip runs, and 45% before and 33% after the uvx runs. Treat them as an order of magnitude on a busy
+laptop, not a guarantee.
+
+**Install size, one measure used everywhere in this project:** the on-disk size of every file listed in the
+RECORD of each installed distribution, excluding pip, setuptools and wheel (they are in every venv and are not
+tracegauge's footprint). Reproduce it with `python scripts/measure_install_size.py`, run with the venv's own
+interpreter.
 
 | | core | core + `[patterns]` |
 |---|---|---|
-| site-packages size (sum of file sizes) | 20.0 MiB (1,585 files) | 246.2 MiB (7,774 files) |
-| of which pip itself (present in every venv) | 10.4 MiB | 10.4 MiB |
-| sum of the sizes listed in the installed RECORD files | 11.0 MiB | 182.7 MiB |
-| installed distributions (`pip list`, incl. pip) | 16 | 23 |
-| install wall time (`pip install`) | 10.6 s, 12.0 s, 14.0 s (14.0 s was the cold pip cache) | 60.1 s, 69.5 s, 154.9 s (cold) |
-| `import tes` (median of 5) | 0.34 s | 0.34 s |
-| `tracegauge --version` (median of 5) | 0.43 s | 0.43 s |
+| installed package files (measure above) | 10.1 MiB (740 files, 15 distributions) | 236.6 MiB (6,931 files, 22 distributions) |
+| `pip install` wall time, three fresh venvs, first with an empty pip cache | 38.3 s, 9.8 s, 10.7 s | 90.6 s, 63.4 s, 64.1 s |
+| installed `tracegauge quickstart`, n=5 | median 0.41 s (0.39 to 0.52 s) | not measured |
+| installed `tracegauge --version`, n=5 | median 0.38 s | not measured |
 
-The core install is about half of the 40 MB budget with pip counted and about a quarter without it. Most of the
-non-pip weight is werkzeug (1.6 MiB), anyio (1.2 MiB), tracegauge itself (1.2 MiB), jinja2 (1.1 MiB), click, flask,
-httpx. Moving numpy and scikit-learn to the extra removed about 226 MiB from the default install.
+The first `[patterns]` install reused the pip cache the core installs had filled for flask, httpx and their
+dependencies, so only numpy, scikit-learn and scipy were downloaded cold. Moving numpy and scikit-learn to the
+extra removes about 226 MiB from the default install. The core install is about a quarter of a 40 MB budget.
 
-`uvx --from <local wheel> tracegauge quickstart` wall time, n=5 each, cold = a brand-new empty uv cache per run
-(downloads flask, httpx and the rest from PyPI), warm = populated uv cache after one uncounted priming run.
-Every run printed the REPEATED-FAILED-RETRY finding, so this is time-to-first-finding.
+`uvx tracegauge@0.15.0 quickstart` wall time, n=5 each. Cold means a brand-new empty uv cache for every run (flask,
+httpx and the rest are downloaded from PyPI); warm means a populated cache after one uncounted priming run. Every
+run exited 0 and printed the REPEATED-FAILED-RETRY finding, so this is time-to-first-finding.
 
-Re-measured 2026-10-10 on the wheel built at `ef1de9f`, **on a contended host**: the machine's CPU load
-(`Win32_Processor.LoadPercentage`) was 90 to 100% in 40 of 45 samples taken over about half an hour (lowest 48%),
-from other jobs that were not part of this measurement, and 90 to 100% immediately before each timed run. Three
-waits of several minutes did not bring it down, so these are not idle-machine numbers.
+| | runs (s) | median | min / max |
+|---|---|---|---|
+| cold | 4.14, 2.53, 3.03, 2.80, 4.40 | 3.03 s | 2.53 / 4.40 |
+| warm | 0.65, 0.49, 0.50, 0.50, 0.51 | 0.50 s | 0.49 / 0.65 |
 
-| command | cold: mean / median / min / max (s) | warm: mean / median / min / max (s) |
-|---|---|---|
-| `quickstart`, contended (above) | 15.78 / 7.92 / 5.36 / 33.33 (runs 33.33, 24.61, 5.36, 7.71, 7.92) | 1.97 / 1.71 / 1.40 / 2.99 (runs 2.99, 2.28, 1.71, 1.45, 1.40) |
-
-Earlier run on the same machine, wheel from the commit that introduced the extra, **load not recorded** (so it
-cannot be called uncontended): `quickstart` cold 4.53 / 4.96 / 3.06 / 5.07 s and warm 1.49 / 1.49 / 1.06 / 2.00 s;
-`score <sample session>` cold 5.47 / 5.05 / 4.54 / 7.06 s and warm 2.14 / 1.16 / 1.02 / 6.29 s. A second run on the same machine measured 6 to 27 s for uvx runs while the machine was also at 99 to 100% CPU, and 0.9 to 1.3 s for the
-installed `tracegauge quickstart`. The honest reading: warm uvx is about 1 to 3 s, cold depends on the network and on
-machine load and ranged from 3 to 33 s here, and a cold-run claim of "under 10 s" has not been shown on an idle
-machine. These are single-machine measurements with network and antivirus variance; treat them as an order of
-magnitude, not a guarantee.
+Cold time depends on the network and on machine load; these are single-machine numbers with network and
+antivirus variance, and an idle-machine run has not been measured.
