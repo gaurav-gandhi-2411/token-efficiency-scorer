@@ -18,9 +18,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
-from tes.store import open_db
+import tracegauge.cli as cli
+from tracegauge.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store
 from tests.test_alarm_measured import _live, _threshold_active, _threshold_disabled
@@ -67,7 +67,7 @@ def _run(tmp_path: Path, *argv: str) -> subprocess.CompletedProcess[str]:
     }
     env.pop("ANTHROPIC_API_KEY", None)
     return subprocess.run(
-        [sys.executable, "-m", "tes", *argv],
+        [sys.executable, "-m", "tracegauge", *argv],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -151,8 +151,8 @@ def test_cost_with_unopenable_store_exits_usage(
 
 
 def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baseline: Any) -> int:
-    import tes.alarm as alarm_mod
-    import tes.live_monitor as lm
+    import tracegauge.alarm as alarm_mod
+    import tracegauge.live_monitor as lm
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
@@ -187,7 +187,7 @@ def test_monitor_without_active_session_exits_zero(
 ) -> None:
     # Nothing is running, so there is nothing to alarm on. A SessionEnd hook or cron job that
     # runs `tes monitor` must not read "no session" as a failure.
-    import tes.live_monitor as lm
+    import tracegauge.live_monitor as lm
 
     monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: None)

@@ -15,10 +15,10 @@ Invariant under test:
 """
 
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import AttributionResult, attribution_fractions, compute_attribution
-from tes.cost import load_price_table
-from tes.intelligence.features import extract_features
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.attribution import AttributionResult, attribution_fractions, compute_attribution
+from tracegauge.cost import load_price_table
+from tracegauge.intelligence.features import extract_features
 
 # ---------------------------------------------------------------------------
 # Shared helpers

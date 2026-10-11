@@ -14,9 +14,9 @@ spec.md's Build Order step 6 calls for before publish.
 import subprocess
 from pathlib import Path
 
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.store import open_db
-from tes.web.server import ServerConfig, create_app
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.store import open_db
+from tracegauge.web.server import ServerConfig, create_app
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,15 +27,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_waste_detectors_byte_frozen() -> None:
-    """git diff on tes/_waste_detectors.py must be empty — the detectors are byte-frozen."""
+    """git diff on tracegauge/_waste_detectors.py must be empty — the detectors are byte-frozen."""
     result = subprocess.run(
-        ["git", "diff", "--exit-code", "tes/_waste_detectors.py"],
+        ["git", "diff", "--exit-code", "tracegauge/_waste_detectors.py"],
         cwd=_REPO_ROOT,
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, (
-        f"tes/_waste_detectors.py has uncommitted changes:\n{result.stdout}"
+        f"tracegauge/_waste_detectors.py has uncommitted changes:\n{result.stdout}"
     )
 
 
@@ -45,37 +45,37 @@ def test_waste_detectors_byte_frozen() -> None:
 
 
 def test_diagnostic_engine_modules_still_import() -> None:
-    import tes.adapt  # noqa: F401
-    import tes.attribution  # noqa: F401
-    import tes.baselines  # noqa: F401
-    import tes.classify  # noqa: F401
-    import tes.cost  # noqa: F401
-    import tes.report  # noqa: F401
-    import tes.score  # noqa: F401
-    import tes.self_baseline  # noqa: F401
-    import tes.waste  # noqa: F401
+    import tracegauge.adapt  # noqa: F401
+    import tracegauge.attribution  # noqa: F401
+    import tracegauge.baselines  # noqa: F401
+    import tracegauge.classify  # noqa: F401
+    import tracegauge.cost  # noqa: F401
+    import tracegauge.report  # noqa: F401
+    import tracegauge.score  # noqa: F401
+    import tracegauge.self_baseline  # noqa: F401
+    import tracegauge.waste  # noqa: F401
 
 
 def test_intelligence_modules_still_import() -> None:
-    import tes.intelligence.anomaly  # noqa: F401
-    import tes.intelligence.cache  # noqa: F401
-    import tes.intelligence.chat  # noqa: F401
-    import tes.intelligence.cluster  # noqa: F401
-    import tes.intelligence.features  # noqa: F401
+    import tracegauge.intelligence.anomaly  # noqa: F401
+    import tracegauge.intelligence.cache  # noqa: F401
+    import tracegauge.intelligence.chat  # noqa: F401
+    import tracegauge.intelligence.cluster  # noqa: F401
+    import tracegauge.intelligence.features  # noqa: F401
 
 
 def test_dormant_corpus_modules_still_import() -> None:
     """0.9.0 corpus stays dormant-by-choice but must still be importable (untouched)."""
-    import tes.community_baseline  # noqa: F401
-    import tes.contribution  # noqa: F401
-    import tes.corpus_client  # noqa: F401
+    import tracegauge.community_baseline  # noqa: F401
+    import tracegauge.contribution  # noqa: F401
+    import tracegauge.corpus_client  # noqa: F401
 
 
 def test_new_010_modules_import_alongside_everything_else() -> None:
-    import tes.alarm  # noqa: F401
-    import tes.budget  # noqa: F401
-    import tes.coach  # noqa: F401
-    import tes.live_monitor  # noqa: F401
+    import tracegauge.alarm  # noqa: F401
+    import tracegauge.budget  # noqa: F401
+    import tracegauge.coach  # noqa: F401
+    import tracegauge.live_monitor  # noqa: F401
 
 
 # ---------------------------------------------------------------------------

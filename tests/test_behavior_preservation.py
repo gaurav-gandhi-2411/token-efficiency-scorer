@@ -6,11 +6,11 @@ from __future__ import annotations
 """tests/test_behavior_preservation.py — Golden-output regression test for the three-axis scorer.
 
 These tests capture the output of the VALIDATED scripts (efficiency_score.py) on a
-representative sample of pool sessions. During the P1 refactor into tes/, this test's
-import line changes from scripts/ to tes/; the golden file stays unchanged. Any score
+representative sample of pool sessions. During the P1 refactor into tracegauge/, this test's
+import line changes from scripts/ to tracegauge/; the golden file stays unchanged. Any score
 change during refactor is a regression, not a packaging step.
 
-CURRENT IMPORT: tes/score.py (P1 refactor complete)
+CURRENT IMPORT: tracegauge/score.py (P1 refactor complete)
 ORIGINAL: scripts/efficiency_score.py (pre-refactor — preserved for reference)
 """
 
@@ -25,7 +25,7 @@ import pytest
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from tes.score import load_baselines, score_session  # noqa: E402
+from tracegauge.score import load_baselines, score_session  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Module-level fixtures — loaded once, shared across all parametrized tests

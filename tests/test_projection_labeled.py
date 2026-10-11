@@ -14,9 +14,9 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.budget import compute_budget_projection
-from tes.store import open_db
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.budget import compute_budget_projection
+from tracegauge.store import open_db
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 

@@ -3,7 +3,7 @@
 
 """Every place tracegauge's version lives must agree, with no hardcoded copy to go stale.
 
-``pyproject.toml`` ``[project].version`` is the single source. ``tes.__version__`` is read from the
+``pyproject.toml`` ``[project].version`` is the single source. ``tracegauge.__version__`` is read from the
 installed metadata, ``uv.lock`` carries its own entry for the project, and ``CHANGELOG.md``'s first
 ``## [x.y.z]`` heading must be the release being prepared. Until 0.14.0 ``tests/test_packaging.py``
 asserted the version as a literal string, which RELEASING.md step 1 called out as the thing that
@@ -20,7 +20,7 @@ import re
 from importlib.metadata import version as installed_version
 from pathlib import Path
 
-import tes
+import tracegauge
 
 _ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,7 +40,7 @@ def test_installed_metadata_and_dunder_version_equal_pyproject():
     assert installed_version("tracegauge") == expected, (
         "installed tracegauge metadata differs from pyproject.toml: run `uv sync`"
     )
-    assert tes.__version__ == expected
+    assert tracegauge.__version__ == expected
 
 
 def test_uv_lock_carries_the_same_version():

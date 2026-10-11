@@ -14,9 +14,9 @@ import socket
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from tes.contribution import build_contribution_payload
-from tes.score import ThreeAxisResult
-from tes.store import open_db, upsert_session
+from tracegauge.contribution import build_contribution_payload
+from tracegauge.score import ThreeAxisResult
+from tracegauge.store import open_db, upsert_session
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -68,8 +68,8 @@ def test_no_socket_connect_during_payload_build() -> None:
 
 
 def test_contribution_module_imports_no_network_libs() -> None:
-    """tes.contribution must not import requests, httpx, urllib.request, or aiohttp."""
-    import tes.contribution as contrib_module
+    """tracegauge.contribution must not import requests, httpx, urllib.request, or aiohttp."""
+    import tracegauge.contribution as contrib_module
 
     network_modules = {"requests", "httpx", "aiohttp", "urllib.request"}
     # Allow if they were already loaded before our module (transitive deps).

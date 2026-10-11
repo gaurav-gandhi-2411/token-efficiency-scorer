@@ -5,7 +5,7 @@ from __future__ import annotations
 
 """tests/test_cost_unpriced.py — Structural guard for the S1 audit fix (0.10.2):
 
-no code path in tes.cost may return a confidently-priced (priced=True /
+no code path in tracegauge.cost may return a confidently-priced (priced=True /
 total_usd > 0 from a real rate) TurnCost or SessionCost for a model absent
 from the price table. Mirrors adk-tracegauge's own B1 test pattern
 (``test_resolve_unknown_model_returns_none_not_a_default`` in
@@ -17,8 +17,13 @@ hand-picked example.
 import string
 
 import pytest
-from tes._digest import SessionDigest, TurnDigest
-from tes.cost import _resolve_model, compute_session_cost, compute_turn_cost, load_price_table
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.cost import (
+    _resolve_model,
+    compute_session_cost,
+    compute_turn_cost,
+    load_price_table,
+)
 
 _BUNDLED = load_price_table()
 

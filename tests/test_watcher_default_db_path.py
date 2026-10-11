@@ -23,7 +23,7 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.watcher import WatcherConfig, run_watcher
+from tracegauge.watcher import WatcherConfig, run_watcher
 
 
 def test_scan_cycle_reaches_scan_once_with_default_db_path(tmp_path: Path) -> None:
@@ -45,7 +45,7 @@ def test_scan_cycle_reaches_scan_once_with_default_db_path(tmp_path: Path) -> No
     stop_event.set()  # stop immediately after the first cycle
 
     with patch.dict(os.environ, {"TES_DB_PATH": str(tmp_path / "tes.db")}):
-        with patch("tes.watcher._scan_once", return_value=0) as mock_scan:
+        with patch("tracegauge.watcher._scan_once", return_value=0) as mock_scan:
             run_watcher(config, stop_event)
 
     # If load_or_compute crashed (the bug), mock_scan would never be called.

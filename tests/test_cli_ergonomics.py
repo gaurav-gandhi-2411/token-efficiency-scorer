@@ -21,7 +21,7 @@ Covered:
 import os
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 
 
 def _make_session(dirpath, name: str, mtime: float) -> object:
@@ -88,8 +88,8 @@ def test_bare_tes_launches_dashboard(monkeypatch, tmp_path):
     def _fake_start_watcher(config):
         return _FakeThread(), _FakeEvent()
 
-    monkeypatch.setattr("tes.web.server.start_server", _fake_start_server)
-    monkeypatch.setattr("tes.watcher.start_watcher", _fake_start_watcher)
+    monkeypatch.setattr("tracegauge.web.server.start_server", _fake_start_server)
+    monkeypatch.setattr("tracegauge.watcher.start_watcher", _fake_start_watcher)
 
     _run(monkeypatch, [])  # bare `tes`
 

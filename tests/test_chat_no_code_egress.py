@@ -20,7 +20,7 @@ import re
 from unittest.mock import MagicMock, patch
 
 import pytest
-from tes.intelligence.chat import (
+from tracegauge.intelligence.chat import (
     CHAT_EGRESS_NOTICE,
     CHAT_SYSTEM_PROMPT,
     ChatApiConfig,
@@ -97,7 +97,7 @@ class TestUserMessageBuilder:
 
     def test_session_context_only_includes_metrics(self):
         """When a session is in context, it should contain only metrics, not content."""
-        from tes.intelligence.chat import _build_user_message, _summarize_session
+        from tracegauge.intelligence.chat import _build_user_message, _summarize_session
 
         fake_session_row = {
             "session_id": "deadbeef-0000-0000-0000-000000000000",

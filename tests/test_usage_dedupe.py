@@ -15,9 +15,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tes._digest import reconstruct_digest
-from tes.adapt import ADAPTER_VERSION, adapt_session
-from tes.cost import compute_session_cost, load_price_table
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import ADAPTER_VERSION, adapt_session
+from tracegauge.cost import compute_session_cost, load_price_table
 
 FIXTURE = Path(__file__).parent / "fixtures" / "usage_dedupe" / "multi_block_session.jsonl"
 
@@ -104,8 +104,8 @@ def test_records_without_ids_are_never_merged(tmp_path: Path) -> None:
 
 
 def test_score_result_exposes_dedupe_counters() -> None:
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-    from tes.score import score_session
+    from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tracegauge.score import score_session
 
     result = score_session(adapt_session(FIXTURE), load_baselines(BUNDLED_BASELINES_PATH))
     assert result.adapter_version == 2

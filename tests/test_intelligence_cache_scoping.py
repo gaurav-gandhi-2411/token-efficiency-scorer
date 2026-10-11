@@ -7,7 +7,7 @@ from __future__ import annotations
 must be scoped to the DB it was computed from, never a single fixed global
 path regardless of TES_DB_PATH.
 
-Real incident, not hypothetical: before this fix, tes.intelligence.cache's
+Real incident, not hypothetical: before this fix, tracegauge.intelligence.cache's
 _cache_path() was hardcoded to ~/.tes/intelligence_cache.json unconditionally
 -- computing patterns against an isolated test/scratch database (via
 TES_DB_PATH, exactly the pattern this project's own test suite and manual
@@ -21,7 +21,7 @@ unrelated test corpus into the real ~/.tes/intelligence_cache.json.
 from pathlib import Path
 
 import pytest
-from tes.intelligence.cache import (
+from tracegauge.intelligence.cache import (
     _cache_path,
     get_or_compute_intelligence,
     load_cache,
@@ -73,14 +73,14 @@ def test_cache_path_is_named_after_and_colocated_with_its_db(tmp_path: Path):
 
 def test_default_cache_path_mirrors_resolve_db_path(monkeypatch):
     """No explicit db_path and no TES_DB_PATH -- _cache_path's default must
-    track tes.store.resolve_db_path's own default exactly (RR2's fix
+    track tracegauge.store.resolve_db_path's own default exactly (RR2's fix
     mirrors it, does not replace it). Compared against a live call rather
-    than a reconstructed ~/.tes path: tes.store._DEFAULT_DIR is a
+    than a reconstructed ~/.tes path: tracegauge.store._DEFAULT_DIR is a
     module-level constant baked in at import time from Path.home(), so it
     cannot be monkeypatched after import -- this comparison is robust to
     that regardless of which real home directory the test process has.
     """
-    from tes.store import resolve_db_path
+    from tracegauge.store import resolve_db_path
 
     monkeypatch.delenv("TES_DB_PATH", raising=False)
 
@@ -124,11 +124,11 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
     """End-to-end (mocked store layer, real cache-path resolution): running
     get_or_compute_intelligence with an EXPLICIT scratch db_path must write
     ONLY to that scratch DB's own cache file. An explicit (non-None)
-    db_path short-circuits tes.store.resolve_db_path before it ever
+    db_path short-circuits tracegauge.store.resolve_db_path before it ever
     consults Path.home()/TES_DB_PATH at all (confirmed by reading
     resolve_db_path's own resolution order) -- this is what actually keeps
     this test safe regardless of the real machine's home directory, not a
-    Path.home() patch (tes.store._DEFAULT_DIR is a module-level constant
+    Path.home() patch (tracegauge.store._DEFAULT_DIR is a module-level constant
     baked in from Path.home() at import time, so patching it post-import
     has no effect -- see test_default_cache_path_mirrors_resolve_db_path's
     docstring for the same finding).
@@ -143,7 +143,7 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
     # would itself violate this project's own "never touch real ~/.tes"
     # rule); instead prove this test's scratch-db run left it byte-for-byte
     # unchanged, which is the actually correct claim either way.
-    from tes.store import resolve_db_path
+    from tracegauge.store import resolve_db_path
 
     real_default_db = resolve_db_path(None)
     real_default_cache = real_default_db.parent / f"{real_default_db.stem}.intelligence_cache.json"
@@ -169,11 +169,11 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
         for i in range(n)
     ]
 
-    from tes.intelligence.cache import get_or_compute_intelligence
+    from tracegauge.intelligence.cache import get_or_compute_intelligence
 
     with (
-        patch("tes.store.open_db"),
-        patch("tes.store.list_sessions", return_value=fake_rows),
+        patch("tracegauge.store.open_db"),
+        patch("tracegauge.store.list_sessions", return_value=fake_rows),
     ):
         result = get_or_compute_intelligence(db_path=scratch_db, force_recompute=True)
 

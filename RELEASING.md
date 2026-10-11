@@ -112,7 +112,7 @@ python scripts/check_usage_fields_priced.py            # every usage key path/va
 python scripts/check_price_table_vs_vendor.py        # table vs Anthropic's page (needs network)
 ```
 
-The first exits 1 and lists any model id found in your transcripts that `tes/data/prices.json`
+The first exits 1 and lists any model id found in your transcripts that `tracegauge/data/prices.json`
 cannot resolve (exit 2 = nothing could be scanned; `<synthetic>` is excluded by design). Fix a
 miss by adding the model from the official pricing page, then add its id to
 `tests/fixtures/transcript_models/` so the always-on CI test keeps guarding it. Not modelled by
@@ -154,7 +154,7 @@ C:\tg-verify\Scripts\tes.exe --version   # confirm it reports X.Y.Z
 # Confirm the license files actually shipped in the distribution's own metadata --
 # not just the SPDX header comments in source, the dist-info itself
 find C:\tg-verify\Lib\site-packages\tracegauge-X.Y.Z.dist-info -iname "*LICENSE*"
-# expect: .../licenses/LICENSE, .../licenses/NOTICE and, in the package itself, tes/web/static/fonts/OFL-*.txt
+# expect: .../licenses/LICENSE, .../licenses/NOTICE and, in the package itself, tracegauge/web/static/fonts/OFL-*.txt
 
 rm -rf C:\tg-verify
 ```

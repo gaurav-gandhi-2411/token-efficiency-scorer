@@ -18,7 +18,7 @@ Usage (local, and as a documented pre-release step, see RELEASING.md)::
 
 Exit codes: 0 every id resolves; 1 at least one id is unpriced; 2 nothing could be scanned (no
 directory / no transcripts) -- "could not check" is never reported as a pass. Non-model ids such
-as ``<synthetic>`` (tes.cost.NON_MODEL_IDS) are excluded by design. Output contains model ids,
+as ``<synthetic>`` (tracegauge.cost.NON_MODEL_IDS) are excluded by design. Output contains model ids,
 counts and file paths only -- never transcript content. Always checks the BUNDLED table, not a
 ~/.tes/prices.json override. CI cannot run this against real data; the always-on guard there is
 tests/test_transcript_models_priced.py, which runs it over a committed fixture of model ids.
@@ -39,9 +39,9 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tes.cost import NON_MODEL_IDS, _resolve_model, load_price_table  # noqa: E402
+from tracegauge.cost import NON_MODEL_IDS, _resolve_model, load_price_table  # noqa: E402
 
-_BUNDLED_PRICES = _ROOT / "tes" / "data" / "prices.json"
+_BUNDLED_PRICES = _ROOT / "tracegauge" / "data" / "prices.json"
 
 
 @dataclass
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     print(
-        "UNPRICED MODEL IDS in transcripts (add them to tes/data/prices.json from the official "
+        "UNPRICED MODEL IDS in transcripts (add them to tracegauge/data/prices.json from the official "
         "page, then re-run scripts/check_price_table_vs_vendor.py):",
         file=sys.stderr,
     )

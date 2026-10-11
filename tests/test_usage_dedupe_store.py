@@ -11,10 +11,10 @@ import shutil
 import sqlite3
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.self_baseline import compute_self_baselines
-from tes.store import backfill_waste, open_db
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.self_baseline import compute_self_baselines
+from tracegauge.store import backfill_waste, open_db
 
 FIXTURE = Path(__file__).parent / "fixtures" / "usage_dedupe" / "multi_block_session.jsonl"
 EXPECTED_REAL = (2 + 5000 + 600) + (3 + 200)  # see test_usage_dedupe.py
@@ -99,9 +99,9 @@ def test_backfill_refreshes_stale_row_once(tmp_path: Path) -> None:
 
 
 def test_upsert_persists_adapter_version(tmp_path: Path) -> None:
-    from tes.adapt import adapt_session
-    from tes.score import score_session
-    from tes.store import upsert_session
+    from tracegauge.adapt import adapt_session
+    from tracegauge.score import score_session
+    from tracegauge.store import upsert_session
 
     result = score_session(adapt_session(FIXTURE), load_baselines(BUNDLED_BASELINES_PATH))
     conn = open_db(tmp_path / "u.db")
@@ -112,9 +112,9 @@ def test_upsert_persists_adapter_version(tmp_path: Path) -> None:
 
 def test_upsert_persists_dominant_model(tmp_path: Path) -> None:
     """The alarm's model era is stored (normalized) so later alarms can group by it."""
-    from tes.adapt import adapt_session
-    from tes.score import score_session
-    from tes.store import upsert_session
+    from tracegauge.adapt import adapt_session
+    from tracegauge.score import score_session
+    from tracegauge.store import upsert_session
 
     result = score_session(adapt_session(FIXTURE), load_baselines(BUNDLED_BASELINES_PATH))
     assert result.dominant_model == "claude-sonnet-4-6"

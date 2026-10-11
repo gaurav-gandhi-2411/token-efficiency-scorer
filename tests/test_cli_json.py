@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.json_out import SCHEMA_VERSION
+import tracegauge.cli as cli
+from tracegauge.json_out import SCHEMA_VERSION
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -419,8 +419,8 @@ ALARM_BASELINE_KEYS = {
 
 
 def _stub_monitor(monkeypatch: pytest.MonkeyPatch, live: Any, baseline: Any) -> None:
-    import tes.alarm as alarm_mod
-    import tes.live_monitor as lm
+    import tracegauge.alarm as alarm_mod
+    import tracegauge.live_monitor as lm
 
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
@@ -541,7 +541,7 @@ def test_patterns_json_not_enough_sessions(
 def test_patterns_json_valid_analysis_is_passed_through(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import tes.intelligence.cache as cache_mod
+    import tracegauge.intelligence.cache as cache_mod
 
     fake = {
         "valid": True,
@@ -564,7 +564,7 @@ def test_patterns_json_valid_analysis_is_passed_through(
 def test_patterns_missing_extra_prints_one_line_hint_and_exits_1(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tes.patterns_extra import PATTERNS_EXTRA_HINT, PatternsExtraMissing
+    from tracegauge.patterns_extra import PATTERNS_EXTRA_HINT, PatternsExtraMissing
 
     def _missing() -> None:
         raise PatternsExtraMissing(PATTERNS_EXTRA_HINT)
@@ -579,7 +579,7 @@ def test_patterns_missing_extra_prints_one_line_hint_and_exits_1(
 
 
 def test_require_patterns_extra_passes_when_deps_import() -> None:
-    from tes.patterns_extra import require_patterns_extra
+    from tracegauge.patterns_extra import require_patterns_extra
 
     require_patterns_extra()  # numpy, scikit-learn, scipy are installed in the test env
 
@@ -589,7 +589,7 @@ def test_require_patterns_extra_raises_when_a_dep_is_missing(
 ) -> None:
     import importlib
 
-    from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
+    from tracegauge.patterns_extra import PatternsExtraMissing, require_patterns_extra
 
     real = importlib.import_module
 
@@ -658,7 +658,7 @@ def test_every_json_document_has_command_and_legacy_rows_excluded(
 
 
 def test_monitor_json_carries_legacy_rows_excluded() -> None:
-    from tes.json_out import monitor_payload
+    from tracegauge.json_out import monitor_payload
 
     doc = monitor_payload("no_active_session", "/x")
     assert doc["command"] == "monitor" and doc["legacy_rows_excluded"] == 0

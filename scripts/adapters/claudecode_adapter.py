@@ -11,7 +11,7 @@ from __future__ import annotations
 # raw U+2028/U+2029/U+0085 inside a JSON string and silently dropped that record. For input
 # without those characters the output is identical (1 of 1,005 local transcripts had any); the
 # published research artifacts (pool_adapted.jsonl, B5) predate the change. Anything that ships numbers
-# (baselines, scores, cost) must use tes.adapt.adapt_session, which counts each message.id once.
+# (baselines, scores, cost) must use tracegauge.adapt.adapt_session, which counts each message.id once.
 
 """claudecode_adapter.py — Convert Claude Code session JSONL transcripts to layer1_outputs format.
 

@@ -3,7 +3,7 @@
 
 """Refuse a release whose version sources disagree, or whose version is already on PyPI.
 
-tracegauge keeps its version in ``pyproject.toml`` ``[project].version`` (``tes.__version__`` is read from
+tracegauge keeps its version in ``pyproject.toml`` ``[project].version`` (``tracegauge.__version__`` is read from
 the installed metadata, so it is not a separate source), in ``uv.lock``'s entry for the project, and in
 the top released heading of ``CHANGELOG.md``; the git tag that triggers the release must equal it.
 RELEASING.md step 1 lists this drift as a known failure (a hardcoded version assertion went stale once,

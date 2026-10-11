@@ -16,11 +16,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.budget import compute_budget_projection, legacy_rows_excluded_in_window
-from tes.cost_period import compute_period_cost
-from tes.legacy import LEGACY_LABEL
-from tes.store import open_db
+from tracegauge import cli
+from tracegauge.budget import compute_budget_projection, legacy_rows_excluded_in_window
+from tracegauge.cost_period import compute_period_cost
+from tracegauge.legacy import LEGACY_LABEL
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store
 

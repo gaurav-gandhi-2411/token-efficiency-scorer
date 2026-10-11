@@ -30,13 +30,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import open_db, upsert_session
+from tracegauge.store import open_db, upsert_session
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -73,7 +73,7 @@ def _make_result(session_id: str) -> ThreeAxisResult:
 @pytest.fixture()
 def flask_app(tmp_path: Path):
     """Minimal Flask app with 5 sessions (below-floor is fine — we mock intelligence)."""
-    from tes.web.server import ServerConfig, create_app
+    from tracegauge.web.server import ServerConfig, create_app
 
     db = tmp_path / "test.db"
     conn = open_db(db)
@@ -106,7 +106,7 @@ def _post_ask(client, question: str, api_consent: bool = False) -> dict:
 class TestG1MetricsOnlyEgress:
     def test_build_chat_context_no_raw_content(self, flask_app) -> None:
         """The context dict passed to the LLM must not contain raw session content."""
-        from tes.intelligence.chat import build_chat_context
+        from tracegauge.intelligence.chat import build_chat_context
 
         # Get the db_path from a fresh app
         ctx = build_chat_context("How much do my sessions cost?")
@@ -117,7 +117,7 @@ class TestG1MetricsOnlyEgress:
         )
 
     def test_corpus_stats_no_code_fields(self, flask_app) -> None:
-        from tes.intelligence.chat import build_chat_context
+        from tracegauge.intelligence.chat import build_chat_context
 
         ctx = build_chat_context("test question")
         corpus = ctx["corpus_stats"]
@@ -137,7 +137,7 @@ class TestG1MetricsOnlyEgress:
             assert f not in corpus, f"Forbidden field '{f}' found in corpus_stats"
 
     def test_session_summary_no_raw_content(self) -> None:
-        from tes.intelligence.chat import _summarize_session
+        from tracegauge.intelligence.chat import _summarize_session
 
         # Build a session row that has content-like fields
         session_row = {
@@ -167,7 +167,7 @@ class TestG1MetricsOnlyEgress:
         assert "connection refused" not in str(summary)
 
     def test_user_message_contains_no_code(self, flask_app, tmp_path) -> None:
-        from tes.intelligence.chat import _build_user_message, build_chat_context
+        from tracegauge.intelligence.chat import _build_user_message, build_chat_context
 
         ctx = build_chat_context("What is my median cost?")
         msg = _build_user_message(ctx)
@@ -186,8 +186,8 @@ class TestG1MetricsOnlyEgress:
 class TestG2Grounding:
     def test_route_calls_ask_local_when_available(self, flask_app) -> None:
         with (
-            patch("tes.web.server.ask_local", return_value="local answer") as mock_local,
-            patch("tes.web.server.ask_api") as mock_api,
+            patch("tracegauge.web.server.ask_local", return_value="local answer") as mock_local,
+            patch("tracegauge.web.server.ask_api") as mock_api,
         ):
             with flask_app.test_client() as c:
                 data, status = _post_ask(c, "What is my median cost?")
@@ -198,7 +198,7 @@ class TestG2Grounding:
         assert data["source"] == "local"
 
     def test_ask_local_called_with_correct_question(self, flask_app) -> None:
-        with patch("tes.web.server.ask_local", return_value="answer") as mock_local:
+        with patch("tracegauge.web.server.ask_local", return_value="answer") as mock_local:
             with flask_app.test_client() as c:
                 _post_ask(c, "How much waste do I have?")
         call_args = mock_local.call_args
@@ -210,7 +210,7 @@ class TestG2Grounding:
 
     def test_same_system_prompt_used(self) -> None:
         """The CLI CHAT_SYSTEM_PROMPT is used — same module, same object."""
-        from tes.intelligence.chat import CHAT_SYSTEM_PROMPT
+        from tracegauge.intelligence.chat import CHAT_SYSTEM_PROMPT
 
         # Verify the prompt contains all 7 honesty rules
         assert "Answer ONLY from the metrics" in CHAT_SYSTEM_PROMPT
@@ -233,7 +233,7 @@ class TestG3PredictionRefusal:
             "I don't predict future behavior — I only explain what's already measured "
             "in your session history."
         )
-        with patch("tes.web.server.ask_local", return_value=prediction_refusal):
+        with patch("tracegauge.web.server.ask_local", return_value=prediction_refusal):
             with flask_app.test_client() as c:
                 data, status = _post_ask(c, "What will my next session cost?")
         assert status == 200
@@ -248,7 +248,7 @@ class TestG3PredictionRefusal:
 class TestG4NotMeasured:
     def test_not_measured_response_passes_through(self, flask_app) -> None:
         not_measured = "I don't have that measured — tracegauge hasn't collected that metric."
-        with patch("tes.web.server.ask_local", return_value=not_measured):
+        with patch("tracegauge.web.server.ask_local", return_value=not_measured):
             with flask_app.test_client() as c:
                 data, status = _post_ask(c, "What is my GPU utilization?")
         assert status == 200
@@ -263,7 +263,7 @@ class TestG4NotMeasured:
 class TestG5Floor:
     def test_below_floor_ask_does_not_crash(self, flask_app) -> None:
         """Ask must work (or fail gracefully) even below the 30-session floor."""
-        with patch("tes.web.server.ask_local", return_value="Corpus stats answer."):
+        with patch("tracegauge.web.server.ask_local", return_value="Corpus stats answer."):
             with flask_app.test_client() as c:
                 data, status = _post_ask(c, "How many sessions do I have?")
         assert status == 200
@@ -276,7 +276,7 @@ class TestG5Floor:
             "Pattern analysis is not yet available — fewer than 30 sessions in the corpus. "
             "I don't have that measured — tracegauge hasn't collected that metric."
         )
-        with patch("tes.web.server.ask_local", return_value=below_floor_answer):
+        with patch("tracegauge.web.server.ask_local", return_value=below_floor_answer):
             with flask_app.test_client() as c:
                 data, status = _post_ask(c, "What are my archetypes?")
         assert status == 200
@@ -298,7 +298,7 @@ class TestG6Consent:
     def test_api_path_without_consent_returns_error(self, flask_app) -> None:
         """When Ollama fails and consent is False, must return error not an answer."""
         with (
-            patch("tes.web.server.ask_local", return_value=None),
+            patch("tracegauge.web.server.ask_local", return_value=None),
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with flask_app.test_client() as c:
@@ -309,8 +309,8 @@ class TestG6Consent:
     def test_api_path_without_consent_no_network_call(self, flask_app) -> None:
         """ask_api must NOT be called when consent is False."""
         with (
-            patch("tes.web.server.ask_local", return_value=None),
-            patch("tes.web.server.ask_api") as mock_api,
+            patch("tracegauge.web.server.ask_local", return_value=None),
+            patch("tracegauge.web.server.ask_api") as mock_api,
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with flask_app.test_client() as c:
@@ -319,8 +319,8 @@ class TestG6Consent:
 
     def test_api_path_with_consent_calls_ask_api(self, flask_app) -> None:
         with (
-            patch("tes.web.server.ask_local", return_value=None),
-            patch("tes.web.server.ask_api", return_value="api answer") as mock_api,
+            patch("tracegauge.web.server.ask_local", return_value=None),
+            patch("tracegauge.web.server.ask_api", return_value="api answer") as mock_api,
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with flask_app.test_client() as c:
@@ -334,8 +334,8 @@ class TestG6Consent:
     def test_no_api_key_no_network_call(self, flask_app) -> None:
         """Without ANTHROPIC_API_KEY, ask_api must never be called."""
         with (
-            patch("tes.web.server.ask_local", return_value=None),
-            patch("tes.web.server.ask_api") as mock_api,
+            patch("tracegauge.web.server.ask_local", return_value=None),
+            patch("tracegauge.web.server.ask_api") as mock_api,
             patch.dict("os.environ", {}, clear=True),
         ):
             with flask_app.test_client() as c:
@@ -346,7 +346,7 @@ class TestG6Consent:
     def test_needs_consent_flag_in_response_when_key_present(self, flask_app) -> None:
         """When Ollama is down + key present + no consent, needs_consent=True hints the UI."""
         with (
-            patch("tes.web.server.ask_local", return_value=None),
+            patch("tracegauge.web.server.ask_local", return_value=None),
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with flask_app.test_client() as c:
@@ -361,14 +361,14 @@ class TestG6Consent:
 
 class TestG7AskApiConsentGate:
     def test_ask_api_returns_none_without_consent(self) -> None:
-        from tes.intelligence.chat import ChatApiConfig, ask_api
+        from tracegauge.intelligence.chat import ChatApiConfig, ask_api
 
         cfg = ChatApiConfig(api_key="sk-fake")
         result = ask_api("test question", cfg, consent_given=False)
         assert result is None
 
     def test_ask_api_returns_none_with_empty_key(self) -> None:
-        from tes.intelligence.chat import ChatApiConfig, ask_api
+        from tracegauge.intelligence.chat import ChatApiConfig, ask_api
 
         cfg = ChatApiConfig(api_key="")
         result = ask_api("test question", cfg, consent_given=True)
@@ -389,7 +389,7 @@ class TestG8QuestionLengthCap:
             captured.append(q)
             return "answer"
 
-        with patch("tes.web.server.ask_local", side_effect=_capture):
+        with patch("tracegauge.web.server.ask_local", side_effect=_capture):
             with flask_app.test_client() as c:
                 _post_ask(c, long_q)
         assert len(captured[0]) <= 500
@@ -409,8 +409,8 @@ class TestG9LocalFirst:
     def test_local_used_before_api(self, flask_app) -> None:
         """When ask_local returns an answer, ask_api must never be called."""
         with (
-            patch("tes.web.server.ask_local", return_value="local answer"),
-            patch("tes.web.server.ask_api") as mock_api,
+            patch("tracegauge.web.server.ask_local", return_value="local answer"),
+            patch("tracegauge.web.server.ask_api") as mock_api,
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with flask_app.test_client() as c:

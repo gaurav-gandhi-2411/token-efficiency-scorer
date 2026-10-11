@@ -75,7 +75,7 @@ def test_the_priced_cache_fields_are_marked_priced() -> None:
         "usage.cache_read_input_tokens",
         "usage.input_tokens",
         "usage.output_tokens",
-        # COST_VERSION 3: these three dimensions are priced by tes.cost, no longer unmodelled
+        # COST_VERSION 3: these three dimensions are priced by tracegauge.cost, no longer unmodelled
         "usage.server_tool_use.web_search_requests",
         "usage.speed",
         "usage.inference_geo",
@@ -118,7 +118,7 @@ def test_a_new_unknown_usage_key_fails_loudly(
 @pytest.mark.parametrize(
     ("key", "value"),
     [
-        ("speed", "turbo"),  # a made-up speed: tes.cost would price it standard, so fail
+        ("speed", "turbo"),  # a made-up speed: tracegauge.cost would price it standard, so fail
         ("speed", "Fast"),  # case matters: only the exact value is priced
         ("inference_geo", "eu"),  # a region the page does not price
         ("inference_geo", "US"),

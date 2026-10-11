@@ -21,8 +21,8 @@ Covered:
 import socket
 
 import pytest
-import tes.cli as cli
-import tes.judge as judge
+import tracegauge.cli as cli
+import tracegauge.judge as judge
 
 
 def _make_session(dirpath, name="s.jsonl", mtime=1000.0):

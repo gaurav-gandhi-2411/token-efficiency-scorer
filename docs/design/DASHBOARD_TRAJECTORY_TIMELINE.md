@@ -4,7 +4,7 @@ Design only, per Q6.5. Routed for review before any implementation starts.
 
 ## 6.1 — Audit: what `tes serve` renders today
 
-**Stack, confirmed by reading `tes/web/server.py` and `tes/web/templates/`**:
+**Stack, confirmed by reading `tracegauge/web/server.py` and `tracegauge/web/templates/`**:
 Flask + server-rendered Jinja2 templates (`base.html` + 8 page templates).
 **Zero client-side JavaScript anywhere in the current templates** — no
 `<script>` tags, no charting library, no `canvas`/SVG-driven UI. Every
@@ -34,7 +34,7 @@ sentence and a per-row table.
 **What's NOT reusable / genuinely new**: there is no existing per-turn
 sequence data surfaced to the template at all — `session` is a single
 flat DB row. A trajectory timeline needs the turn-by-turn structure that
-today only exists transiently during scoring (`tes/adapt.py`'s single-pass
+today only exists transiently during scoring (`tracegauge/adapt.py`'s single-pass
 parse) and is not persisted. This is the same "RR1 lesson" this project
 has hit repeatedly: information only available while the source JSONL is
 still on disk must be persisted at score time, or the timeline breaks for
@@ -46,7 +46,7 @@ deferred silently.**
 
 **Persistence, extending the RR1 pattern already established for
 `edit_operations`**: a new nullable `turn_sequence` column (JSON), populated
-at score time by extending `tes/adapt.py`'s existing single-pass parse loop
+at score time by extending `tracegauge/adapt.py`'s existing single-pass parse loop
 — the same mechanism `edit_operations` (AB3) already uses, not a new
 extraction pass. Each entry:
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 Run from a throwaway venv with fontTools, brotli, resvg-py, and pillow --
 never the project's own dev environment (this script is design tooling,
-not shipped code, and has no place in tes's own dependency graph).
+not shipped code, and has no place in tracegauge's own dependency graph).
 
 Every character in the wordmark/tagline is a real path traced from this
 repo's own bundled font files via fontTools, never a live <text> element --
@@ -15,7 +15,7 @@ this rasterization pipeline's SVG renderer does not do real font-family
 matching (proven during the original AU1 rasterization: identical
 font_extents regardless of the requested font name), so text is a shape
 problem here, not a typography problem. The bundled font subsets
-(tes/web/static/fonts/*.woff2) cover alphanumerics + space only (63
+(tracegauge/web/static/fonts/*.woff2) cover alphanumerics + space only (63
 glyphs, no punctuation at all) -- the hyphen and period this file's own
 tagline needs are hand-drawn as trivial geometric shapes; every other
 character is a real glyph outline.
@@ -37,7 +37,7 @@ from fontTools.ttLib import TTFont
 from PIL import Image
 
 ROOT = Path(__file__).parent.parent
-FONT_DIR = ROOT / "tes" / "web" / "static" / "fonts"
+FONT_DIR = ROOT / "tracegauge" / "web" / "static" / "fonts"
 DISPLAY_FONT = str(FONT_DIR / "spacegrotesk-700.woff2")
 BODY_FONT = str(FONT_DIR / "tgsans-400.woff2")
 OUT_SVG = ROOT / "assets" / "brand" / "og-preview.svg"

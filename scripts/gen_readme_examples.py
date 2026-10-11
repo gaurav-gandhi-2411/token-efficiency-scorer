@@ -108,7 +108,7 @@ class _Sandbox:
         self.db = self.root / "tes.db"
 
     def run(self, *argv: str) -> tuple[int, str]:
-        import tes.cli as cli
+        import tracegauge.cli as cli
 
         old_argv, old_env = sys.argv, dict(os.environ)
         os.environ.update({"TES_DB_PATH": str(self.db), "TES_NO_NOTICE": "1"})
@@ -303,12 +303,12 @@ SCENARIOS = (
 
 def generate() -> dict[str, str]:
     """Every README example block, keyed by name. Deterministic: clock frozen, data invented."""
-    import tes.budget
-    import tes.cost_period
+    import tracegauge.budget
+    import tracegauge.cost_period
 
     patched = [
-        (tes.budget, "datetime"),
-        (tes.cost_period, "datetime"),
+        (tracegauge.budget, "datetime"),
+        (tracegauge.cost_period, "datetime"),
     ]
     saved = [(mod, attr, getattr(mod, attr)) for mod, attr in patched]
     real_time = time.time

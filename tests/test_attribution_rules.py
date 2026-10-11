@@ -17,8 +17,8 @@ All tests use synthetic fixtures; no external files, no LLM calls.
 """
 
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import compute_attribution
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.attribution import compute_attribution
 
 # ---------------------------------------------------------------------------
 # Shared helpers

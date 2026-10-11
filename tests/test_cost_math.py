@@ -3,15 +3,20 @@
 
 from __future__ import annotations
 
-"""tests/test_cost_math.py — Exact-dollar tests for tes.cost computation.
+"""tests/test_cost_math.py — Exact-dollar tests for tracegauge.cost computation.
 
 Uses a hardcoded price dict to avoid any dependency on file I/O or the bundled
 prices.json. All float comparisons use pytest.approx(rel=1e-9).
 """
 
 import pytest
-from tes._digest import SessionDigest, TurnDigest
-from tes.cost import _resolve_model, compute_session_cost, compute_turn_cost, load_price_table
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.cost import (
+    _resolve_model,
+    compute_session_cost,
+    compute_turn_cost,
+    load_price_table,
+)
 
 PRICES: dict = {
     "as_of": "2026-06-09",

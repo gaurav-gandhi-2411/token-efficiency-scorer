@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-"""tests/test_cost_approximate.py — Tests for approximate-flagging logic in tes.cost."""
+"""tests/test_cost_approximate.py — Tests for approximate-flagging logic in tracegauge.cost."""
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.cost import compute_session_cost, compute_turn_cost
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.cost import compute_session_cost, compute_turn_cost
 
 PRICES: dict = {
     "as_of": "2026-06-09",

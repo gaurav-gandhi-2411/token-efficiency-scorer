@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tes.adapt import _parse_billing_modifiers, adapt_session, collect_subagent_usage
+from tracegauge.adapt import _parse_billing_modifiers, adapt_session, collect_subagent_usage
 
 MODEL = "claude-opus-5-5"
 

@@ -114,7 +114,7 @@ committed.
 
 ## Fonts bundled in the PyPI package
 
-Five WOFF2 files in `tes/web/static/fonts/` are third-party, licensed under the SIL Open Font
+Five WOFF2 files in `tracegauge/web/static/fonts/` are third-party, licensed under the SIL Open Font
 License 1.1 (full texts next to the fonts, copyright lines and the modification statement in
 `NOTICE`). Four are renamed Latin subsets of IBM Plex Sans/Mono (copyright IBM Corp.; renamed to
 "TG Sans"/"TG Mono" because OFL-1.1 clause 3 reserves the name "Plex" for unmodified copies). One is
@@ -137,7 +137,7 @@ redistribution or fine-tuned-derivative distribution).
 
 - `data/corpus_pool/` (`pool_adapted.jsonl`, 181 sessions) — the author's own
   Claude Code sessions, the B1-B4 calibration corpus. Not third-party data.
-- Anthropic model pricing (`tes/data/prices.json`) — public list prices, not a
+- Anthropic model pricing (`tracegauge/data/prices.json`) — public list prices, not a
   licensed dataset; each active entry carries its own `source_url`/`as_of` for
   the staleness guard (see the file's own `note` field for the full convention,
   including why retired entries are exempt).

@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""tests/test_price_freshness.py — Tests for tes.cost.check_price_table_staleness.
+"""tests/test_price_freshness.py — Tests for tracegauge.cost.check_price_table_staleness.
 
 Minimum-viable port of adk-tracegauge's staleness-guard concept (S1 audit
 fix, 0.10.2): a price entry older than STALE_THRESHOLD_DAYS must be flagged,
@@ -13,7 +13,7 @@ entry point that calls this at the actual bundled table.
 
 from datetime import date, timedelta
 
-from tes.cost import STALE_THRESHOLD_DAYS, check_price_table_staleness, load_price_table
+from tracegauge.cost import STALE_THRESHOLD_DAYS, check_price_table_staleness, load_price_table
 
 _TODAY = date(2026, 8, 15)
 

@@ -11,8 +11,8 @@ import threading
 from pathlib import Path
 
 import pytest
-from tes import store
-from tes.store import open_db
+from tracegauge import store
+from tracegauge.store import open_db
 
 _OLD_ROW = (
     "INSERT INTO sessions (session_id, task_type, source_path, source_mtime, source_hash, "

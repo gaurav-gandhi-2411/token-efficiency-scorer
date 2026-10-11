@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Tests for tes/contribution.py — allow-listed payload builder."""
+"""Tests for tracegauge/contribution.py — allow-listed payload builder."""
 
 import sqlite3
 import uuid
@@ -11,7 +11,7 @@ from datetime import timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.contribution import (
+from tracegauge.contribution import (
     ALLOWED_FIELDS,
     CONTRIBUTION_SCHEMA_VERSION,
     ContributionManifest,
@@ -161,7 +161,7 @@ def test_allowed_fields_excludes_sensitive_columns() -> None:
 
 def test_get_or_create_contributor_id_creates_file(tmp_path: Path) -> None:
     id_file = tmp_path / ".tes" / "contributor_id.txt"
-    with patch("tes.contribution._CONTRIBUTOR_ID_FILE", id_file):
+    with patch("tracegauge.contribution._CONTRIBUTOR_ID_FILE", id_file):
         cid = get_or_create_contributor_id()
     assert id_file.exists()
     assert cid == id_file.read_text(encoding="utf-8").strip()
@@ -171,7 +171,7 @@ def test_get_or_create_contributor_id_creates_file(tmp_path: Path) -> None:
 
 def test_get_or_create_contributor_id_stable_on_reread(tmp_path: Path) -> None:
     id_file = tmp_path / ".tes" / "contributor_id.txt"
-    with patch("tes.contribution._CONTRIBUTOR_ID_FILE", id_file):
+    with patch("tracegauge.contribution._CONTRIBUTOR_ID_FILE", id_file):
         cid1 = get_or_create_contributor_id()
         cid2 = get_or_create_contributor_id()
     assert cid1 == cid2
@@ -184,7 +184,7 @@ def test_get_or_create_contributor_id_stable_on_reread(tmp_path: Path) -> None:
 
 def _make_minimal_conn() -> sqlite3.Connection:
     """Return an in-memory SQLite connection with no sessions (empty store)."""
-    from tes.store import open_db
+    from tracegauge.store import open_db
 
     conn = open_db(":memory:")
     return conn
@@ -222,8 +222,8 @@ def test_build_contribution_payload_row_keys_exactly_allowed() -> None:
     """Each row must contain exactly ALLOWED_FIELDS keys — no more, no less."""
     from datetime import datetime
 
-    from tes.score import ThreeAxisResult
-    from tes.store import upsert_session
+    from tracegauge.score import ThreeAxisResult
+    from tracegauge.store import upsert_session
 
     conn = _make_minimal_conn()
     result = ThreeAxisResult(
@@ -266,8 +266,8 @@ def test_build_contribution_payload_no_banned_fields_in_rows() -> None:
     """session_id, source_path, scored_at, judge_reasoning must never appear in rows."""
     from datetime import datetime
 
-    from tes.score import ThreeAxisResult
-    from tes.store import upsert_session
+    from tracegauge.score import ThreeAxisResult
+    from tracegauge.store import upsert_session
 
     conn = _make_minimal_conn()
     result = ThreeAxisResult(

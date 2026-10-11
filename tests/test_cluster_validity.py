@@ -11,18 +11,18 @@ assignment) or honestly reports no-stable-clusters when the data lacks structure
 
 import numpy as np
 import pytest
-from tes.intelligence.cluster import (
+from tracegauge.intelligence.cluster import (
     SILHOUETTE_STABLE_THRESHOLD,
     SILHOUETTE_WEAK_THRESHOLD,
     ClusteringResult,
     run_clustering,
 )
-from tes.intelligence.features import (
+from tracegauge.intelligence.features import (
     FEATURE_NAMES,
     SessionFeatures,
     build_feature_matrix,
 )
-from tes.store import list_sessions, open_db
+from tracegauge.store import list_sessions, open_db
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +40,7 @@ def _load_real_corpus() -> tuple[list[SessionFeatures], np.ndarray, dict[str, in
     suite-wide isolation in tests/conftest.py this is an empty store (tests skip);
     set TES_TEST_USE_AMBIENT_STORE=1 to run against the real store.
     """
-    from tes.store import resolve_db_path
+    from tracegauge.store import resolve_db_path
 
     conn = open_db(resolve_db_path(None))
     rows = list_sessions(conn, limit=5000, offset=0)
@@ -82,7 +82,7 @@ def _fake_features(
 
 def _skip_reason_for_thin_corpus(n_features: int, diagnostics: dict[str, int]) -> str:
     """UU1: name the real cause (legacy rows vs. a genuinely thin corpus) in
-    the skip reason, same distinction tes.intelligence.cache's user-facing
+    the skip reason, same distinction tracegauge.intelligence.cache's user-facing
     message makes -- see its SS1 note."""
     n_no_source = diagnostics.get("n_no_source", 0)
     if n_no_source > 0:
@@ -260,7 +260,7 @@ class TestClusteringValidity:
 
     def test_too_few_sessions_returns_invalid(self):
         """Fewer than MIN_SESSIONS should return an invalid result with clear status."""
-        from tes.intelligence.cluster import MIN_SESSIONS_FOR_CLUSTERING
+        from tracegauge.intelligence.cluster import MIN_SESSIONS_FOR_CLUSTERING
 
         feats, X_small = _fake_features(MIN_SESSIONS_FOR_CLUSTERING - 1)
         result = run_clustering(feats, X_small, random_state=42)

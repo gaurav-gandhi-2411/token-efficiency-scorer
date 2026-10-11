@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from tes.plan import (
+from tracegauge.plan import (
     PlanPeriod,
     compute_roi,
     load_plan_config,

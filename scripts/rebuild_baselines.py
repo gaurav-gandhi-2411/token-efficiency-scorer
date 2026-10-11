@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Rebuild tes/data/cc_baselines.json on the adapter_version-2 scale (usage counted once).
+"""Rebuild tracegauge/data/cc_baselines.json on the adapter_version-2 scale (usage counted once).
 
 The old builder (scripts/build_baselines.py) used the frozen per-record research pool, whose raw
 sessions are gone, so it cannot be re-run. Subcommands:
@@ -36,13 +36,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tes.adapt import ADAPTER_VERSION, adapt_session  # noqa: E402
-from tes.baselines import compute_real_tokens  # noqa: E402
-from tes.classify import TASK_TYPES, classify_session  # noqa: E402
-from tes.discovery import iter_session_files  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION, adapt_session  # noqa: E402
+from tracegauge.baselines import compute_real_tokens  # noqa: E402
+from tracegauge.classify import TASK_TYPES, classify_session  # noqa: E402
+from tracegauge.discovery import iter_session_files  # noqa: E402
 
 MANIFEST_PATH = REPO_ROOT / "eval" / "manifest.json"
-BASELINES_PATH = REPO_ROOT / "tes" / "data" / "cc_baselines.json"
+BASELINES_PATH = REPO_ROOT / "tracegauge" / "data" / "cc_baselines.json"
 
 SEED = 42  # house rule: every stochastic step is seeded
 MIN_N = 10  # a cell is active only with at least this many sessions (same as the old builder)
@@ -52,7 +52,7 @@ MANIFEST_VERSION = 1
 
 POPULATION_DESCRIPTION = (
     "main (non-subagent) Claude Code sessions of a single developer found under "
-    "~/.claude/projects at freeze time, scored with tes.adapt.adapt_session "
+    "~/.claude/projects at freeze time, scored with tracegauge.adapt.adapt_session "
     f"(adapter_version {ADAPTER_VERSION}: usage counted once per API response)"
 )
 POPULATION_LIMITATIONS = (
@@ -157,7 +157,7 @@ def build_bands(entries: Iterable[dict[str, Any]], *, with_ci: bool = True) -> d
 
 
 def band_verdict(task_type: str, turn_count: int, real_tokens: int, bands: dict[str, Any]) -> str:
-    """Token-axis verdict, mirroring ``tes.score`` for the corpus baseline.
+    """Token-axis verdict, mirroring ``tracegauge.score`` for the corpus baseline.
 
     'unavailable' covers both out-of-scope (turns below the p10 gate) and an inactive cell.
     """

@@ -19,13 +19,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes.cli import _print_contribution_preview
-from tes.contribution import (
+from tracegauge.cli import _print_contribution_preview
+from tracegauge.contribution import (
     ALLOWED_FIELDS,
     build_contribution_payload,
 )
-from tes.score import ThreeAxisResult
-from tes.store import open_db, upsert_session
+from tracegauge.score import ThreeAxisResult
+from tracegauge.store import open_db, upsert_session
 
 from tests.legacy_store import stamp_current
 

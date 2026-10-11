@@ -9,19 +9,19 @@ import pathlib
 import sys
 
 # --- 1. Confirm we are loading from site-packages, not the repo ---
-import tes
-import tes.web.server as srv
+import tracegauge
+import tracegauge.web.server as srv
 
 repo = pathlib.Path(r"C:\Users\USER\ml-projects\token-efficiency-scorer")
-pkg_path = pathlib.Path(tes.__file__)
+pkg_path = pathlib.Path(tracegauge.__file__)
 if repo in pkg_path.parents:
     print("FAIL: tes is loading from the REPO, not from the installed wheel.")
-    print(f"  tes.__file__ = {pkg_path}")
+    print(f"  tracegauge.__file__ = {pkg_path}")
     sys.exit(1)
 print(f"[OK] tes loads from site-packages (NOT repo): {pkg_path}")
-print(f"[OK] tes.__version__ = {tes.__version__}")
+print(f"[OK] tracegauge.__version__ = {tracegauge.__version__}")
 
-assert tes.__version__ == "0.8.0", f"Version mismatch: {tes.__version__}"
+assert tracegauge.__version__ == "0.8.0", f"Version mismatch: {tracegauge.__version__}"
 print("[OK] version == 0.8.0")
 
 # --- 2. Route registration: /patterns and /ask in url_map ---
@@ -45,8 +45,8 @@ mock_cache = {
     "domain_of_validity": "n/a",
 }
 with (
-    patch("tes.web.server.get_or_compute_intelligence", return_value=mock_cache),
-    patch("tes.web.server._check_ollama", return_value=False),
+    patch("tracegauge.web.server.get_or_compute_intelligence", return_value=mock_cache),
+    patch("tracegauge.web.server._check_ollama", return_value=False),
 ):
     with app.test_client() as c:
         resp = c.get("/patterns")
@@ -74,8 +74,8 @@ print("[OK] GET /ask -> 405 (route registered, not 404)")
 
 # --- 6. /ask POST with mocked local LLM -> grounded answer ---
 with (
-    patch("tes.web.server.ask_local", return_value="Corpus has 0 content sessions."),
-    patch("tes.web.server.ask_api", return_value=None),
+    patch("tracegauge.web.server.ask_local", return_value="Corpus has 0 content sessions."),
+    patch("tracegauge.web.server.ask_api", return_value=None),
 ):
     with app.test_client() as c:
         r = c.post(
@@ -93,7 +93,7 @@ print(f"[OK] POST /ask -> answer from local: '{data['answer']}'")
 import subprocess
 
 result = subprocess.run(
-    [sys.executable, "-m", "tes", "--version"],
+    [sys.executable, "-m", "tracegauge", "--version"],
     capture_output=True,
     text=True,
 )
@@ -102,9 +102,9 @@ assert "0.8.0" in ver_out, f"tes --version output does not contain 0.8.0: {ver_o
 print(f"[OK] tes --version: {ver_out}")
 
 # --- 8. tes patterns import (ML deps available) ---
-from tes.intelligence.chat import CHAT_SYSTEM_PROMPT
+from tracegauge.intelligence.chat import CHAT_SYSTEM_PROMPT
 
-print("[OK] tes.intelligence imports OK (numpy/sklearn available)")
+print("[OK] tracegauge.intelligence imports OK (numpy/sklearn available)")
 assert "I don't predict" in CHAT_SYSTEM_PROMPT, "Honesty guard missing from system prompt"
 print("[OK] CHAT_SYSTEM_PROMPT contains 'I don't predict' guard")
 

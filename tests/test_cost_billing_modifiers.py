@@ -17,14 +17,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes
-from tes._digest import SessionDigest, TurnDigest
-from tes.adapt import adapt_session
-from tes.cost import compute_session_cost, compute_turn_cost
-from tes.discovery import SUBAGENTS_DIRNAME
+import tracegauge
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.adapt import adapt_session
+from tracegauge.cost import compute_session_cost, compute_turn_cost
+from tracegauge.discovery import SUBAGENTS_DIRNAME
 
 PRICES: dict[str, Any] = json.loads(
-    (Path(tes.__file__).parent / "data" / "prices.json").read_text(encoding="utf-8")
+    (Path(tracegauge.__file__).parent / "data" / "prices.json").read_text(encoding="utf-8")
 )
 
 
@@ -343,7 +343,7 @@ def test_subagent_requests_are_priced_with_their_own_speed_and_geo(tmp_path: Pat
     ]
     sub.write_text("\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8")
 
-    from tes._digest import reconstruct_digest
+    from tracegauge._digest import reconstruct_digest
 
     digest = reconstruct_digest(adapt_session(parent)["digest"])
     sc = compute_session_cost(digest, PRICES)

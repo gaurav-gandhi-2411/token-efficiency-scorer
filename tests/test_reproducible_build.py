@@ -63,7 +63,7 @@ def test_normalise_sdist_lf_for_generated_files_only(tmp_path: Path) -> None:
     path = tmp_path / "s.tar.gz"
     raw = io.BytesIO()
     with tarfile.open(fileobj=raw, mode="w") as tar:
-        for name in ("p-1/PKG-INFO", "p-1/tes/x.py"):
+        for name in ("p-1/PKG-INFO", "p-1/tracegauge/x.py"):
             info = tarfile.TarInfo(name)
             info.size = len(CRLF)
             tar.addfile(info, io.BytesIO(CRLF))
@@ -72,7 +72,7 @@ def test_normalise_sdist_lf_for_generated_files_only(tmp_path: Path) -> None:
     with tarfile.open(path) as tar:
         got = {m.name: tar.extractfile(m).read() for m in tar.getmembers()}  # type: ignore[union-attr]
     # Source files are never touched (they are LF by .gitattributes); generated ones are LF.
-    assert got == {"p-1/PKG-INFO": LF, "p-1/tes/x.py": CRLF}
+    assert got == {"p-1/PKG-INFO": LF, "p-1/tracegauge/x.py": CRLF}
 
 
 def _record_line(name: str, data: bytes) -> str:

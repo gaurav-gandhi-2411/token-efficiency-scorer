@@ -12,7 +12,7 @@ Tests the per-event cost annotation with the "redundant turns only" definition:
 """
 
 
-from tes.waste import annotate_waste_costs
+from tracegauge.waste import annotate_waste_costs
 
 
 def _rfr_event(turns: list[int], repeat_count: int = 2) -> dict:

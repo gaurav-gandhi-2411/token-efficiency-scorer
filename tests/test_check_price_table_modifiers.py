@@ -23,11 +23,11 @@ from scripts.check_price_table_vs_vendor import (
     model_version,
     parse_vendor_modifiers,
 )
-from tes.cost import load_price_table
+from tracegauge.cost import load_price_table
 
 _PAGE = Path(__file__).parent / "fixtures" / "pricing" / "anthropic_pricing_2026-10-09_excerpt.md"
 _PAGE_TEXT = _PAGE.read_text(encoding="utf-8")
-_BUNDLED = Path(__file__).resolve().parent.parent / "tes" / "data" / "prices.json"
+_BUNDLED = Path(__file__).resolve().parent.parent / "tracegauge" / "data" / "prices.json"
 
 
 def _table() -> dict[str, Any]:

@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 from scripts.check_prices_vs_litellm import crosscheck, first_party_claude_entries, main
-from tes.cost import load_price_table
+from tracegauge.cost import load_price_table
 
-_BUNDLED = Path(__file__).resolve().parent.parent / "tes" / "data" / "prices.json"
+_BUNDLED = Path(__file__).resolve().parent.parent / "tracegauge" / "data" / "prices.json"
 _OLD_TABLE = Path(__file__).parent / "fixtures" / "pricing" / "prices_b261c4b.json"
 
 

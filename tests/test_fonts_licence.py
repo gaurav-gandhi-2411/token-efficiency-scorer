@@ -7,8 +7,8 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-FONTS = ROOT / "tes" / "web" / "static" / "fonts"
-BASE = ROOT / "tes" / "web" / "templates" / "base.html"
+FONTS = ROOT / "tracegauge" / "web" / "static" / "fonts"
+BASE = ROOT / "tracegauge" / "web" / "templates" / "base.html"
 
 
 def test_font_files_do_not_use_the_reserved_font_name() -> None:

@@ -29,7 +29,7 @@ _RUNNER = textwrap.dedent(
     for n in {block!r}:
         sys.modules[n] = None
     sys.argv = ["tes", *{args!r}]
-    runpy.run_module("tes", run_name="__main__", alter_sys=True)
+    runpy.run_module("tracegauge", run_name="__main__", alter_sys=True)
     """
 )
 
@@ -69,9 +69,9 @@ def test_importing_tes_cli_and_server_loads_no_extra_packages(tmp_path: Path) ->
     code = (
         "import sys\n"
         f"for n in {BLOCK!r}: sys.modules[n] = None\n"
-        "import tes, tes.cli, tes.web.server, tes.intelligence\n"
-        "import tes.intelligence.cache, tes.intelligence.chat\n"
-        "assert tes.intelligence.ask_local is tes.intelligence.chat.ask_local\n"
+        "import tracegauge, tracegauge.cli, tracegauge.web.server, tracegauge.intelligence\n"
+        "import tracegauge.intelligence.cache, tracegauge.intelligence.chat\n"
+        "assert tracegauge.intelligence.ask_local is tracegauge.intelligence.chat.ask_local\n"
         "print('ok')\n"
     )
     r = _run_code(tmp_path, code)
@@ -87,7 +87,9 @@ def test_quickstart_runs_and_shows_finding_without_extras(tmp_path: Path) -> Non
 
 
 def test_score_runs_without_extras(tmp_path: Path) -> None:
-    sample = Path(__file__).parent.parent / "tes" / "data" / "quickstart_sample_session.jsonl"
+    sample = (
+        Path(__file__).parent.parent / "tracegauge" / "data" / "quickstart_sample_session.jsonl"
+    )
     r = _run_cli(tmp_path, "score", str(sample), "--no-judge", "--json")
     assert r.returncode == 0, r.stderr
     doc = json.loads(r.stdout)
@@ -124,8 +126,8 @@ def test_dashboard_routes_show_a_friendly_extra_missing_response(tmp_path: Path)
         for n in {BLOCK!r}:
             sys.modules[n] = None
         from pathlib import Path
-        from tes.store import open_db
-        from tes.web.server import ServerConfig, create_app
+        from tracegauge.store import open_db
+        from tracegauge.web.server import ServerConfig, create_app
         cfg = ServerConfig(db_path=Path({str(tmp_path / "web.db")!r}))
         open_db(cfg.db_path).close()
         with create_app(cfg).test_client() as c:

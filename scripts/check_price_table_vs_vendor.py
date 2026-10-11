@@ -3,7 +3,7 @@
 
 """scripts/check_price_table_vs_vendor.py — fetches Anthropic's own published pricing
 page and compares it, in BOTH directions, against this repo's price table
-(tes/data/prices.json).
+(tracegauge/data/prices.json).
 
 History: GG1 introduced this check. It looped over the table's own keys, filtered through a
 hand-maintained display-name map, and compared only input/output. So a model the vendor page
@@ -59,13 +59,13 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tes.cost import cache_read_multiplier, load_price_table  # noqa: E402
+from tracegauge.cost import cache_read_multiplier, load_price_table  # noqa: E402
 
 _USER_AGENT = "Mozilla/5.0 (compatible; tracegauge-price-vendor-check/2.0)"
 _TIMEOUT_SECONDS = 20
 
 #: Always check the bundled table, never a ~/.tes/prices.json or TES_PRICE_TABLE override.
-_BUNDLED_PRICES = _ROOT / "tes" / "data" / "prices.json"
+_BUNDLED_PRICES = _ROOT / "tracegauge" / "data" / "prices.json"
 
 ANTHROPIC_MD_URL = "https://platform.claude.com/docs/en/about-claude/pricing.md"
 

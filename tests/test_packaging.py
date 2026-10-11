@@ -21,7 +21,7 @@ import re
 
 def test_version_present() -> None:
     """__version__ is importable and looks like a semver string."""
-    from tes import __version__
+    from tracegauge import __version__
 
     assert isinstance(__version__, str)
     assert __version__ != ""
@@ -33,7 +33,7 @@ def test_version_present() -> None:
 
 def test_baselines_load_from_installed_package() -> None:
     """cc_baselines.json loads from the installed package location (not repo path)."""
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
 
     assert BUNDLED_BASELINES_PATH.exists(), (
         f"Bundled baselines not found at {BUNDLED_BASELINES_PATH}. "
@@ -59,7 +59,7 @@ def test_baselines_load_from_installed_package() -> None:
 
 def test_entry_point_importable() -> None:
     """The CLI entry point function is importable without error."""
-    from tes.cli import main  # noqa: F401 — import is the test
+    from tracegauge.cli import main  # noqa: F401 — import is the test
 
     assert callable(main)
 
@@ -84,7 +84,7 @@ def test_package_name_is_tracegauge() -> None:
 
 
 def test_both_entry_points_resolve() -> None:
-    """Both 'tes' and 'tracegauge' console scripts resolve to tes.cli:main."""
+    """Both 'tes' and 'tracegauge' console scripts resolve to tracegauge.cli:main."""
     from importlib.metadata import entry_points
 
     eps = entry_points(group="console_scripts")
@@ -92,5 +92,5 @@ def test_both_entry_points_resolve() -> None:
 
     assert "tes" in ep_map, "console_script 'tes' not found in installed metadata"
     assert "tracegauge" in ep_map, "console_script 'tracegauge' not found in installed metadata"
-    assert ep_map["tes"] == "tes.cli:main"
-    assert ep_map["tracegauge"] == "tes.cli:main"
+    assert ep_map["tes"] == "tracegauge.cli:main"
+    assert ep_map["tracegauge"] == "tracegauge.cli:main"
