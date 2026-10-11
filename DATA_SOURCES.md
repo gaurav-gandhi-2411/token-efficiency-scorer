@@ -112,6 +112,14 @@ date given per entry), not assumed.
 script) and Agent-Ark/Toucan-1.5M (Apache-2.0 per its Hugging Face metadata). No trace from either is
 committed.
 
+## Fonts bundled in the PyPI package
+
+Five WOFF2 files in `tes/web/static/fonts/` are third-party, licensed under the SIL Open Font
+License 1.1 (full texts next to the fonts, copyright lines and the modification statement in
+`NOTICE`). Four are renamed Latin subsets of IBM Plex Sans/Mono (copyright IBM Corp.; renamed to
+"TG Sans"/"TG Mono" because OFL-1.1 clause 3 reserves the name "Plex" for unmodified copies). One is
+a Latin subset of Space Grotesk (copyright The Space Grotesk Project Authors).
+
 ## Open-weight models used for local/offline inference
 
 Listed for transparency (rule 72: LLM usage is documented, not hidden) — none of
