@@ -117,10 +117,8 @@ To establish an IAA baseline before Haiku annotation runs, we manually labeled 1
 | tool_result_used | 19/19 | 100% | All turns use their context |
 | redundant_read | 1/19 | 5.3% | Turn 18 — same file re-read within session |
 
-**Notable examples:**
-- **is_retry (t36, hydra-2189):** Agent repeatedly applies identical `str_replace` where `old_str == new_str` — a no-op edit retried after an import error.
-- **is_backtrack (t92, dask-9378):** `undo_edit` call + "Alternative Approach: Instead of using map_blocks..." — textbook backtrack.
-- **redundant_read (t32, pydantic-8316):** Reads `_fields.py` at line 125 in t22, then re-reads at line 195 in t32 with no write between.
+Per-trace examples were removed in 0.16.0 with the traces they described (see the licence note
+in `DATA_SOURCES.md`); only the counts above remain.
 
 ### 2.4 IAA: Structural GT vs Sonnet Spot-Check
 

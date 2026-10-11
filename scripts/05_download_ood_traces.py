@@ -209,7 +209,7 @@ def _normalize_swezero_session(row: dict, idx: int) -> dict | None:
         "source_dataset": "AlienKevin/SWE-ZERO-12M-trajectories",
         "scaffold": "mini_swe_agent",
         "model": row.get("model") or "unknown",
-        "license": "MIT",
+        "license": "Apache-2.0",
         "instance_id": str(task_id),
         "ood_source": "AlienKevin/SWE-ZERO-12M-trajectories",
         "ood_task_category": f"swe_{lang}",
