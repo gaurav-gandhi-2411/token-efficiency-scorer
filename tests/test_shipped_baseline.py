@@ -55,7 +55,7 @@ def test_manifest_holds_no_transcript_text_or_paths() -> None:
         "size_bytes",
         "mtime_utc",
         "sha256",
-        "in_phase0_set_b",
+        "in_eval_set",
         "included",
         "exclusion_reason",
     }
