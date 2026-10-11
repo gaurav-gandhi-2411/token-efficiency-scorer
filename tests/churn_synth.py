@@ -130,3 +130,50 @@ def clean_chain(
 ) -> list[dict[str, Any]]:
     """A chain with no event at all."""
     return build_chain(rng, n_turns, {}, one_hour=one_hour, prefix=prefix)
+
+
+#: Modes of ``build_hard_chain``: borderline cases the clear-cut generator above never makes.
+HARD_SMEAR_GAP = "smear_gap"  # 5m chain, gap in the 300-360 s zone where timestamps blur the edge
+HARD_READ_BELOW = "read_below"  # read falls to 0.40-0.499 of the previous read (R = 0.5)
+HARD_READ_ABOVE = "read_above"  # read falls to 0.50-0.60 of the previous read
+HARD_MODES = (HARD_SMEAR_GAP, HARD_READ_BELOW, HARD_READ_ABOVE)
+
+
+def build_hard_chain(
+    rng: random.Random, n_turns: int, positions: list[int], mode: str, *, prefix: str = "h"
+) -> list[dict[str, Any]]:
+    """Records of a 5-minute-tier chain with a borderline partial cache loss at ``positions``.
+
+    Unlike ``build_chain`` these are NOT clear-cut: ``HARD_SMEAR_GAP`` loses the cache after an
+    idle gap drawn from 300-360 s (the zone where record-write timestamps blur the TTL edge);
+    ``HARD_READ_BELOW`` / ``HARD_READ_ABOVE`` keep a fraction of the previous read just below /
+    above the detector's read-drop ratio, with the re-written remainder large enough to pass the
+    rewrite-share test. The constants are written out here (0.5 etc.), not imported from the
+    detector, so the cases do not move when a threshold is tuned.
+    """
+    recs: list[dict[str, Any]] = []
+    t = T0
+    prefix_tokens = rng.randint(20_000, 60_000)
+    prev_cr = 0
+    for k in range(n_turns):
+        injected = k in positions
+        gap = float(rng.randint(5, 120))
+        if injected and mode == HARD_SMEAR_GAP:
+            gap = rng.uniform(300.0, 360.0)
+        t += gap
+        recs.append(user_rec(t))
+        growth = rng.randint(200, 900)
+        if k == 0:
+            cr, cc = 0, prefix_tokens
+        elif injected and mode == HARD_SMEAR_GAP:
+            cr, cc = 9_000, prefix_tokens - 9_000 + growth
+        elif injected:
+            frac = rng.uniform(0.40, 0.499) if mode == HARD_READ_BELOW else rng.uniform(0.5, 0.6)
+            cr = int(frac * prev_cr)
+            cc = prefix_tokens - cr + growth
+        else:
+            cr, cc = prefix_tokens, growth
+        recs.append(asst_rec(f"{prefix}{k}", MODEL_A, cr=cr, cc=cc, ts=t + 2.0))
+        prefix_tokens = cr + cc
+        prev_cr = cr
+    return recs

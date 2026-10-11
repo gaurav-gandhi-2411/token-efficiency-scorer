@@ -2,6 +2,14 @@ from __future__ import annotations
 
 """Cache-churn detector: definition, causes, edge cases, pricing, injection recall/precision.
 
+The seeded-injection tests are a REGRESSION CHECK of the code on clear-cut synthetic cases, not an
+accuracy estimate: the generator (tests/churn_synth.py) plants events with the same ideas the
+detector uses (a gap well past the TTL, a read that collapses to a small constant) and has no
+near-misses, so a high recall there says the code does what it was written to do, nothing about
+how often it is right on real sessions. The separate "harder synthetic cases" test below plants
+borderline cases and records what the detector does with them; those rates are observations, and
+the thresholds were not tuned to make them pass.
+
 Expected dollar figures are computed by hand from the published per-MTok rates (see each
 test), not by calling the code under test. Rates used (tes/data/prices.json):
 claude-sonnet-5-5 in $2.00, 5m write 1.25x = $2.50, 1h write 2x = $4.00, read 0.05x = $0.10 /MTok;
@@ -18,11 +26,15 @@ import pytest
 from tes import cache_churn as cc
 
 from tests.churn_synth import (
+    HARD_READ_ABOVE,
+    HARD_READ_BELOW,
+    HARD_SMEAR_GAP,
     MODEL_A,
     MODEL_B,
     T0,
     asst_rec,
     build_chain,
+    build_hard_chain,
     clean_chain,
     compact_boundary,
     summary_rec,
@@ -632,3 +644,49 @@ def test_nested_subagent_file_is_ignored_by_churn_and_by_cost_scope(tmp_path: Pa
     assert len(s.chains) == 2 and s.by_kind["subagent"].events == 1
     usage = collect_subagent_usage(main_p)
     assert usage is not None and usage["file_count"] == 1  # the cost scope sees the same one file
+
+
+# ------------------------------------------------------------------ harder synthetic cases
+
+
+def _hard_stats(mode: str, params: cc.ChurnParams = cc.DEFAULT_PARAMS) -> dict[str, Any]:
+    """Detector behaviour on 60 seeded chains with 4 borderline cases each (240 per mode)."""
+    rng = random.Random(42)
+    table = cc.RateTable()
+    injected = detected = elsewhere = 0
+    causes: dict[str, int] = {}
+    for n in range(60):
+        n_turns = rng.randint(40, 90)
+        pos = sorted(rng.sample(range(2, n_turns - 1, 3), 4))
+        recs = build_hard_chain(rng, n_turns, pos, mode, prefix=f"c{n}_")
+        res = cc.detect_chain(_chain(recs), table, params)
+        found = {e.cur.turn_index: e for e in res.events}
+        injected += len(pos)
+        elsewhere += sum(1 for k in found if k not in pos)
+        for p in pos:
+            if p in found:
+                detected += 1
+                causes[found[p].cause] = causes.get(found[p].cause, 0) + 1
+    return {"n": injected, "detected": detected, "causes": causes, "elsewhere": elsewhere}
+
+
+def test_harder_synthetic_cases_observed_behaviour() -> None:
+    """Observations, not a pass bar: the numbers below are what the code does, recorded so a
+    change in behaviour on borderline cases is visible. Thresholds were not tuned to them."""
+    smear = _hard_stats(HARD_SMEAR_GAP)
+    # every gap in 300-360 s is strictly over the 300 s TTL, so with no grace all are TTL_GAP
+    assert smear["detected"] == smear["n"] == 240
+    assert smear["causes"] == {cc.CAUSE_TTL_GAP: 240} and smear["elsewhere"] == 0
+    graced = _hard_stats(HARD_SMEAR_GAP, cc.ChurnParams(ttl_grace_s=30.0))
+    # a 30 s grace moves the gaps in (300, 330] to UNEXPLAINED: about half of this zone
+    assert graced["detected"] == 240
+    assert graced["causes"] == {cc.CAUSE_TTL_GAP: 118, cc.CAUSE_UNEXPLAINED: 122}
+
+    below = _hard_stats(HARD_READ_BELOW)
+    # read kept at 0.40-0.499 of the previous read: an event (below R = 0.5), but no cause marker
+    assert below["detected"] == below["n"] == 240
+    assert below["causes"] == {cc.CAUSE_UNEXPLAINED: 240} and below["elsewhere"] == 0
+
+    above = _hard_stats(HARD_READ_ABOVE)
+    # read kept at 0.50-0.60: not an event (a partial loss the definition does not count)
+    assert above["detected"] == 0 and above["elsewhere"] == 0

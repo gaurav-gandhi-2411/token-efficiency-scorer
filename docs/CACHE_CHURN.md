@@ -147,5 +147,17 @@ seconds and the lifetime used. No transcript text is ever included.
 * **Single user:** all numbers above come from one person's sessions on one machine. They show that
   the detector fires and what it costs there, not how common churn is for other users.
 * **Tests:** the unit tests use synthetic transcripts with injected gaps, switches and compactions
-  (`tests/test_cache_churn.py`). Injected events are recovered because they are built to be clear
-  cut; that is a check on the code, not a measure of accuracy on real sessions.
+  (`tests/test_cache_churn.py`). The seeded-injection recall there is a regression check of the code
+  on clear-cut synthetic cases: the generator shares the detector's ideas and constants and has no
+  near-misses, so a high recall is not an accuracy estimate and says nothing about real sessions.
+* **Harder synthetic cases (observations, not tuned):** the same test module plants 240 borderline
+  cases per mode (60 seeded chains, 4 each) and records what the detector does. A cache lost after
+  an idle gap of 300 to 360 s on a 5-minute chain: 240 of 240 are found and all 240 are `TTL_GAP`
+  (every such gap is strictly over 300 s); with `ttl_grace_s=30` they split 118 `TTL_GAP` and 122
+  `UNEXPLAINED`, which is the blur of the timestamps showing, not an error rate. A read kept at
+  0.40 to 0.499 of the previous read (just below the 0.5 ratio): 240 of 240 found, all
+  `UNEXPLAINED` (no marker explains a partial loss). A read kept at 0.50 to 0.60 (just above): 0 of
+  240 found. The last two show the threshold, which is a definition: a partial loss on either side
+  of 0.5 is the same physical event, and only one side is counted. In the maintainer's real
+  sessions no pair fell between 0.3 and 0.9 of the previous prefix, so this edge is rarely
+  exercised there (the maintainer's unpublished local measurement).
