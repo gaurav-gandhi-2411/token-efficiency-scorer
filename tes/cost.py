@@ -44,12 +44,20 @@ NON_MODEL_IDS: frozenset[str] = frozenset({"<synthetic>"})
 
 #: Billing dimensions that cannot be derived from a transcript and are therefore NOT modelled.
 #: Surfaced in SessionCost.domain_of_validity so a total is never read as more exact than it is.
+#: Source: the saved official pricing page, sha256
+#: 67904e280b595d31f373c857844ed380072ae79d280d8f385640b5992d337ca9 (retrieved 2026-10-10).
+#: Web search, fast mode and inference_geo=us ARE priced (see compute_turn_cost); Batch is not a
+#: gap -- no usage field carries it and Claude Code does not use the Batch API.
 UNMODELLED_BILLING = (
-    "Not modelled (not derivable from transcripts): fast mode (premium per-token rates on "
-    "supported Opus models), inference_geo data-residency uplift (1.1x on 4.6+ models), "
-    "Batch discount (0.5x) and server-tool charges such as web search; a session that used "
-    "any of these is billed differently from the total shown."
+    "Not modelled (not derivable from transcripts): code-execution container time, and the "
+    "refund for web searches that errored (the API does not bill those, but a transcript "
+    "cannot show which ones errored, so every recorded search is charged). The Batch discount "
+    "(0.5x) does not apply to Claude Code transcripts. Fast mode, US-only inference (1.1x) and "
+    "web search are priced when the transcript records them."
 )
+
+#: usage.server_tool_use kinds that carry no charge beyond tokens (page: "Web fetch tool").
+_FREE_SERVER_TOOLS: frozenset[str] = frozenset({"web_fetch_requests"})
 
 
 @dataclass
@@ -90,6 +98,17 @@ class TurnCost:
     # conservative default; a floor). cache_creation_cost covers both tiers.
     cache_write_1h_tokens: int = 0
     cache_write_unspecified_tokens: int = 0
+    # Added with COST_VERSION 3. Web searches charged on this turn and their dollars (already in
+    # total_usd; fresh/cache/output costs above stay token-only). Requests priced at fast-mode
+    # rates / at the US-only 1.1x multiplier, and requests that asked for either on a model
+    # without it and were therefore priced standard (a turn stands for ``request_count``
+    # requests, all with the same speed and inference_geo -- see tes.adapt).
+    web_search_requests: int = 0
+    web_search_cost: float = 0.0
+    fast_requests: int = 0
+    fast_unsupported_requests: int = 0
+    geo_us_requests: int = 0
+    geo_us_unsupported_requests: int = 0
 
 
 @dataclass
@@ -123,6 +142,15 @@ class SessionCost:
     # spend that "assumes 5m where unspecified".
     cache_write_1h_tokens: int = 0
     cache_write_unspecified_tokens: int = 0
+    # Session totals (main + subagent) of the TurnCost fields of the same names. All zero for a
+    # session with no web search, fast-mode or US-only request; the domain_of_validity text
+    # then carries no sentence about them.
+    web_search_requests: int = 0
+    web_search_usd: float = 0.0
+    fast_requests: int = 0
+    fast_unsupported_requests: int = 0
+    geo_us_requests: int = 0
+    geo_us_unsupported_requests: int = 0
 
     @property
     def priced(self) -> bool:
@@ -224,6 +252,11 @@ def cache_read_multiplier(model_entry: dict[str, Any], prices: dict[str, Any]) -
     return float(prices["cache_multipliers"]["read"])
 
 
+def _is_number(value: Any) -> bool:
+    """True for an int/float that is not a bool (a price-table field, never a flag)."""
+    return isinstance(value, int | float) and not isinstance(value, bool)
+
+
 def _select_rates(turn: TurnDigest, entry: dict[str, Any]) -> tuple[float, float, str]:
     """Return ``(input_rate, output_rate, pricing_caveat)`` for ``turn``.
 
@@ -255,25 +288,43 @@ def _select_rates(turn: TurnDigest, entry: dict[str, Any]) -> tuple[float, float
     return input_rate, output_rate, caveat
 
 
-def _server_tool_warning(turn: TurnDigest) -> str:
+def _web_search_rate_per_request(prices: dict[str, Any]) -> float | None:
+    """USD per web search from ``prices["server_tool_rates"]["web_search_usd_per_1000"]``.
+
+    Page: "Web search is available on the Claude API for $10 per 1,000 searches, plus standard
+    token costs". ``None`` when the table has no (numeric) rate -- e.g. a user override written
+    before this field existed -- in which case web search stays unpriced AND warned about
+    (fail closed), exactly as before COST_VERSION 3.
+    """
+    rates = prices.get("server_tool_rates")
+    rate = rates.get("web_search_usd_per_1000") if isinstance(rates, dict) else None
+    if isinstance(rate, int | float) and not isinstance(rate, bool):
+        return float(rate) / 1000
+    return None
+
+
+def _server_tool_warning(turn: TurnDigest, web_search_priced: bool = False) -> str:
     """Return a non-empty warning iff ``turn`` carries detected server-side
-    tool usage (e.g. Claude's web_search server tool, billed at $10/1,000
-    searches — see ``usage.server_tool_use`` in the raw Claude API response
-    that ``tes.adapt`` parses) that this turn's total_usd does NOT reflect.
+    tool usage that this turn's total_usd does NOT reflect.
 
     Added 0.10.2 (S1 fix): before this, ``tes.adapt._parse_usage`` silently
-    dropped any ``usage.server_tool_use`` counts (it read only 4 token-count
-    fields), so a session with web-search calls was priced as if they never
-    happened — no warning, no partial flag, nothing. tes has no verified
-    per-search billing rate wired through compute_turn_cost yet (that would
-    require confirming which of the 4 known token fields, if any, already
-    reflect search-generated content — a larger change than this minimal
-    fix), so the honest minimum is to warn loudly rather than silently omit.
+    dropped any ``usage.server_tool_use`` counts, so a session with
+    server-side tool calls was priced as if they never happened. Since
+    COST_VERSION 3 web search is priced (``web_search_priced``) and web fetch is
+    free (page: no charge beyond tokens), so only the rest -- code execution
+    (billed by container time, which a transcript does not carry) and any kind
+    this module has never seen -- is still warned about, never silently omitted.
     """
     counts = turn.server_tool_use
     if not counts:
         return ""
-    detail = ", ".join(f"{n} {kind}" for kind, n in sorted(counts.items()) if n)
+    detail = ", ".join(
+        f"{n} {kind}"
+        for kind, n in sorted(counts.items())
+        if n
+        and kind not in _FREE_SERVER_TOOLS
+        and not (web_search_priced and kind == "web_search_requests")
+    )
     if not detail:
         return ""
     return (
@@ -306,10 +357,18 @@ def compute_turn_cost(
     ``_resolve_model``), this returns a TurnCost with ``priced=False``,
     ``total_usd=0.0``, and ``approximate_reason`` naming the model and the
     remedy — NEVER a dollar figure computed at a guessed/default rate
-    (0.10.2 S1 fix). Server-side tool usage detected on the turn (e.g. web
-    search) is separately flagged via ``server_tool_warning`` regardless of
+    (0.10.2 S1 fix). Server-side tool usage that is not priced (e.g. code
+    execution) is separately flagged via ``server_tool_warning`` regardless of
     whether the model itself resolved — the model resolving doesn't mean the
     turn's total is complete.
+
+    Since COST_VERSION 3 three more dimensions are priced from the saved official page
+    (sha256 67904e280b595d31f373c857844ed380072ae79d280d8f385640b5992d337ca9): web search
+    (``server_tool_rates.web_search_usd_per_1000``, added to ``total_usd``), fast mode
+    (``turn.speed == "fast"``: the model's ``fast_{input,output}_usd_per_mtok``, which the
+    cache multipliers and the geo multiplier stack on) and US-only inference
+    (``turn.inference_geo == "us"``: the model's ``geo_us_multiplier`` on every token category).
+    A turn with none of them takes the same arithmetic path as before.
     """
     server_tool_warning = _server_tool_warning(turn)
     if turn.model.strip() in NON_MODEL_IDS:
@@ -350,6 +409,37 @@ def compute_turn_cost(
 
     entry: dict[str, Any] = prices["models"][model_key]
     input_rate, output_rate, pricing_caveat = _select_rates(turn, entry)
+    requests = max(1, turn.request_count)
+
+    # Fast mode (usage.speed == "fast"): the model's own fast rates replace input/output for the
+    # whole request, across the full context window (so a long-context tier does not apply);
+    # cache multipliers and the geo multiplier below stack on top of them. A model without fast
+    # rates (Opus 4.7 rejects the request, Opus 4.6 runs and bills standard, others never had
+    # it) is priced standard and counted, so the session note can say so.
+    fast_requests = fast_unsupported = 0
+    if turn.speed == "fast":
+        fast_in = entry.get("fast_input_usd_per_mtok")
+        fast_out = entry.get("fast_output_usd_per_mtok")
+        if _is_number(fast_in) and _is_number(fast_out):
+            input_rate, output_rate, pricing_caveat = float(fast_in), float(fast_out), ""
+            fast_requests = requests
+        else:
+            fast_unsupported = requests
+
+    # US-only inference (usage.inference_geo == "us"): a model-level multiplier (1.1x, Claude
+    # 4.6 and later) on EVERY token category -- input, output, cache writes and cache reads, and
+    # Haiku 5.5's long-context rates -- applied to the (possibly fast) rates before the cache
+    # multipliers, which is equivalent because the cache prices are linear in the input rate.
+    geo_us_requests = geo_us_unsupported = 0
+    if turn.inference_geo == "us":
+        geo_mult = entry.get("geo_us_multiplier")
+        if _is_number(geo_mult):
+            input_rate *= float(geo_mult)
+            output_rate *= float(geo_mult)
+            geo_us_requests = requests
+        else:
+            geo_us_unsupported = requests
+
     cache_mult: dict[str, float] = prices["cache_multipliers"]
     read_mult = cache_read_multiplier(entry, prices)
 
@@ -376,6 +466,17 @@ def compute_turn_cost(
     output_cost = turn.token_count_output * output_rate / 1_000_000
     total = fresh_cost + cache_read_cost + cache_creation_cost + output_cost
 
+    # Web search: $10 per 1,000 searches ON TOP of the tokens (not scaled by fast/geo: the page
+    # lists it as a flat per-search charge). Errors are not billed, but a transcript cannot show
+    # which searches errored, so every recorded search is charged (documented, a ceiling).
+    search_rate = _web_search_rate_per_request(prices)
+    searches = int((turn.server_tool_use or {}).get("web_search_requests", 0))
+    web_search_cost = 0.0
+    if search_rate is not None and searches > 0:
+        web_search_cost = searches * search_rate
+        total += web_search_cost
+    server_tool_warning = _server_tool_warning(turn, web_search_priced=search_rate is not None)
+
     return TurnCost(
         turn_index=turn.turn_index,
         model_key=model_key,
@@ -392,6 +493,12 @@ def compute_turn_cost(
         pricing_caveat=pricing_caveat,
         cache_write_1h_tokens=tokens_1h,
         cache_write_unspecified_tokens=unspecified,
+        web_search_requests=searches if web_search_cost else 0,
+        web_search_cost=web_search_cost,
+        fast_requests=fast_requests,
+        fast_unsupported_requests=fast_unsupported,
+        geo_us_requests=geo_us_requests,
+        geo_us_unsupported_requests=geo_us_unsupported,
     )
 
 
@@ -468,6 +575,21 @@ def compute_session_cost(
     all_writes = sum(t.cache_creation for t in ai_turns)
     unspecified_writes = sum(tc.cache_write_unspecified_tokens for tc in all_turn_costs)
 
+    web_search_requests = sum(tc.web_search_requests for tc in all_turn_costs)
+    web_search_usd = sum(tc.web_search_cost for tc in all_turn_costs)
+    fast_requests = sum(tc.fast_requests for tc in all_turn_costs)
+    fast_unsupported = sum(tc.fast_unsupported_requests for tc in all_turn_costs)
+    geo_us_requests = sum(tc.geo_us_requests for tc in all_turn_costs)
+    geo_us_unsupported = sum(tc.geo_us_unsupported_requests for tc in all_turn_costs)
+    billing_note = _billing_modifier_note(
+        web_search_requests,
+        web_search_usd,
+        fast_requests,
+        fast_unsupported,
+        geo_us_requests,
+        geo_us_unsupported,
+    )
+
     domain_of_validity = (
         f"Computed from measured tokens at per-turn, per-model rates (prices as of {price_table_date}; "
         "bundled — override with TES_PRICE_TABLE env var or ~/.tes/prices.json). "
@@ -482,8 +604,9 @@ def compute_session_cost(
         "rate, as of 0.10.2) — session flagged approximate when >"
         f"{approximate_threshold_pct}% of turns "
         "are unresolved this way; see approximate_reasons for the specific model(s) "
-        "and remedy. Server-side tool usage (e.g. web search) detected but not priced "
-        "is flagged separately in server_tool_warnings, regardless of approximate. "
+        "and remedy. Server-side tool usage that is detected but not priced (e.g. code "
+        "execution) is flagged separately in server_tool_warnings, regardless of approximate. "
+        f"{billing_note}"
         f"{UNMODELLED_BILLING} "
         "API-equivalent token cost; flat-plan users' marginal cost differs. "
         "Cost annotates the token axis — not a score, not part of a composite."
@@ -505,7 +628,54 @@ def compute_session_cost(
         pricing_caveats=pricing_caveats,
         cache_write_1h_tokens=sum(tc.cache_write_1h_tokens for tc in all_turn_costs),
         cache_write_unspecified_tokens=unspecified_writes,
+        web_search_requests=web_search_requests,
+        web_search_usd=web_search_usd,
+        fast_requests=fast_requests,
+        fast_unsupported_requests=fast_unsupported,
+        geo_us_requests=geo_us_requests,
+        geo_us_unsupported_requests=geo_us_unsupported,
     )
+
+
+def _billing_modifier_note(
+    searches: int,
+    search_usd: float,
+    fast: int,
+    fast_unsupported: int,
+    geo: int,
+    geo_unsupported: int,
+) -> str:
+    """Per-session sentences for web search / fast mode / US-only inference, ending in a space.
+
+    Empty string when the session used none of them, so such a session's cost text carries no
+    trace of these dimensions beyond the always-present UNMODELLED_BILLING sentence.
+    """
+    parts: list[str] = []
+    if searches:
+        parts.append(
+            f"Web search: {searches} search(es) added at $10 per 1,000 (${search_usd:.2f} of "
+            "total_usd); the API does not bill errored searches but a transcript cannot show "
+            "which ones errored, so every recorded search is charged."
+        )
+    if fast:
+        parts.append(
+            f"Fast mode: {fast} request(s) priced at the model's fast-mode input/output rates "
+            "(cache and data-residency multipliers stack on top)."
+        )
+    if fast_unsupported:
+        parts.append(
+            f"Fast mode: {fast_unsupported} request(s) asked for speed=fast on a model with no "
+            "fast-mode rate (Opus 4.7 rejects it, Opus 4.6 runs and bills standard) and were "
+            "priced at the standard rate."
+        )
+    if geo:
+        parts.append(f"US-only inference: {geo} request(s) priced at 1.1x on every token category.")
+    if geo_unsupported:
+        parts.append(
+            f"US-only inference: {geo_unsupported} request(s) carried inference_geo=us on a model "
+            "that does not support it (before Claude 4.6) and were priced at the standard rate."
+        )
+    return "".join(f"{p} " for p in parts)
 
 
 def check_price_table_staleness(

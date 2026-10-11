@@ -270,7 +270,10 @@ ADAPTER_VERSION: int = 2
 # shipped baseline provenance, and real_tokens did not change here.
 #   1 = every cache write priced at the 5-minute rate
 #   2 = cache writes split by usage.cache_creation into 5-minute and 1-hour (2x input) tiers
-COST_VERSION: int = 2
+#   3 = web search ($10 per 1,000 searches), fast mode (usage.speed == "fast") and US-only
+#       inference (usage.inference_geo == "us", 1.1x on 4.6+ models) priced; a row that carries
+#       none of them costs the same under 2 and 3
+COST_VERSION: int = 3
 
 
 def _has_tool_use(content: list[Any]) -> bool:

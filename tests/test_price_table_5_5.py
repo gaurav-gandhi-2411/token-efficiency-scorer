@@ -263,7 +263,9 @@ def test_haiku_5_5_aggregate_over_threshold_is_a_visible_floor() -> None:
 
 def test_unmodelled_billing_dimensions_are_documented_in_cost_output() -> None:
     sc = compute_session_cost(_session([_turn("claude-opus-5-5")]), _PRICES)
-    for word in ("fast mode", "inference_geo", "Batch"):
+    # COST_VERSION 3 prices fast mode / inference_geo / web search; what stays unmodelled (or
+    # inapplicable) is still stated.
+    for word in ("code-execution", "Batch", "does not apply to Claude Code transcripts"):
         assert word in sc.domain_of_validity
 
 
