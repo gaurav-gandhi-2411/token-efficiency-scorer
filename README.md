@@ -53,7 +53,7 @@ Two commands. Scores a bundled sample Claude Code session (token economy, determ
 
 The tool already knows where your sessions live (`~/.claude/projects`). You don't type paths or memorize flags — **just run `tracegauge`**.
 
-Coming from the old `tes` name? It keeps working until 0.18; see [docs/MIGRATING_FROM_TES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/MIGRATING_FROM_TES.md).
+`tgauge` is a short alias for `tracegauge`. Coming from the old `tes` name? It keeps working until 0.18; see [docs/MIGRATING_FROM_TES.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/MIGRATING_FROM_TES.md).
 
 ```bash
 pip install tracegauge
