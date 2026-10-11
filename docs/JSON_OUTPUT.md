@@ -117,3 +117,30 @@ tokens}`; `usd` sums to `total_usd` (priced turns only), `share_pct` is of that 
 priced) and `note` says so when models are unpriced. `priced` / `unpriced_models` are as above.
 `cost_models` (additive) lists the price-table keys of the priced turns; the human cost note uses it to name
 the cache-read multiplier each model was billed at.
+
+`cache_churn` (additive, `schema_version` stays 1) is always an object with a fixed key set; see
+[CACHE_CHURN.md](CACHE_CHURN.md) for what it means. It is computed from the source transcript when
+`score` runs and is never stored. Keys: `status` (`"ok"`, or `"unavailable"` when the transcript could
+not be read, in which case every figure below is `null`, not 0), `events`, `churn_tokens`, `churn_usd`,
+`priced`, `unpriced_events`, `by_cause`, `by_scope`, `avoidable_usd`, `unavoidable_usd`, `advice`,
+`events_listed`, `duplicate_turns_dropped`, `thresholds`, `judgement_note`.
+
+* `churn_usd` sums the priced events only; when a model is not in the price table `priced` is `false`,
+  `unpriced_events` counts the events left out, and `churn_usd` is a floor. An unpriced event has
+  `churn_usd: null` and `priced: false`, never `0.0`.
+* `by_cause` has exactly the keys `TTL_GAP`, `MODEL_SWITCH`, `COMPACTION` and `UNEXPLAINED`, each
+  `{events, churn_tokens, churn_usd, unpriced_events}`. `UNEXPLAINED` is a bucket, not a cause: no cause
+  is claimed for those events.
+* `by_scope` has the keys `main` and `subagent`, each `{events, churn_tokens, churn_usd,
+  unpriced_events, chains}`; the two add up to the totals.
+* `avoidable_usd` / `unavoidable_usd` are a judgement, see `judgement_note`; they do not add up to
+  `churn_usd` (unexplained events are in neither).
+* `advice` is empty unless a priced counterfactual for this session has a positive net saving. Each
+  entry: `{scope, setting, env_var, value, premium_usd, saved_usd, net_usd, events_avoided, chains,
+  assumptions}`.
+* `events_listed` is the (at most 10) largest events by dollars: `{scope, chain, cause, avoidability,
+  gap_s, ttl_s, marker_index, churn_tokens, churn_usd, priced, previous_turn, current_turn}`, where each
+  proof turn is `{turn_index, record_index, message_id, model, cache_read, cache_creation,
+  cache_creation_1h}`. `avoidability` is `plausibly_avoidable`, `unavoidable` or `unknown`.
+* `thresholds` records the constants the detector used (`min_prefix_tokens`, `read_drop_ratio`,
+  `rewrite_share`, `ttl_grace_s`).

@@ -251,6 +251,12 @@ class ThreeAxisResult:
     # finding. None when attribution was unavailable. Set by the CLI after scoring, like lever_hint.
     cost_breakdown: dict[str, Any] | None = None
 
+    # --- cache churn (tes.cache_churn): the `cache_churn` object of `score --json`, with a FIXED
+    # key set (see tes.json_out.cache_churn_payload and docs/JSON_OUTPUT.md). Computed on demand
+    # from the source JSONL by the CLI/dashboard after scoring, never stored; None only when a
+    # caller did not compute it (score_session itself never does). ---
+    cache_churn: dict[str, Any] | None = None
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers

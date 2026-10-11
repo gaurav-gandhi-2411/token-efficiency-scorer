@@ -91,6 +91,32 @@ IMPACT_KEYS = {
     "legacy_rows_excluded",
 }
 CHURN_KEYS = {"path", "edits", "additions", "deletions", "sessions_touched"}
+CACHE_CHURN_KEYS = {
+    "status",
+    "events",
+    "churn_tokens",
+    "churn_usd",
+    "priced",
+    "unpriced_events",
+    "by_cause",
+    "by_scope",
+    "avoidable_usd",
+    "unavoidable_usd",
+    "advice",
+    "events_listed",
+    "duplicate_turns_dropped",
+    "thresholds",
+    "judgement_note",
+}
+CACHE_CHURN_CAUSE_KEYS = {"TTL_GAP", "MODEL_SWITCH", "COMPACTION", "UNEXPLAINED"}
+CACHE_CHURN_TOTALS_KEYS = {"events", "churn_tokens", "churn_usd", "unpriced_events"}
+CACHE_CHURN_SCOPE_KEYS = CACHE_CHURN_TOTALS_KEYS | {"chains"}
+CACHE_CHURN_THRESHOLD_KEYS = {
+    "min_prefix_tokens",
+    "read_drop_ratio",
+    "rewrite_share",
+    "ttl_grace_s",
+}
 
 
 def _session(path: Path, model: str, *, edit: bool = False) -> Path:
@@ -613,6 +639,27 @@ def test_score_json_carries_schema_version(
     assert doc["schema_version"] == SCHEMA_VERSION
     assert {"priced", "unpriced_models", "lever_hint", "cost_known", "cost_breakdown"} <= set(doc)
     assert doc["cost_known"] is True
+
+
+def test_score_json_cache_churn_object_has_a_fixed_key_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Additive: schema_version stays 1; `cache_churn` is always an object with these keys."""
+    path = _session(tmp_path / "proj" / "s.jsonl", PRICED)
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    doc = _doc(out)
+    churn = doc["cache_churn"]
+    assert doc["schema_version"] == SCHEMA_VERSION == 1
+    assert set(churn) == CACHE_CHURN_KEYS
+    assert churn["status"] == "ok" and churn["events"] == 0  # three clean turns: a result, not null
+    assert set(churn["by_cause"]) == CACHE_CHURN_CAUSE_KEYS
+    for bucket in churn["by_cause"].values():
+        assert set(bucket) == CACHE_CHURN_TOTALS_KEYS
+    assert set(churn["by_scope"]) == {"main", "subagent"}
+    for scope in churn["by_scope"].values():
+        assert set(scope) == CACHE_CHURN_SCOPE_KEYS
+    assert set(churn["thresholds"]) == CACHE_CHURN_THRESHOLD_KEYS
+    assert churn["advice"] == [] and churn["events_listed"] == []
 
 
 def test_score_json_unpriced_session_cost_is_flagged_unknown(

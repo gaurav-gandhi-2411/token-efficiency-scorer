@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from tes.alarm import AlarmResult
     from tes.alarm_baseline import AlarmThreshold
     from tes.budget import BudgetProjection
+    from tes.cache_churn import SessionChurn
     from tes.cost_period import PeriodCostReport
     from tes.impact import ImpactReport
     from tes.live_monitor import LiveSessionState
@@ -165,6 +166,128 @@ def budget_payload(
         legacy_rows_excluded=legacy_rows_excluded,
         message=projection.message,
     )
+
+
+# ----------------------------------------------------------------------------- cache churn
+
+
+def _churn_totals(t: Any) -> dict[str, Any]:
+    return {
+        "events": t.events,
+        "churn_tokens": t.churn_tokens,
+        "churn_usd": t.churn_usd,
+        "unpriced_events": t.unpriced_events,
+    }
+
+
+def _churn_proof(p: Any) -> dict[str, Any]:
+    return {
+        "turn_index": p.turn_index,
+        "record_index": p.record_index,
+        "message_id": p.message_id,
+        "model": p.model,
+        "cache_read": p.cache_read,
+        "cache_creation": p.cache_creation,
+        "cache_creation_1h": p.cache_creation_1h,
+    }
+
+
+def cache_churn_payload(churn: SessionChurn | None) -> dict[str, Any]:
+    """The `cache_churn` object of `score --json` (and the dashboard): a FIXED key set.
+
+    `status` is `"ok"` (the session was analysed; zero events is a result) or `"unavailable"`
+    (no source transcript / unreadable: every figure is `null`, never 0). Dollar figures sum the
+    *priced* events only; `priced` is false and `unpriced_events` says how many events were left
+    out when a model is not in the price table, so `churn_usd` is then a floor, never a total.
+    `events_listed` is the largest events by dollars (at most MAX_EVENTS_LISTED), each with its
+    two proof turns; `events` is the full count. Avoidable vs unavoidable is a judgement and
+    `judgement_note` says so. No transcript text appears anywhere in it.
+    """
+    from tes import cache_churn as cc  # noqa: PLC0415
+
+    thresholds = {
+        "min_prefix_tokens": cc.MIN_PREFIX_TOKENS,
+        "read_drop_ratio": cc.READ_DROP_RATIO,
+        "rewrite_share": cc.REWRITE_SHARE,
+        "ttl_grace_s": cc.TTL_GRACE_S,
+    }
+    base: dict[str, Any] = {
+        "status": "unavailable" if churn is None else "ok",
+        "events": None,
+        "churn_tokens": None,
+        "churn_usd": None,
+        "priced": None,
+        "unpriced_events": None,
+        "by_cause": None,
+        "by_scope": None,
+        "avoidable_usd": None,
+        "unavoidable_usd": None,
+        "advice": [],
+        "events_listed": [],
+        "duplicate_turns_dropped": None,
+        "thresholds": thresholds,
+        "judgement_note": cc.JUDGEMENT_NOTE,
+    }
+    if churn is None:
+        return base
+    total = churn.total
+    listed = sorted(
+        churn.events,
+        key=lambda e: (e.churn_usd is not None, e.churn_usd or 0.0, e.churn_tokens),
+        reverse=True,
+    )[: cc.MAX_EVENTS_LISTED]
+    by_scope = {
+        kind: {
+            **_churn_totals(t),
+            "chains": sum(1 for c in churn.chains if c.kind == kind),
+        }
+        for kind, t in churn.by_kind.items()
+    }
+    return {
+        **base,
+        "events": total.events,
+        "churn_tokens": total.churn_tokens,
+        "churn_usd": total.churn_usd,
+        "priced": total.unpriced_events == 0,
+        "unpriced_events": total.unpriced_events,
+        "by_cause": {b: _churn_totals(t) for b, t in churn.by_bucket.items()},
+        "by_scope": by_scope,
+        "avoidable_usd": churn.avoidable_usd,
+        "unavoidable_usd": churn.unavoidable_usd,
+        "advice": [
+            {
+                "scope": a.scope,
+                "setting": a.setting,
+                "env_var": a.env_var,
+                "value": a.value,
+                "premium_usd": a.premium_usd,
+                "saved_usd": a.saved_usd,
+                "net_usd": a.net_usd,
+                "events_avoided": a.events_avoided,
+                "chains": a.chains,
+                "assumptions": a.assumptions,
+            }
+            for a in churn.advice
+        ],
+        "events_listed": [
+            {
+                "scope": e.chain_kind,
+                "chain": e.chain_label,
+                "cause": e.cause,
+                "avoidability": e.avoidability,
+                "gap_s": e.gap_s,
+                "ttl_s": e.ttl_s,
+                "marker_index": e.marker_index,
+                "churn_tokens": e.churn_tokens,
+                "churn_usd": e.churn_usd,
+                "priced": e.churn_usd is not None,
+                "previous_turn": _churn_proof(e.prev),
+                "current_turn": _churn_proof(e.cur),
+            }
+            for e in listed
+        ],
+        "duplicate_turns_dropped": churn.duplicate_turns_dropped,
+    }
 
 
 # ----------------------------------------------------------------------------- rescore
