@@ -518,12 +518,21 @@ def create_app(config: ServerConfig) -> Flask:
     @app.route("/budget")
     def budget() -> str:
         """Rolling-window pace + honest self-trend projection, always labeled."""
-        from tes.budget import DEFAULT_WINDOW_DAYS, compute_budget_projection
+        from tes.budget import (
+            DEFAULT_WINDOW_DAYS,
+            compute_budget_projection,
+            legacy_rows_excluded_in_window,
+        )
 
         conn = get_db()
         window_days = request.args.get("window_days", DEFAULT_WINDOW_DAYS, type=int)
         projection = compute_budget_projection(conn, window_days=window_days)
-        return render_template("budget.html", projection=projection, window_days=window_days)
+        return render_template(
+            "budget.html",
+            projection=projection,
+            window_days=window_days,
+            legacy_excluded=legacy_rows_excluded_in_window(conn, window_days),
+        )
 
     @app.route("/monitor")
     def monitor() -> str:

@@ -66,3 +66,31 @@ def test_dashboard_detail_banner_on_legacy_only(client: FlaskClient, mixed: Mixe
 def test_dashboard_patterns_page_reports_the_count(client: FlaskClient) -> None:
     html = client.get("/patterns").get_data(as_text=True)
     assert "4 legacy sessions left out of this" in html
+
+
+def test_dashboard_budget_page_says_how_many_legacy_sessions_it_left_out(tmp_path: Path) -> None:
+    """/budget excludes legacy rows from the pace (as `tes budget` does) and now says so."""
+    import time
+
+    db = tmp_path / "budget.db"
+    conn = open_db(db)
+    now = time.time()
+    for i in range(3):
+        insert_row(conn, f"cur-{i}", cost_usd=2.0, mtime=now - 3600 * (i + 1))
+    for i in range(2):
+        insert_row(
+            conn, f"old-{i}", cost_usd=50.0, adapter_version=None, mtime=now - 3600 * (i + 1)
+        )
+    conn.close()
+    app = create_app(ServerConfig(db_path=db))
+    with app.test_client() as c:
+        html = c.get("/budget").get_data(as_text=True)
+        assert 'id="legacy-banner"' in html and "2 legacy sessions in this window" in html
+        assert "3 session" in html  # the pace covers the current rows only
+
+    clean = tmp_path / "clean.db"
+    conn = open_db(clean)
+    insert_row(conn, "cur", cost_usd=2.0, mtime=now - 3600)
+    conn.close()
+    with create_app(ServerConfig(db_path=clean)).test_client() as c:
+        assert "legacy-banner" not in c.get("/budget").get_data(as_text=True)
