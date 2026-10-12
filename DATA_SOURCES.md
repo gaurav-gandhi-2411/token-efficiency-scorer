@@ -101,8 +101,8 @@ Kept unchanged because they hold only identifiers, labels and numbers:
 `data/validation-corpus/annotations/structural_gt/`, `corpus_manifest.jsonl` (session id, public
 instance id, scaffold, model, outcome, counts), `taxonomy/`, `difficulty/`, `heuristic_results/`
 (the failure files list session id and turn index, no text), `skipped.jsonl`,
-`data/objective_proxy.jsonl`, `data/gold/sample.json`, `data/calibration_sample.json`, and the run
-logs and cost log in `data/`.
+`data/objective_proxy.jsonl`, `data/gold/sample.json`, `data/calibration_sample.json`, and the
+cost log in `data/`.
 
 Reproducibility, stated honestly: the scripts that read the traces (`scripts/01_annotate_corpus.py`,
 `02_validate_heuristics.py`, `02b_generate_structural_gt.py`, `03_task_taxonomy.py`,
@@ -160,7 +160,7 @@ these directories.
   `difficulty/difficulty_analysis.json` hold SWE-Gym instance ids (public identifiers, from the
   separate MIT-licensed SWE-Gym/SWE-Gym task dataset) and patch statistics, with no free text.
   (3) `data/objective_proxy.jsonl`, `data/gold/sample.json`, `data/calibration_sample.json`, the
-  cost log and the run logs hold session ids and counts. A verbatim eight-word SWE-Gym quote and
+  cost log holds session ids and counts. A verbatim eight-word SWE-Gym quote and
   the per-trace paraphrases in `research/03-validation-corpus.md` were removed earlier; only
   counts remain there. Sweep scope for this removal: every tracked `.json` and `.jsonl` file outside
   the package directories was scanned for string values of 60 or more characters, and every tracked file was searched for the 50 SWE-Gym session ids and
