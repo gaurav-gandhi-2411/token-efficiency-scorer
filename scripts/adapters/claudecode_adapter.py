@@ -10,7 +10,7 @@ from __future__ import annotations
 # .splitlines() (in adapt_session and _load_existing_ids), because splitlines() also breaks on a
 # raw U+2028/U+2029/U+0085 inside a JSON string and silently dropped that record. For input
 # without those characters the output is identical (1 of 1,005 local transcripts had any); the
-# published research artifacts (pool_adapted.jsonl, B5) predate the change. Anything that ships numbers
+# maintainer's earlier local research pools predate the change. Anything that ships numbers
 # (baselines, scores, cost) must use tracegauge.adapt.adapt_session, which counts each message.id once.
 
 """claudecode_adapter.py — Convert Claude Code session JSONL transcripts to layer1_outputs format.
@@ -37,7 +37,6 @@ from token_efficiency.trace_digest import SessionDigest, TurnDigest  # noqa: E40
 # ---------------------------------------------------------------------------
 _SNIPPET_MAX_CHARS: int = 300
 _TASK_DESC_MAX_CHARS: int = 800
-_DEFAULT_OUTPUT: Path = ROOT / "data" / "cc_session_digests.jsonl"
 
 # ---------------------------------------------------------------------------
 # Secret redaction
@@ -402,8 +401,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         metavar="PATH",
-        default=str(_DEFAULT_OUTPUT),
-        help=f"Output JSONL file (default: {_DEFAULT_OUTPUT}).",
+        required=True,
+        help="Output JSONL file (required; session text is not written to a default location).",
     )
     parser.add_argument(
         "--overwrite",
