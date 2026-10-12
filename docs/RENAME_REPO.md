@@ -202,8 +202,6 @@ mention(s) in the 13 skipped historical files listed at the end of the table, le
 | `PLAN.md` lines 1 | bare (historical, skipped) | | left as written |
 | `data/cc_session_digests.jsonl` lines 1, 4 | bare/slug (historical, skipped) | | left as written |
 | `data/corpus_pool/pool_adapted.jsonl` lines 4, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134 | bare/slug (historical, skipped) | | left as written |
-| `data/session1_run.log` lines 5 | bare (historical, skipped) | | left as written |
-| `data/session2_run.log` lines 5 | bare (historical, skipped) | | left as written |
 | `data/vm_startup.sh` lines 32 | slug (historical, skipped) | | left as written |
 | `docs/audit/COMPETITIVE_GAP_ANALYSIS.md` lines 347 | bare (historical, skipped) | | left as written |
 | `docs/audit/FINAL_STATE.md` lines 1, 14, 234, 235, 236, 237 | bare/slug (historical, skipped) | | left as written |
