@@ -10,7 +10,8 @@
 
 ### 1.1 Corpus
 
-- **200 sessions** from `data/validation-corpus/traces_normalized/`
+- **200 sessions** from `data/validation-corpus/traces_normalized/` (the normalized traces are no
+  longer in the repository; see `DATA_SOURCES.md`)
 - Source: nebius/SWE-agent-trajectories (CC-BY-4.0), normalized in Phase 2
 - Scaffolds: swe\_agent, claude\_code, codecompass, agentless
 - Outcomes: pass/fail mix (see Phase 2 corpus audit)

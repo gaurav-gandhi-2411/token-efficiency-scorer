@@ -14,6 +14,8 @@ LiveCodeBench task definitions — that was never actually populated; corrected 
   per the attribution note).
 - `cc_baselines.json` — the token-economy scope-gate floors and reference bands
   derived from `corpus_pool/` (self-collected, no third-party licensing question).
+- `validation-corpus/` holds only numbers and labels derived from two Nebius trajectory datasets;
+  the trajectories themselves are not committed (see [`../DATA_SOURCES.md`](../DATA_SOURCES.md)).
 - Everything else (`*_scores.jsonl`, `*_signals.jsonl`, validation/gold/ood-corpus
   directories, run logs) is intermediate/derived research output from the B1-B5
   research arc — see `research/*.md` for what produced each.
