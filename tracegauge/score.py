@@ -232,7 +232,7 @@ class ThreeAxisResult:
     # per content block of an API response, each repeating the response's usage; tracegauge.adapt
     # counts each distinct message.id once. These make the correction observable:
     # duplicate_usage_records = usage_records - usage_records_deduped. adapter_version is None
-    # for a record that did not come from tracegauge.adapt (e.g. a pool_adapted.jsonl fixture). ---
+    # for a record that did not come from tracegauge.adapt (e.g. an older adapted-session pool fixture). ---
     adapter_version: int | None = None
     # tracegauge.adapt.COST_VERSION of the adapter that priced this record (None = not from tracegauge.adapt
     # or scored before cost versioning, i.e. every cache write priced at the 5-minute rate).
@@ -423,14 +423,14 @@ def score_session(
     Parameters
     ----------
     record:
-        Adapted session record (from pool_adapted.jsonl or claudecode_adapter.adapt_session).
+        Adapted session record (from an adapted-session pool or claudecode_adapter.adapt_session).
     baselines:
         Loaded cc_baselines.json dict (use load_baselines() to obtain).
     judge_entry:
         Optional pre-computed judge result dict from pool_judge_scores.jsonl.
         When absent, trajectory axis is UNAVAILABLE (judge_verdict=None).
     waste_entry:
-        Optional pre-computed waste signals dict from pool_waste_signals.jsonl.
+        Optional pre-computed waste signals dict (one line of a waste-signals JSONL).
         When absent, waste axis shows no detected events.
     self_baseline:
         Optional per-user self-baseline state from tracegauge.self_baseline.load_or_compute().
@@ -575,7 +575,7 @@ def score_session(
     # blocks in its single pass over the source JSONL -- "edit_operations"
     # is always present (possibly []) on a record from a current
     # adapt_session(); a record missing the key entirely (records loaded
-    # from an old pool_adapted.jsonl fixture predating this feature) is
+    # from an older adapted-session pool fixture predating this feature) is
     # treated the same as "no data available" (None), not "[]" (which
     # would falsely claim zero edits when it's really unknown).
     _edit_ops = record.get("edit_operations")

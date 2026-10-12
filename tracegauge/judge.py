@@ -413,7 +413,7 @@ def score_trajectory(
     Parameters
     ----------
     record:
-        Adapted session record from tracegauge.adapt.adapt_session or pool_adapted.jsonl.
+        Adapted session record from tracegauge.adapt.adapt_session or an adapted-session pool.
     config:
         Judge configuration. Defaults to JudgeConfig() (local Qwen3 at localhost:11434).
 

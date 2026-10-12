@@ -189,14 +189,14 @@ def _match_type(text: str) -> str:
 
 
 def classify_session(record: dict) -> str:
-    """Classify a single pool_adapted record and return its task type.
+    """Classify a single adapted-session record and return its task type.
 
     Checks SESSION_OVERRIDES first; falls back to keyword matching.
 
     Parameters
     ----------
     record:
-        A dict parsed from one line of pool_adapted.jsonl or a CC session
+        A dict parsed from one line of an adapted-session pool or a CC session
         record produced by tracegauge.adapt.adapt_session.
 
     Returns
