@@ -1,18 +1,21 @@
 #!/bin/bash
 # cc_score_runner.sh — Judge scoring runner for real CC session validation (3 sessions).
 #
-# Input:  data/cc_session_digests.jsonl  (4 adapted sessions; session filter skips the
-#         3-turn no-AI session d060ce7f)
+# Input:  the session digests JSONL, first argument (the maintainer's pool is not in the repository;
+#         the session filter data/cc_validation_sessions.json still applies)
 # Output: data/cc_judge_scores.jsonl
 #
 # Shutdown strategy:
 #   Belt 1 (watchdog): background sleep+poweroff fires if Python hangs past 2h
 #   Belt 2 (EXIT trap): cleanup() fires on normal exit, error exit, or signal
 #
-# Usage: bash /opt/scoring/repo/scripts/cc_score_runner.sh
+# Usage: bash /opt/scoring/repo/scripts/cc_score_runner.sh SESSION_DIGESTS.jsonl
 # Env:   GITHUB_TOKEN — if set, pushes cc_judge_scores.jsonl to GitHub
 
 set -euo pipefail
+
+INPUT="${1:?usage: bash $0 SESSION_DIGESTS.jsonl (the maintainer's pool is not in the repository)}"
+INPUT="$(realpath "$INPUT")"
 
 REPO_DIR="/opt/scoring/repo"
 cd "$REPO_DIR"
@@ -55,7 +58,7 @@ echo "[$(date)] Input sessions:"
 python3 -c "
 import json
 sessions = json.load(open('data/cc_validation_sessions.json'))
-digests  = [json.loads(l) for l in open('data/cc_session_digests.jsonl')]
+digests  = [json.loads(l) for l in open('$INPUT')]
 digest_map = {r['session_id']: r for r in digests}
 for s in sessions:
     sid = s['session_id']
@@ -94,7 +97,7 @@ echo "[$(date)] Timing probe: scoring first session to confirm GPU speed..."
 PROBE_START=$(date +%s)
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/cc_session_digests.jsonl \
+    --input-path "$INPUT" \
     --output-path data/cc_judge_scores.jsonl \
     --session-ids-file data/cc_validation_sessions.json \
     --mode session \
@@ -116,7 +119,7 @@ fi
 echo "[$(date)] Starting full CC validation run (3 sessions)..."
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/cc_session_digests.jsonl \
+    --input-path "$INPUT" \
     --output-path data/cc_judge_scores.jsonl \
     --session-ids-file data/cc_validation_sessions.json \
     --ollama-url http://localhost:11434

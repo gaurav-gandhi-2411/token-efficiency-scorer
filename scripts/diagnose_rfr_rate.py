@@ -21,6 +21,7 @@ Diagnostics:
      because snippets weren't exactly equal — quantifies suppression effect
 """
 
+import argparse
 import json
 import re
 import statistics
@@ -33,7 +34,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from waste_detectors import _is_error_result, _is_transient
 
 POOL_DIGESTS = ROOT / "data" / "layer1_outputs.jsonl"
-POOL_SIGNALS = ROOT / "data" / "pool_waste_signals.jsonl"
+# The pool waste signals are an explicit --pool-signals argument (the maintainer's pool is not in the repository).
 SWECHAT_CC_ADAPTED = ROOT / "data" / "swechat_cc_adapted.jsonl"
 SWECHAT_CC_SIGNALS = ROOT / "data" / "public_waste_signals.jsonl"
 
@@ -251,7 +252,12 @@ def find_near_miss_rfr(records: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Diagnose the RFR fire-rate gap.")
+    parser.add_argument(
+        "--pool-signals", type=Path, required=True, help="pool waste signals (JSONL)"
+    )
+    args = parser.parse_args(argv)
     print("Loading pool digests...", end="", flush=True)
     pool_records = load_jsonl(POOL_DIGESTS)
     print(f" {len(pool_records)} sessions")
@@ -261,7 +267,7 @@ def main() -> None:
     print(f" {len(swechat_records)} sessions")
 
     # --- RFR fire rates (from signals files) ---
-    pool_signals = load_jsonl(POOL_SIGNALS)
+    pool_signals = load_jsonl(args.pool_signals)
 
     def _pool_has_rfr(r: dict) -> bool:
         if "rfr_fired" in r:

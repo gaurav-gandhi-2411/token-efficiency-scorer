@@ -3,14 +3,19 @@
 
 from __future__ import annotations
 
-"""run_waste_analysis.py — Run approved detectors over the 143-session pool.
+"""run_waste_analysis.py — Run approved detectors over an adapted-session pool.
 
-Outputs data/pool_waste_signals.jsonl: one record per session, with all
+Usage (every path is explicit; the maintainer's pool is not in the repository):
+    python scripts/run_waste_analysis.py --pool POOL.jsonl --judge-scores SCORES.jsonl \
+        --output SIGNALS.jsonl
+
+Writes one record per session to --output, with all
 fired waste events (detector, turns, evidence).  Detectors approved so far:
   - REPEATED-FAILED-RETRY (B4 step 2-3)
   - REDUNDANT-READ        (B4 step 3)
 """
 
+import argparse
 import dataclasses
 import json
 import sys
@@ -21,19 +26,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from waste_detectors import WasteEvent, detect_redundant_read, detect_repeated_failed_retry
 
-POOL_PATH = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
-JUDGE_PATH = ROOT / "data" / "pool_judge_scores.jsonl"
-OUTPUT_PATH = ROOT / "data" / "pool_waste_signals.jsonl"
+
+def load_pool(path: Path) -> list[dict]:
+    return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def load_pool() -> list[dict]:
-    return [json.loads(l) for l in POOL_PATH.read_text(encoding="utf-8").splitlines() if l.strip()]
-
-
-def load_judge_index() -> dict[str, dict]:
+def load_judge_index(path: Path) -> dict[str, dict]:
     """Return {session_id: score_record} for quick lookup."""
     index: dict[str, dict] = {}
-    for line in JUDGE_PATH.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
@@ -50,9 +51,14 @@ def run_detectors(session_id: str, turns: list[dict]) -> list[WasteEvent]:
     return events
 
 
-def main() -> None:
-    pool = load_pool()
-    judge_idx = load_judge_index()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Run the waste detectors over a pool.")
+    parser.add_argument("--pool", type=Path, required=True, help="adapted-session pool (JSONL)")
+    parser.add_argument("--judge-scores", type=Path, required=True, help="judge scores (JSONL)")
+    parser.add_argument("--output", type=Path, required=True, help="waste signals to write (JSONL)")
+    args = parser.parse_args(argv)
+    pool = load_pool(args.pool)
+    judge_idx = load_judge_index(args.judge_scores)
 
     total_sessions = len(pool)
     sessions_with_events = 0
@@ -84,15 +90,15 @@ def main() -> None:
             for e in events:
                 fire_rate_by_detector[e.detector] = fire_rate_by_detector.get(e.detector, 0) + 1
 
-    OUTPUT_PATH.write_text(
+    args.output.write_text(
         "\n".join(json.dumps(r) for r in records) + "\n",
         encoding="utf-8",
     )
 
-    _report(records, total_sessions)
+    _report(records, total_sessions, args.output)
 
 
-def _report(records: list[dict], total_sessions: int) -> None:
+def _report(records: list[dict], total_sessions: int, output_path: Path) -> None:
     """Print pool-wide summary with per-detector and per-path breakdowns."""
     from collections import Counter
 
@@ -220,7 +226,7 @@ def _report(records: list[dict], total_sessions: int) -> None:
         if shown_a >= 2 and shown_b >= 2:
             break
 
-    print(f"\nOutput written to {OUTPUT_PATH}")
+    print(f"\nOutput written to {output_path}")
 
 
 if __name__ == "__main__":

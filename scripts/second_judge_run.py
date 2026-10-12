@@ -34,7 +34,7 @@ from token_efficiency.trace_digest import SessionDigest, TurnDigest, digest_to_t
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-POOL_PATH = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
+# The adapted-session pool is the --pool argument (the maintainer's pool is not in the repository).
 QWEN_SCORES_PATH = ROOT / "data" / "pool_judge_scores.jsonl"
 OUTPUT_PATH = ROOT / "data" / "pool_judge_scores_m2.jsonl"
 
@@ -168,7 +168,7 @@ VALIDATE_SESSIONS: list[tuple[str, int, str]] = [
 
 
 def _reconstruct_digest(d: dict[str, Any]) -> SessionDigest:
-    """Reconstruct a SessionDigest from the plain dict stored in pool_adapted.jsonl.
+    """Reconstruct a SessionDigest from the plain dict stored in the adapted-session pool.
 
     Handles records generated before output_tokens_available was added to SessionDigest
     by defaulting the field to False when absent (safe: swe_agent sessions lack it).
@@ -185,7 +185,7 @@ def _reconstruct_digest(d: dict[str, Any]) -> SessionDigest:
 
 
 def _load_pool(path: Path) -> list[dict[str, Any]]:
-    """Load all records from pool_adapted.jsonl."""
+    """Load all records from an adapted-session pool JSONL file."""
     rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as fh:
         for line in fh:
@@ -443,7 +443,7 @@ def mode_verify_parity(args: argparse.Namespace) -> None:
 
 def mode_validate(args: argparse.Namespace) -> None:
     """Score exactly 5 hardcoded sessions and print a summary table."""
-    pool_by_id: dict[str, dict[str, Any]] = {r["session_id"]: r for r in _load_pool(POOL_PATH)}
+    pool_by_id: dict[str, dict[str, Any]] = {r["session_id"]: r for r in _load_pool(args.pool)}
     existing_m2 = _load_existing_m2(OUTPUT_PATH)
     qwen_verdicts = _load_qwen_verdicts(QWEN_SCORES_PATH)
 
@@ -552,7 +552,7 @@ def mode_validate(args: argparse.Namespace) -> None:
 
 def mode_run(args: argparse.Namespace) -> None:
     """Score all 143 Qwen-scored sessions not yet in pool_judge_scores_m2.jsonl."""
-    pool_records = _load_pool(POOL_PATH)
+    pool_records = _load_pool(args.pool)
     qwen_ids = _load_qwen_session_ids(QWEN_SCORES_PATH)
     existing_m2 = _load_existing_m2(OUTPUT_PATH)
 
@@ -643,6 +643,12 @@ def _parse_args() -> argparse.Namespace:
             "run: score all 143 Qwen-scored sessions not yet in m2 output."
         ),
     )
+    parser.add_argument(
+        "--pool",
+        type=Path,
+        default=None,
+        help="adapted-session pool (JSONL); required for validate and run",
+    )
     parser.add_argument("--model", default="gemma3:27b", metavar="MODEL")
     parser.add_argument("--ollama-url", default="http://localhost:11434", metavar="URL")
     parser.add_argument("--force", action="store_true", help="Re-score already-scored sessions.")
@@ -659,6 +665,9 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     """Entry point."""
     args = _parse_args()
+    if args.mode in ("validate", "run") and args.pool is None:
+        print("Error: --pool is required for validate and run", file=sys.stderr)
+        sys.exit(2)
 
     if args.mode == "verify-parity":
         mode_verify_parity(args)

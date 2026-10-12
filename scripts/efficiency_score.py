@@ -5,8 +5,8 @@ from __future__ import annotations
 
 """Session-level efficiency scorer for the token-efficiency-scorer project.
 
-Classifies a pool_adapted record, computes its real_tokens, and compares
-against the per-type baseline band from cc_baselines.json.  Also accepts
+Classifies an adapted-session record, computes its real_tokens, and compares
+against the per-type baseline band from a baselines JSON.  Also accepts
 an optional judge_entry to surface the trajectory-quality axis alongside
 the token-economy axis.
 
@@ -14,10 +14,13 @@ Public API:
     score_session(record, baselines, judge_entry=None) -> EfficiencyResult
     load_baselines(path) -> dict
 
-CLI (spot-check):
-    python scripts/efficiency_score.py --session-id <uuid>
+CLI (spot-check; every input is an explicit argument, the maintainer's pool is not in
+the repository, the synthetic fixtures under tests/fixtures/ are):
+    python scripts/efficiency_score.py --pool POOL.jsonl --baselines BASELINES.json \
+        --session-id <uuid> [--judge-scores SCORES.jsonl] [--waste-signals SIGNALS.jsonl]
 """
 
+import argparse
 import json
 import sys
 from dataclasses import dataclass, field
@@ -32,13 +35,6 @@ if str(REPO_ROOT / "scripts") not in sys.path:
 
 from build_baselines import compute_real_tokens  # noqa: E402
 from task_classifier import classify_session  # noqa: E402
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-POOL_ADAPTED_PATH = REPO_ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
-DEFAULT_BASELINES_PATH = REPO_ROOT / "data" / "cc_baselines.json"
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -73,13 +69,13 @@ class EfficiencyResult:
 # ---------------------------------------------------------------------------
 
 
-def load_baselines(path: Path | str = DEFAULT_BASELINES_PATH) -> dict:
-    """Load cc_baselines.json and return as a dict.
+def load_baselines(path: Path | str) -> dict:
+    """Load a baselines JSON (the shape build_baselines.py writes) and return it as a dict.
 
     Parameters
     ----------
     path:
-        Path to cc_baselines.json. Defaults to data/cc_baselines.json.
+        Path to the baselines JSON, e.g. tests/fixtures/baselines_synthetic.json.
     """
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
@@ -113,17 +109,17 @@ def score_session(
     judge_entry: dict | None = None,
     waste_entry: dict | None = None,
 ) -> EfficiencyResult:
-    """Score a single pool_adapted record against the baseline band.
+    """Score a single adapted-session record against the baseline band.
 
     Parameters
     ----------
     record:
-        A dict parsed from one line of pool_adapted.jsonl. Must contain
+        A dict parsed from one line of an adapted-session pool. Must contain
         'session_id', 'digest.turns', and 'digest.task_description'.
     baselines:
-        Loaded cc_baselines.json dict (use load_baselines() to obtain).
+        Loaded baselines dict (use load_baselines() to obtain).
     judge_entry:
-        Optional dict from pool_judge_scores.jsonl for this session.
+        Optional judge-score dict (one line of a judge-scores JSONL) for this session.
         When provided, populates the judge_verdict / judge_score /
         judge_reasoning fields on the result.
 
@@ -239,10 +235,10 @@ def score_session(
 # ---------------------------------------------------------------------------
 
 
-def _load_pool_index() -> dict[str, dict]:
-    """Load pool_adapted.jsonl and return a dict keyed by session_id."""
+def _load_jsonl_index(path: Path) -> dict[str, dict]:
+    """Load a JSONL file and return a dict keyed by session_id."""
     index: dict[str, dict] = {}
-    with POOL_ADAPTED_PATH.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -299,55 +295,32 @@ def _print_result(result: EfficiencyResult) -> None:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     """CLI entry point for spot-checking individual sessions."""
-    args = sys.argv[1:]
+    parser = argparse.ArgumentParser(description="Score one adapted session against a baseline.")
+    parser.add_argument("--pool", type=Path, required=True, help="adapted-session pool (JSONL)")
+    parser.add_argument("--baselines", type=Path, required=True, help="baselines JSON")
+    parser.add_argument("--session-id", required=True, help="session to score")
+    parser.add_argument("--judge-scores", type=Path, default=None, help="judge scores (JSONL)")
+    parser.add_argument("--waste-signals", type=Path, default=None, help="waste signals (JSONL)")
+    args = parser.parse_args(argv)
 
-    if "--session-id" not in args:
-        print("Usage:")
-        print("  python scripts/efficiency_score.py --session-id <uuid>")
-        sys.exit(0)
-
-    idx = args.index("--session-id")
-    if idx + 1 >= len(args):
-        print("Error: --session-id requires a session ID argument", file=sys.stderr)
+    pool_index = _load_jsonl_index(args.pool)
+    if args.session_id not in pool_index:
+        print(f"Error: session_id {args.session_id!r} not found in pool", file=sys.stderr)
         sys.exit(1)
 
-    target_id = args[idx + 1]
+    baselines = load_baselines(args.baselines)
+    judge_index = _load_jsonl_index(args.judge_scores) if args.judge_scores else {}
+    waste_index = _load_jsonl_index(args.waste_signals) if args.waste_signals else {}
 
-    pool_index = _load_pool_index()
-    if target_id not in pool_index:
-        print(f"Error: session_id {target_id!r} not found in pool", file=sys.stderr)
-        sys.exit(1)
-
-    baselines = load_baselines()
-
-    # Load judge scores if available
-    judge_scores_path = REPO_ROOT / "data" / "pool_judge_scores.jsonl"
-    judge_index: dict[str, dict] = {}
-    if judge_scores_path.exists():
-        with judge_scores_path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    entry = json.loads(line)
-                    judge_index[entry["session_id"]] = entry
-
-    # Load deterministic waste signals if available
-    waste_signals_path = REPO_ROOT / "data" / "pool_waste_signals.jsonl"
-    waste_index: dict[str, dict] = {}
-    if waste_signals_path.exists():
-        with waste_signals_path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    entry = json.loads(line)
-                    waste_index[entry["session_id"]] = entry
-
-    record = pool_index[target_id]
-    judge_entry = judge_index.get(target_id)
-    waste_entry = waste_index.get(target_id)
-    result = score_session(record, baselines, judge_entry=judge_entry, waste_entry=waste_entry)
+    record = pool_index[args.session_id]
+    result = score_session(
+        record,
+        baselines,
+        judge_entry=judge_index.get(args.session_id),
+        waste_entry=waste_index.get(args.session_id),
+    )
     _print_result(result)
 
 
