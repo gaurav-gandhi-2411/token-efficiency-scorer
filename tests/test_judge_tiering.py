@@ -136,8 +136,8 @@ def test_score_trajectory_none_result_is_clean_not_error() -> None:
     # Load real baselines from the bundled path
     baselines = load_baselines(str(BUNDLED_BASELINES_PATH))
 
-    # Load one real pool record
-    pool_path = Path(__file__).resolve().parents[1] / "data" / "corpus_pool" / "pool_adapted.jsonl"
+    # Load one synthetic pool record
+    pool_path = Path(__file__).resolve().parent / "fixtures" / "synthetic_pool.jsonl"
     with pool_path.open(encoding="utf-8") as fh:
         record = json.loads(fh.readline())
 

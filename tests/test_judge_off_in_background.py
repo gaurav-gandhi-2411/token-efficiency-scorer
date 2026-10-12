@@ -18,7 +18,7 @@ from tes.watcher import WatcherConfig, _scan_once, score_session_file
 
 
 def _first_adapted_record() -> dict:
-    pool_path = Path(__file__).parent.parent / "data" / "corpus_pool" / "pool_adapted.jsonl"
+    pool_path = Path(__file__).parent / "fixtures" / "synthetic_pool.jsonl"
     return json.loads(pool_path.read_text(encoding="utf-8").splitlines()[0])
 
 
