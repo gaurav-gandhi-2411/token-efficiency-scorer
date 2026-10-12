@@ -60,6 +60,72 @@ ALLOWLIST: dict[tuple[str, str], str] = {
 }
 
 
+# --- private-reference scan over prose and config that the two scans above do not reach ----------
+# docs/audit, docs/design, research/, CURRENT_STATE.md and the pre-commit config were audit and
+# working notes; they stay in the repository but must not name a private path, a cloud project, an
+# internal rule file or the maintainer's initials.
+PRIVATE_REFERENCE_MARKERS = {
+    "private path": re.compile(r"[A-Za-z]:\\(?:Users|ml-projects|adk|tg)|/c/Users/|\bgaura\b"),
+    "cloud project or id": re.compile(
+        r"aethe[r]art|review[-_ ]?iq-prod|tes-cc-validati[o]n|org_[0-9a-z]{20,}"
+    ),
+    "internal rule file": re.compile(r"CLAUDE\.md|\brule [0-9]{2,3}[a-z]?\b|\bGG\b"),
+}
+PRIVATE_REFERENCE_FILES = (
+    "README.md",
+    "CHANGELOG.md",
+    "CURRENT_STATE.md",
+    "PLAN.md",
+    ".pre-commit-config.yaml",
+)
+PRIVATE_REFERENCE_DIRS = ("docs", "research")
+
+
+def _private_reference_files() -> list[Path]:
+    files = [ROOT / name for name in PRIVATE_REFERENCE_FILES]
+    for d in PRIVATE_REFERENCE_DIRS:
+        files += sorted(
+            p for p in (ROOT / d).rglob("*") if p.is_file() and p.suffix in {".md", ".txt"}
+        )
+    return files
+
+
+def test_audit_design_research_and_config_notes_name_no_private_reference() -> None:
+    hits: list[str] = []
+    for path in _private_reference_files():
+        rel = path.relative_to(ROOT).as_posix()
+        for n, line in enumerate(
+            path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+        ):
+            for name, rx in PRIVATE_REFERENCE_MARKERS.items():
+                if rx.search(line):
+                    hits.append(f"{rel}:{n}: {name}: {line.strip()[:100]}")
+    assert not hits, "private reference in prose or config notes:\n" + "\n".join(hits)
+
+
+def test_private_reference_scan_reaches_the_audit_design_research_and_config_files() -> None:
+    rels = {p.relative_to(ROOT).as_posix() for p in _private_reference_files()}
+    for expected in (
+        "docs/audit/FINAL_STATE.md",
+        "docs/design/DASHBOARD_TRAJECTORY_TIMELINE.md",
+        "CURRENT_STATE.md",
+        ".pre-commit-config.yaml",
+        "research/07-ingestion.md",
+    ):
+        assert expected in rels, expected
+
+
+def test_private_reference_markers_fire_on_what_they_exist_for() -> None:
+    samples = {
+        "private path": "C:" + "\\Users\\x",
+        "cloud project or id": "--project=aether" + "art-1",
+        "internal rule file": "per CLAUDE" + ".md rule 39c",
+    }
+    for name, text in samples.items():
+        assert PRIVATE_REFERENCE_MARKERS[name].search(text), (name, text)
+    assert PRIVATE_REFERENCE_MARKERS["internal rule file"].search("route to G" + "G")
+
+
 def _public_files() -> list[Path]:
     files = [ROOT / "README.md", ROOT / "CHANGELOG.md"]
     files += sorted(
