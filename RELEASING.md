@@ -75,8 +75,8 @@ This document describes the actual flow, written after running it for real for `
    git push origin vX.Y.Z
    ```
 5. **`release.yml` takes it from there** — triggered by the `v*` tag push, it checks out
-   that exact tag (never a branch head), builds with `python scripts/build_dist.py dist`, sanity-checks the artifact
-   with `twine check`, and publishes via `pypa/gh-action-pypi-publish@release/v1` using the
+   that exact tag (never a branch head), builds with `python scripts/build_dist.py dist` in the preflight,
+   sanity-checks the artifact with `twine check`, and publishes the preflight's own files via `pypa/gh-action-pypi-publish@release/v1` using the
    `pypi` GitHub Environment's OIDC token. Confirm it actually succeeded — don't just trust
    a green checkmark, read the log for the real upload confirmation:
    ```bash
@@ -93,7 +93,13 @@ This document describes the actual flow, written after running it for real for `
    sdist's tar and gzip metadata (setuptools honours the epoch for the wheel but not the sdist).
    `.gitattributes` forces LF in every checkout. `release.yml` builds the commit twice on separate
    runners and its `reproducible` job refuses to publish unless the wheel and sdist sha256 values
-   match; each build also prints them in its job summary. Releases are built in CI only: a build on
+   match; each build also prints them in its job summary. Each build also uploads its `dist/` as the
+   `dist-a` / `dist-b` artifact; the `verify-artifact` job (which also runs on `workflow_dispatch`) and the
+   `publish` job download it and run `scripts/verify_dist.py`, which refuses unless the directory holds
+   exactly the wheel and sdist whose sha256 values are in both checked `SHA256SUMS` files. `publish` uploads
+   those downloaded files; it never rebuilds. The build backend is pinned (`setuptools==84.0.0` in
+   `[build-system].requires`, the version that built the published 0.15.0 wheel) and `build_dist.py` raises
+   if the wheel's `Generator:` line names another version: bump the pin deliberately, in its own commit. Releases are built in CI only: a build on
    another OS can differ in the wheel (zip `create_system`, `METADATA` line endings), so compare
    hashes only against a CI build of the same commit. A plain `uv build` is not reproducible.
 6. **Post-publish verify from a fresh environment against the real index** — see below.
