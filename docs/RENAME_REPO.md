@@ -200,8 +200,8 @@ mention(s) in the 13 skipped historical files listed at the end of the table, le
 | `CHANGELOG.md` lines 450 | slug (historical, skipped) | | left as written |
 | `CURRENT_STATE.md` lines 1, 438 | bare (historical, skipped) | | left as written |
 | `PLAN.md` lines 1 | bare (historical, skipped) | | left as written |
-| `data/cc_session_digests.jsonl` lines 1, 4 | bare/slug (historical, skipped) | | left as written |
-| `data/corpus_pool/pool_adapted.jsonl` lines 4, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134 | bare/slug (historical, skipped) | | left as written |
+| `data/cc_session_digests.jsonl` lines 1, 4 | bare/slug (historical, skipped) | | file since removed from the repository |
+| `data/corpus_pool/pool_adapted.jsonl` lines 4, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134 | bare/slug (historical, skipped) | | file since removed from the repository |
 | `data/vm_startup.sh` lines 32 | slug (historical, skipped) | | left as written |
 | `docs/audit/COMPETITIVE_GAP_ANALYSIS.md` lines 347 | bare (historical, skipped) | | left as written |
 | `docs/audit/FINAL_STATE.md` lines 1, 14, 234, 235, 236, 237 | bare/slug (historical, skipped) | | left as written |

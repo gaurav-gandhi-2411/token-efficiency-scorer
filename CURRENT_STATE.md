@@ -425,8 +425,8 @@ honest trends, and building a trend feature now would draw confident lines throu
 
 - **research/01-11-*.md** — All immutable. Reports 01-10 inherited from B1–B4; report 11 is the
   B5 generalization validation final report. Do not edit any of these.
-- **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
-- **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
+- **data/pool_judge_scores.jsonl** — Do not re-score or modify. (`data/corpus_pool/` and the old
+  `data/cc_baselines.json` were removed from the tree later; see the CHANGELOG.)
 - **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.
 - **tes/_waste_detectors.py** — Byte-frozen. Do NOT modify without a new research arc.
 
