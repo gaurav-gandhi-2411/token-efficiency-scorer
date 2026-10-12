@@ -33,7 +33,7 @@ def load_baselines(path: Path | str = BUNDLED_BASELINES_PATH) -> dict:
 
 
 def compute_real_tokens(record: dict) -> int:
-    """Return real_tokens for a pool_adapted session.
+    """Return real_tokens for an adapted pool session.
 
     real_tokens = sum over AI turns of (token_count_input - cache_read) + token_count_output
 
@@ -43,7 +43,7 @@ def compute_real_tokens(record: dict) -> int:
     Parameters
     ----------
     record:
-        Adapted session record (from pool_adapted.jsonl or adapt_session).
+        Adapted session record (from an adapted-session pool or adapt_session).
     """
     total = 0
     turns: list[dict] = record.get("digest", {}).get("turns", [])
