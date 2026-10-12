@@ -75,7 +75,7 @@ This document describes the actual flow, written after running it for real for `
    git push origin vX.Y.Z
    ```
 5. **`release.yml` takes it from there** — triggered by the `v*` tag push, it checks out
-   that exact tag (never a branch head), builds with `uv build`, sanity-checks the artifact
+   that exact tag (never a branch head), builds with `python scripts/build_dist.py dist`, sanity-checks the artifact
    with `twine check`, and publishes via `pypa/gh-action-pypi-publish@release/v1` using the
    `pypi` GitHub Environment's OIDC token. Confirm it actually succeeded — don't just trust
    a green checkmark, read the log for the real upload confirmation:
@@ -87,6 +87,15 @@ This document describes the actual flow, written after running it for real for `
    `View at: https://pypi.org/project/tracegauge/X.Y.Z/` — that URL is the actual proof, not
    the workflow's green checkmark alone (a green run that never reached the upload step
    would look identical in the checks UI).
+
+   **Reproducible builds.** `scripts/build_dist.py` runs the stock setuptools backend through
+   `uv build` with `SOURCE_DATE_EPOCH` set to the commit time of `HEAD`, then rewrites only the
+   sdist's tar and gzip metadata (setuptools honours the epoch for the wheel but not the sdist).
+   `.gitattributes` forces LF in every checkout. `release.yml` builds the commit twice on separate
+   runners and its `reproducible` job refuses to publish unless the wheel and sdist sha256 values
+   match; each build also prints them in its job summary. Releases are built in CI only: a build on
+   another OS can differ in the wheel (zip `create_system`, `METADATA` line endings), so compare
+   hashes only against a CI build of the same commit. A plain `uv build` is not reproducible.
 6. **Post-publish verify from a fresh environment against the real index** — see below.
    Also confirm (step 2's checklist) that the published README actually rendered the new
    commands/flags, via PyPI's JSON API — not just that CI succeeded.
