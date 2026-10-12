@@ -21,8 +21,8 @@ from tracegauge.watcher import score_session_file
 
 
 def _load_first_adapted_record() -> dict:
-    """Load the first session from pool_adapted.jsonl as a test fixture."""
-    pool_path = Path(__file__).parent.parent / "data" / "corpus_pool" / "pool_adapted.jsonl"
+    """Load the first session of the synthetic pool as a test fixture."""
+    pool_path = Path(__file__).parent / "fixtures" / "synthetic_pool.jsonl"
     first_line = pool_path.read_text(encoding="utf-8").splitlines()[0]
     return json.loads(first_line)
 

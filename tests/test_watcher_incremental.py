@@ -18,8 +18,8 @@ from tracegauge.watcher import WatcherConfig, _scan_once
 
 def _make_minimal_record(session_id: str = "test-session-001") -> dict:
     """Minimal adapted record that score_session can process."""
-    # Load a real record from the pool to ensure it's valid
-    pool_path = Path(__file__).parent.parent / "data" / "corpus_pool" / "pool_adapted.jsonl"
+    # Load a record from the synthetic pool to ensure it is valid
+    pool_path = Path(__file__).parent / "fixtures" / "synthetic_pool.jsonl"
     record = json.loads(pool_path.read_text(encoding="utf-8").splitlines()[0])
     record["session_id"] = session_id
     return record
