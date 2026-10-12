@@ -8,7 +8,7 @@ the installed metadata, so it is not a separate source), in ``uv.lock``'s entry 
 the top released heading of ``CHANGELOG.md``; the git tag that triggers the release must equal it.
 RELEASING.md step 1 lists this drift as a known failure (a hardcoded version assertion went stale once,
 and a release shipped with no CHANGELOG entry); this makes it a blocking check in ``release.yml`` instead
-of a sentence in a document. Modelled on agentgauge's ``scripts/check_release_version.py``.
+of a sentence in a document. Modelled on the equivalent script in a sibling repo.
 
 Checks (any failure exits 1 and names every disagreement):
   * pyproject version == the project's entry in ``uv.lock`` == CHANGELOG.md's first ``## [x.y.z]``;

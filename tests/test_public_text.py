@@ -24,6 +24,18 @@ ROOT = Path(__file__).resolve().parent.parent
 # scanned, but a grep over the repo for the markers should find the rule, not the data).
 FORBIDDEN = ("D:" + "\\", "W1" + "A", "W1" + "B", "q-" + "step")
 
+# Names of the maintainer's other projects and repositories (and the cloud ids named after them).
+# Public text uses generic placeholders ("project-a") instead. adk-tracegauge is deliberately not
+# listed: it is a published sibling package this project documents compatibility with. "Warmer" is
+# an ordinary English word, so it cannot be a marker.
+OTHER_PROJECT_NAMES = re.compile(
+    r"aether[-_ ]?art|expense[-_ ]?tracker|triage[-_ ]?iq|review[-_ ]?iq|style[-_ ]?maitri"
+    r"|mind[-_ ]?meld|deal[-_ ]?hunter|agentic[-_ ](?:travel|shopping)|iconic[-_ ]reactor"
+    r"|ml[-_ ]portfolio|promising[-_ ]life|fr[-_ ]en[-_ ]transformer|ship[d]oc|intent[-_ ]router"
+    r"|gg[-_ ]portfolio|agentgauge|sam[i]dha|tes-cc-validati[o]n|gold[-_ ]rate[-_ ]tracker",
+    re.I,
+)
+
 # --- code and configuration scan -------------------------------------------------------------
 SOURCE_MARKERS = {
     "work-package label": re.compile(r"\bW1[AB]\b|\bW3\b|\bD[0-9]\b|\bitem [0-9]\b"),
@@ -34,6 +46,7 @@ SOURCE_MARKERS = {
     "ticket code": re.compile(r"\b(?!CC0\b)[A-Z]{2}[0-9](?:\.[0-9])?\b"),
     "private rule or doc": re.compile(r"CLAUDE\.md|\brule [0-9]+[a-z]?\b|gg-portfolio|GG decision"),
     "role name": re.compile(r"\borchestrator\b|\bverifier\b"),
+    "other project name": OTHER_PROJECT_NAMES,
     "private path or project": re.compile(
         r"\b[CDEFG]:\\(?:Users\\|ml-projects)|\bD:\\|aethe[r]art|\bgaura\b"
     ),
@@ -70,6 +83,7 @@ PRIVATE_REFERENCE_MARKERS = {
         r"aethe[r]art|review[-_ ]?iq-prod|tes-cc-validati[o]n|org_[0-9a-z]{20,}"
     ),
     "internal rule file": re.compile(r"CLAUDE\.md|\brule [0-9]{2,3}[a-z]?\b|\bGG\b"),
+    "other project name": OTHER_PROJECT_NAMES,
 }
 PRIVATE_REFERENCE_FILES = (
     "README.md",
@@ -124,6 +138,30 @@ def test_private_reference_markers_fire_on_what_they_exist_for() -> None:
     for name, text in samples.items():
         assert PRIVATE_REFERENCE_MARKERS[name].search(text), (name, text)
     assert PRIVATE_REFERENCE_MARKERS["internal rule file"].search("route to G" + "G")
+
+
+def test_other_project_names_are_caught_and_the_sibling_product_is_not() -> None:
+    for name in (
+        "aether" + "art",
+        "Aether" + "Art",
+        "expense_" + "tracker",
+        "Triage" + "IQ",
+        "review" + " iq",
+        "Style" + "Maitri",
+        "mind" + "meld",
+        "Deal" + "Hunter",
+        "agentic-" + "travel",
+        "iconic" + "-reactor",
+        "ml-" + "portfolio",
+        "promising" + "-life",
+        "fr-en-" + "transformer",
+        "ship" + "doc-extract",
+        "intent" + "-router",
+        "agent" + "gauge",
+    ):
+        assert OTHER_PROJECT_NAMES.search(f"see the {name} repo"), name
+    for ok in ("adk-tracegauge", "a warmer colour", "tracegauge", "the project-a repo"):
+        assert not OTHER_PROJECT_NAMES.search(ok), ok
 
 
 def _public_files() -> list[Path]:
@@ -187,6 +225,26 @@ def test_shipped_code_and_config_carry_no_internal_labels() -> None:
         "internal label, private path or private project name in code/config; keep the reason, "
         "drop the label:\n" + "\n".join(hits)
     )
+
+
+def test_tests_and_manifest_name_no_other_project() -> None:
+    files = [
+        p
+        for p in sorted((ROOT / "tests").rglob("*"))
+        if p.is_file()
+        and p.suffix in {".py", ".json", ".jsonl", ".md", ".txt"}
+        and p.name != Path(__file__).name
+        and "__pycache__" not in p.parts
+    ]
+    files += [p for p in sorted((ROOT / ".portfolio").rglob("*")) if p.is_file()]
+    files += [p for p in sorted((ROOT / "data").glob("*.jsonl")) if p.is_file()]
+    hits = [
+        f"{p.relative_to(ROOT).as_posix()}:{n}"
+        for p in files
+        for n, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1)
+        if OTHER_PROJECT_NAMES.search(line)
+    ]
+    assert not hits, "another project's name in tests, data or the manifest:\n" + "\n".join(hits)
 
 
 def test_every_allowlist_entry_still_matches_something() -> None:
