@@ -24,15 +24,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # scanned, but a grep over the repo for the markers should find the rule, not the data).
 FORBIDDEN = ("D:" + "\\", "W1" + "A", "W1" + "B", "q-" + "step")
 
-# Names of the maintainer's other projects and repositories (and the cloud ids named after them).
-# Public text uses generic placeholders ("project-a") instead. adk-tracegauge is deliberately not
-# listed: it is a published sibling package this project documents compatibility with. "Warmer" is
-# an ordinary English word, so it cannot be a marker.
+# Names of the maintainer's private or unreleased projects (and the cloud ids named after them).
+# Public text uses generic placeholders ("project-a") instead. The published sibling projects are
+# deliberately not listed: adk-tracegauge, agentgauge / agentgauge-harness and the public portfolio
+# site (gg-portfolio). "Warmer" is an ordinary English word, so it cannot be a marker.
 OTHER_PROJECT_NAMES = re.compile(
     r"aether[-_ ]?art|expense[-_ ]?tracker|triage[-_ ]?iq|review[-_ ]?iq|style[-_ ]?maitri"
     r"|mind[-_ ]?meld|deal[-_ ]?hunter|agentic[-_ ](?:travel|shopping)|iconic[-_ ]reactor"
     r"|ml[-_ ]portfolio|promising[-_ ]life|fr[-_ ]en[-_ ]transformer|ship[d]oc|intent[-_ ]router"
-    r"|gg[-_ ]portfolio|agentgauge|sam[i]dha|tes-cc-validati[o]n|gold[-_ ]rate[-_ ]tracker",
+    r"|sam[i]dha|tes-cc-validati[o]n|gold[-_ ]rate[-_ ]tracker",
     re.I,
 )
 
@@ -44,7 +44,7 @@ SOURCE_MARKERS = {
         r"\b[Pp]hase[ -]?[0-9]|phase0|\bset B\b|c2-selection|\b[Ww]ave [0-9]+"
     ),
     "ticket code": re.compile(r"\b(?!CC0\b)[A-Z]{2}[0-9](?:\.[0-9])?\b"),
-    "private rule or doc": re.compile(r"CLAUDE\.md|\brule [0-9]+[a-z]?\b|gg-portfolio|GG decision"),
+    "private rule or doc": re.compile(r"CLAUDE\.md|\brule [0-9]+[a-z]?\b|GG decision"),
     "role name": re.compile(r"\borchestrator\b|\bverifier\b"),
     "other project name": OTHER_PROJECT_NAMES,
     "private path or project": re.compile(
@@ -157,10 +157,18 @@ def test_other_project_names_are_caught_and_the_sibling_product_is_not() -> None
         "fr-en-" + "transformer",
         "ship" + "doc-extract",
         "intent" + "-router",
-        "agent" + "gauge",
     ):
         assert OTHER_PROJECT_NAMES.search(f"see the {name} repo"), name
-    for ok in ("adk-tracegauge", "a warmer colour", "tracegauge", "the project-a repo"):
+    for ok in (
+        "adk-tracegauge",
+        "agentgauge",
+        "agentgauge-harness",
+        "gg-portfolio",
+        "gaurav-gandhi.vercel.app",
+        "a warmer colour",
+        "tracegauge",
+        "the project-a repo",
+    ):
         assert not OTHER_PROJECT_NAMES.search(ok), ok
 
 
