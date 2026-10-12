@@ -48,7 +48,7 @@ SOURCE_MARKERS = {
     "role name": re.compile(r"\borchestrator\b|\bverifier\b"),
     "other project name": OTHER_PROJECT_NAMES,
     "private path or project": re.compile(
-        r"\b[CDEFG]:\\(?:Users\\|ml-projects)|\bD:\\|aethe[r]art|\bgaura\b"
+        r"\b[CDEFG]:\\(?:Users\\|ml-projects)|\bD:\\|aethe[r]art|\bgaur[a]\b"
     ),
 }
 SOURCE_SUFFIXES = {".py", ".html", ".yml", ".yaml", ".toml", ".sh", ".in", ".md", ".json"}
@@ -78,7 +78,7 @@ ALLOWLIST: dict[tuple[str, str], str] = {
 # working notes; they stay in the repository but must not name a private path, a cloud project, an
 # internal rule file or the maintainer's initials.
 PRIVATE_REFERENCE_MARKERS = {
-    "private path": re.compile(r"[A-Za-z]:\\(?:Users|ml-projects|adk|tg)|/c/Users/|\bgaura\b"),
+    "private path": re.compile(r"[A-Za-z]:\\(?:Users|ml-projects|adk|tg)|/c/Users/|\bgaur[a]\b"),
     "cloud project or id": re.compile(
         r"aethe[r]art|review[-_ ]?iq-prod|tes-cc-validati[o]n|org_[0-9a-z]{20,}"
     ),
