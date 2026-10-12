@@ -1,6 +1,11 @@
 # tracegauge
 
-![tracegauge](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/raw/master/assets/brand/badge.svg)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/raw/master/assets/brand/lockup-dark.svg">
+    <img alt="tracegauge" src="https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/raw/master/assets/brand/lockup-light.svg" height="64">
+  </picture>
+</p>
 
 Three-axis efficiency scoring for Claude Code sessions — token economy, trajectory quality, deterministic waste. Local by default — no server, no telemetry, nothing transmitted unless you opt in. Two opt-in paths currently do anything: a local contribution export (content-free, stays on your machine); and an API judge that sends session snippets directly to your model provider on per-session explicit consent. A third capability — community corpus contribution (content-free, would transmit to a tracegauge-operated corpus on explicit consent, in exchange for a cross-developer percentile baseline) — is fully built and tested but **not currently active**: no public corpus is operated, so `tracegauge corpus contribute` sends nothing regardless of consent. See [PRIVACY.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/PRIVACY.md).
 

@@ -182,6 +182,12 @@ License 1.1 (full texts next to the fonts, copyright lines and the modification 
 "TG Sans"/"TG Mono" because OFL-1.1 clause 3 reserves the name "Plex" for unmodified copies). One is
 a Latin subset of Space Grotesk (copyright The Space Grotesk Project Authors).
 
+The logo artwork (`tracegauge/web/static/brand/lockup-dark.svg`, `assets/brand/lockup*.svg`, the
+social-preview card) also uses outlines of Sora (copyright 2019 The Sora Project Authors, SIL Open
+Font License 1.1) converted to SVG paths. No Sora font file is bundled and the SVGs contain no
+`<text>`; the licence text is `tracegauge/web/static/brand/OFL-Sora.txt` and
+`assets/brand/OFL-Sora.txt`, and `NOTICE` carries the attribution.
+
 ## Open-weight models used for local/offline inference
 
 Listed for transparency (LLM usage is documented, not hidden) — none of
