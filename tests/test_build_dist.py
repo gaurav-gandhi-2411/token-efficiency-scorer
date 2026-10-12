@@ -4,7 +4,10 @@ import gzip
 import io
 import sys
 import tarfile
+import zipfile
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -64,3 +67,22 @@ def test_sdist_contents_are_preserved(tmp_path: Path) -> None:
 
 def test_commit_epoch_reads_head() -> None:
     assert build_dist.commit_epoch(ROOT).isdigit()
+
+
+def test_setuptools_is_pinned_exactly() -> None:
+    """[build-system].requires pins setuptools== (a range is not a reproducible build)."""
+    pin = build_dist.pinned_setuptools(ROOT)
+    assert pin and pin[0].isdigit()
+
+
+def test_pinned_setuptools_rejects_a_range(tmp_path: Path) -> None:
+    (tmp_path / "pyproject.toml").write_text('[build-system]\nrequires = ["setuptools>=70"]\n')
+    with pytest.raises(RuntimeError, match="pin setuptools"):
+        build_dist.pinned_setuptools(tmp_path)
+
+
+def test_wheel_generator_reads_the_backend_version(tmp_path: Path) -> None:
+    whl = tmp_path / "p-1-py3-none-any.whl"
+    with zipfile.ZipFile(whl, "w") as zf:
+        zf.writestr("p-1.dist-info/WHEEL", "Wheel-Version: 1.0\nGenerator: setuptools (84.0.0)\n")
+    assert build_dist.wheel_generator(whl) == "setuptools (84.0.0)"
