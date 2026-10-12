@@ -16,10 +16,9 @@ Public API:
 # Session-level overrides (misclassification corrections)
 # ---------------------------------------------------------------------------
 
-SESSION_OVERRIDES: dict[str, str] = {
-    # d57f0f0e: STATUS CHECK session, "eval" fired from "v2 eval artifact" in description
-    "00000000-0000-4000-8000-000000000152": "research-recon",
-}
+# Maps a session_id to a task type that wins over keyword matching. Deliberately empty in the
+# release: a per-session correction is a private fix, not a rule that generalises.
+SESSION_OVERRIDES: dict[str, str] = {}
 
 # ---------------------------------------------------------------------------
 # Task taxonomy
