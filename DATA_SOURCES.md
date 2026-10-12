@@ -203,8 +203,9 @@ redistribution or fine-tuned-derivative distribution).
 
 ## Self-collected data (no third-party licensing question)
 
-- `data/corpus_pool/` (`pool_adapted.jsonl`, 181 sessions) — the author's own
-  Claude Code sessions, the B1-B4 calibration corpus. Not third-party data.
+- The B1-B4 calibration corpus (181 of the author's own Claude Code sessions, formerly
+  `data/corpus_pool/pool_adapted.jsonl`) is no longer in the repository; figures derived from it are
+  the maintainer's unpublished local measurement. Not third-party data.
 - Anthropic model pricing (`tracegauge/data/prices.json`) — public list prices, not a
   licensed dataset; each active entry carries its own `source_url`/`as_of` for
   the staleness guard (see the file's own `note` field for the full convention,

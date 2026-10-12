@@ -21,6 +21,14 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [Unreleased]
 
+- **The scoring tests no longer read the maintainer's own session text.** They run on a seeded (42) synthetic pool,
+  synthetic judge scores and synthetic baselines under `tests/fixtures/`, produced by
+  `scripts/gen_synthetic_fixtures.py`; waste entries are produced by running the real detectors over the fixture
+  digests. The maintainer's adapted pool, its waste signals, its session digests and the old `data/cc_baselines.json`
+  are removed from the tree. Scripts that defaulted to them (`scripts/efficiency_score.py`, `scripts/build_baselines.py`,
+  `scripts/run_waste_analysis.py` and others) now take explicit input paths. Figures that came from those files (the
+  research reports' pool statistics, the pre-0.15.0 bands) are the maintainer's unpublished local measurement. The shipped `tracegauge/data/cc_baselines.json`, `eval/manifest.json` and the waste detectors are unchanged.
+
 ## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
 
 Measurements and migration detail: [docs/releases/0.15.0.md](docs/releases/0.15.0.md). Figures called "the
@@ -56,8 +64,10 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   on every content-block record; ccusage dedupes the same way (`ccusage/ccusage@c3a4eb0ecdcfbd3655dbcec8205644b046032332`,
   `rust/adapters/claude/src/lib.rs:345-366`). Waste events and proof turns are unchanged.
   [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
-- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); reproducible from `eval/manifest.json` with
-  `scripts/rebuild_baselines.py build`. [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); `scripts/rebuild_baselines.py build`
+  re-derives the bands from `eval/manifest.json`, which holds ids, hashes and per-session counts only: the counts came
+  from transcripts that are not in the repository, so the baseline itself is the maintainer's unpublished local measurement.
+  [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
 - **Subagent usage is rolled into its parent session** (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`)
   instead of scoring each subagent file as an empty session; `real_tokens` and the verdict stay main-chain.
   [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
