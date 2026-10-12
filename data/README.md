@@ -4,7 +4,7 @@ Agent traces, corpus data, and derived research artifacts. This description was
 stale (referenced a `raw/`/`processed/`/`benchmarks/` layout — SWE-bench/HumanEval/
 LiveCodeBench task definitions — that was never actually populated; corrected AW1).
 
-- `corpus_pool/` — empty in the repository. The author's own self-collected Claude Code sessions (the
+- `corpus_pool/` — not in the repository. The author's own self-collected Claude Code sessions (the
   B1-B4 calibration corpus) were removed from the tree; figures derived from them are the maintainer's unpublished local measurement. The tests run on synthetic fixtures in `../tests/fixtures/`.
 - `swechat_raw/`, `swechat_cc_adapted.jsonl`, `swechat_noncc_adapted.jsonl` — the
   SWE-chat (SALT-NLP/SWE-chat, ODC-BY licensed) generalization corpus and its
