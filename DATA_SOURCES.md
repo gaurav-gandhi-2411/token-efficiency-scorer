@@ -150,13 +150,23 @@ these directories.
   (our own measurements, no trace text) were kept so published figures stay traceable.
 - Downloading it yourself with `scripts/00_download_corpus.py` is your own use under the dataset's
   terms; nothing is redistributed from it.
-- **What derived material remains, stated plainly:** (1) short per-session LLM commentary strings
-  in `data/judge_scores*.jsonl` and `data/llm_provisional_ratings.jsonl`, written by our own
-  judge/rater about those sessions (they may paraphrase trace content); (2)
-  `data/validation-corpus/taxonomy/task_taxonomy.json`, which holds SWE-Gym instance ids
-  (from the separate MIT-licensed SWE-Gym/SWE-Gym task dataset) and patch statistics. No
-  trace text is kept. A verbatim eight-word SWE-Gym quote and the per-trace paraphrases in
-  `research/03-validation-corpus.md` were removed; only counts remain there.
+- **What derived material remains, stated plainly:** only numbers, labels and public instance ids.
+  (1) `data/judge_scores.jsonl`, `data/judge_scores_v1.jsonl` and
+  `data/llm_provisional_ratings.jsonl` keep, per session id, the judge's numeric score, verdict,
+  waste categories and confidence, and the rater's 1-5 rating. The one-sentence free-text
+  `reasoning` and `justification` fields our own judge and rater wrote about those sessions (they
+  paraphrased trace content) were removed in 0.16.0, for the SWE-Gym sessions and for the nebius
+  sessions that share the files. (2) `data/validation-corpus/taxonomy/task_taxonomy.json` and
+  `difficulty/difficulty_analysis.json` hold SWE-Gym instance ids (public identifiers, from the
+  separate MIT-licensed SWE-Gym/SWE-Gym task dataset) and patch statistics, with no free text.
+  (3) `data/objective_proxy.jsonl`, `data/gold/sample.json`, `data/calibration_sample.json`, the
+  cost log and the run logs hold session ids and counts. A verbatim eight-word SWE-Gym quote and
+  the per-trace paraphrases in `research/03-validation-corpus.md` were removed earlier; only
+  counts remain there. Sweep scope for this removal: every tracked `.json` and `.jsonl` file outside
+  the package directories was scanned for string values of 60 or more characters, and every tracked file was searched for the 50 SWE-Gym session ids and
+  for the words swegym and SWE-Gym; the aggregate description of the "empty-loop" failure cluster
+  in `research/06-calibration.md` (14 sessions, counts only) was judged a statistic, not a
+  paraphrase, and was kept.
 
 ### Other datasets referenced by scripts but not in the tree
 
