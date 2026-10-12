@@ -111,7 +111,7 @@ def test_single_session_in_period_reports_it_correctly(tmp_path: Path):
     _insert_session(
         conn,
         "s1",
-        source_path="/fake/C--Users-USER-ml-projects-adk-tracegauge/s1.jsonl",
+        source_path="/fake/-home-user-projects-project-a/s1.jsonl",
         source_mtime=mid.timestamp(),
         scored_at=mid.isoformat(),
         cost_usd=1.50,
@@ -274,7 +274,7 @@ def test_resolve_period_requires_exactly_one_of_week_month_since():
 
 
 def test_project_label_derivation_matches_cli_module():
-    path = "/fake/C--Users-USER-ml-projects-token-efficiency-scorer/abc123.jsonl"
+    path = "/fake/-home-user-projects-project-b/abc123.jsonl"
     assert _project_label_from_source_path(path) == _project_label(Path(path))
 
 
