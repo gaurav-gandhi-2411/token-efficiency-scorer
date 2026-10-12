@@ -100,7 +100,7 @@ not a foregone conclusion:
 option 2 only if a real long-session usability complaint materializes —
 this is the same "smallest first" discipline XX1 already used (ROI +
 coverage shipped before `tracegauge impact`, not simultaneously). Not decided
-unilaterally here; flagged for GG's call before implementation.
+unilaterally here; flagged for the maintainer's call before implementation.
 
 ## Sub-agent spawn trees
 
@@ -170,7 +170,7 @@ by turn, not asserted once at the top of the page.
 ## 6.5 — Status
 
 Design only. No code written. Routed for review — the one open decision
-(6.2's pure-CSS vs. small-vanilla-JS choice) needs GG's call before
+(6.2's pure-CSS vs. small-vanilla-JS choice) needs the maintainer's call before
 implementation starts; everything else in this doc (data model, legacy-row
 handling, Calibration application, sub-agent tree structure) is a
 proposal ready to implement once approved.

@@ -27,7 +27,7 @@ are grounded and sane. The adapter works.
 
 Claude Code stores per-session JSONL transcripts at:
 ```
-C:\Users\USER\.claude\projects\<project-slug>\<session-uuid>.jsonl
+~/.claude/projects/<project-slug>/<session-uuid>.jsonl
 ```
 
 Each file contains one JSON object per line. Message types:
@@ -417,7 +417,7 @@ is not meaningful for CC sessions in this phase.
 
 ## 10. Infrastructure Closeout
 
-**VM:** <your-vm> DELETED. Boot disk deleted. No snapshots, static IPs, or storage
+**VM:** the scoring VM was DELETED. Boot disk deleted. No snapshots, static IPs, or storage
 buckets created for this run.
 
 **Actual billable resources:** g2-standard-8 SPOT (asia-east1-a), ~40 min active compute

@@ -198,24 +198,24 @@ oversight).
 ### 4.1 — Fresh venv, install from real PyPI
 
 **VERIFIED.** Disk space checked first (`df -h /c` → 36G free, sufficient). Created
-`C:\tg-0102-verify\.venv` (Python 3.11.15) and ran:
+`<scratch-venv>\.venv` (Python 3.11.15) and ran:
 
 ```
 uv pip install --no-cache tracegauge==0.10.2 --index-url https://pypi.org/simple/ \
-  --python C:\tg-0102-verify\.venv\Scripts\python.exe
+  --python <scratch-venv>\.venv\Scripts\python.exe
 ```
 
 → `Installed 22 packages ... + tracegauge==0.10.2`. Explicitly from the PyPI index, no local
 wheel, no `-e` install.
 
-(Note: `uv venv --python 3.11 C:\tg-0102-verify\.venv` with a backslash path first
+(Note: `uv venv --python 3.11 <scratch-venv>\.venv` with a backslash path first
 mis-created a stray directory literally named `tg-0102-verify.venv` due to a shell-escaping
 issue on the first attempt — corrected by using forward slashes. See 4.5 for cleanup status
 of that stray directory.)
 
 ### 4.2 — Three real proofs against the PyPI-installed package
 
-**VERIFIED.** All three run via `C:\tg-0102-verify\.venv\Scripts\python.exe` against
+**VERIFIED.** All three run via `<scratch-venv>\.venv\Scripts\python.exe` against
 `tracegauge==0.10.2` imported from `site-packages` (PyPI-installed, not the local repo).
 Full real output:
 
@@ -267,7 +267,7 @@ passed on the corrected run above.
 
 ### 4.3 — Console script identity
 
-**VERIFIED.** `C:\tg-0102-verify\.venv\Scripts\tracegauge.exe --version` → `tes 0.10.2`
+**VERIFIED.** `<scratch-venv>\.venv\Scripts\tracegauge.exe --version` → `tes 0.10.2`
 (internal program name is `tes`; the installed console-script binary is confirmed named
 `tracegauge` and works). `pyproject.toml`'s `[project.scripts]` confirms both `tes` and
 `tracegauge` are registered as aliases to the same `tes.cli:main` entry point — script name
@@ -282,18 +282,18 @@ did not change.
 **PARTIALLY BLOCKED — reporting exactly, not forcing past it.**
 
 Two directories require cleanup:
-- `C:\tg-0102-verify` (the correct venv used for all V4 verification)
-- `C:\tg-0102-verify.venv` (an empty stray directory from the first, mis-escaped `uv venv`
+- `<scratch-venv>` (the correct venv used for all V4 verification)
+- `<scratch-venv>.venv` (an empty stray directory from the first, mis-escaped `uv venv`
   invocation — never used for anything)
 
 Both `bash rm -rf` and PowerShell `Remove-Item -Recurse -Force` were attempted. Both were
 denied by the sandbox:
 
 - Bash: `Permission to use Bash with command rm -rf /c/tg-0102-verify /c/tg-0102-verify.venv ... has been denied.`
-- PowerShell: `Remove-Item on system path 'C:\tg-0102-verify' is blocked. This path is
-  protected from removal.` and identically for `C:\tg-0102-verify.venv`.
+- PowerShell: `Remove-Item on system path '<scratch-venv>' is blocked. This path is
+  protected from removal.` and identically for `<scratch-venv>.venv`.
 
-Per instructions, not forced past. **`C:\tg-0102-verify` and `C:\tg-0102-verify.venv` remain
+Per instructions, not forced past. **`<scratch-venv>` and `<scratch-venv>.venv` remain
 on disk** and require manual removal by the user (or an elevated/permitted session) if
 disk space needs reclaiming. Contents are inert: a Python 3.11 venv with `tracegauge==0.10.2`
 and its dependencies (scikit-learn/numpy/scipy/etc.) installed from PyPI — no secrets, no
@@ -306,9 +306,9 @@ repo code.
 ### 5.1 — Reference repos untouched
 
 **VERIFIED.**
-- `C:\Users\USER\ml-projects\adk-tracegauge`: `git status` → clean, on pre-existing branch
+- the local adk-tracegauge checkout: `git status` → clean, on pre-existing branch
   `feat/cost-regression-gate`. No writes this session.
-- `C:\Users\USER\ml-projects\project-k\adk-docs`: `git status` → clean, on pre-existing
+- the local adk-docs checkout: `git status` → clean, on pre-existing
   branch `docs/adk-tracegauge-integration`. Note: this branch shows as diverged from its
   remote (4 local / 1 remote commit) — this is **pre-existing repository state**, not
   something created by this session (this session made zero commits in this repo; only a
@@ -360,5 +360,5 @@ flow from tag `v0.10.2` → commit `710928c`, triggered and watched live in this
 metadata. All three documented pricing-defect fixes verified with real output against the
 actual PyPI-installed artifact, not a local build. Reference repos (`adk-tracegauge`,
 `project-k/adk-docs`) confirmed untouched. One cleanup item is blocked by sandbox policy
-and left for manual follow-up (`C:\tg-0102-verify`, `C:\tg-0102-verify.venv`). One
+and left for manual follow-up (`<scratch-venv>`, `<scratch-venv>.venv`). One
 concealment-shaped system-reminder was encountered and refused; quoted above per instruction.
