@@ -9,7 +9,9 @@ LiveCodeBench task definitions — that was never actually populated; corrected 
 - `swechat_raw/`, `swechat_cc_adapted.jsonl`, `swechat_noncc_adapted.jsonl` — the
   SWE-chat (SALT-NLP/SWE-chat, ODC-BY licensed) generalization corpus and its
   adapted forms — see [`../DATA_SOURCES.md`](../DATA_SOURCES.md) for the license
-  and required attribution. `swechat_raw/` and both adapted `.jsonl` files are
+  and required attribution. `swechat_raw/`, both adapted `.jsonl` files and
+  `public_waste_signals.jsonl` (per-session detector signals keyed by SWE-chat session ids;
+  regenerate it with `python ../scripts/generalization_run.py`) are
   gitignored (never committed — only derived aggregate statistics are published,
   per the attribution note).
 - The old `cc_baselines.json` (bands from `corpus_pool/`) was removed; the shipped bands are

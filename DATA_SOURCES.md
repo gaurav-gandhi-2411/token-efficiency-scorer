@@ -25,8 +25,13 @@ previously-uncredited attribution gap — see the entry below.
   1,053 sessions". That mixed two counts. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. The detector rates and conclusions are
   unchanged; only the developer count they were attributed to was wrong.
 - **Redistribution:** none. The raw SWE-chat data (`data/swechat_raw/`) and both
-  adapted forms (`data/swechat_cc_adapted.jsonl`, `data/swechat_noncc_adapted.jsonl`)
-  are gitignored and never committed to this repo — only the derived aggregate
+  adapted forms (`data/swechat_cc_adapted.jsonl`, `data/swechat_noncc_adapted.jsonl`), and
+  the per-session detector signals derived from them (`data/public_waste_signals.jsonl`, keyed
+  by SWE-chat session ids) are gitignored and never committed to this repo. The signals file is
+  not distributed: regenerate it locally with `python scripts/generalization_run.py` (it
+  downloads SWE-chat from Hugging Face, adapts it and re-runs the detectors; `--signals-out`
+  chooses where it is written, and `scripts/diagnose_rfr_rate.py --swechat-signals` and
+  `scripts/fix_noncc_signals.py --signals` read it back) — only the derived aggregate
   statistics are published, which is why this is purely a §4.3 (Produced Works)
   attribution question, not a §4.2 (Derivative Databases) redistribution question.
 
