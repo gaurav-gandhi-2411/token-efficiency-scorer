@@ -15,9 +15,11 @@ import gzip
 import hashlib
 import io
 import os
+import re
 import subprocess
 import sys
 import tarfile
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +36,31 @@ def commit_epoch(root: Path = ROOT) -> str:
     if not out.isdigit():
         raise RuntimeError(f"unexpected git commit time: {out!r}")
     return out
+
+
+def pinned_setuptools(root: Path = ROOT) -> str:
+    """The exact `setuptools==X` version pinned in pyproject's [build-system].requires.
+
+    Plain regex, no tomllib (the test suite runs on Python 3.10). Raises if it is not an exact pin:
+    the wheel's bytes depend on the backend version, so a range is not reproducible.
+    """
+    text = (root / "pyproject.toml").read_text(encoding="utf-8")
+    m = re.search(r"^requires\s*=\s*\[(.*?)\]", text, re.M | re.S)
+    pins = re.findall(r"""["']setuptools==([^"'\s]+)["']""", m.group(1)) if m else []
+    if len(pins) != 1:
+        raise RuntimeError("pyproject [build-system].requires must pin setuptools==X.Y.Z exactly")
+    return pins[0]
+
+
+def wheel_generator(wheel: Path) -> str:
+    """The `Generator:` value in the wheel's *.dist-info/WHEEL, e.g. `setuptools (84.0.0)`."""
+    with zipfile.ZipFile(wheel) as zf:
+        name = next(n for n in zf.namelist() if n.endswith(".dist-info/WHEEL"))
+        text = zf.read(name).decode("utf-8")
+    m = re.search(r"^Generator:\s*(.+?)\s*$", text, re.M)
+    if not m:
+        raise RuntimeError(f"{wheel.name}: no Generator line in WHEEL")
+    return m.group(1)
 
 
 def normalise_sdist(path: Path, epoch: int) -> None:
@@ -67,6 +94,13 @@ def build(outdir: Path, root: Path = ROOT) -> list[Path]:
     subprocess.run(["uv", "build", "--out-dir", str(outdir), str(root)], check=True, env=env)
     for sdist in outdir.glob("*.tar.gz"):
         normalise_sdist(sdist, int(epoch))
+    # Fail closed if the backend that actually ran is not the pinned one.
+    expected = f"setuptools ({pinned_setuptools(root)})"
+    for wheel in outdir.glob("*.whl"):
+        if wheel_generator(wheel) != expected:
+            raise RuntimeError(
+                f"{wheel.name} was built by {wheel_generator(wheel)}, not {expected}"
+            )
     return sorted(outdir.glob("*.whl")) + sorted(outdir.glob("*.tar.gz"))
 
 
