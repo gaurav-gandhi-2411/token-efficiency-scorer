@@ -11,95 +11,74 @@ import pathlib
 SAMPLE_PATH = pathlib.Path("data/validation-corpus/annotations/spotcheck_sample.json")
 
 # Manual labels by claude-sonnet-4-6, applied by reading each turn's full context.
-# Format: keyed by (session_id, turn_index).
+# Format: keyed by (session_id, turn_index). The labeler's per-turn free-text notes are not kept:
+# they quoted fragments of the third-party trajectories (see DATA_SOURCES.md).
 LABELS: dict[tuple[str, int], dict] = {
-    # fffw-100 t132: finish tool — terminal summarization
     ("6a573854825819fd", 132): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "finish call; all context used by definition",
     },
-    # textual-3459 t126: runs reproduce_issue.py --help after test run
     ("ac4e96238d14d4a0", 126): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "post-test verification command; result would inform completion",
     },
-    # faker-652 t104: 'still issues' — reads automotive/__init__.py to investigate format bug
     ("6c1a9f8d5157ee22", 104): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "first read of automotive/__init__.py based on grep hit; result used in next turn",
     },
-    # crate-python-474 t100: final-review step of that trajectory — creates verification file (write op)
     ("8fe3ae31394917df", 100): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "create = write; long verification script; session ultimately fails",
     },
-    # networkx-7024 t6 (swe_agent): runs reproduce.py — no structured tool_uses
     ("b7d0e2e71d5abf03", 6): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "swe_agent text-embedded command; result cited in next turn ('returned True')",
     },
-    # cognitive_complexity-15 t4 (swe_agent): opens test file — no structured tool_uses
     ("34449e9f89dcc992", 4): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "swe_agent open command; no prior open of same file",
     },
-    # stix2-369 t36: reads course_of_action test file after grep surprise
     ("efcfd7ab6dba01e6", 36): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "first read of this file; result used in next turn ('Wait, this seems wrong')",
     },
-    # asv-702 t42 (swe_agent): retries asv run with different flags after same error
     ("1bfb853597e0fec2", 42): {
         "is_retry": True,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "explicit retry of asv run; text says 'trying explicitly again'; same error from prior attempt visible in prev_content",
     },
-    # intervals-54 t26: grep for NumberInterval class def
     ("0d6ab8c934f0de65", 26): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "targeted grep; not a file re-read",
     },
-    # beets-3863 t2: think tool on first analytical turn
     ("225c0fb6b5bfcee6", 2): {
         "is_retry": False,
         "is_backtrack": False,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "think tool is reasoning, not file read; result used in next turn's plan",
     },
-    # psf__black-3451 t186: switches approach after '--no-preview' option not found
     ("4ca31e6363afe7f8", 186): {
         "is_retry": False,
         "is_backtrack": True,
         "tool_result_used": True,
         "redundant_read": False,
-        "notes": "changes from CLI flag to pyproject.toml after option-not-found error; clear strategy switch",
     },
 }
 

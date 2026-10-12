@@ -280,7 +280,7 @@ The portfolio artifact.
 **Post-publish verification (real PyPI, 2026-06-15):**
 - `pip install --no-cache-dir --force-reinstall --no-deps tracegauge==0.7.0` from production
   PyPI (no `direct_url.json` confirms index install, not local wheel).
-- `tes.__file__` → `C:\Users\USER\anaconda3\Lib\site-packages\tes\__init__.py` (not repo).
+- `tes.__file__` → a `site-packages\tes\__init__.py` path in the base environment (not the repo).
 - `tes --version` → `tes 0.7.0` ✓
 - `tes patterns` → clean exit (KeyError fix confirmed in published artifact). Cache was stale
   (252 content sessions, up from 235); fresh compute ran end-to-end. k=3, silhouette=0.453,

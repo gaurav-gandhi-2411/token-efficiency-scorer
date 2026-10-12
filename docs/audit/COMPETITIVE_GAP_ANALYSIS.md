@@ -323,8 +323,7 @@ Neither implemented here — design only, per WW4's own "queued, not now."
 
 ### 4.2 — Stale branch audit (read-only, run this session)
 
-Script written to
-`C:\Users\USER\AppData\Local\Temp\claude\C--Users-USER-ml-projects\00000000-0000-4000-8000-000000000183\scratchpad\check_stale_branches.sh`
+Script written to a scratch directory outside the repository
 (not committed to either repo — a one-off audit tool, not project
 infrastructure). For each local branch except the default: computes a
 content-diff against the default branch (informational only — squash-merge
@@ -350,8 +349,8 @@ PR state, nothing deleted:**
   remaining-commands`, `docs/period-cost-readme`, `docs/release-0.10.2-
   audit`, `docs/releasing`, `feat/period-cost-cli`, `feat/price-vendor-
   divergence-guard`, `feat/quickstart-command`, `fix/0.10.2-pricing-
-  defects`, `fix/legacy-row-backfill-messaging`, `fix/tes-stale-project-e-
-  project`) — all 15 have an associated PR with `state: MERGED`.
+  defects`, `fix/legacy-row-backfill-messaging`, `fix/tes-stale-project-
+  reference`) — all 15 have an associated PR with `state: MERGED`.
 
 29 branches total (local, and their identically-named `origin/` remotes),
 zero ambiguous, zero found unmerged. Genuinely safe cleanup candidates —
