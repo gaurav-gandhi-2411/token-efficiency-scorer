@@ -224,7 +224,7 @@ Detectors ran on SWE-chat CC sessions via the native CC JSONL adapter (no adapta
 |---|---|
 | `data/swechat_cc_adapted.jsonl` | 1,053 SWE-chat CC sessions adapted via claudecode_adapter |
 | `data/swechat_noncc_adapted.jsonl` | 893 non-CC sessions adapted via public_trace_adapter |
-| `data/public_waste_signals.jsonl` | 1,946 records (1,053 CC + 893 non-CC) with per-session detector results |
+| `data/public_waste_signals.jsonl` | 1,946 records (1,053 CC + 893 non-CC) with per-session detector results. Not distributed: it is keyed by SWE-chat session ids, so it stays local and gitignored; regenerate it with `python scripts/generalization_run.py` (see `DATA_SOURCES.md`) |
 | `data/generalization_compare.json` | Three-way comparison: pool, SWE-chat CC, SWE-chat non-CC |
 | `scripts/public_trace_adapter.py` | New adapter for SWE-chat conversations.parquet (non-frozen) |
 | `scripts/generalization_run.py` | B5 pipeline: download, adapt, detect, compare |

@@ -28,6 +28,7 @@ still installs, with pip's yanked-release warning. Checked against the real inde
   are removed from the tree. Scripts that defaulted to them (`scripts/efficiency_score.py`, `scripts/build_baselines.py`,
   `scripts/run_waste_analysis.py` and others) now take explicit input paths. Figures that came from those files (the
   research reports' pool statistics, the pre-0.15.0 bands) are the maintainer's unpublished local measurement. The shipped `tracegauge/data/cc_baselines.json`, `eval/manifest.json` and the waste detectors are unchanged.
+- **`data/public_waste_signals.jsonl` is no longer distributed.** It held per-session detector results keyed by 1,946 SWE-chat session ids, and SWE-chat-derived data stays local (see `DATA_SOURCES.md`). It is now gitignored; regenerate it with `scripts/generalization_run.py`, which gained `--signals-out`, and read it with `--swechat-signals` (`scripts/diagnose_rfr_rate.py`) or `--signals` (`scripts/fix_noncc_signals.py`).
 
 ## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
 
