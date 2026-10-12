@@ -45,7 +45,7 @@ FIXTURE_FILES = (
 PRIVATE_MARKERS = {
     "windows path": re.compile(r"\b[A-Za-z]:\\+|\b[A-Za-z]:/(?:Users|ml-projects)", re.I),
     "unix home path": re.compile(r"/(?:Users|home)/[A-Za-z0-9_.-]+|/c/Users"),
-    "user or account name": re.compile(r"gaura|gandhi|gg5678", re.I),
+    "user or account name": re.compile(r"gaur[a]|gandhi|gg567[8]", re.I),
     "project name": re.compile(
         "|".join(
             [
@@ -88,7 +88,7 @@ def test_marker_patterns_catch_what_they_claim_to() -> None:
     samples = {
         "windows path": "opened C:\\\\Users\\\\someone\\\\notes",
         "unix home path": "cat /home/someone/notes.txt",
-        "user or account name": "owner gaura",
+        "user or account name": "owner " + "gaur" + "a",
         "project name": "review" + "-iq/app",
         "instruction file": "see CLAUDE" + ".md",
         "email address": "write to someone@example.com",
