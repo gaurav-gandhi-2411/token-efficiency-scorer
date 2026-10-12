@@ -1,8 +1,10 @@
-# tracegauge brand system — Calibration
+# tracegauge brand system
 
-Status: proposed, **for review** — not wired into `tracegauge serve` or any shipped
-template yet. Full interactive review (color, type, the gauge component, all
-four favicon sizes, badge, OG preview) at the artifact linked in PR #21.
+Two layers. The **dashboard palette and type** (Color, Type and the gauge component below, the
+"Calibration" system) are what `tracegauge serve` renders. The **logo** is mark "Turns": seven bars
+over a baseline and a pointer, one bar (the flagged turn) in the accent colour. It replaced the
+earlier dial-and-needle mark in the header, favicon and social preview; the dashboard colour tokens
+were not changed.
 
 ## Why this direction
 
@@ -74,55 +76,39 @@ gaugeArc(value, min, max, thresholds[], {
 ```
 
 Reused, not reinvented, per context:
-- **Favicon / wordmark glyph**: needle + arc only — ticks and the threshold
-  band are dropped entirely, since neither reads below ~64px. This is the
-  whole reason the favicon and the full gauge are visually related but not
-  the same asset — proven at 16/32/64/512px in the review artifact.
+- **Favicon / header glyph**: no longer the gauge; see "Logo assets" below.
 - **`tracegauge serve` chart axes** (future): ticks + band, needle becomes the
   plotted data point instead of a fixed pointer.
 - **Wrapped slide backdrops** (future): full gauge, oversized, threshold
   band at low opacity as background texture.
 
-## Assets in this directory
+## Logo assets
 
-- `favicon.svg` — the minimal mark (arc + needle, no ticks/band), dark
-  ground, legible from 16px up.
-- `wordmark.svg` — header lockup: mark + "tracegauge" with the dial-glyph
-  standing in for the 'a' in "gauge" (the literal instrument word).
-  First-pass kerning — a candidate for a manual pass once approved.
-- `badge.svg` — compact horizontal README badge, 168×28, self-contained
-  ground so it holds next to shields.io badges on any README background.
-- `og-preview.svg` — 1280×640 link-unfurl preview (GitHub/Slack/social).
-  Direction B composition: motif left (dominates), outlined wordmark +
-  tagline right. Every character in the wordmark/tagline is a real path
-  traced from this repo's own bundled font files (`tracegauge/web/static/fonts/`)
-  via `fontTools`, not a live `<text>` element — this rasterization
-  environment's SVG renderer does not do real font-family matching (proven
-  during the original AU1 rasterization: identical `font_extents`
-  regardless of the requested font name), so text is treated as a shape
-  problem, not a typography problem, upstream of ever reaching a
-  rasterizer. The bundled font subsets cover alphanumerics + space only
-  (63 glyphs, no punctuation) — the hyphen and period needed here are
-  hand-drawn as trivial geometric shapes (a rectangle, a filled circle),
-  everything else is a real glyph outline.
-- `og-preview.png` — 1280×640 PNG export of the above, uploaded via repo
-  Settings → General → Social preview (GitHub serves this PNG directly;
-  it doesn't render the SVG). RGB truecolor, 8-bit, no alpha, no
-  interlacing, no ICC profile, exactly IHDR+IDAT+IEND — this is now the
-  maximally-conservative structure by construction (previously a separate
-  `og-preview-conservative.png` fallback existed for this; consolidated
-  away since there is no longer a "less conservative" primary to fall
-  back from). Whether this resolves the AU1 404 is tracked separately, not
-  a property of the file itself — see git history (AU1, BR2, BS1) for the
-  live diagnosis.
+Palette (logo only): ink `#1B2540` / `#DCE3F5`, accent `#C4204F` / `#FF7A9C`, surface `#FAFAFC` /
+`#0E1322` (light / dark). Unsuffixed SVGs are adaptive (`prefers-color-scheme`); `-light` and
+`-dark` are fixed colours for places that do not follow the OS scheme (the always-dark dashboard
+header, the README `<picture>`).
 
-None of these are referenced by any shipped template yet.
+In `assets/brand/`:
 
-## Not done here (explicitly out of scope for this review)
+- `mark.svg` - the seven-bar mark alone.
+- `lockup.svg`, `lockup-light.svg`, `lockup-dark.svg` - mark plus the lowercase wordmark.
+- `favicon.svg` - the simplified five-bar mark, adaptive.
+- `og-preview.svg` / `og-preview.png` - 1200x630 social-preview card, dark. GitHub serves the PNG
+  from Settings, General, Social preview (RGB, no alpha); it does not render the SVG.
+- `OFL-Sora.txt` - licence for the Sora letterforms in the wordmark and tagline.
 
-- Wiring any asset into `tracegauge serve`'s HTML templates.
-- PNG/ICO rasterization of `favicon.svg` (real browsers want a rasterized
-  favicon in most contexts; SVG-only favicons have inconsistent support —
-  rasterize once the direction itself is approved, not before).
-- Final kerning pass on `wordmark.svg`.
-- Applying the palette/type tokens to `tracegauge serve`'s existing dashboard CSS.
+In `tracegauge/web/static/brand/` (shipped in the wheel): `favicon.svg`,
+`favicon-16-snapped-light.svg`, `favicon-16-snapped-dark.svg` (pixel-snapped 16px variants, 2px
+bars on a 16px grid, so the bars do not anti-alias at tab size), `lockup-dark.svg` (dashboard
+header) and `OFL-Sora.txt`. The dashboard links the adaptive favicon first and the snapped 16px
+variants under `prefers-color-scheme` media queries; browsers that ignore `media` on icon links
+use whichever icon they pick by size.
+
+Every letter in the wordmark and tagline is a Sora outline converted to an SVG path, so no SVG
+contains `<text>` and none needs a font to render. Sora is SIL OFL 1.1; attribution is in `NOTICE`.
+A test (`tests/test_brand_assets.py`) checks that the files exist, contain no `<text>` or
+`font-family`, and that the wheel includes the shipped ones.
+
+Not done: PNG/ICO rasterisations of the favicon (the SVG icons cover current browsers; there is no
+`/favicon.ico`).
