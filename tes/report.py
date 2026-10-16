@@ -52,6 +52,87 @@ def _format_turns(turns: list[int]) -> str:
     return ", ".join(pairs) if pairs else str(turns)
 
 
+_CAUSE_LABELS = (
+    ("TTL_GAP", "TTL gap (idle past the cache lifetime)"),
+    ("MODEL_SWITCH", "model switch"),
+    ("COMPACTION", "compaction"),
+    ("UNEXPLAINED", "unexplained (no cause claimed)"),
+)
+_TOP_EVENTS_IN_TEXT = 3
+
+
+def _usd_or_unpriced(usd: float | None) -> str:
+    return "unpriced" if usd is None else format_cost_usd(usd)
+
+
+def format_cache_churn_lines(churn: dict[str, Any] | None) -> list[str]:
+    """The CACHE CHURN section (empty list = print nothing).
+
+    Nothing is printed when the analysis was unavailable or found no event: the section exists to
+    point at money, and "0 events" is not worth a block in every report (the full object, zeros
+    included, is in `score --json`).
+    """
+    if not churn or churn.get("status") != "ok" or not churn.get("events"):
+        return []
+    scope = churn["by_scope"]
+    lines = ["", _section_divider("CACHE CHURN")]
+    floor = "" if churn["priced"] else " (priced part; some models unpriced)"
+    lines.append(
+        _wrap(
+            f"{churn['events']} event(s) where cached context was re-written instead of read: "
+            f"{format_cost_usd(churn['churn_usd'])} above what reading it would have cost{floor}. "
+            f"Main chain {format_cost_usd(scope['main']['churn_usd'])} "
+            f"({scope['main']['events']}), subagents "
+            f"{format_cost_usd(scope['subagent']['churn_usd'])} ({scope['subagent']['events']})."
+        )
+    )
+    for key, label in _CAUSE_LABELS:
+        b = churn["by_cause"][key]
+        if b["events"]:
+            unpriced = f", {b['unpriced_events']} unpriced" if b["unpriced_events"] else ""
+            lines.append(
+                f"    {label:<40} {b['events']:>4}  {format_cost_usd(b['churn_usd']):>10}{unpriced}"
+            )
+    lines.append(
+        _wrap(
+            f"Plausibly avoidable (a judgement): {format_cost_usd(churn['avoidable_usd'])}; "
+            f"not avoidable by a setting (idle over an hour, compaction): "
+            f"{format_cost_usd(churn['unavoidable_usd'])}."
+        )
+    )
+    for ev in churn["events_listed"][:_TOP_EVENTS_IN_TEXT]:
+        if ev["gap_s"] is None:
+            gap = ""
+        elif ev["ttl_s"] is None:
+            gap = f", gap {ev['gap_s']:,.0f}s, cache lifetime unknown"
+        else:
+            gap = f", gap {ev['gap_s']:,.0f}s vs {ev['ttl_s']:,.0f}s TTL"
+        where = "main" if ev["scope"] == "main" else f"subagent {ev['chain']}"
+        lines.append(
+            _wrap(
+                f"[{where}] turn {ev['previous_turn']['turn_index']}→"
+                f"{ev['current_turn']['turn_index']}: {ev['cause'].lower().replace('_', ' ')}"
+                f"{gap}, {ev['churn_tokens']:,} tokens re-written, "
+                f"{_usd_or_unpriced(ev['churn_usd'])}",
+                indent=4,
+            )
+        )
+    for adv in churn["advice"]:
+        lines.append(
+            _wrap(
+                f"Priced for this session: setting {adv['setting']}=1h "
+                f"(env {adv['env_var']}) would save about {format_cost_usd(adv['net_usd'])} net "
+                f"({format_cost_usd(adv['saved_usd'])} of avoided re-writes minus "
+                f"{format_cost_usd(adv['premium_usd'])} higher write rate on {adv['scope']} "
+                f"chains). Assumes {adv['events_avoided']} gap(s) of 5 min to 1 h become reads; "
+                f"other sessions may lose money on it."
+            )
+        )
+    lines.append(_wrap("Cause = a rule on transcript markers and timestamps, not a verified fact."))
+    lines.append("")
+    return lines
+
+
 def format_human(
     result: ThreeAxisResult,
     baseline_cost_band: tuple[float, float, float] | None = None,
@@ -136,6 +217,9 @@ def format_human(
                 lines.append(f"      Evidence: {snip!r}")
     lines.append("")
     lines.append(_wrap(result.waste_domain_of_validity))
+
+    # ── CACHE CHURN ── (informational; absent when there is nothing to show)
+    lines.extend(format_cache_churn_lines(result.cache_churn))
 
     # ── COST ANNOTATION ──
     # Cost is an annotation on the token axis. Not a score. Not a composite.

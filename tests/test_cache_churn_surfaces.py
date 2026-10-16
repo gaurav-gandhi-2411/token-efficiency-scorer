@@ -11,6 +11,7 @@ import pytest
 import tes.cli as cli
 from tes import cache_churn as cc
 from tes.json_out import cache_churn_payload
+from tes.report import format_cache_churn_lines
 
 from tests.churn_synth import MODEL_A, T0, asst_rec, build_chain, user_rec
 
@@ -101,6 +102,100 @@ def test_score_json_reports_events_with_proof_turns(
     }
     assert set(ev["previous_turn"]) == proof == set(ev["current_turn"])
     assert ev["current_turn"]["turn_index"] == ev["previous_turn"]["turn_index"] + 1
+
+
+def test_no_transcript_text_reaches_json_or_human_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"})
+    _, out_json, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    churn_text = json.dumps(json.loads(out_json)["cache_churn"])
+    assert SECRET_TEXT not in churn_text and "ZEBRA" not in churn_text
+    _, out_human, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge")
+    assert "CACHE CHURN" in out_human and "ZEBRA" not in out_human
+
+
+def test_human_report_is_silent_when_there_are_no_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path, {})
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge")
+    assert "CACHE CHURN" not in out
+    assert format_cache_churn_lines(None) == []
+    assert format_cache_churn_lines(cache_churn_payload(None)) == []
+
+
+def test_human_section_lists_main_vs_subagent_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"})
+    sub = build_chain(random.Random(2), 30, {5: "TTL_GAP", 12: "TTL_GAP"}, prefix="s")
+    _write(path.with_suffix("") / "subagents" / "agent-x.jsonl", sub)
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge")
+    assert "Main chain" in out and "subagents" in out and "judgement" in out
+
+
+def test_unpriced_model_is_never_shown_as_zero_dollars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"}, model="claude-test-unpriced-9")
+    _, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    churn = json.loads(out)["cache_churn"]
+    assert churn["events"] == 1 and churn["priced"] is False and churn["unpriced_events"] == 1
+    assert churn["events_listed"][0]["churn_usd"] is None
+    assert churn["events_listed"][0]["priced"] is False
+    _, human, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge")
+    assert "unpriced" in human[human.index("CACHE CHURN") :]
+
+
+def test_unavailable_when_analysis_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"})
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise OSError("gone")
+
+    monkeypatch.setattr(cc, "analyze_session", boom)
+    code, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    churn = json.loads(out)["cache_churn"]
+    assert code == 0  # churn must never break scoring
+    assert churn["status"] == "unavailable" and churn["events"] is None
+    assert churn["reason"] == "read_error"
+    assert churn["churn_usd"] is None  # unknown, not 0
+    assert set(churn) == set(cache_churn_payload(None))
+
+
+def test_internal_error_is_logged_with_traceback_and_stdout_stays_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    path = _session(tmp_path, {10: "TTL_GAP"})
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise RuntimeError("bug in the analysis")
+
+    monkeypatch.setattr(cc, "analyze_session", boom)
+    with caplog.at_level("WARNING", logger="tes.json_out"):
+        code, out, _ = _run(monkeypatch, capsys, "score", str(path), "--no-judge", "--json")
+    churn = json.loads(out)["cache_churn"]  # stdout is still exactly one valid JSON document
+    assert code == 0
+    assert churn["status"] == "unavailable" and churn["reason"] == "internal_error"
+    (rec,) = [r for r in caplog.records if r.name == "tes.json_out"]
+    assert rec.levelname == "WARNING" and rec.exc_info is not None
+    assert rec.exc_info[0] is RuntimeError  # the traceback is kept, not swallowed
+
+
+def test_ok_and_missing_source_reasons(tmp_path: Path) -> None:
+    from tes.cost import load_price_table
+    from tes.json_out import cache_churn_payload_for_path
+
+    path = _session(tmp_path, {})
+    good = cache_churn_payload_for_path(path, load_price_table())
+    assert good["status"] == "ok" and good["reason"] is None
+    assert cache_churn_payload_for_path(tmp_path / "nope.jsonl", {})["reason"] == "source_missing"
 
 
 def test_payload_lists_at_most_the_largest_events() -> None:
