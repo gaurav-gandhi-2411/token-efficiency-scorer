@@ -5,13 +5,13 @@ from __future__ import annotations
 
 """Generates the README's example output blocks from SYNTHETIC sessions, with the real CLI.
 
-Every `tracegauge cost`, `tracegauge cost --roi`, `tracegauge budget` and `tracegauge monitor` block in the README is the
+Every `tracegauge cost`, `tracegauge cost --roi`, `tracegauge budget` and `tracegauge monitor` block in docs/METHODOLOGY.md is the
 verbatim stdout of this build on invented transcripts: no real session content, no real prices
 beyond the bundled table. The clock is frozen at NOW (below) so the output is the same on every run;
-tests/test_readme_examples.py regenerates the blocks and fails when the README drifts from them.
+tests/test_readme_examples.py regenerates the blocks and fails when that document drifts from them.
 
     python scripts/gen_readme_examples.py                 # print every block
-    python scripts/gen_readme_examples.py --check README.md   # exit 1 if a block is not in the file
+    python scripts/gen_readme_examples.py --check docs/METHODOLOGY.md   # exit 1 if a block is missing
 
 Each scenario builds its own throw-away store and projects directory under a temp directory, so the
 real ~/.tes store and ~/.claude/projects are never read or written.
