@@ -17,6 +17,9 @@ claude-haiku-5-5 in $0.10 (long tier over 100k prompt tokens: $0.50), same multi
 except read 0.1x.
 """
 
+import json
+import random
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -26,6 +29,7 @@ from tests.churn_synth import (
     MODEL_B,
     T0,
     asst_rec,
+    build_chain,
     compact_boundary,
     summary_rec,
     user_rec,
@@ -307,3 +311,65 @@ def test_compaction_markers_are_collected_in_record_order() -> None:
         cc.MARK_COMPACT_SUMMARY,
     ]
     assert chain.compact_marks[0][0] < chain.compact_marks[1][0]
+
+
+# ------------------------------------------------------------------ session level
+
+
+def _write(path: Path, recs: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(r) for r in recs) + "\n", encoding="utf-8")
+
+
+def test_analyze_session_main_and_subagents_never_mixed(tmp_path: Path) -> None:
+    rng = random.Random(42)
+    main_p = tmp_path / "proj" / "s1.jsonl"
+    _write(main_p, build_chain(rng, 12, {5: "TTL_GAP"}, one_hour=True, prefix="main"))
+    for n in range(2):
+        sub = build_chain(rng, 10, {4: "TTL_GAP", 7: "TTL_GAP"}, prefix=f"sub{n}_")
+        for rec in sub:
+            rec["isSidechain"] = True
+        _write(main_p.with_suffix("") / "subagents" / f"agent-{n}.jsonl", sub)
+    s = cc.analyze_session(main_p)
+    assert s.by_kind["main"].events == 1 and s.by_kind["subagent"].events == 4
+    assert s.by_bucket[cc.CAUSE_TTL_GAP].events == 5
+    assert s.total.events == 5 and len(s.chains) == 3
+    # the main chain is 1h-tier, the gap is over the hour: unavoidable; subagent gaps: avoidable
+    assert s.unavoidable_usd > 0 and s.avoidable_usd > 0
+
+
+def test_main_transcript_skips_sidechain_records(tmp_path: Path) -> None:
+    rng = random.Random(1)
+    recs = build_chain(rng, 6, {3: "TTL_GAP"})
+    for rec in recs:
+        rec["isSidechain"] = True
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, recs)
+    assert cc.analyze_session(p).total.events == 0  # belongs to a subagent chain, not the main
+
+
+def test_session_with_cross_file_duplicate_counts_event_once(tmp_path: Path) -> None:
+    rng = random.Random(7)
+    recs = build_chain(rng, 8, {4: "TTL_GAP"}, prefix="x")
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, recs)
+    _write(p.with_suffix("") / "subagents" / "agent-a.jsonl", recs)  # same ids again
+    s = cc.analyze_session(p)
+    assert s.total.events == 1 and s.duplicate_turns_dropped == 8
+
+
+def test_unrelated_lines_are_skipped_and_spaced_json_still_parses(tmp_path: Path) -> None:
+    f = tmp_path / "proj" / "s.jsonl"
+    f.parent.mkdir()
+    spaced = json.dumps(asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0), indent=None)
+    spaced = spaced.replace('"type": "assistant"', '"type" :  "assistant"')
+    lines = [
+        json.dumps({"type": "attachment", "attachment": {"type": "x"}}),
+        "{broken json",
+        spaced,
+        json.dumps(user_rec(T0 + 4_000)),
+        json.dumps(asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + 4_001)),
+    ]
+    f.write_text("\n".join(lines), encoding="utf-8")  # no trailing newline: a live file
+    s = cc.analyze_session(f)
+    assert s.total.events == 1 and s.chains[0].n_turns == 2

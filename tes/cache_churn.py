@@ -38,6 +38,7 @@ from typing import Any
 
 from tes._digest import TurnDigest
 from tes.cost import compute_turn_cost, load_price_table
+from tes.discovery import SUBAGENTS_DIRNAME
 
 # ---------------------------------------------------------------------------
 # Event definition. The values come from a measurement over 96,164 de-duplicated turns of one
@@ -637,3 +638,206 @@ def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                 continue
             if isinstance(obj, dict):
                 yield obj
+
+
+# ---------------------------------------------------------------------------
+# Session level
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CauseTotals:
+    """Events, tokens and dollars of one bucket."""
+
+    events: int = 0
+    churn_tokens: int = 0
+    churn_usd: float = 0.0
+    unpriced_events: int = 0
+
+
+@dataclass
+class TtlAdvice:
+    """A priced counterfactual for one TTL control; only built when its net saving is > 0."""
+
+    scope: str
+    setting: str
+    env_var: str
+    value: str
+    premium_usd: float
+    saved_usd: float
+    net_usd: float
+    events_avoided: int
+    chains: int
+    assumptions: str
+
+
+@dataclass
+class SessionChurn:
+    """Cache churn of one session: main + subagent chains, on demand from the source JSONL."""
+
+    chains: list[ChainResult]
+    by_bucket: dict[str, CauseTotals]
+    by_kind: dict[str, CauseTotals]
+    avoidable_usd: float
+    unavoidable_usd: float
+    advice: list[TtlAdvice]
+    duplicate_turns_dropped: int = 0
+
+    @property
+    def unsplit_write_tokens(self) -> int:
+        """Cache-write tokens, over all chains, whose 5m/1h tier the transcript does not say."""
+        return sum(c.unsplit_write_tokens for c in self.chains)
+
+    @property
+    def events(self) -> list[ChurnEvent]:
+        return [e for c in self.chains for e in c.events]
+
+    @property
+    def total(self) -> CauseTotals:
+        out = CauseTotals()
+        for b in self.by_bucket.values():
+            out.events += b.events
+            out.churn_tokens += b.churn_tokens
+            out.churn_usd += b.churn_usd
+            out.unpriced_events += b.unpriced_events
+        return out
+
+
+_ADVICE_ASSUMPTIONS = (
+    "Reprices every 5-minute cache write of the {scope} chain at the 1-hour rate (2.0x input "
+    "instead of 1.25x) and assumes each 5-minute-tier TTL gap of 300 s to 1 h in these chains "
+    "would then have been a cache read instead of a re-write. Gaps over 1 h, model switches "
+    "and compactions are not counted as saved. Second-order effects (other requests refreshing "
+    "an entry, sibling subagents sharing it) are not modelled."
+)
+
+
+def _advice_for(kind: str, chains: list[ChainResult]) -> TtlAdvice | None:
+    scoped = [c for c in chains if c.kind == kind]
+    if not scoped or any(c.premium_1h_usd is None for c in scoped):
+        return None  # an unpriced write makes the premium a floor: no net can be claimed
+    premium = sum(c.premium_1h_usd or 0.0 for c in scoped)
+    saved = 0.0
+    avoided = 0
+    for c in scoped:
+        for e in c.events:
+            if (
+                e.cause == CAUSE_TTL_GAP
+                and e.avoidability == AVOIDABLE
+                and e.ttl_s is not None
+                and e.ttl_s <= TTL_5M_S
+                and e.churn_usd is not None
+            ):
+                saved += e.churn_usd
+                avoided += 1
+            elif e.cause == CAUSE_TTL_GAP and e.churn_usd is None:
+                return None
+    net = saved - premium
+    if net <= 0:
+        return None
+    setting, env = SETTING_BY_KIND[kind]
+    return TtlAdvice(
+        scope=kind,
+        setting=setting,
+        env_var=env,
+        value="1h",
+        premium_usd=premium,
+        saved_usd=saved,
+        net_usd=net,
+        events_avoided=avoided,
+        chains=len(scoped),
+        assumptions=_ADVICE_ASSUMPTIONS.format(scope=kind),
+    )
+
+
+def summarise(
+    chains: list[ChainResult],
+    duplicate_turns_dropped: int = 0,
+) -> SessionChurn:
+    """Aggregate chain results: totals per bucket and per scope, avoidable split, TTL advice."""
+    by_bucket = {b: CauseTotals() for b in ALL_BUCKETS}
+    by_kind = {KIND_MAIN: CauseTotals(), KIND_SUBAGENT: CauseTotals()}
+    avoidable = unavoidable = 0.0
+    for c in chains:
+        for e in c.events:
+            for tot in (by_bucket[e.cause], by_kind.setdefault(c.kind, CauseTotals())):
+                tot.events += 1
+                tot.churn_tokens += e.churn_tokens
+                if e.churn_usd is None:
+                    tot.unpriced_events += 1
+                else:
+                    tot.churn_usd += e.churn_usd
+            if e.churn_usd is not None:
+                if e.avoidability == AVOIDABLE:
+                    avoidable += e.churn_usd
+                elif e.avoidability == UNAVOIDABLE:
+                    unavoidable += e.churn_usd
+    advice = [a for a in (_advice_for(k, chains) for k in (KIND_SUBAGENT, KIND_MAIN)) if a]
+    return SessionChurn(
+        chains=chains,
+        by_bucket=by_bucket,
+        by_kind=by_kind,
+        avoidable_usd=avoidable,
+        unavoidable_usd=unavoidable,
+        advice=advice,
+        duplicate_turns_dropped=duplicate_turns_dropped,
+    )
+
+
+def subagent_files(session_path: Path) -> list[Path]:
+    """The session's subagent transcripts (``<sid>/subagents/agent-*.jsonl``), sorted.
+
+    Flat on purpose, exactly like ``tes.adapt.collect_subagent_usage``, so the churn scope and
+    the cost scope are the same set of files (a nested file is in neither).
+    """
+    sub_dir = session_path.with_suffix("") / SUBAGENTS_DIRNAME
+    if not sub_dir.is_dir():
+        return []
+    return sorted(sub_dir.glob("agent-*.jsonl"))
+
+
+def analyze_session(
+    session_path: Path,
+    prices: dict[str, Any] | None = None,
+    params: ChurnParams = DEFAULT_PARAMS,
+) -> SessionChurn:
+    """Cache churn of a session, computed on demand from its source JSONL (nothing stored).
+
+    The main transcript and every subagent transcript are separate chains. A message.id that
+    appears in more than one file of the session is counted once (the main file claims it first).
+    Raises OSError if the main transcript cannot be read; an unreadable subagent file is skipped.
+    """
+    table = RateTable(prices)
+    chains = [
+        read_chain_records(
+            _iter_jsonl(session_path), kind=KIND_MAIN, label="main", skip_sidechain=True
+        )
+    ]
+    for f in subagent_files(session_path):
+        try:
+            chains.append(read_chain_records(_iter_jsonl(f), kind=KIND_SUBAGENT, label=f.stem))
+        except OSError:
+            continue
+    seen: set[str] = set()
+    dropped = sum(drop_seen_turns(c, seen) for c in chains)
+    return summarise([detect_chain(c, table, params) for c in chains], dropped)
+
+
+__all__ = [
+    "ALL_BUCKETS",
+    "AVOIDABLE",
+    "CAUSES",
+    "CacheTurn",
+    "ChainInput",
+    "ChainResult",
+    "ChurnEvent",
+    "ChurnParams",
+    "RateTable",
+    "SessionChurn",
+    "TtlAdvice",
+    "UNAVOIDABLE",
+    "analyze_session",
+    "detect_chain",
+    "read_chain_records",
+    "summarise",
+]
