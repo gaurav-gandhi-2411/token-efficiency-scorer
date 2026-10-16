@@ -27,7 +27,12 @@ Layers (all pure except ``read_chain_records`` / ``analyze_session``):
                          computed on demand from the source JSONL (nothing is stored).
 """
 
+import json
+import re
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from tes._digest import TurnDigest
@@ -253,3 +258,152 @@ class RateTable:
                 )
         self._memo[memo_key] = out
         return out
+
+
+# ---------------------------------------------------------------------------
+# Raw transcript records -> ChainInput
+# ---------------------------------------------------------------------------
+
+
+def _int(value: Any) -> int:
+    """A non-negative int from a usage field; anything unusable is 0."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    return max(0, int(value))
+
+
+def parse_ts(value: Any) -> float | None:
+    """ISO-8601 timestamp -> epoch seconds, or None when absent or malformed."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def read_chain_records(
+    records: Iterable[dict[str, Any]],
+    *,
+    kind: str,
+    label: str,
+    skip_sidechain: bool = False,
+) -> ChainInput:
+    """Normalise one transcript's records into a chain.
+
+    Assistant records sharing a ``message.id`` are one API response (per-field maximum over
+    them, as ``tes.adapt`` does); ``<synthetic>`` records and records without a usage object are
+    not billed requests and are ignored. A main transcript passes ``skip_sidechain=True``
+    (sidechain records belong to subagents, as in ``tes.adapt``). Compaction markers are
+    ``system`` records with subtype ``compact_boundary`` and ``user`` records flagged
+    ``isCompactSummary``.
+    """
+    groups: dict[str, CacheTurn] = {}
+    order: list[CacheTurn] = []
+    marks: list[tuple[int, str]] = []
+    last_user_ts: float | None = None
+    last_user_i: int | None = None
+    for i, rec in enumerate(records):
+        if not isinstance(rec, dict):
+            continue
+        rtype = rec.get("type")
+        if skip_sidechain and rec.get("isSidechain"):
+            continue
+        if rtype == "assistant":
+            msg = rec.get("message")
+            if not isinstance(msg, dict):
+                continue
+            model = msg.get("model")
+            usage = msg.get("usage")
+            if model == "<synthetic>" or not isinstance(usage, dict):
+                continue
+            split = usage.get("cache_creation")
+            split = split if isinstance(split, dict) else {}
+            has_split = any(
+                isinstance(split.get(key), int | float) and not isinstance(split.get(key), bool)
+                for key in ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens")
+            )
+            ts = parse_ts(rec.get("timestamp"))
+            key = str(msg.get("id") or rec.get("requestId") or rec.get("uuid") or f"@{i}")
+            cc = _int(usage.get("cache_creation_input_tokens"))
+            cur = groups.get(key)
+            if cur is None:
+                cur = CacheTurn(
+                    mid=key,
+                    model=str(model or ""),
+                    inp=0,
+                    cc=0,
+                    cr=0,
+                    cc_1h=0,
+                    i_first=i,
+                    i_last=i,
+                    ts_first=ts,
+                    ts_last=ts,
+                    trig_ts=last_user_ts,
+                    trig_i=last_user_i,
+                    has_split=False,
+                )
+                groups[key] = cur
+                order.append(cur)
+            cur.inp = max(cur.inp, _int(usage.get("input_tokens")))
+            cur.cc = max(cur.cc, cc)
+            cur.cr = max(cur.cr, _int(usage.get("cache_read_input_tokens")))
+            cur.cc_1h = max(cur.cc_1h, _int(split.get("ephemeral_1h_input_tokens")))
+            cur.has_split = cur.has_split or has_split
+            cur.i_last = i
+            cur.ts_last = ts if ts is not None else cur.ts_last
+            if usage.get("speed") == "fast":
+                cur.speed = "fast"
+            if usage.get("inference_geo") == "us":
+                cur.geo = "us"
+        elif rtype == "user":
+            ts = parse_ts(rec.get("timestamp"))
+            last_user_ts = ts if ts is not None else last_user_ts
+            last_user_i = i
+            if rec.get("isCompactSummary"):
+                marks.append((i, MARK_COMPACT_SUMMARY))
+        elif rtype == "system" and rec.get("subtype") == "compact_boundary":
+            marks.append((i, MARK_COMPACT_BOUNDARY))
+    for t in order:
+        t.cc_1h = min(t.cc_1h, t.cc)
+    return ChainInput(kind=kind, label=label, turns=order, compact_marks=marks)
+
+
+def drop_seen_turns(chain: ChainInput, seen: set[str]) -> int:
+    """Remove turns whose message.id is already in ``seen`` (claiming new ids); returns removed.
+
+    The same API response can be written to two transcript files (a resumed session copies
+    history); counting it in one chain keeps the session's churn from being counted twice.
+    """
+    kept: list[CacheTurn] = []
+    removed = 0
+    for t in chain.turns:
+        if t.mid in seen:
+            removed += 1
+            continue
+        seen.add(t.mid)
+        kept.append(t)
+    chain.turns = kept
+    return removed
+
+
+# A record the detector can use is one of these three types; every other line (attachments,
+# snapshots, titles, ...) is skipped without being parsed. The match cannot miss a wanted record:
+# its own "type" key appears unescaped in the line, whatever the spacing. A false positive (the
+# text inside a longer line) only costs a parse, and the type is checked again after parsing.
+_WANTED_TYPE = re.compile(r'"type"\s*:\s*"(?:assistant|user|system)"')
+
+
+def _iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
+    """Parsed assistant/user/system object lines of a JSONL file; blank or malformed lines (a
+    live file may end mid-write) are skipped. Positions are only used for ordering."""
+    with path.open(encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if not _WANTED_TYPE.search(line):
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict):
+                yield obj

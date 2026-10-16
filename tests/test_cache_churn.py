@@ -22,7 +22,19 @@ from typing import Any
 import pytest
 from tes import cache_churn as cc
 
+from tests.churn_synth import (
+    T0,
+    asst_rec,
+    compact_boundary,
+    summary_rec,
+    user_rec,
+)
+
 SONNET = "claude-sonnet-5-5"
+
+
+def _chain(recs: list[dict[str, Any]], kind: str = "main", **kw: Any) -> cc.ChainInput:
+    return cc.read_chain_records(recs, kind=kind, label="t", **kw)
 
 
 # ------------------------------------------------------------------ turn values and rates
@@ -72,3 +84,69 @@ def test_unknown_or_blank_model_is_unpriced_not_zero() -> None:
     table = cc.RateTable()
     assert table.rates(_turn("mystery-model-9")) is None
     assert table.rates(_turn("  ")) is None
+
+
+# ------------------------------------------------------------------ parsing / dedupe / hostile
+
+
+def test_records_of_one_message_id_are_one_turn_with_max_usage() -> None:
+    a = asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 1)
+    a2 = asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 1.5)
+    a2["message"]["usage"]["output_tokens"] = 999  # streaming partial: other fields repeat
+    chain = _chain([user_rec(T0), a, a2])
+    assert len(chain.turns) == 1 and chain.turns[0].cc == 1_000
+
+
+def test_cross_file_duplicate_ids_are_counted_once() -> None:
+    main = _chain([user_rec(T0), asst_rec("dup", SONNET, cr=0, cc=9_000, ts=T0 + 1)])
+    sub = _chain(
+        [
+            user_rec(T0),
+            asst_rec("dup", SONNET, cr=0, cc=9_000, ts=T0 + 1),
+            asst_rec("own", SONNET, cr=9_000, cc=10, ts=T0 + 5),
+        ],
+        kind="subagent",
+    )
+    seen: set[str] = set()
+    assert cc.drop_seen_turns(main, seen) == 0
+    assert cc.drop_seen_turns(sub, seen) == 1
+    assert [t.mid for t in sub.turns] == ["own"]
+
+
+def test_parse_ts_accepts_iso_and_rejects_everything_else() -> None:
+    assert cc.parse_ts("2026-01-01T00:00:10Z") - cc.parse_ts("2026-01-01T00:00:00Z") == 10.0
+    for bad in (None, "", "garbage", 12345, ["2026-01-01T00:00:00Z"]):
+        assert cc.parse_ts(bad) is None
+
+
+def test_hostile_records_never_raise_and_only_usage_turns_survive() -> None:
+    hostile: list[Any] = [
+        "not a dict",
+        {"type": "assistant"},
+        {"type": "assistant", "message": "x"},
+        {"type": "assistant", "message": {"id": "u", "model": SONNET}},  # no usage
+        {"type": "assistant", "message": {"id": "v", "model": SONNET, "usage": "bad"}},
+        {
+            "type": "assistant",
+            "timestamp": "garbage",
+            "message": {
+                "id": "w",
+                "model": SONNET,
+                "usage": {"input_tokens": "9", "cache_read_input_tokens": -5, "cache_creation": 3},
+            },
+        },
+        {"type": "user", "timestamp": 12345},
+        {"type": "system"},
+    ]
+    chain = _chain(hostile)
+    assert [t.mid for t in chain.turns] == ["w"]  # the zero-usage turn; the rest is skipped
+    assert chain.turns[0].cr == 0 and chain.turns[0].ts_first is None
+
+
+def test_compaction_markers_are_collected_in_record_order() -> None:
+    chain = _chain([user_rec(T0), compact_boundary(), summary_rec()])
+    assert [kind for _, kind in chain.compact_marks] == [
+        cc.MARK_COMPACT_BOUNDARY,
+        cc.MARK_COMPACT_SUMMARY,
+    ]
+    assert chain.compact_marks[0][0] < chain.compact_marks[1][0]
