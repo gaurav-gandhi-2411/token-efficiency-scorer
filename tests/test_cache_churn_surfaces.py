@@ -198,6 +198,22 @@ def test_ok_and_missing_source_reasons(tmp_path: Path) -> None:
     assert cache_churn_payload_for_path(tmp_path / "nope.jsonl", {})["reason"] == "source_missing"
 
 
+def test_dashboard_helper_reports_internal_error_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tes.web.server import _compute_session_cache_churn
+
+    path = _session(tmp_path, {10: "TTL_GAP"})
+
+    def boom(*_a: Any, **_k: Any) -> None:
+        raise ValueError("bug")
+
+    monkeypatch.setattr(cc, "analyze_session", boom)
+    got = _compute_session_cache_churn({"source_path": str(path)}, {})
+    assert got["status"] == "unavailable" and got["reason"] == "internal_error"
+    assert _compute_session_cache_churn({}, {})["reason"] == "source_missing"
+
+
 def test_payload_lists_at_most_the_largest_events() -> None:
     recs = build_chain(random.Random(9), 120, {3 + 5 * i: "TTL_GAP" for i in range(20)})
     chain = cc.read_chain_records(recs, kind="main", label="main")
