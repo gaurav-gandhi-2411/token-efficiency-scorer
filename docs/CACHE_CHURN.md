@@ -2,11 +2,11 @@
 
 When Claude Code resumes a prompt it normally *reads* the already-cached prefix at a fraction of the
 input price. Sometimes the prefix is not found and the whole thing is *written* again. Those
-re-writes are the "cache churn". `tes score` finds them in a session transcript, says how much more
+re-writes are the "cache churn". `tracegauge score` finds them in a session transcript, says how much more
 they cost than reading would have, and says what the transcript lets it say about why.
 
 Nothing here is stored: the analysis is computed from the session's JSONL (and its `subagents/`
-transcripts) each time you run `tes score` or open the session in the dashboard.
+transcripts) each time you run `tracegauge score` or open the session in the dashboard.
 
 ## What counts as an event
 
@@ -30,7 +30,7 @@ measurement: -2.1% / +0.2% events when all three were made stricter / looser tog
 **Churn tokens** are `min(cache_creation(t), max(0, C(t-1) - cache_read(t)))`: only the part of the
 old prefix that had to be written again, not new conversation content. **Churn dollars** are those
 tokens times (the turn's own blended cache-write rate minus the model's cache-read rate), priced with
-the same price table `tes cost` uses (per-model read multiplier, the 5-minute / 1-hour write tiers,
+the same price table `tracegauge cost` uses (per-model read multiplier, the 5-minute / 1-hour write tiers,
 long-context tiers). A model that is not in the price table is **unpriced**: its events are counted,
 shown as unpriced, and left out of the dollar total, which is then a floor. It is never `$0.00`.
 
@@ -92,12 +92,12 @@ unpublished local measurement; a single user and machine). That is why the advic
 
 ## What the dashboard and JSON show
 
-* `tes score`: a short CACHE CHURN section after the waste section, only when there are events.
-* `tes score --json`: a `cache_churn` object with a fixed key set, see [JSON_OUTPUT.md](JSON_OUTPUT.md).
+* `tracegauge score`: a short CACHE CHURN section after the waste section, only when there are events.
+* `tracegauge score --json`: a `cache_churn` object with a fixed key set, see [JSON_OUTPUT.md](JSON_OUTPUT.md).
 * The dashboard session page: a "Cache churn" card with the totals, the split by cause and by scope
   (main chain vs subagents), the largest events with their two proof turns, and any priced advice. It
   says so when the transcript is not available.
-* `tes cost` is unchanged.
+* `tracegauge cost` is unchanged.
 
 Every event carries its two proof turns (`turn k-1` and `turn k`): `cache_read`, `cache_creation`,
 `cache_creation_1h`, the model, the transcript record position and the API message id, plus the gap in
@@ -124,7 +124,7 @@ seconds and the lifetime used. No transcript text is ever included.
   and never as plausibly avoidable, and no TTL advice is built from it. The dollar figure of such an
   event still prices the re-write at the 5-minute rate, so it is a lower bound if those writes were
   1-hour writes.
-* Subagent transcripts are the files `<session>/subagents/agent-*.jsonl`, the same flat set `tes cost`
+* Subagent transcripts are the files `<session>/subagents/agent-*.jsonl`, the same flat set `tracegauge cost`
   reads; a file nested deeper under `subagents/` is in neither the cost nor the churn figures.
 * A message that appears in two transcript files of one session is counted once.
 * The `/usage` command of Claude Code adds a `Prompt cache (main)` line with the session hit ratio

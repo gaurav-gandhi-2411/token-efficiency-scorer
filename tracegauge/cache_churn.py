@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tracegauge/cache_churn.py -- prompt-cache churn: cache the model had to re-write instead of read.
@@ -202,7 +205,7 @@ class RateTable:
 
     Each rate comes from pricing a one-token probe turn, so the per-model cache-read
     multiplier, the long-context tier (chosen by the turn's prompt size), fast mode and
-    US-only inference are honoured exactly as ``tes cost`` honours them. A model that does not
+    US-only inference are honoured exactly as ``tracegauge cost`` honours them. A model that does not
     resolve against the table is *unpriced* (``rates`` returns None), never priced at a guess.
     """
 
