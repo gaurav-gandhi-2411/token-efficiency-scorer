@@ -2,19 +2,29 @@ from __future__ import annotations
 
 """Build per-type token-efficiency baselines from the local CC session pool.
 
-Reads pool_adapted.jsonl + pool_judge_scores.jsonl, applies the strict gate
-(verdict == "MUCH_BETTER"), excludes armand0e/Kimi sessions (incompatible
-token accounting), and computes per-task-type token distribution percentiles.
+Reads an adapted-session pool (JSONL) and a judge-scores file (JSONL), applies the strict
+gate (verdict == "MUCH_BETTER"), excludes armand0e/Kimi sessions (incompatible token
+accounting), and computes per-task-type token distribution percentiles.
+
+The input paths are explicit arguments: the maintainer's own pool is not in the repository
+(the shipped baseline is the maintainer's unpublished local measurement, see eval/manifest.json
+for the ids and hashes it was built from). The test suite runs this script over the synthetic
+fixtures instead, which is how tests/fixtures/baselines_synthetic.json is produced.
 
 Also runs a Spearman circularity check: tests whether real_tokens is
 correlated with judge_score across all scored sessions.
 
 Usage:
-    python scripts/build_baselines.py
-Output:
-    data/cc_baselines.json
+    python scripts/build_baselines.py --pool POOL.jsonl --judge-scores SCORES.jsonl \
+        --output BASELINES.json [--min-n 10] [--label TEXT]
+
+    # the synthetic baselines used by the tests (min-n 4 because the pool is small):
+    python scripts/build_baselines.py --pool tests/fixtures/synthetic_pool.jsonl \
+        --judge-scores tests/fixtures/synthetic_judge_scores.jsonl \
+        --output tests/fixtures/baselines_synthetic.json --min-n 4 --label synthetic
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -29,14 +39,6 @@ if str(REPO_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from task_classifier import TASK_TYPES, classify_session  # noqa: E402
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-POOL_ADAPTED_PATH = REPO_ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
-JUDGE_SCORES_PATH = REPO_ROOT / "data" / "pool_judge_scores.jsonl"
-BASELINES_OUTPUT_PATH = REPO_ROOT / "data" / "cc_baselines.json"
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -61,7 +63,7 @@ ARMAND_EXCLUDE: frozenset[str] = frozenset(
 
 
 def compute_real_tokens(record: dict) -> int:
-    """Return real_tokens for a pool_adapted session.
+    """Return real_tokens for an adapted pool session.
 
     real_tokens = sum over AI turns of (token_count_input - cache_read) + token_count_output
 
@@ -85,10 +87,10 @@ def compute_real_tokens(record: dict) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _load_pool() -> list[dict]:
-    """Load all records from pool_adapted.jsonl."""
+def _load_pool(path: Path) -> list[dict]:
+    """Load all records from an adapted-session pool JSONL file."""
     records: list[dict] = []
-    with POOL_ADAPTED_PATH.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -96,10 +98,10 @@ def _load_pool() -> list[dict]:
     return records
 
 
-def _load_judge_scores() -> dict[str, dict]:
+def _load_judge_scores(path: Path) -> dict[str, dict]:
     """Load judge scores keyed by session_id."""
     scores: dict[str, dict] = {}
-    with JUDGE_SCORES_PATH.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -129,6 +131,7 @@ def _percentile_at_index(sorted_values: list[int], n: int, fraction: float) -> i
 def _compute_scope_gates(
     baseline_sessions: list[tuple[str, str, int]],
     pool_index: dict[str, dict],
+    min_n: int = MIN_N,
 ) -> dict[str, dict]:
     """Compute p10 turn count per type from baseline sessions."""
     by_type: dict[str, list[int]] = {t: [] for t in TASK_TYPES}
@@ -140,7 +143,7 @@ def _compute_scope_gates(
     for t in TASK_TYPES:
         turn_list = sorted(by_type[t])
         n = len(turn_list)
-        if n >= MIN_N:
+        if n >= min_n:
             p10 = _percentile_at_index(turn_list, n, 0.10)
             gates[t] = {"p10_turns": p10}
         else:
@@ -206,11 +209,14 @@ def circularity_check(
 def build_baselines(
     pool: list[dict],
     judge_scores: dict[str, dict],
+    min_n: int = MIN_N,
+    label: str | None = None,
 ) -> dict:
     """Compute per-type baseline statistics for MUCH_BETTER local sessions.
 
     Excludes ARMAND_EXCLUDE sessions (incompatible token accounting).
-    Types with n < MIN_N get available=False.
+    Types with n < min_n get available=False. A non-empty label is recorded in the output
+    (the synthetic test baselines carry label "synthetic").
     """
     pool_index: dict[str, dict] = {r["session_id"]: r for r in pool}
 
@@ -241,7 +247,7 @@ def build_baselines(
     for task_type in TASK_TYPES:
         token_list = sorted(by_type[task_type])
         n = len(token_list)
-        if n < MIN_N:
+        if n < min_n:
             types_output[task_type] = {"available": False, "n": n}
         else:
             median = _percentile_at_index(token_list, n, 0.5)
@@ -258,7 +264,7 @@ def build_baselines(
     # Circularity check uses ALL scored sessions (full range, no exclusions)
     circ = circularity_check(pool_index, judge_scores)
 
-    scope_gates = _compute_scope_gates(baseline_sessions, pool_index)
+    scope_gates = _compute_scope_gates(baseline_sessions, pool_index, min_n)
 
     result = {
         "generated": GENERATED_DATE,
@@ -275,6 +281,8 @@ def build_baselines(
         "scope_gates": scope_gates,
         "types": types_output,
     }
+    if label:
+        result["label"] = label
     return result
 
 
@@ -327,18 +335,32 @@ def print_summary(baselines: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    """Build baselines and write data/cc_baselines.json."""
-    pool = _load_pool()
-    judge_scores = _load_judge_scores()
-
-    baselines = build_baselines(pool, judge_scores)
-
-    BASELINES_OUTPUT_PATH.write_text(
-        json.dumps(baselines, indent=2),
-        encoding="utf-8",
+def main(argv: list[str] | None = None) -> None:
+    """Build baselines from explicit input paths and write them to --output."""
+    parser = argparse.ArgumentParser(description="Build per-type token-efficiency baselines.")
+    parser.add_argument("--pool", type=Path, required=True, help="adapted-session pool (JSONL)")
+    parser.add_argument(
+        "--judge-scores", type=Path, required=True, help="judge scores keyed by session_id (JSONL)"
     )
-    print(f"Written: {BASELINES_OUTPUT_PATH}")
+    parser.add_argument("--output", type=Path, required=True, help="baselines JSON to write")
+    parser.add_argument(
+        "--min-n",
+        type=int,
+        default=MIN_N,
+        help=f"minimum strict-gate sessions for a type to get a band (default {MIN_N})",
+    )
+    parser.add_argument("--label", default=None, help="free-text label stored in the output")
+    args = parser.parse_args(argv)
+
+    pool = _load_pool(args.pool)
+    judge_scores = _load_judge_scores(args.judge_scores)
+
+    baselines = build_baselines(pool, judge_scores, min_n=args.min_n, label=args.label)
+
+    # LF on every platform, like the committed file
+    with args.output.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(json.dumps(baselines, indent=2) + "\n")
+    print(f"Written: {args.output}")
     print()
     print_summary(baselines)
 
