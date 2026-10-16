@@ -17,9 +17,9 @@ MODEL_B = "claude-opus-5-5"
 
 def iso(epoch: float) -> str:
     """Epoch seconds -> the ISO-8601 'Z' form Claude Code writes."""
-    from datetime import UTC, datetime
+    from datetime import datetime, timezone
 
-    return datetime.fromtimestamp(epoch, tz=UTC).isoformat().replace("+00:00", "Z")
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def user_rec(ts: float | None) -> dict[str, Any]:
