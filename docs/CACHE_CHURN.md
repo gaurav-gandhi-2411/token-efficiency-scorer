@@ -57,8 +57,8 @@ has no turn with the split at all, the lifetime is unknown (see Limits). A gap i
 it (`TTL_GRACE_S` in `tes/cache_churn.py` can add a margin; the default is 0, the documented
 boundary). Transcript timestamps are when records were written, not when requests arrived, so the
 5-minute edge is blurred over roughly 300 to 360 seconds: on the maintainer's snapshot a 30 s grace
-would move 18 of 918 `TTL_GAP` events (about $9 of $584) to `UNEXPLAINED` (the maintainer's
-unpublished local measurement).
+would move some `TTL_GAP` events with a gap in (300, 330] s to `UNEXPLAINED` (the maintainer's
+unpublished local measurement; the count is not stated here).
 
 ## Avoidable or not (a judgement)
 
@@ -75,7 +75,7 @@ measurement, and the output says so:
 Claude Code's documentation names the controls for the cache lifetime: `promptCacheTtl` /
 `CLAUDE_CODE_PROMPT_CACHE_TTL` for the main conversation and `subagentPromptCacheTtl` /
 `CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL` for everything else (subagents, compaction, forks), each `5m`
-or `1h`, in Claude Code 2.1.242 and later (same page, retrieved 2026-10-10). A 1-hour lifetime is not free: 1-hour writes cost 2.0x the
+or `1h`, in Claude Code 2.1.242 and later (same page, retrieved from the vendor documentation; the exact retrieval date is not recorded). A 1-hour lifetime is not free: 1-hour writes cost 2.0x the
 input price instead of 1.25x.
 
 So tracegauge never prints a generic "use 1h". For each session it prices the counterfactual:
@@ -130,7 +130,8 @@ seconds and the lifetime used. No transcript text is ever included.
 * The `/usage` command of Claude Code adds a `Prompt cache (main)` line with the session hit ratio
   and miss count, and that line names a `likely cause` for the last miss when Claude Code can
   identify one (the likely-cause text needs Claude Code v2.1.260 or later; source: [How Claude Code
-  uses prompt caching](https://code.claude.com/docs/en/prompt-caching.md), retrieved 2026-10-10).
+  uses prompt caching](https://code.claude.com/docs/en/prompt-caching.md), retrieved from the vendor documentation; the exact retrieval date is not
+  recorded).
   It covers the last miss of the main conversation. tracegauge works from the transcript instead
   and adds the history across sessions, dollars per session, subagent chains and the priced
   break-even above.
@@ -151,13 +152,16 @@ repository, each is a single run, and the second corpus is public transcripts fr
 developers' sessions, not a controlled experiment.
 
 No mechanism was identified for the larger residual. The best candidate, a human prompt arriving
-inside the cache lifetime, only describes *when* the loss happens: it covers 77% of those events,
-but only about 5% of the inside-lifetime pairs with a human prompt are events, and no documented
+inside the cache lifetime, only describes *when* the loss happens: it covers 77% of those events
+(the maintainer's unpublished local measurement), but only about 5% (the maintainer's unpublished
+local measurement) of the inside-lifetime pairs with a human prompt are events, and no documented
 mechanism says why a human prompt would lose the prefix. Eleven invalidators that are visible in a
 transcript (permission or plan mode change, thinking setting change, Claude Code version change,
 microcompact, image in the prompt, history branch, working directory or git branch change, API
-error, local command, many new content blocks, model change) together explain only 34% of the
-events. Transcripts hold usage counters, not requests: the system prompt, tool list, cache
+error, local command, many new content blocks, model change) together explain only 34% of the 449 `UNEXPLAINED` events (153 of 449; the
+maintainer's unpublished local measurement). The model-change check is one of the eleven but cannot
+be an `UNEXPLAINED` event by construction, so the union covers ten invalidators within
+`UNEXPLAINED`. Transcripts hold usage counters, not requests: the system prompt, tool list, cache
 breakpoints and routing are not in them, so the transcript cannot settle the question.
 
 The shipped detector therefore labels every such event `UNEXPLAINED`, prices it, and never asserts a
