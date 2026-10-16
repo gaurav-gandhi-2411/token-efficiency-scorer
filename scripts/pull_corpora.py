@@ -16,6 +16,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -505,6 +506,52 @@ def _print_summary(sources: list[SourceStats], pool_size: int) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run git in ``cwd``; the caller reads returncode/stdout."""
+    return subprocess.run(  # noqa: S603 - fixed argv, no shell
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=False
+    )
+
+
+def check_output_path(output: Path) -> Path:
+    """Return the resolved output path, or raise ValueError if writing there is unsafe.
+
+    The pool holds records derived from real sessions, so it must never land in a path git
+    tracks (it would be committed and pushed) or in a path inside a repo that is not ignored
+    (one ``git add`` away from it). The path is resolved first (``..`` and symlinks followed) so
+    the check applies to the file that would really be written, not to how it was spelled. A path
+    outside any git work tree is allowed. If git cannot answer, the write is refused.
+    """
+    resolved = output.expanduser().resolve()
+    probe = resolved.parent
+    while not probe.exists():
+        probe = probe.parent
+    try:
+        top = _git(probe, "rev-parse", "--show-toplevel")
+    except OSError as exc:
+        raise ValueError(
+            f"cannot verify {resolved} is untracked (git not runnable: {exc})"
+        ) from exc
+    if top.returncode != 0:
+        if "not a git repository" in top.stderr.lower():
+            return resolved  # outside any work tree: nothing git could commit
+        raise ValueError(f"cannot verify {resolved} is untracked: {top.stderr.strip()}")
+    repo = Path(top.stdout.strip())
+    rel = resolved.relative_to(repo.resolve()).as_posix()
+    if _git(repo, "ls-files", "--error-unmatch", "--", rel).returncode == 0:
+        raise ValueError(
+            f"{resolved} is tracked by git; refusing to overwrite it with session-derived "
+            "records. Pass --output with a path under data/corpus_pool/ or outside the repo."
+        )
+    if _git(repo, "check-ignore", "-q", "--", rel).returncode != 0:
+        raise ValueError(
+            f"{resolved} is inside the repo but not git-ignored, so the pool could be committed. "
+            "Pass --output with a path under data/corpus_pool/ (ignored) or outside the repo, "
+            "or add the path to .gitignore."
+        )
+    return resolved
+
+
 def _parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -544,6 +591,13 @@ def main() -> None:
     dry_run: bool = args.dry_run
     limit: int | None = args.limit
     skip_public: bool = args.skip_public
+
+    # Fail before the slow pull, not after it, and before anything is created on disk.
+    if not dry_run:
+        try:
+            output_path = check_output_path(output_path)
+        except ValueError as exc:
+            sys.exit(f"[pull_corpora] refusing to write output: {exc}")
 
     seen_ids: set[str] = set()
     all_records: list[dict[str, Any]] = []
