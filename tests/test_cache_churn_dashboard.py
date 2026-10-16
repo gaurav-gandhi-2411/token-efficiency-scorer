@@ -24,8 +24,8 @@ def _write(path: Path, recs: list[dict[str, Any]]) -> Path:
 
 
 def _score(monkeypatch: pytest.MonkeyPatch, db: Path, path: Path) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(db))
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(path), "--no-judge"])
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(path), "--no-judge"])
     try:
         cli.main()
     except SystemExit as exc:
