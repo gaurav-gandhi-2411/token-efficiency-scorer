@@ -27,6 +27,7 @@ Layers (all pure except ``read_chain_records`` / ``analyze_session``):
                          computed on demand from the source JSONL (nothing is stored).
 """
 
+import bisect
 import json
 import re
 from collections.abc import Iterable, Iterator
@@ -258,6 +259,235 @@ class RateTable:
                 )
         self._memo[memo_key] = out
         return out
+
+
+# ---------------------------------------------------------------------------
+# Events
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ProofTurn:
+    """The numbers of one of the two turns that prove an event (no transcript text)."""
+
+    turn_index: int
+    record_index: int
+    message_id: str
+    model: str
+    cache_read: int
+    cache_creation: int
+    cache_creation_1h: int
+
+
+@dataclass
+class ChurnEvent:
+    """One cache-churn event with its proof turns (k-1, k), tokens and dollars."""
+
+    chain_kind: str
+    chain_label: str
+    cause: str
+    prev: ProofTurn
+    cur: ProofTurn
+    gap_s: float | None
+    #: None = the cache tier could not be inferred (no turn of the chain has the 5m/1h split).
+    ttl_s: float | None
+    marker_index: int | None
+    churn_tokens: int
+    #: None = the turn's model is not in the price table (unpriced), never 0.0.
+    churn_usd: float | None
+    avoidability: str
+    #: Why the event is what it is when that needs saying (empty otherwise).
+    note: str = ""
+
+
+@dataclass
+class ChainResult:
+    """Events of one chain plus what a longer TTL would add to its cache-write bill."""
+
+    kind: str
+    label: str
+    n_turns: int
+    events: list[ChurnEvent]
+    #: tokens written at the 5-minute tier across the chain (writes of unspecified tier are NOT
+    #: included: they are in ``unsplit_write_tokens``).
+    write_5m_tokens: int
+    #: USD to reprice those writes at the 1-hour rate; None when any such turn is unpriced.
+    premium_1h_usd: float | None
+    unpriced_write_turns: int
+    #: cache-write tokens of turns without the 5m/1h split (tier unknown), excluded from the
+    #: 5-minute premium and from the TTL inference.
+    unsplit_write_tokens: int = 0
+
+
+def _tier_ttl(one_hour: bool | None) -> float | None:
+    """TTL of a tier; None when the tier is unknown."""
+    if one_hour is None:
+        return None
+    return TTL_1H_S if one_hour else TTL_5M_S
+
+
+def _writes_one_hour(t: CacheTurn) -> bool:
+    return t.cc_1h >= ONE_HOUR_TIER_SHARE * t.cc
+
+
+def _proof(k: int, t: CacheTurn) -> ProofTurn:
+    return ProofTurn(k, t.i_first, t.mid, t.model, t.cr, t.cc, t.cc_1h)
+
+
+def _starts(turns: list[CacheTurn]) -> list[float | None]:
+    """Request start per turn: the trigger (user/tool_result) timestamp, else the record's own.
+
+    Start-to-start gaps are what the TTL clock measures (a request refreshes the entry when it
+    arrives). The trigger is only used when it lies after the previous turn's first record, so a
+    stale user record is never reused for two turns.
+    """
+    out: list[float | None] = []
+    for k, t in enumerate(turns):
+        use_trig = t.trig_ts is not None and (
+            k == 0 or (t.trig_i is not None and t.trig_i > turns[k - 1].i_first)
+        )
+        out.append(t.trig_ts if use_trig else t.ts_first)
+    return out
+
+
+def _classify_avoidability(cause: str, gap_s: float | None, ttl_s: float | None) -> str:
+    if cause == CAUSE_MODEL_SWITCH:
+        return AVOIDABLE
+    if cause == CAUSE_COMPACTION:
+        return UNAVOIDABLE
+    if cause == CAUSE_TTL_GAP and gap_s is not None and ttl_s is not None:
+        if gap_s > AVOIDABLE_MAX_GAP_S:
+            return UNAVOIDABLE
+        if ttl_s <= TTL_5M_S:
+            return AVOIDABLE
+        # Unreachable with a 3600 s TTL and no negative grace (a gap over the 1-hour TTL is over
+        # AVOIDABLE_MAX_GAP_S), kept so a changed constant fails safe rather than overclaims.
+        return UNKNOWN
+    return UNKNOWN
+
+
+def detect_chain(
+    chain: ChainInput,
+    rates: RateTable,
+    params: ChurnParams = DEFAULT_PARAMS,
+) -> ChainResult:
+    """Find the churn events of one chain. Pure: no I/O, deterministic.
+
+    Event(t), t >= 1, iff all hold: ``C_{t-1} >= min_prefix_tokens`` (C = cr + cc);
+    ``cr_{t-1} > 0`` and ``cr_t < read_drop_ratio * cr_{t-1}``; ``cc_t > rewrite_share * P_t``.
+    Turn 0 has no predecessor in its own lineage and is never an event. Churn tokens are
+    ``min(cc_t, max(0, C_{t-1} - cr_t))`` (growth of the prefix is excluded by construction) and
+    churn dollars are those tokens times (the turn's blended write rate - the model's read rate).
+    """
+    turns = chain.turns
+    mark_pos = [m[0] for m in chain.compact_marks]
+    starts = _starts(turns)
+    events: list[ChurnEvent] = []
+    # Tier in force: the most recent earlier turn that wrote cache AND has the 5m/1h split; when
+    # none exists yet, the first later such turn of the chain; None when the chain has no split.
+    split_writers = [t for t in turns if t.cc > 0 and t.has_split]
+    first_split_tier = _writes_one_hour(split_writers[0]) if split_writers else None
+    last_1h: bool | None = first_split_tier
+    w5_tokens = 0
+    unsplit_tokens = 0
+    premium = 0.0
+    unpriced_write_turns = 0
+
+    for k, t in enumerate(turns):
+        unsplit_tokens += t.unsplit_cc
+        c5 = (t.cc - t.cc_1h) if t.has_split else 0
+        if c5 > 0:
+            w5_tokens += c5
+            r = rates.rates(t)
+            if r is None:
+                unpriced_write_turns += 1
+            else:
+                premium += c5 * (r.w1 - r.w5)
+        if k > 0:
+            p = turns[k - 1]
+            prev_prefix = p.cr + p.cc
+            prompt = t.prompt
+            is_event = (
+                prev_prefix >= params.min_prefix_tokens
+                and prompt > 0
+                and p.cr > 0
+                and t.cr < params.read_drop_ratio * p.cr
+                and t.cc > params.rewrite_share * prompt
+            )
+            if is_event:
+                events.append(
+                    _make_event(
+                        chain, k, p, t, starts, mark_pos, last_1h, prev_prefix, rates, params
+                    )
+                )
+        if t.cc > 0 and t.has_split:
+            last_1h = _writes_one_hour(t)
+
+    return ChainResult(
+        kind=chain.kind,
+        label=chain.label,
+        n_turns=len(turns),
+        events=events,
+        write_5m_tokens=w5_tokens,
+        premium_1h_usd=None if unpriced_write_turns else premium,
+        unpriced_write_turns=unpriced_write_turns,
+        unsplit_write_tokens=unsplit_tokens,
+    )
+
+
+def _make_event(
+    chain: ChainInput,
+    k: int,
+    p: CacheTurn,
+    t: CacheTurn,
+    starts: list[float | None],
+    mark_pos: list[int],
+    last_1h: bool | None,
+    prev_prefix: int,
+    rates: RateTable,
+    params: ChurnParams,
+) -> ChurnEvent:
+    lo = bisect.bisect_right(mark_pos, p.i_last)
+    hi = bisect.bisect_left(mark_pos, t.i_first)
+    marker = mark_pos[lo] if lo < hi else None
+    s_t, s_p = starts[k], starts[k - 1]
+    gap = (s_t - s_p) if (s_t is not None and s_p is not None) else None
+    ttl = _tier_ttl(last_1h)
+    note = ""
+
+    if marker is not None:
+        cause = CAUSE_COMPACTION
+    elif t.model != p.model:
+        cause = CAUSE_MODEL_SWITCH
+    elif ttl is None:
+        cause = CAUSE_UNEXPLAINED
+        if gap is not None and gap > TTL_5M_S + params.ttl_grace_s:
+            note = UNKNOWN_TIER_NOTE
+    elif gap is not None and gap > ttl + params.ttl_grace_s:
+        cause = CAUSE_TTL_GAP
+    else:
+        cause = CAUSE_UNEXPLAINED
+
+    churn_tokens = min(t.cc, max(0, prev_prefix - t.cr))
+    r = rates.rates(t)
+    usd: float | None = None
+    if r is not None:
+        blended = ((t.cc - t.cc_1h) * r.w5 + t.cc_1h * r.w1) / t.cc if t.cc else r.w5
+        usd = churn_tokens * max(0.0, blended - r.rd)
+    return ChurnEvent(
+        chain_kind=chain.kind,
+        chain_label=chain.label,
+        cause=cause,
+        prev=_proof(k - 1, p),
+        cur=_proof(k, t),
+        gap_s=gap,
+        ttl_s=ttl,
+        marker_index=marker,
+        churn_tokens=churn_tokens,
+        churn_usd=usd,
+        avoidability=_classify_avoidability(cause, gap, ttl),
+        note=note,
+    )
 
 
 # ---------------------------------------------------------------------------
