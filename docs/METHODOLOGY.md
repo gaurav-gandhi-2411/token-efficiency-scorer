@@ -138,7 +138,7 @@ tracegauge cost --since YYYY-MM-DD      # from this date through now
 
 Total spend, session count, and a per-project breakdown for a period — distinct from `tracegauge budget`'s rolling self-trend *projection* (where your pace is heading); `tracegauge cost` reports what you actually spent. `--week`/`--month` are rolling N-day windows ending now, not calendar-aligned (a calendar week/month needs a timezone and first-day-of-week convention this tool has no basis to guess).
 
-> **About the examples.** The output blocks in this document are the real output of this version (0.15.0) on **synthetic sessions**: invented transcripts with a frozen clock, produced by [`scripts/gen_readme_examples.py`](../scripts/gen_readme_examples.py) and pinned by `tests/test_readme_examples.py`, so they cannot drift from the code. No real session content appears in them. Rows stored by 0.14 and earlier are left out of `tracegauge cost` totals and reported on a separate line; see [docs/UPGRADING.md](UPGRADING.md).
+> **About the examples.** The output blocks in this document are the real output of this version (0.16.0) on **synthetic sessions**: invented transcripts with a frozen clock, produced by [`scripts/gen_readme_examples.py`](../scripts/gen_readme_examples.py) and pinned by `tests/test_readme_examples.py`, so they cannot drift from the code. No real session content appears in them. Rows stored by 0.14 and earlier are left out of `tracegauge cost` totals and reported on a separate line; see [docs/UPGRADING.md](UPGRADING.md).
 
 Real output on four synthetic sessions across two projects (one older than the 7-day window):
 
@@ -194,7 +194,7 @@ Priced coverage: 50% of sessions, 50% of tokens
 
 ### Unpriced coverage
 
-Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known. A session with any turn of an unpriced model counts as unpriced in full (the store has no per-model token split), so the token figure is an upper bound on the unpriced tokens, and such a session shows `unpriced (<model>)` instead of `$0.00`. Real output of the 0.15.0 build on two synthetic sessions, one priced and one using a model that is not in the price table:
+Shown automatically whenever coverage is below 100% — never hidden behind a flag, since an incomplete total should always be visible as incomplete. Reports what fraction of the period's *sessions* and *tokens* are actually priced (two different denominators — a handful of huge unpriced sessions can dominate the token figure while barely moving the session count), and names the specific unresolved model string(s) when known. A session with any turn of an unpriced model counts as unpriced in full (the store has no per-model token split), so the token figure is an upper bound on the unpriced tokens, and such a session shows `unpriced (<model>)` instead of `$0.00`. Real output of the 0.16.0 build on two synthetic sessions, one priced and one using a model that is not in the price table:
 
 ```text
 ──────────────────────────────────────────────────────────────────────
