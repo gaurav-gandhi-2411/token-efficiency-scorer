@@ -200,6 +200,73 @@
   {% endif %}
 </div>
 
+{# ── Cache churn ─────────────────────────────────────────────────── #}
+{# States: unavailable (no transcript / unreadable), empty (analysed, 0 events), populated. There is
+   no loading state: like the attribution above, it is computed in the request, not fetched later. #}
+{% if cache_churn %}
+<div class="card" id="cache-churn">
+  <div class="card-title">Cache churn <span class="badge badge-unavailable">informational: cache re-written instead of read</span></div>
+  {% if cache_churn.status != "ok" %}
+  <span class="badge badge-unavailable">UNAVAILABLE</span>
+  <p style="margin-top:0.5rem; font-size:0.875rem; color:var(--graphite);">
+    Source file not accessible &mdash; cache churn is computed from the original JSONL log (nothing is stored).
+  </p>
+  {% elif cache_churn.events == 0 %}
+  <p style="font-size:0.9rem;">No cache churn detected: 0 events in {{ cache_churn.by_scope.main.chains + cache_churn.by_scope.subagent.chains }} transcript chain(s).</p>
+  {% else %}
+  <p style="font-size:0.9rem; margin-top:0;">
+    <strong>{{ cache_churn.events }}</strong> event(s) re-wrote cached context: <strong>${{ "%.2f"|format(cache_churn.churn_usd) }}</strong>
+    more than reading it would have cost{% if not cache_churn.priced %} <span class="cost-approx">(priced part only: {{ cache_churn.unpriced_events }} unpriced event(s) excluded)</span>{% endif %}.
+    Main chain ${{ "%.2f"|format(cache_churn.by_scope.main.churn_usd) }} ({{ cache_churn.by_scope.main.events }}),
+    subagents ${{ "%.2f"|format(cache_churn.by_scope.subagent.churn_usd) }} ({{ cache_churn.by_scope.subagent.events }}).
+  </p>
+  <table style="width:auto;">
+    <thead><tr><th>Cause</th><th style="text-align:right;">Events</th><th style="text-align:right;">Cost</th></tr></thead>
+    <tbody>
+    {% for key, label in [("TTL_GAP", "TTL gap (idle past the cache lifetime)"), ("MODEL_SWITCH", "Model switch"), ("COMPACTION", "Compaction"), ("UNEXPLAINED", "Unexplained (no cause claimed)")] %}
+      {% set b = cache_churn.by_cause[key] %}
+      {% if b.events %}
+      <tr><td>{{ label }}</td><td style="text-align:right;">{{ b.events }}</td>
+          <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.2f"|format(b.churn_usd) }}{% if b.unpriced_events %} <span class="cost-approx">+{{ b.unpriced_events }} unpriced</span>{% endif %}</td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-faint" style="font-size:0.78rem; margin-top:0.5rem;">
+    Plausibly avoidable (a judgement): ${{ "%.2f"|format(cache_churn.avoidable_usd) }} &middot;
+    not avoidable by a setting (idle over an hour, compaction): ${{ "%.2f"|format(cache_churn.unavoidable_usd) }}.
+  </p>
+  <div class="section-label" style="margin-top:1rem;">Largest events (proof turns)</div>
+  <table>
+    <thead><tr><th>Where</th><th>Turns</th><th>Cause</th><th style="text-align:right;">Gap / TTL</th>
+      <th style="text-align:right;">Read before &rarr; after</th><th style="text-align:right;">Written</th><th style="text-align:right;">Cost</th></tr></thead>
+    <tbody>
+    {% for e in cache_churn.events_listed %}
+      <tr>
+        <td>{{ "main" if e.scope == "main" else "subagent " ~ e.chain }}</td>
+        <td class="mono">{{ e.previous_turn.turn_index }}&rarr;{{ e.current_turn.turn_index }}</td>
+        <td>{{ e.cause }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if e.gap_s is not none %}{{ "{:,.0f}".format(e.gap_s) }}s / {% if e.ttl_s is not none %}{{ "{:,.0f}".format(e.ttl_s) }}s{% else %}unknown{% endif %}{% else %}n/a{% endif %}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(e.previous_turn.cache_read) }} &rarr; {{ "{:,}".format(e.current_turn.cache_read) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(e.churn_tokens) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if e.priced %}${{ "%.2f"|format(e.churn_usd) }}{% else %}unpriced{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if cache_churn.events > cache_churn.events_listed|length %}
+  <p class="text-faint" style="font-size:0.78rem;">Showing the {{ cache_churn.events_listed|length }} largest of {{ cache_churn.events }}.</p>
+  {% endif %}
+  {% for a in cache_churn.advice %}
+  <div class="takeaway">Priced for this session: setting <code>{{ a.setting }}</code>=1h (env <code>{{ a.env_var }}</code>) would save about
+    ${{ "%.2f"|format(a.net_usd) }} net (${{ "%.2f"|format(a.saved_usd) }} of avoided re-writes minus ${{ "%.2f"|format(a.premium_usd) }}
+    higher write rate on {{ a.scope }} chains). {{ a.assumptions }}</div>
+  {% endfor %}
+  <div class="caveat">{{ cache_churn.judgement_note }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
 {# ── Token Economy ───────────────────────────────────────────────── #}
 <div class="section">
   <div class="card">
