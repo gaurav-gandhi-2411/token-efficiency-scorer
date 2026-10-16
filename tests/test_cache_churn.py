@@ -26,11 +26,15 @@ import pytest
 from tes import cache_churn as cc
 
 from tests.churn_synth import (
+    HARD_READ_ABOVE,
+    HARD_READ_BELOW,
+    HARD_SMEAR_GAP,
     MODEL_A,
     MODEL_B,
     T0,
     asst_rec,
     build_chain,
+    build_hard_chain,
     clean_chain,
     compact_boundary,
     summary_rec,
@@ -646,3 +650,131 @@ def test_committed_fixture_events() -> None:
     causes = [e.cause for e in res.events]
     assert causes == [cc.CAUSE_TTL_GAP, cc.CAUSE_MODEL_SWITCH, cc.CAUSE_COMPACTION]
     assert [e.cur.turn_index for e in res.events] == [4, 8, 12]
+
+
+# ------------------------------------------------------------------ unsplit (tier unknown) writes
+
+
+def _unsplit_pair(gap: float, *, split_first: bool = False) -> list[dict[str, Any]]:
+    """Two turns like ``_pair`` (prefix lost on the second) with no 5m/1h split on the writes."""
+    return [
+        user_rec(T0),
+        asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 2, split=split_first),
+        user_rec(T0 + gap),
+        asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + gap + 2, split=False),
+    ]
+
+
+def test_chain_without_any_split_has_unknown_tier_and_no_avoidable_gap() -> None:
+    res = _detect(_unsplit_pair(1_800.0))
+    (e,) = res.events
+    assert e.cause == cc.CAUSE_UNEXPLAINED and e.avoidability == cc.UNKNOWN
+    assert e.ttl_s is None and e.note == cc.UNKNOWN_TIER_NOTE
+    assert res.write_5m_tokens == 0 and res.premium_1h_usd == 0.0
+    assert res.unsplit_write_tokens == 91_000
+
+
+def test_unknown_tier_short_gap_has_no_note() -> None:
+    (e,) = _detect(_unsplit_pair(100.0)).events
+    assert e.cause == cc.CAUSE_UNEXPLAINED and e.ttl_s is None and e.note == ""
+
+
+def test_unsplit_chain_gives_no_ttl_advice_and_reports_tokens(tmp_path: Path) -> None:
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, _unsplit_pair(1_800.0))
+    s = cc.analyze_session(p)
+    assert s.advice == [] and s.avoidable_usd == 0.0
+    assert s.unsplit_write_tokens == 91_000
+
+
+def test_mixed_chain_takes_tier_from_turns_that_have_the_split() -> None:
+    recs = [
+        user_rec(T0),
+        asst_rec("a", SONNET, cr=0, cc=50_000, cc_1h=50_000, ts=T0 + 1),  # split: 1h
+        user_rec(T0 + 30),
+        asst_rec("b", SONNET, cr=50_000, cc=49_000, ts=T0 + 31, split=False),  # unsplit
+        user_rec(T0 + 60),
+        asst_rec("c", SONNET, cr=99_000, cc=1_000, ts=T0 + 61, split=False),
+        user_rec(T0 + 60 + 1_800),
+        asst_rec("d", SONNET, cr=2_000, cc=98_000, ts=T0 + 1_862, split=False),
+    ]
+    res = _detect(recs)
+    (e,) = res.events
+    # the tier is 1h (from turn a, the only turn with a split), so 1,800 s is inside the lifetime
+    assert e.ttl_s == 3_600.0 and e.cause == cc.CAUSE_UNEXPLAINED and e.note == ""
+    assert res.write_5m_tokens == 0 and res.unsplit_write_tokens == 49_000 + 1_000 + 98_000
+
+
+def test_mixed_chain_five_minute_split_still_makes_a_gap_avoidable() -> None:
+    recs = _unsplit_pair(1_800.0, split_first=True)
+    (e,) = _detect(recs).events
+    assert e.ttl_s == 300.0 and e.cause == cc.CAUSE_TTL_GAP and e.avoidability == cc.AVOIDABLE
+
+
+def test_empty_split_dict_is_not_a_split() -> None:
+    rec = asst_rec("a", SONNET, cr=0, cc=10, ts=T0)
+    rec["message"]["usage"]["cache_creation"] = {}
+    (t,) = _chain([rec]).turns
+    assert t.has_split is False and t.unsplit_cc == 10
+
+
+def test_nested_subagent_file_is_ignored_by_churn_and_by_cost_scope(tmp_path: Path) -> None:
+    from tes.adapt import collect_subagent_usage
+
+    rng = random.Random(3)
+    main_p = tmp_path / "proj" / "s.jsonl"
+    _write(main_p, build_chain(rng, 6, {}, prefix="main"))
+    subs = main_p.with_suffix("") / "subagents"
+    _write(subs / "agent-flat.jsonl", build_chain(rng, 10, {5: "TTL_GAP"}, prefix="flat"))
+    _write(subs / "deeper" / "agent-nested.jsonl", build_chain(rng, 10, {5: "TTL_GAP"}, prefix="n"))
+    assert [f.name for f in cc.subagent_files(main_p)] == ["agent-flat.jsonl"]
+    s = cc.analyze_session(main_p)
+    assert len(s.chains) == 2 and s.by_kind["subagent"].events == 1
+    usage = collect_subagent_usage(main_p)
+    assert usage is not None and usage["file_count"] == 1  # the cost scope sees the same one file
+
+
+# ------------------------------------------------------------------ harder synthetic cases
+
+
+def _hard_stats(mode: str, params: cc.ChurnParams = cc.DEFAULT_PARAMS) -> dict[str, Any]:
+    """Detector behaviour on 60 seeded chains with 4 borderline cases each (240 per mode)."""
+    rng = random.Random(42)
+    table = cc.RateTable()
+    injected = detected = elsewhere = 0
+    causes: dict[str, int] = {}
+    for n in range(60):
+        n_turns = rng.randint(40, 90)
+        pos = sorted(rng.sample(range(2, n_turns - 1, 3), 4))
+        recs = build_hard_chain(rng, n_turns, pos, mode, prefix=f"c{n}_")
+        res = cc.detect_chain(_chain(recs), table, params)
+        found = {e.cur.turn_index: e for e in res.events}
+        injected += len(pos)
+        elsewhere += sum(1 for k in found if k not in pos)
+        for p in pos:
+            if p in found:
+                detected += 1
+                causes[found[p].cause] = causes.get(found[p].cause, 0) + 1
+    return {"n": injected, "detected": detected, "causes": causes, "elsewhere": elsewhere}
+
+
+def test_harder_synthetic_cases_observed_behaviour() -> None:
+    """Observations, not a pass bar: the numbers below are what the code does, recorded so a
+    change in behaviour on borderline cases is visible. Thresholds were not tuned to them."""
+    smear = _hard_stats(HARD_SMEAR_GAP)
+    # every gap in 300-360 s is strictly over the 300 s TTL, so with no grace all are TTL_GAP
+    assert smear["detected"] == smear["n"] == 240
+    assert smear["causes"] == {cc.CAUSE_TTL_GAP: 240} and smear["elsewhere"] == 0
+    graced = _hard_stats(HARD_SMEAR_GAP, cc.ChurnParams(ttl_grace_s=30.0))
+    # a 30 s grace moves the gaps in (300, 330] to UNEXPLAINED: about half of this zone
+    assert graced["detected"] == 240
+    assert graced["causes"] == {cc.CAUSE_TTL_GAP: 118, cc.CAUSE_UNEXPLAINED: 122}
+
+    below = _hard_stats(HARD_READ_BELOW)
+    # read kept at 0.40-0.499 of the previous read: an event (below R = 0.5), but no cause marker
+    assert below["detected"] == below["n"] == 240
+    assert below["causes"] == {cc.CAUSE_UNEXPLAINED: 240} and below["elsewhere"] == 0
+
+    above = _hard_stats(HARD_READ_ABOVE)
+    # read kept at 0.50-0.60: not an event (a partial loss the definition does not count)
+    assert above["detected"] == 0 and above["elsewhere"] == 0
