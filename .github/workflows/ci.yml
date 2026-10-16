@@ -250,3 +250,55 @@ jobs:
             echo "check_readme_pypi.py accepted a README with dead links"
             exit 1
           fi
+
+  # Secret scan (maintainer rule: a key that reaches a commit costs a history rewrite plus a
+  # rotation, so fail the PR that adds it). Runs the same .gitleaks.toml as the pre-commit hook.
+  # Deliberately NOT gitleaks/gitleaks-action: it needs a paid licence for organisations and runs
+  # third-party code with the job's token. Instead the pinned release tarball is downloaded and
+  # its sha256 checked against the value from that release's gitleaks_8.30.1_checksums.txt.
+  # Bumping GITLEAKS_VERSION means bumping GITLEAKS_SHA256 from the new checksums file in the
+  # same edit (the check below fails loudly if they disagree).
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks (pinned, sha256-verified)
+        run: |
+          curl -sSfL -o gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf gitleaks.tgz -C "$RUNNER_TEMP/gitleaks-bin" gitleaks
+          echo "$RUNNER_TEMP/gitleaks-bin" >> "$GITHUB_PATH"
+
+      # --redact=100 so a real hit never prints the secret into a public CI log.
+      - name: Scan the PR's commits
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: gitleaks git --config .gitleaks.toml --redact=100 --verbose --log-opts="origin/${BASE_REF}..HEAD"
+
+      - name: Scan the full history
+        if: github.event_name != 'pull_request'
+        run: gitleaks git --config .gitleaks.toml --redact=100 --verbose --log-opts=--all
+
+      # Proves the scan can still fail: a config that quietly allowlisted everything would keep
+      # this job green forever. The key below is assembled at run time so this file itself does
+      # not contain a secret-shaped literal.
+      - name: The scan still rejects a planted key
+        run: |
+          mkdir -p "$RUNNER_TEMP/planted"
+          printf 'aws_access_key_id = "%s%s"\n' AKIA XJ4KQ7MZ2PL5WB3R > "$RUNNER_TEMP/planted/creds.txt"
+          if gitleaks dir --config .gitleaks.toml --redact=100 --no-banner "$RUNNER_TEMP/planted"; then
+            echo "gitleaks accepted a planted AWS key"
+            exit 1
+          fi
