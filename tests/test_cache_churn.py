@@ -26,10 +26,12 @@ import pytest
 from tes import cache_churn as cc
 
 from tests.churn_synth import (
+    MODEL_A,
     MODEL_B,
     T0,
     asst_rec,
     build_chain,
+    clean_chain,
     compact_boundary,
     summary_rec,
     user_rec,
@@ -247,6 +249,60 @@ def test_unexplained_is_never_given_a_cause() -> None:
     assert cc.CAUSE_UNEXPLAINED not in cc.CAUSES  # not a shipped cause
 
 
+# ------------------------------------------------------------------ pricing
+
+
+def test_churn_tokens_and_usd_hand_computed() -> None:
+    # C_prev = 100,000; cr_t = 10,000; cc_t = 90,000 (5m). churn_tokens = min(90,000, 90,000).
+    # $ = 90,000 * (2.50 - 0.10) / 1e6 = 0.216
+    (e,) = _detect(_pair(99_000, 1_000, 10_000, 90_000, gap=4_000)).events
+    assert e.churn_tokens == 90_000
+    assert e.churn_usd == pytest.approx(0.216, abs=1e-9)
+
+
+def test_growth_is_excluded_from_churn_tokens() -> None:
+    # C_prev = 100,000; cr_t = 10,000; cc_t = 120,000 -> only 90,000 of the write was the old
+    # prefix, 30,000 is new content: $ = 90,000 * (2.50 - 0.10) / 1e6 = 0.216
+    (e,) = _detect(_pair(99_000, 1_000, 10_000, 120_000, gap=4_000)).events
+    assert e.churn_tokens == 90_000
+    assert e.churn_usd == pytest.approx(0.216, abs=1e-9)
+
+
+def test_blended_write_rate_uses_the_turns_own_split() -> None:
+    # cc_t = 90,000, of which 30,000 are 1h writes: blended = (60,000*2.5 + 30,000*4.0)/90,000
+    # = 3.0 $/MTok; churn = 90,000 tokens -> 90,000 * (3.0 - 0.10) / 1e6 = 0.261
+    recs = _pair(99_000, 1_000, 10_000, 90_000, gap=4_000)
+    recs[-1]["message"]["usage"]["cache_creation"] = {
+        "ephemeral_5m_input_tokens": 60_000,
+        "ephemeral_1h_input_tokens": 30_000,
+    }
+    (e,) = _detect(recs).events
+    assert e.churn_usd == pytest.approx(0.261, abs=1e-9)
+
+
+def test_haiku_long_context_tier_is_honoured() -> None:
+    # prompt = 3 + 150,000 + 5,000 = 155,003 > 100k -> long tier: in $0.50, 5m write $0.625,
+    # read 0.1x = $0.05 /MTok; churn tokens = min(150,000, 205,000 - 5,000) = 150,000
+    # -> 150,000 * (0.625 - 0.05) / 1e6 = 0.08625
+    recs = [
+        user_rec(T0),
+        asst_rec("a", "claude-haiku-5-5", cr=200_000, cc=5_000, ts=T0 + 1),
+        user_rec(T0 + 4_000),
+        asst_rec("b", "claude-haiku-5-5", cr=5_000, cc=150_000, ts=T0 + 4_001),
+    ]
+    (e,) = _detect(recs).events
+    assert e.churn_usd == pytest.approx(0.08625, abs=1e-9)
+
+
+def test_unpriced_model_is_unpriced_not_zero() -> None:
+    recs = _pair(99_000, 1_000, 10_000, 90_000, gap=4_000, model2="mystery-model-9")
+    (e,) = _detect(recs).events
+    assert e.cause == cc.CAUSE_MODEL_SWITCH and e.churn_usd is None
+    s = cc.summarise([cc.detect_chain(_chain(recs), cc.RateTable())])
+    assert s.total.events == 1 and s.total.unpriced_events == 1 and s.total.churn_usd == 0.0
+    assert s.advice == []  # no net claimed when a write is unpriced
+
+
 # ------------------------------------------------------------------ parsing / dedupe / hostile
 
 
@@ -313,6 +369,87 @@ def test_compaction_markers_are_collected_in_record_order() -> None:
     assert chain.compact_marks[0][0] < chain.compact_marks[1][0]
 
 
+def test_synthetic_model_records_are_ignored() -> None:
+    recs = [
+        user_rec(T0),
+        asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 1),
+        user_rec(T0 + 4_000),
+        asst_rec("s", "<synthetic>", cr=0, cc=0, ts=T0 + 4_001),
+        asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + 4_002),
+    ]
+    chain = _chain(recs)
+    assert [t.mid for t in chain.turns] == ["a", "b"]
+    assert len(cc.detect_chain(chain, cc.RateTable()).events) == 1
+
+
+def test_gap_is_start_to_start_and_falls_back_to_assistant_timestamps() -> None:
+    # trigger timestamps present: 4,000 s apart even though the assistant answered at +900 s.
+    with_trigger = _detect(
+        [
+            user_rec(T0),
+            asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0 + 900),
+            user_rec(T0 + 4_000),
+            asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + 4_900),
+        ]
+    ).events[0]
+    assert with_trigger.gap_s == pytest.approx(4_000.0)
+    # no user records: assistant timestamps are used
+    fallback = _detect(
+        [
+            asst_rec("a", SONNET, cr=99_000, cc=1_000, ts=T0),
+            asst_rec("b", SONNET, cr=10_000, cc=90_000, ts=T0 + 4_100),
+        ]
+    ).events[0]
+    assert fallback.gap_s == pytest.approx(4_100.0)
+
+
+def test_missing_timestamps_leave_the_cause_unexplained() -> None:
+    recs = [
+        asst_rec("a", SONNET, cr=99_000, cc=1_000),
+        asst_rec("b", SONNET, cr=10_000, cc=90_000),
+    ]
+    (e,) = _detect(recs).events
+    assert e.gap_s is None and e.cause == cc.CAUSE_UNEXPLAINED
+
+
+def test_out_of_order_timestamps_never_claim_a_ttl_gap() -> None:
+    recs = _pair(99_000, 1_000, 10_000, 90_000, gap=-500.0)
+    (e,) = _detect(recs).events
+    assert e.gap_s == pytest.approx(-500.0) and e.cause == cc.CAUSE_UNEXPLAINED
+
+
+def test_hostile_records_do_not_raise() -> None:
+    hostile: list[Any] = [
+        "not a dict",
+        {"type": "assistant"},
+        {"type": "assistant", "message": "x"},
+        {"type": "assistant", "message": {"id": "u", "model": SONNET}},  # no usage
+        {"type": "assistant", "message": {"id": "v", "model": SONNET, "usage": "bad"}},
+        {
+            "type": "assistant",
+            "timestamp": "garbage",
+            "message": {
+                "id": "w",
+                "model": SONNET,
+                "usage": {"input_tokens": "9", "cache_read_input_tokens": -5, "cache_creation": 3},
+            },
+        },
+        {"type": "user", "timestamp": 12345},
+        {"type": "system"},
+    ]
+    res = _detect(hostile)
+    assert res.events == [] and res.n_turns == 1  # only "w" is a (zero-usage) turn
+
+
+def test_empty_chain_and_empty_file(tmp_path: Path) -> None:
+    assert _detect([]).events == []
+    f = tmp_path / "proj" / "s.jsonl"
+    f.parent.mkdir()
+    f.write_text("", encoding="utf-8")
+    s = cc.analyze_session(f)
+    assert s.total.events == 0 and s.events == [] and s.advice == []
+
+
 # ------------------------------------------------------------------ session level
 
 
@@ -373,3 +510,139 @@ def test_unrelated_lines_are_skipped_and_spaced_json_still_parses(tmp_path: Path
     f.write_text("\n".join(lines), encoding="utf-8")  # no trailing newline: a live file
     s = cc.analyze_session(f)
     assert s.total.events == 1 and s.chains[0].n_turns == 2
+
+
+# ------------------------------------------------------------------ TTL advice
+
+
+def _sub_session(tmp_path: Path, gaps: int, n_turns: int = 40) -> cc.SessionChurn:
+    rng = random.Random(3)
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, [user_rec(T0)])
+    inj = {5 + 7 * i: "TTL_GAP" for i in range(gaps)}
+    _write(
+        p.with_suffix("") / "subagents" / "agent-a.jsonl",
+        build_chain(rng, n_turns, inj, prefix="s"),
+    )
+    return cc.analyze_session(p)
+
+
+def test_advice_is_shown_only_when_net_positive(tmp_path: Path) -> None:
+    many = _sub_session(tmp_path / "a", gaps=5)
+    none = _sub_session(tmp_path / "b", gaps=0)
+    assert none.advice == []
+    (a,) = many.advice
+    assert a.scope == "subagent" and a.setting == "subagentPromptCacheTtl"
+    assert a.env_var == "CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL" and a.value == "1h"
+    assert a.net_usd == pytest.approx(a.saved_usd - a.premium_usd) and a.net_usd > 0
+    assert a.events_avoided == 5 and "300 s to 1 h" in a.assumptions
+
+
+def test_advice_withheld_when_premium_exceeds_savings(tmp_path: Path) -> None:
+    # one gap in a long chain: reprice all the 5m writes of 400 turns > one saved re-write
+    s = _sub_session(tmp_path, gaps=1, n_turns=400)
+    assert s.total.events == 1 and s.advice == []
+
+
+def test_advice_hand_computed(tmp_path: Path) -> None:
+    # One subagent chain, all 5m writes, three gaps of 600 s. Per gap: cr 10,000 -> 2,000 and
+    # 8,000 re-written, so churn = min(8,000, 10,000 - 2,000) = 8,000 tokens each.
+    #   saved   = 3 * 8,000 * (2.50 - 0.10) / 1e6            = 0.0576
+    #   premium = (10,000 + 3 * 8,000) * (4.00 - 2.50) / 1e6 = 0.0510   -> net 0.0066
+    recs: list[dict[str, Any]] = [
+        user_rec(T0),
+        asst_rec("t0", SONNET, cr=0, cc=10_000, ts=T0 + 1),
+    ]
+    t = T0
+    for i in range(3):
+        t += 30
+        recs += [user_rec(t), asst_rec(f"r{i}", SONNET, cr=10_000, cc=0, ts=t + 1)]
+        t += 600
+        recs += [user_rec(t), asst_rec(f"g{i}", SONNET, cr=2_000, cc=8_000, ts=t + 1)]
+    for r in recs:
+        r["isSidechain"] = True
+    p = tmp_path / "proj" / "s.jsonl"
+    _write(p, [user_rec(T0)])
+    _write(p.with_suffix("") / "subagents" / "agent-a.jsonl", recs)
+    s = cc.analyze_session(p)
+    (a,) = s.advice
+    assert a.events_avoided == 3
+    assert a.saved_usd == pytest.approx(0.0576, abs=1e-9)
+    assert a.premium_usd == pytest.approx(0.0510, abs=1e-9)
+    assert a.net_usd == pytest.approx(0.0066, abs=1e-9)
+
+
+def test_main_chain_advice_needs_a_five_minute_main_chain(tmp_path: Path) -> None:
+    rng = random.Random(5)
+    p5 = tmp_path / "a" / "s.jsonl"
+    _write(p5, build_chain(rng, 40, {5: "TTL_GAP", 12: "TTL_GAP", 20: "TTL_GAP"}, prefix="m"))
+    p1 = tmp_path / "b" / "s.jsonl"
+    _write(p1, build_chain(rng, 40, {5: "TTL_GAP"}, one_hour=True, prefix="m"))
+    s5, s1 = cc.analyze_session(p5), cc.analyze_session(p1)
+    assert [a.scope for a in s5.advice] == ["main"]
+    assert s5.advice[0].setting == "promptCacheTtl"
+    assert s1.advice == []  # already a 1h cache: nothing to reprice, nothing to recommend
+
+
+# ------------------------------------------------------------------ seeded injection
+
+
+def _inject_corpus(seed: int, n_chains: int) -> tuple[list[cc.ChainResult], dict[str, int]]:
+    rng = random.Random(seed)
+    table = cc.RateTable()
+    injected = {c: 0 for c in cc.CAUSES}
+    results: list[cc.ChainResult] = []
+    expected: dict[tuple[int, int], str] = {}
+    for n in range(n_chains):
+        n_turns = rng.randint(40, 90)
+        one_hour = rng.random() < 0.4
+        positions = sorted(rng.sample(range(2, n_turns - 1, 3), 4))  # >= 3 apart, never turn 0/1
+        inj = {p: rng.choice(cc.CAUSES) for p in positions}
+        recs = build_chain(rng, n_turns, inj, one_hour=one_hour, prefix=f"c{n}_")
+        res = cc.detect_chain(_chain(recs), table)
+        results.append(res)
+        for k, cause in inj.items():
+            injected[cause] += 1
+            expected[(n, k)] = cause
+    detected = {(n, e.cur.turn_index): e.cause for n, r in enumerate(results) for e in r.events}
+    hits = {c: 0 for c in cc.CAUSES}
+    for key, cause in expected.items():
+        if detected.get(key) == cause:
+            hits[cause] += 1
+    false_events = [key for key in detected if key not in expected]
+    assert false_events == [], f"events on clean turns: {false_events[:5]}"
+    return results, hits | {f"n_{c}": injected[c] for c in cc.CAUSES}
+
+
+def test_seeded_injection_recall_per_cause_and_precision_on_clean_chains() -> None:
+    _, stats = _inject_corpus(seed=42, n_chains=60)
+    for cause in cc.CAUSES:
+        n = stats[f"n_{cause}"]
+        assert n >= 30, (cause, n)  # enough injections for the rate to mean something
+        assert stats[cause] / n >= 0.9, (cause, stats[cause], n)
+
+
+def test_clean_chains_have_no_events() -> None:
+    rng = random.Random(42)
+    table = cc.RateTable()
+    for n in range(40):
+        recs = clean_chain(rng, rng.randint(30, 120), one_hour=n % 2 == 0, prefix=f"k{n}_")
+        assert cc.detect_chain(_chain(recs), table).events == []
+
+
+def test_models_in_synthetic_chains_are_priced() -> None:
+    # guards the fixture itself: if these ever stopped resolving the injection tests would
+    # silently exercise the unpriced path.
+    table = cc.RateTable()
+    for m in (MODEL_A, MODEL_B):
+        t = cc.CacheTurn("x", m, 1, 1, 1, 0, 0, 0)
+        assert table.rates(t) is not None
+
+
+def test_committed_fixture_events() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "cache_churn" / "session.jsonl"
+    recs = [json.loads(line) for line in fixture.read_text(encoding="utf-8").splitlines() if line]
+    res = _detect(recs)
+    causes = [e.cause for e in res.events]
+    assert causes == [cc.CAUSE_TTL_GAP, cc.CAUSE_MODEL_SWITCH, cc.CAUSE_COMPACTION]
+    assert [e.cur.turn_index for e in res.events] == [4, 8, 12]
