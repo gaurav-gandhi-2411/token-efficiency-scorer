@@ -1,0 +1,16 @@
+# Secret-scan config shared by the pre-commit hook and the CI `secret-scan` job.
+# Extends gitleaks' default ruleset; the allowlist below is the minimum that a full-history
+# (`--log-opts=--all`) and working-tree scan with gitleaks 8.30.1 actually tripped on.
+title = "token-efficiency-scorer gitleaks config"
+
+[extend]
+useDefault = true
+
+# Scoped by rule AND path AND line shape so it cannot hide a real key in tes/cli.py.
+[[allowlists]]
+description = "Default model-name string passed as getattr(..., 'api_judge_model', '<model id>'): not a credential."
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^tes/cli\.py$''']
+regexTarget = "line"
+regexes = ['''getattr\(args, "api_judge_model", "claude-[a-z0-9.-]+"\)''']
