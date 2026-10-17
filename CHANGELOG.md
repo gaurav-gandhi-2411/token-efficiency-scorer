@@ -96,12 +96,13 @@ that task classification no longer special-cases a single private session id.
   free-text judge and rater commentary about the SWE-Gym sessions; and `data/public_waste_signals.jsonl` (see below).
   `DATA_SOURCES.md` discloses what derived material remains. The files stay in git history and in releases up to
   0.15.0.
-- **17 PR-evidence screenshots under `reports/screenshots/`**, which showed local paths or real session ids. No
+- **PR-evidence screenshots under `reports/screenshots/`** (11 images that shipped in 0.15.0; 6 more added to the
+  development branch after 0.15.0, 17 in all, were also removed), which showed local paths or real session ids. No
   README or document references them.
 
 ### Known gaps
 
-- **The 17 removed screenshots were not re-captured.** The dashboard changes they documented (cost breakdown, lever
+- **The removed screenshots (11 from 0.15.0, 17 counting those added after it) were not re-captured.** The dashboard changes they documented (cost breakdown, lever
   rule, unpriced display, cache-churn card) have no screenshot in the repository; the behaviour is covered by tests.
 - **Figures that came from removed data cannot be re-derived from a clone.** The research reports' pool statistics
   and the pre-0.15.0 bands are the maintainer's unpublished local measurement (see the next two entries).
