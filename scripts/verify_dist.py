@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Check a directory of release artifacts against SHA256SUMS files: `verify_dist.py DIST SUMS...`.
