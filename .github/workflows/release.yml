@@ -7,7 +7,9 @@ name: Release
 #                       version; on a tag push the tag equals it; the version is not already on PyPI
 #                       (scripts/check_release_version.py -- anything it cannot determine is a refusal)
 #   preflight-build     the wheel and sdist this release would publish build, pass `twine check`, and
-#                       a fresh non-editable install of the wheel reports that version
+#                       a fresh non-editable install of the wheel reports that version; built twice on
+#                       two separate runners, and `reproducible` refuses unless both builds have the
+#                       same sha256 (scripts/build_dist.py, RELEASING.md)
 #   gate-canary         the latest SCHEDULED pypi-canary run on master is green and recent
 #
 # `workflow_dispatch` runs the same preflights against the chosen ref and NEVER publishes (the
@@ -53,8 +55,12 @@ jobs:
           fi
 
   preflight-build:
-    name: Refuse to release artifacts that do not build, check or install
+    name: Refuse to release artifacts that do not build, check or install (build ${{ matrix.build }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [a, b] # two independent builds of the same commit, compared by `reproducible`
     permissions:
       contents: read
     steps:
@@ -70,7 +76,21 @@ jobs:
         run: pip install uv --quiet
 
       - name: Build sdist + wheel
-        run: uv build
+        run: python scripts/build_dist.py dist | tee SHA256SUMS.txt
+
+      - name: Publish the artifact hashes
+        run: |
+          {
+            echo "### Build ${{ matrix.build }}: $(git rev-parse HEAD)"
+            echo '```'
+            cat SHA256SUMS.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sha256-${{ matrix.build }}
+          path: SHA256SUMS.txt
 
       - name: twine check
         run: uvx twine check dist/*.whl dist/*.tar.gz
@@ -84,6 +104,22 @@ jobs:
           got=$("$RUNNER_TEMP/verify/bin/tes" --version)
           echo "expected $expected; installed wheel says: $got"
           case "$got" in *"$expected"*) ;; *) echo "::error::the installed wheel reports '$got', not $expected"; exit 1;; esac
+
+  reproducible:
+    name: Refuse to release if two independent builds of this commit differ
+    needs: [preflight-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sha256-*
+      - name: The sdist and wheel sha256 of build a and build b are identical
+        run: |
+          set -euo pipefail
+          cat sha256-a/SHA256SUMS.txt
+          diff sha256-a/SHA256SUMS.txt sha256-b/SHA256SUMS.txt             || { echo "::error::two builds of the same commit produced different artifacts"; exit 1; }
+          test "$(wc -l < sha256-a/SHA256SUMS.txt)" -eq 2
+          echo "reproducible: both builds match"
 
   gate-canary:
     name: Refuse to release while the latest scheduled pypi-canary run is red or stale
@@ -129,7 +165,7 @@ jobs:
   publish:
     # Only a tag push publishes. A workflow_dispatch run stops after the preflights above.
     if: github.event_name == 'push'
-    needs: [preflight-version, preflight-build, gate-canary]
+    needs: [preflight-version, preflight-build, reproducible, gate-canary]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -153,7 +189,7 @@ jobs:
         run: pip install uv --quiet
 
       - name: Build sdist + wheel
-        run: uv build
+        run: python scripts/build_dist.py dist
 
       - name: twine check
         run: uvx twine check dist/*.whl dist/*.tar.gz
