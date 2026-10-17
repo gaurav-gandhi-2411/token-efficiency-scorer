@@ -93,3 +93,38 @@ def test_readme_has_the_sections_in_the_promised_order() -> None:
         "Methodology",
     ]
     assert (ROOT / "docs" / "METHODOLOGY.md").is_file()
+
+
+def _dollar_rows(block: str, start: str, stop: str) -> tuple[float, float]:
+    """Sum of the $ column of the rows between two marker lines, and the stated total."""
+    lines = block.splitlines()
+    rows = lines[next(i for i, ln in enumerate(lines) if ln.strip().startswith(start)) + 1 :]
+    amounts = []
+    for ln in rows:
+        if ln.strip().startswith(stop):
+            break
+        m = re.search(r"\$(\d+\.\d\d)", ln)
+        if m and re.match(r"^\s+\S.*\s\d+\s+\$", ln):
+            amounts.append(float(m.group(1)))
+    total = float(re.search(r"\$(\d+\.\d\d)", lines[1]).group(1))  # type: ignore[union-attr]
+    return round(sum(amounts), 2), total
+
+
+def test_readme_says_so_when_displayed_rows_do_not_add_up_to_the_displayed_total(
+    out: dict[str, str],
+) -> None:
+    """Rows are rounded one by one, the total is not; where they differ the README must say why."""
+    summed, total = _dollar_rows(out["cache_churn"], "3 event(s)", "Plausibly")
+    readme = README.read_text(encoding="utf-8")
+    if summed != total:
+        assert "rounded independently" in readme and f"${summed:.2f}" in readme
+    # the quickstart cost split displays rows that add up exactly; that must stay true or get a note
+    rows = re.findall(
+        r"^  (?!Total)\S.*?\$(\d+\.\d\d)\s+\d+\.\d%$",
+        out["quickstart_excerpt"],
+        flags=re.M,
+    )
+    stated = float(
+        re.search(r"Total \(priced\)\s+\$(\d+\.\d\d)", out["quickstart_excerpt"]).group(1)
+    )  # type: ignore[union-attr]
+    assert round(sum(map(float, rows)), 2) == stated or "rounded independently" in readme

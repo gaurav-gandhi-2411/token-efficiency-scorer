@@ -73,6 +73,8 @@ The cache-churn detector, on a second synthetic session with three planted cache
   Cause = a rule on transcript markers and timestamps, not a verified fact.
 ```
 
+Rows are rounded independently, so the three cause rows add to $0.39 while the $0.38 total sums the unrounded values.
+
 ## Commands
 
 `tgauge` is a short alias for `tracegauge`. The old `tes` command still works until 0.18 ([migration guide](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/MIGRATING_FROM_TES.md)). Full usage and the SDK: [docs/COMMANDS.md](https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/blob/master/docs/COMMANDS.md).
