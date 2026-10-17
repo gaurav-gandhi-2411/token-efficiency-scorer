@@ -5,7 +5,7 @@ from __future__ import annotations
 
 """tracegauge/intelligence/features.py — Feature extraction for session ML.
 
-Converts stored session rows + on-the-fly attribution into a 13-dimensional
+Converts stored session rows + on-the-fly attribution into an 8-dimensional
 feature vector per session. Only content sessions (real_tokens > 0, source
 JSONL accessible) produce valid feature vectors.
 
@@ -118,7 +118,7 @@ class SessionFeatures:
     waste_pct: float
     fresh_input_pct: float  # not in feature vector but kept for provenance
 
-    # The 13-element numpy feature vector (unscaled)
+    # The 8-element numpy feature vector (unscaled)
     vector: np.ndarray = field(default_factory=lambda: np.zeros(_N_FEATURES))
 
 
@@ -131,7 +131,7 @@ def extract_features(
     row: dict,
     prices: dict | None = None,
 ) -> SessionFeatures | None:
-    """Extract a 13-feature vector from a session store row.
+    """Extract an 8-feature vector from a session store row.
 
     Prefers attribution fractions already PERSISTED on the row (from
     tracegauge.store, written at score time by tracegauge.cli/tracegauge.watcher via
