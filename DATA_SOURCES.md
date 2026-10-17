@@ -48,7 +48,7 @@ date given per entry), not assumed.
 | nebius/SWE-rebench-openhands-trajectories | CC-BY-4.0 | `data/validation-corpus/` (derived numeric labels and statistics for 70 sessions) | no: the traces were removed in 0.16.0; only derived numbers remain |
 | zai-org/CC-Bench-trajectories | MIT | `data/ood-corpus/` (5 traces) | yes, 5 sampled traces |
 | synthetic OOD traces (generated for this project) | CC0 | `data/ood-corpus/` (5 traces, `source_dataset: synthetic_ood`) | yes, 5 traces; not third-party |
-| SWE-Gym/OpenHands-Sampled-Trajectories | none stated | was `data/validation-corpus/` (50 traces) | no: removed in 0.16.0 |
+| SWE-Gym/OpenHands-Sampled-Trajectories | none stated | was `data/validation-corpus/` (50 corpus entries; traces never committed) | no: removed in 0.16.0 |
 | SWE-Gym/SWE-Gym (task dataset, a different dataset from the trajectories above) | MIT | not committed; only instance ids appear in a taxonomy file (below) | no |
 | SALT-NLP/SWE-chat | ODC-BY 1.0 | not committed | no (see above) |
 
@@ -150,8 +150,9 @@ these directories.
 - **URL:** https://huggingface.co/datasets/SWE-Gym/OpenHands-Sampled-Trajectories (card retrieved
   2026-10-12). The card and the Hugging Face metadata state no licence.
 - **Decision:** with no stated licence the traces cannot be redistributed under Apache-2.0, so the 50
-  traces and everything that embeds their text were removed from the tree in 0.16.0. They remain in
-  git history and in tracegauge releases up to 0.15.0. Per-session numeric scores keyed by session id
+  corpus entries and everything that embeds their text were removed from the tree in 0.16.0. The trace
+  files themselves were gitignored and never committed; the 50 manifest rows and the annotation and
+  heuristic-output files remain in git history (for example at the `v0.15.0` tag). Per-session numeric scores keyed by session id
   (our own measurements, no trace text) were kept so published figures stay traceable.
 - Downloading it yourself with `scripts/00_download_corpus.py` is your own use under the dataset's
   terms; nothing is redistributed from it.

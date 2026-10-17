@@ -45,7 +45,9 @@ that task classification no longer special-cases a single private session id.
    the text report banner reads `TRACEGAUGE`. Scores, JSON field names and types, and exit codes are the same.
    Steps and the full list: [docs/MIGRATING_FROM_TES.md](docs/MIGRATING_FROM_TES.md).
 2. **The licence is Apache-2.0 from this release.** `LICENSE` is the Apache-2.0 text, `pyproject.toml` declares
-   `license = "Apache-2.0"`, first-party Python files carry an SPDX header, and `NOTICE` states the boundary.
+   `license = "Apache-2.0"`, first-party Python files carry an SPDX header (exceptions: `tracegauge/_waste_detectors.py`, which is
+   byte-frozen and pinned by sha256 in `tests/test_prior_features_intact.py`, so no header was added, and the
+   three files under `src/token_efficiency/`, which are not part of the published wheel), and `NOTICE` states the boundary.
    Releases up to and including 0.15.0 were published under AGPL-3.0-only and stay under it for anyone who
    received them, except that `tes/cost.py`, `tes/_digest.py` and `tes/discovery.py` carried a dual
    "AGPL-3.0-only OR Apache-2.0" header. The grant covers tracegauge's own code and text only: bundled fonts keep
@@ -91,11 +93,12 @@ that task classification no longer special-cases a single private session id.
 
 ### Removed
 
-- **Third-party and derived material this release no longer redistributes:** the 50 SWE-Gym traces (no
-  licence stated on the dataset card) with their annotations; the nebius trajectory text (derived numbers kept);
+- **Third-party and derived material this release no longer redistributes:** the 50 SWE-Gym corpus entries (no
+  licence stated on the dataset card; the trace files themselves were never committed) with their annotations; the nebius trajectory text (derived numbers kept);
   free-text judge and rater commentary about the SWE-Gym sessions; and `data/public_waste_signals.jsonl` (see below).
-  `DATA_SOURCES.md` discloses what derived material remains. The files stay in git history and in releases up to
-  0.15.0.
+  `DATA_SOURCES.md` discloses what derived material remains. What stays in git history (for example at the `v0.15.0` tag) is the 50 SWE-Gym rows of
+  `data/validation-corpus/corpus_manifest.jsonl` and the annotation and heuristic-output files removed here; the trace
+  files were gitignored and never committed.
 - **PR-evidence screenshots under `reports/screenshots/`** (11 images that shipped in 0.15.0; 6 more added to the
   development branch after 0.15.0, 17 in all, were also removed), which showed local paths or real session ids. No
   README or document references them.
@@ -119,7 +122,7 @@ that task classification no longer special-cases a single private session id.
   are removed from the tree. Scripts that defaulted to them (`scripts/efficiency_score.py`, `scripts/build_baselines.py`,
   `scripts/run_waste_analysis.py` and others) now take explicit input paths. Figures that came from those files (the
   research reports' pool statistics, the pre-0.15.0 bands) are the maintainer's unpublished local measurement. The shipped `tracegauge/data/cc_baselines.json`, `eval/manifest.json` and the waste detectors are unchanged.
-- **`data/public_waste_signals.jsonl` is no longer distributed.** It held per-session detector results keyed by 1,946 SWE-chat session ids, and SWE-chat-derived data stays local (see `DATA_SOURCES.md`). It is now gitignored; regenerate it with `scripts/generalization_run.py`, which gained `--signals-out`, and read it with `--swechat-signals` (`scripts/diagnose_rfr_rate.py`) or `--signals` (`scripts/fix_noncc_signals.py`).
+- **`data/public_waste_signals.jsonl` is no longer distributed.** It held per-session detector results keyed by 1,946 SWE-chat session ids (the maintainer's unpublished local measurement), and SWE-chat-derived data stays local (see `DATA_SOURCES.md`). It is now gitignored; regenerate it with `scripts/generalization_run.py`, which gained `--signals-out`, and read it with `--swechat-signals` (`scripts/diagnose_rfr_rate.py`) or `--signals` (`scripts/fix_noncc_signals.py`).
 
 ## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
 
