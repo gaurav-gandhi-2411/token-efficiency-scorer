@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Judge-off-in-background test.
@@ -12,9 +15,9 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.store import open_db
-from tes.watcher import WatcherConfig, _scan_once, score_session_file
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.store import open_db
+from tracegauge.watcher import WatcherConfig, _scan_once, score_session_file
 
 
 def _first_adapted_record() -> dict:
@@ -31,8 +34,8 @@ def test_judge_not_called_by_default(tmp_path: Path) -> None:
     fake_path.write_bytes(b"{}")
 
     with (
-        patch("tes.watcher.adapt_session", return_value=record),
-        patch("tes.judge.score_trajectory") as mock_judge,
+        patch("tracegauge.watcher.adapt_session", return_value=record),
+        patch("tracegauge.judge.score_trajectory") as mock_judge,
     ):
         result = score_session_file(fake_path, baselines, use_judge=False)
 
@@ -57,8 +60,8 @@ def test_judge_called_when_opted_in(tmp_path: Path) -> None:
     }
 
     with (
-        patch("tes.watcher.adapt_session", return_value=record),
-        patch("tes.judge.score_trajectory", return_value=fake_judge_entry) as mock_judge,
+        patch("tracegauge.watcher.adapt_session", return_value=record),
+        patch("tracegauge.judge.score_trajectory", return_value=fake_judge_entry) as mock_judge,
     ):
         result = score_session_file(fake_path, baselines, use_judge=True)
 
@@ -87,8 +90,8 @@ def test_scan_does_not_call_judge_in_background(tmp_path: Path) -> None:
     )
 
     with (
-        patch("tes.watcher.adapt_session", return_value=record),
-        patch("tes.judge.score_trajectory") as mock_judge,
+        patch("tracegauge.watcher.adapt_session", return_value=record),
+        patch("tracegauge.judge.score_trajectory") as mock_judge,
     ):
         count = _scan_once(config, conn, baselines, _now=time.time() + 999)
 

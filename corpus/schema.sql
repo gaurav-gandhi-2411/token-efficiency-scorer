@@ -2,9 +2,9 @@
 --
 -- TWO INDEPENDENT SAFETY LAYERS. Both are required; neither alone is sufficient.
 --
---   1. Content-free by construction (client side): tes/contribution.py builds
+--   1. Content-free by construction (client side): tracegauge/contribution.py builds
 --      each row field-by-field from an allow-list of 14 names (ALLOWED_FIELDS).
---      tes/corpus_client.py re-verifies the actual serialized POST body against
+--      tracegauge/corpus_client.py re-verifies the actual serialized POST body against
 --      that same allow-list immediately before every send. No session_id,
 --      source_path, prompt/code text, evidence snippet, or free-text field is
 --      ever assembled into a row, let alone transmitted. The columns below are
@@ -32,10 +32,10 @@ create table public.corpus_contributions (
     -- and it is optional (null for anonymous contributions).
     id bigint generated always as identity primary key,
 
-    -- The 14 ALLOWED_FIELDS from tes/contribution.py, in the same order as
+    -- The 14 ALLOWED_FIELDS from tracegauge/contribution.py, in the same order as
     -- the frozenset is documented there. Types match the payload shapes
     -- produced by build_contribution_payload() and re-checked by
-    -- verify_payload_content_free() in tes/corpus_client.py.
+    -- verify_payload_content_free() in tracegauge/corpus_client.py.
     task_type text not null,
     real_tokens integer not null,
     token_count_input integer,

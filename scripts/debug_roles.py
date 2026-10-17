@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Check role distribution across all scaffolds."""
 
 from __future__ import annotations

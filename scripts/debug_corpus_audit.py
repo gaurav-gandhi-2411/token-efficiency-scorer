@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Full corpus composition audit: scaffolds, models, tasks, diversity gaps."""
 
 from __future__ import annotations

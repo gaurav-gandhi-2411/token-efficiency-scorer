@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 Compute Cohen's kappa between spot-check (Sonnet) labels and:
   1. Structural GT (H1: is_retry, H2: redundant_read)

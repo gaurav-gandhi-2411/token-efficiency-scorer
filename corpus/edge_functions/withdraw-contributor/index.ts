@@ -19,7 +19,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Strict UUIDv4 validation. tracegauge's contributor_id is always generated
-// client-side via Python's uuid.uuid4() (tes/contribution.py), so a
+// client-side via Python's uuid.uuid4() (tracegauge/contribution.py), so a
 // legitimate request will always match this pattern exactly. Anything else
 // (wrong length, non-hex characters, wrong version/variant nibbles, SQL
 // metacharacters, etc.) is rejected with 400 before the Supabase client is

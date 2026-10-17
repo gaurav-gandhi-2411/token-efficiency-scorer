@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""tests/test_cost_format.py — Tests for tes.web.cost_format helpers.
+"""tests/test_cost_format.py — Tests for tracegauge.web.cost_format helpers.
 
 Cost is an annotation on the token axis — not a score, not a composite.
 These helpers format dollar amounts, baseline-relative framing, and price provenance.
@@ -8,7 +11,7 @@ These helpers format dollar amounts, baseline-relative framing, and price proven
 
 
 import pytest
-from tes.web.cost_format import (
+from tracegauge.web.cost_format import (
     format_cost_pct_vs_baseline,
     format_cost_usd,
     format_cost_vs_baseline,
@@ -208,7 +211,7 @@ def test_price_provenance_without_models_lists_the_overrides() -> None:
 
 
 def test_price_provenance_matches_the_multiplier_compute_turn_cost_uses() -> None:
-    from tes.cost import cache_read_multiplier, load_price_table
+    from tracegauge.cost import cache_read_multiplier, load_price_table
 
     prices = load_price_table()
     for key, entry in prices["models"].items():

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Cache-churn detector: definition, causes, edge cases, pricing, injection recall/precision.
@@ -11,7 +14,7 @@ borderline cases and records what the detector does with them; those rates are o
 the thresholds were not tuned to make them pass.
 
 Expected dollar figures are computed by hand from the published per-MTok rates (see each
-test), not by calling the code under test. Rates used (tes/data/prices.json):
+test), not by calling the code under test. Rates used (tracegauge/data/prices.json):
 claude-sonnet-5-5 in $2.00, 5m write 1.25x = $2.50, 1h write 2x = $4.00, read 0.05x = $0.10 /MTok;
 claude-haiku-5-5 in $0.10 (long tier over 100k prompt tokens: $0.50), same multipliers
 except read 0.1x.
@@ -23,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cache_churn as cc
+from tracegauge import cache_churn as cc
 
 from tests.churn_synth import (
     HARD_READ_ABOVE,
@@ -100,7 +103,7 @@ def test_unsplit_writes_are_reported_only_when_the_split_is_missing() -> None:
 
 
 def test_rates_are_per_token_from_the_price_table() -> None:
-    # sonnet: 5m write $2.50, 1h write $4.00, read $0.10 per MTok (tes/data/prices.json)
+    # sonnet: 5m write $2.50, 1h write $4.00, read $0.10 per MTok (tracegauge/data/prices.json)
     r = cc.RateTable().rates(_turn(SONNET, cc_=1_000, cr=1_000))
     assert r is not None
     assert (r.w5, r.w1, r.rd) == pytest.approx((2.5e-6, 4.0e-6, 1.0e-7))
@@ -719,7 +722,7 @@ def test_empty_split_dict_is_not_a_split() -> None:
 
 
 def test_nested_subagent_file_is_ignored_by_churn_and_by_cost_scope(tmp_path: Path) -> None:
-    from tes.adapt import collect_subagent_usage
+    from tracegauge.adapt import collect_subagent_usage
 
     rng = random.Random(3)
     main_p = tmp_path / "proj" / "s.jsonl"

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_baseline_source_honesty.py — Verifies that score_session routes the token axis
@@ -13,11 +16,11 @@ Cases:
 """
 
 
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     score_session,
 )
-from tes.self_baseline import SelfBaselineState, TypeBaseline
+from tracegauge.self_baseline import SelfBaselineState, TypeBaseline
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_alarm_measured.py — Alarm fires only on measured, data-gated thresholds.
@@ -7,10 +10,16 @@ Covers: two-part AND gate (magnitude + cause), silent when self-baseline is
 message construction (both $ and token framings always present).
 """
 
-from tes.alarm import PLAN_MAX, PLAN_USAGE_BASED, AlarmConfig, check_alarm, format_alarm_message
-from tes.alarm_baseline import AlarmThreshold
-from tes.live_monitor import LIVE_ESTIMATE_DOV, LiveSessionState
-from tes.self_baseline import SelfBaselineState, TypeBaseline
+from tracegauge.alarm import (
+    PLAN_MAX,
+    PLAN_USAGE_BASED,
+    AlarmConfig,
+    check_alarm,
+    format_alarm_message,
+)
+from tracegauge.alarm_baseline import AlarmThreshold
+from tracegauge.live_monitor import LIVE_ESTIMATE_DOV, LiveSessionState
+from tracegauge.self_baseline import SelfBaselineState, TypeBaseline
 
 
 def _live(
@@ -69,7 +78,7 @@ def _self_baseline_building(task_type: str = "infra-deploy") -> SelfBaselineStat
 
 
 def _threshold_active(threshold_tokens: int = 140_000) -> AlarmThreshold:
-    """An active recent same-era threshold, as tes.alarm_baseline would resolve it."""
+    """An active recent same-era threshold, as tracegauge.alarm_baseline would resolve it."""
     return AlarmThreshold(
         status="active",
         tier="recent_era_type",

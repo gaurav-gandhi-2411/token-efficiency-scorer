@@ -1,4 +1,7 @@
-"""Refuse to run the suite against a ``tes`` that is not this checkout's.
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
+"""Refuse to run the suite against a ``tracegauge`` that is not this checkout's.
 
 pytest's ``pythonpath = [".", "src", "scripts"]`` (pyproject.toml) makes every IN-PROCESS import
 resolve to this checkout. A subprocess does not get it: ``tests/test_prior_features_intact.py`` and
@@ -24,13 +27,13 @@ import pytest
 # import chain (numpy, scikit-learn, flask): slow on a cold venv, and a crash inside it would be
 # reported as "not installed".
 _PROBE = (
-    "import importlib.util as u; s = u.find_spec('tes'); "
+    "import importlib.util as u; s = u.find_spec('tracegauge'); "
     "print(s.origin if s is not None and s.origin else '')"
 )
 
 
 def installed_package_file(python: str = sys.executable) -> Path | None:
-    """The ``tes/__init__.py`` a fresh subprocess of ``python`` would import, or None.
+    """The ``tracegauge/__init__.py`` a fresh subprocess of ``python`` would import, or None.
 
     ``-I`` ignores the working directory and PYTHON* variables, so only the environment's own
     installation can answer. None means the package is not installed there at all.
@@ -52,13 +55,13 @@ def enforce(
     probe: Callable[[], Path | None] = installed_package_file,
 ) -> None:
     """Exit the pytest session, with an actionable message, if the install is not this checkout's."""
-    pkg = (repo_root / "tes").resolve()
+    pkg = (repo_root / "tracegauge").resolve()
     try:
         found = probe()
     except (subprocess.TimeoutExpired, OSError) as exc:
         # fail closed with a message, not an INTERNALERROR traceback: "could not check" is not "fine"
         pytest.exit(
-            f"could not determine which tes the test interpreter ({sys.executable}) "
+            f"could not determine which tracegauge the test interpreter ({sys.executable}) "
             f"would import: {type(exc).__name__}: {exc}.\n"
             f"Check that interpreter works, then from {repo_root} run:  uv pip install -e .",
             returncode=4,
@@ -67,7 +70,7 @@ def enforce(
         return
     where = f"resolves to {found.resolve()}" if found is not None else "is not importable at all"
     pytest.exit(
-        f"tes in the test interpreter's environment ({sys.executable}) {where}, "
+        f"tracegauge in the test interpreter's environment ({sys.executable}) {where}, "
         f"not inside this checkout's {pkg}.\n"
         "Subprocess-based tests import the INSTALLED package, so they would test the wrong code "
         "and fail misleadingly.\n"

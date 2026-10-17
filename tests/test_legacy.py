@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """LEGACY rows (pre-dedupe adapter or pre-1h-cache-pricing): how they are told apart and counted."""
@@ -5,8 +8,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.legacy import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.legacy import (
     census,
     count_legacy,
     current_clause,
@@ -15,7 +18,7 @@ from tes.legacy import (
     legacy_sources,
     source_readable,
 )
-from tes.store import open_db
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store
 

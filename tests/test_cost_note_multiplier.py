@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_cost_note_multiplier.py -- the CLI cost note names the cache-read multiplier the
@@ -5,10 +8,10 @@ model was actually billed at (0.10x default, 0.05x Opus/Sonnet 5.5, 0.025x Fable
 not a flat 0.10x, and states the cache-write tier assumption."""
 
 import pytest
-from tes._digest import SessionDigest, TurnDigest
-from tes.cost import compute_session_cost, load_price_table
-from tes.report import format_human
-from tes.score import (
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.cost import compute_session_cost, load_price_table
+from tracegauge.report import format_human
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,

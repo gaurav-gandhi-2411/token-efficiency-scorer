@@ -21,7 +21,7 @@ executor's own output. Nothing here is stated from memory.
 ### 1.2 — adk-tracegauge 0.5.1
 
 **Pre-tag artifact check — VERIFIED.** `uv build` succeeded; clean venv installed the built
-wheel (`C:\adkrel0501`, short path — the default scratch path hit Windows `WinError 206`
+wheel (`<scratch-venv>`, short path — the default scratch path hit Windows `WinError 206`
 filename-too-long via `litellm`'s `vertex_ai_partner_models` subpackage, a real instance of
 this project's own documented MAX_PATH trap). Both independent version reads returned
 `0.5.1`:
@@ -46,7 +46,7 @@ executor's claims):**
 | PyPI README (`info.description`) contains exit-code-4 docs | VERIFIED — see verbatim snippet below |
 | `v0.5.1` tag on GitHub → `e06af2e...` | VERIFIED |
 | GitHub Release `v0.5.1` exists, published, not draft | VERIFIED (published `2026-08-20T16:18:05Z`) |
-| Fresh PyPI install (`C:\adkver0501`, new venv) reports `0.5.1` | VERIFIED |
+| Fresh PyPI install (`<scratch-venv>`, new venv) reports `0.5.1` | VERIFIED |
 
 **Published-artifact verbatim (from PyPI's JSON API `info.description`, the actual rendered
 README on the live PyPI project page):**
@@ -70,7 +70,7 @@ Both the pre-tag and post-publish checks specifically exercised the **installed 
 the checkout, per the standing instruction that testing against the checkout would not catch
 a regression of this exact bug.
 
-**Pre-tag artifact check — VERIFIED**, clean venv `C:\tgrel0122`:
+**Pre-tag artifact check — VERIFIED**, clean venv `<scratch-venv>`:
 - `tes.exe --version` → `tes 0.12.2`; `importlib.metadata.version('tracegauge')` → `0.12.2`.
 - dist-info license files present: `licenses/LICENSE`, `licenses/LICENSE-APACHE`.
 - On-disk site-packages brand/font files confirmed present (2 SVGs, 5 woff2s).
@@ -95,7 +95,7 @@ the genuine upload confirmation `Successfully verified SCT...` and
 has no auto-create step): `gh release create v0.12.2 --generate-notes`, confirmed via
 `gh release view v0.12.2`.
 
-**Independent blind verification (separate subagent, fresh venv `C:\tgblind0122`, no access
+**Independent blind verification (separate subagent, fresh venv `<scratch-venv>`, no access
 to the release executor's claims):**
 
 | Check | Result |
@@ -132,7 +132,7 @@ equivalent.
 
 ## AI2 — Corpus consent, verified from the published artifact
 
-Installed `tracegauge==0.12.2` fresh from PyPI (blind verifier's own venv, `C:\tgblind0122`,
+Installed `tracegauge==0.12.2` fresh from PyPI (blind verifier's own venv, `<scratch-venv>`,
 independent of the release executor's earlier install). Ran both commands directly.
 
 **`tes corpus contribute` — verbatim output:**
@@ -197,18 +197,17 @@ which by design does not persist across sessions — so it cannot be inspected n
 staleness (if real) left no durable trace to audit.
 
 **A separate, independently-verified propagation gap was found and is more actionable:**
-this project's own auto-memory file, `project_context.md` (under
-`C:\Users\USER\.claude\projects\...\memory\`), stops at the **0.10.0** release
+this project's own session-memory notes file stops at the **0.10.0** release
 (2026-07-04) and was never updated through 0.11.0, 0.11.1, 0.12.0, 0.12.1, or 0.12.2 —
 five shipped releases with zero corresponding memory update, despite `CHANGELOG.md`
 documenting all five. `MEMORY.md`'s index line for this file still reads *"0.10.0 LIVE on
 PyPI: live monitor+alarm+budget shipped, coach HELD"* as of this session's start — actively
-misleading for any future session that trusts it without re-verifying against PyPI, exactly
-the failure mode maintainer rule 118a's tracegauge PR #16 incident already names. This memory
-file has been corrected as part of this session's work (see below) — the durable version of
+misleading for any future session that trusts it without re-verifying against PyPI, a failure
+mode this project has already hit once (a stale local checkout read after a restart). This
+memory file has been corrected as part of this session's work (see below) — the durable version of
 the "stale task list" problem is now fixed; the ephemeral-list version cannot be, by
 construction, and the fix for that class of gap is procedural (checkpoint into PLAN.md more
-consistently, per maintainer rule 118), not something further auditing here will surface.
+consistently), not something further auditing here will surface.
 
 ---
 
@@ -218,8 +217,8 @@ consistently, per maintainer rule 118), not something further auditing here will
 
 | Package | Version | PyPI | Fresh-venv install confirmed |
 |---|---|---|---|
-| `adk-tracegauge` | 0.5.1 | https://pypi.org/project/adk-tracegauge/0.5.1/ | VERIFIED (`C:\adkver0501`) |
-| `tracegauge` | 0.12.2 | https://pypi.org/project/tracegauge/0.12.2/ | VERIFIED (`C:\tgver0122`, `C:\tgblind0122`) |
+| `adk-tracegauge` | 0.5.1 | https://pypi.org/project/adk-tracegauge/0.5.1/ | VERIFIED (`<scratch-venv>`) |
+| `tracegauge` | 0.12.2 | https://pypi.org/project/tracegauge/0.12.2/ | VERIFIED (`<scratch-venv>`, `<scratch-venv>`) |
 
 ### 4.2 — Repo state
 
@@ -299,11 +298,11 @@ today — that capability is fully built and tested but deliberately dormant (se
   `assets/brand/og-preview.svg` (1200×630) exists but only as SVG — GitHub's social-preview
   upload slot requires a raster PNG/JPG, and no GitHub API exists for this upload (it's a
   Settings-UI-only action). **Revisit trigger:** none needed technically — this is purely a
-  manual step blocked on API absence, not a design decision; route to GG (below).
+  manual step blocked on API absence, not a design decision; route to the maintainer (below).
 - **Q6 — dashboard trajectory timeline + sub-agent spawn trees:** design-only
   (`docs/design/DASHBOARD_TRAJECTORY_TIMELINE.md`), explicitly routed for review before any
   implementation starts, per the doc's own header. **Revisit trigger:** design sign-off from
-  GG.
+  the maintainer.
 - **Cost-quality Pareto frontier / changepoint detection on cost trends:** feasible (per
   `docs/audit/COMPETITIVE_GAP_ANALYSIS.md`'s Phase 8 "rigor + demand" test), but killed
   alongside multi-source adapter support (§2.4) for the identical reason: real feasibility
@@ -317,20 +316,19 @@ today — that capability is fully built and tested but deliberately dormant (se
 
 ---
 
-## ROUTE TO GG
+## ROUTE TO THE MAINTAINER
 
 **PRs awaiting merge:** none. Zero open PRs in either repo as of this session's end.
 
 **Venvs/paths the sandbox would not let this session delete** (all outside the repos, all
 inert — no running processes, none referenced by either repo, safe to delete at your
 convenience):
-- `C:\adkrel0501`, `C:\adkver0501` (adk-tracegauge pre-tag/post-publish verification venvs)
-- `C:\tgrel0122`, `C:\tgrel0122-scratch`, `C:\tgver0122`, `C:\tgver0122-scratch`,
-  `C:\tgblind0122`, `C:\tgblind0122-scratch` (tracegauge pre-tag/post-publish/blind-verify
-  venvs and their isolated scratch DB directories)
+- two adk-tracegauge pre-tag/post-publish verification venvs
+- six tracegauge pre-tag/post-publish/blind-verify venvs and their isolated scratch DB
+  directories
 
 **Paid Gemini validation run (~$0.0065)** — unchanged from the prior session's report
-(`adk-tracegauge/docs/audit/AUTONOMOUS_RUN.md`, "ROUTE TO GG" section, R1), restated here
+(`adk-tracegauge/docs/audit/AUTONOMOUS_RUN.md`, "ROUTE TO THE MAINTAINER" section, R1), restated here
 since it remains un-run and this queue asked it be carried forward: confirms whether
 Ollama's local 7B-model cost-variance measurement is representative of a real hosted model.
 Steps: swap `LiteLlm(model="ollama_chat/qwen2.5:7b")` for `model="gemini-2.5-flash-lite"` in

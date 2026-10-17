@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """`budget` and `cost` leave LEGACY rows out of corrected spend and say how many they left out.
@@ -13,11 +16,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.budget import compute_budget_projection, legacy_rows_excluded_in_window
-from tes.cost_period import compute_period_cost
-from tes.legacy import LEGACY_LABEL
-from tes.store import open_db
+from tracegauge import cli
+from tracegauge.budget import compute_budget_projection, legacy_rows_excluded_in_window
+from tracegauge.cost_period import compute_period_cost
+from tracegauge.legacy import LEGACY_LABEL
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store
 
@@ -64,7 +67,7 @@ def test_cost_total_excludes_legacy_and_reports_it_separately(tmp_path: Path) ->
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     code = 0
     try:
         cli.main()
@@ -77,7 +80,7 @@ def _run(
 @pytest.fixture
 def recent_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     s = build_mixed_store(tmp_path, now=time.time() - 3600)
-    monkeypatch.setenv("TES_DB_PATH", str(s.db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(s.db))
     return s.db
 
 

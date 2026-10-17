@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_anomaly_threshold.py — Principled anomaly threshold tests.
@@ -11,10 +14,10 @@ Verifies that:
 
 import numpy as np
 import pytest
-from tes.intelligence.anomaly import detect_anomalies, summarize_anomalies
-from tes.intelligence.cluster import run_clustering
-from tes.intelligence.features import FEATURE_NAMES, SessionFeatures, build_feature_matrix
-from tes.store import list_sessions, open_db
+from tracegauge.intelligence.anomaly import detect_anomalies, summarize_anomalies
+from tracegauge.intelligence.cluster import run_clustering
+from tracegauge.intelligence.features import FEATURE_NAMES, SessionFeatures, build_feature_matrix
+from tracegauge.store import list_sessions, open_db
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -179,7 +182,7 @@ class TestAnomalyGuards:
     def test_no_anomalies_on_invalid_clustering(self):
         """detect_anomalies should return [] when result.valid is False."""
         from sklearn.preprocessing import StandardScaler
-        from tes.intelligence.cluster import ClusteringResult
+        from tracegauge.intelligence.cluster import ClusteringResult
 
         # Build a result that has valid=False
         fake_result = ClusteringResult(
@@ -207,7 +210,7 @@ class TestAnomalyGuards:
     def test_no_anomalies_on_empty_labels(self):
         """detect_anomalies with empty labels returns []."""
         from sklearn.preprocessing import StandardScaler
-        from tes.intelligence.cluster import ClusteringResult
+        from tracegauge.intelligence.cluster import ClusteringResult
 
         result = ClusteringResult(
             n_sessions=0,

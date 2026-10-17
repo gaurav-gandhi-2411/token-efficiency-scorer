@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 layer2_judge.py — Layer 2: trajectory-quality judge via Qwen3-8B/Ollama.
 

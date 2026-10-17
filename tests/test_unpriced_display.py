@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """A model missing from the price table must read `unpriced (<model>)`, never `$0.00` (D7).
@@ -14,14 +17,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes._digest import reconstruct_digest
-from tes.adapt import adapt_session
-from tes.budget import compute_budget_projection
-from tes.cost import compute_session_cost, load_price_table
-from tes.live_monitor import score_live_session
-from tes.store import list_sessions, open_db
-from tes.web.cost_format import format_cost_display
+import tracegauge.cli as cli
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import adapt_session
+from tracegauge.budget import compute_budget_projection
+from tracegauge.cost import compute_session_cost, load_price_table
+from tracegauge.live_monitor import score_live_session
+from tracegauge.store import list_sessions, open_db
+from tracegauge.web.cost_format import format_cost_display
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -119,7 +122,7 @@ def test_zero_token_synthetic_turn_does_not_make_a_session_unpriced(tmp_path: Pa
 @pytest.fixture
 def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db = tmp_path / "tes.db"
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -127,7 +130,7 @@ def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _cli(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:
@@ -237,7 +240,7 @@ def test_cli_cost_period_fully_unpriced_total_is_not_zero_dollars(
 
 
 def test_stored_attribution_line_never_prints_zero_waste_dollars_for_unpriced() -> None:
-    from tes.web.server import _stored_attribution_line
+    from tracegauge.web.server import _stored_attribution_line
 
     ev = [{"wasted_cost_usd": 0.0}] * 2
     base = {"session_cost_usd": 0.0, "waste_events": ev, "waste_event_count": 2}
@@ -258,8 +261,8 @@ def test_stored_attribution_line_never_prints_zero_waste_dollars_for_unpriced() 
 
 
 def test_breakdown_does_not_claim_no_waste_when_turns_were_unpriced() -> None:
-    from tes.attribution import AttributionResult
-    from tes.takeaway import build_cost_breakdown
+    from tracegauge.attribution import AttributionResult
+    from tracegauge.takeaway import build_cost_breakdown
 
     attr = AttributionResult(
         session_id="s",
@@ -329,7 +332,7 @@ def test_dashboard_renders_unpriced(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from tes.web.server import ServerConfig, create_app
+    from tracegauge.web.server import ServerConfig, create_app
 
     full = _session(tmp_path / "proj" / "full.jsonl", [UNPRICED] * 3)
     part = _session(tmp_path / "proj" / "part.jsonl", [PRICED] * 3 + [UNPRICED])

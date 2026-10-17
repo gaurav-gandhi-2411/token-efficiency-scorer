@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Subagent transcripts are not sessions: every discovery site must skip them (D6),
@@ -8,12 +11,12 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.cli import _newest_session, _recent_sessions, _resolve_score_targets
-from tes.discovery import is_subagent_path, iter_session_files
-from tes.live_monitor import find_active_session
-from tes.store import open_db
-from tes.watcher import WatcherConfig, _scan_once
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.cli import _newest_session, _recent_sessions, _resolve_score_targets
+from tracegauge.discovery import is_subagent_path, iter_session_files
+from tracegauge.live_monitor import find_active_session
+from tracegauge.store import open_db
+from tracegauge.watcher import WatcherConfig, _scan_once
 
 
 def _layout(root: Path) -> tuple[Path, Path]:
@@ -73,7 +76,7 @@ def test_watcher_scan_skips_subagents(tmp_path: Path) -> None:
     conn = open_db(tmp_path / "tes.db")
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
     config = WatcherConfig(cc_path=tmp_path, stability_window=0, db_path=tmp_path / "tes.db")
-    with patch("tes.watcher.score_session_file", return_value=None) as scorer:
+    with patch("tracegauge.watcher.score_session_file", return_value=None) as scorer:
         _scan_once(config, conn, baselines, _now=time.time() + 999)
     scored = [call.args[0].name for call in scorer.call_args_list]
     assert scored == ["sid-1.jsonl"]

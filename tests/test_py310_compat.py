@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Static guard for Python 3.10 compatibility (the package claims 3.10-3.14).
 
 `datetime.UTC` is 3.11+. The 3.10 CI leg found `scripts/rebuild_baselines.py` importing it, which
@@ -11,8 +14,11 @@ import ast
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
-# tes/ is what ships; rebuild_baselines.py is the one script the test suite imports.
-_GUARDED = [*sorted((_ROOT / "tes").rglob("*.py")), _ROOT / "scripts" / "rebuild_baselines.py"]
+# tracegauge/ is what ships; rebuild_baselines.py is the one script the test suite imports.
+_GUARDED = [
+    *sorted((_ROOT / "tracegauge").rglob("*.py")),
+    _ROOT / "scripts" / "rebuild_baselines.py",
+]
 
 
 def _imports_datetime_utc(path: Path) -> bool:

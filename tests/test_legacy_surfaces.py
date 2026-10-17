@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Legacy rows (scored before 0.15) on `impact`, `patterns` and `ask`: their aggregates leave
@@ -9,10 +12,10 @@ import uuid
 from pathlib import Path
 
 import pytest
-from tes import cli
-from tes.intelligence.chat import _build_user_message, build_chat_context
-from tes.legacy import LEGACY_ROW_LABEL
-from tes.store import open_db
+from tracegauge import cli
+from tracegauge.intelligence.chat import _build_user_message, build_chat_context
+from tracegauge.legacy import LEGACY_ROW_LABEL
+from tracegauge.store import open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
@@ -25,7 +28,7 @@ _LEGACY_OPS = json.dumps([{"path": "src/legacy_only.py", "additions": 5000, "del
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", "--quiet", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "--quiet", *argv])
     code = 0
     try:
         cli.main()

@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""Exit codes are a contract (docs/EXIT_CODES.md): scripts and hooks branch on them (W1A item 6).
+"""Exit codes are a contract (docs/EXIT_CODES.md): scripts and hooks branch on them.
 
 `score` on a corrupt file used to print [ERROR] and exit 0; `monitor` printed [ALARM] and exit 0,
 so there was no machine-readable pass/fail. These tests run the real CLI (subprocess for the
@@ -15,9 +18,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
-from tes.store import open_db
+import tracegauge.cli as cli
+from tracegauge.exit_codes import EXIT_ADAPT_ERROR, EXIT_ALARM, EXIT_OK, EXIT_USAGE, epilog
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store
 from tests.test_alarm_measured import _live, _threshold_active, _threshold_disabled
@@ -59,12 +62,12 @@ def _run(tmp_path: Path, *argv: str) -> subprocess.CompletedProcess[str]:
         "USERPROFILE": str(home),
         "LOCALAPPDATA": str(home),
         "APPDATA": str(home),
-        "TES_DB_PATH": str(tmp_path / "tes.db"),
+        "TRACEGAUGE_DB_PATH": str(tmp_path / "tes.db"),
         "PYTHONIOENCODING": "utf-8",
     }
     env.pop("ANTHROPIC_API_KEY", None)
     return subprocess.run(
-        [sys.executable, "-m", "tes", *argv],
+        [sys.executable, "-m", "tracegauge", *argv],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -148,14 +151,14 @@ def test_cost_with_unopenable_store_exits_usage(
 
 
 def _monitor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, live: Any, baseline: Any) -> int:
-    import tes.alarm as alarm_mod
-    import tes.live_monitor as lm
+    import tracegauge.alarm as alarm_mod
+    import tracegauge.live_monitor as lm
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
     monkeypatch.setattr(alarm_mod, "threshold_for_live", lambda *a, **k: baseline)
-    monkeypatch.setattr("sys.argv", ["tes", "monitor"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "monitor"])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     return int(exc.value.code or 0)
@@ -183,12 +186,12 @@ def test_monitor_without_active_session_exits_zero(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     # Nothing is running, so there is nothing to alarm on. A SessionEnd hook or cron job that
-    # runs `tes monitor` must not read "no session" as a failure.
-    import tes.live_monitor as lm
+    # runs `tracegauge monitor` must not read "no session" as a failure.
+    import tracegauge.live_monitor as lm
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: None)
-    monkeypatch.setattr("sys.argv", ["tes", "monitor", "--cc-path", str(tmp_path)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "monitor", "--cc-path", str(tmp_path)])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == EXIT_OK
@@ -207,7 +210,7 @@ def hermetic_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     for var in ("HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"):
         monkeypatch.setenv(var, str(home))
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
@@ -215,7 +218,7 @@ def hermetic_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _main_code(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> int:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         code = cli.main()
     except SystemExit as exc:
@@ -278,7 +281,9 @@ def test_every_row_of_exit_codes_md_matches_behaviour(
     for want, why, argv in cases:
         got = _main_code(monkeypatch, argv)
         capsys.readouterr()
-        assert got == want, f"{why}: `tes {' '.join(argv)}` exited {got}, EXIT_CODES.md says {want}"
+        assert got == want, (
+            f"{why}: `tracegauge {' '.join(argv)}` exited {got}, EXIT_CODES.md says {want}"
+        )
 
 
 def test_monitor_alarm_row_of_exit_codes_md(

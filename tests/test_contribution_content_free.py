@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_contribution_content_free.py — Prove zero content leakage in contribution payload.
@@ -13,9 +16,9 @@ Tests VALUE leakage, not just key leakage.
 import json
 from datetime import datetime, timezone
 
-from tes.contribution import build_contribution_payload
-from tes.score import ThreeAxisResult
-from tes.store import open_db, upsert_session
+from tracegauge.contribution import build_contribution_payload
+from tracegauge.score import ThreeAxisResult
+from tracegauge.store import open_db, upsert_session
 
 from tests.legacy_store import stamp_current
 

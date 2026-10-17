@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_usage_fields_priced.py -- fail when a usage key path (or value) that appears in
 Claude Code transcripts has no entry in the committed pricing-rule registry.
 
@@ -7,7 +10,7 @@ at the 5-minute rate, understating the maintainer's measured spend by ~3%. Nothi
 nothing compared "what the transcripts carry" with "what the pricing code knows". This gate does:
 every key path under ``message.usage`` must be listed in ``config/usage_field_rules.json`` with a
 rule (priced / free / ignored-with-reason / unmodelled), so a NEW billable field fails loudly the
-first time it shows up, and a value that tes.cost does not price (an unknown ``speed`` such as
+first time it shows up, and a value that tracegauge.cost does not price (an unknown ``speed`` such as
 ``turbo``, a new ``inference_geo``, a non-standard ``service_tier``) is rejected by the registry's
 value guards instead of passing as an ordinary string. ``speed: fast`` and ``inference_geo: us``
 are priced and allowed.
@@ -150,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if unknown:
         print(
-            "USAGE KEY PATHS with no pricing rule (decide: price it in tes/cost.py, or add it to "
+            "USAGE KEY PATHS with no pricing rule (decide: price it in tracegauge/cost.py, or add it to "
             "config/usage_field_rules.json as free/ignored with a reason, and document it in "
             "docs/PRICING_FIELDS.md):",
             file=sys.stderr,

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Pricing of the 5.5-generation Claude models and the per-model price-schema extensions
@@ -10,8 +13,8 @@ reads and 100,000 cache writes (5m) -> 300,000 fresh input tokens; 200,000 outpu
 """
 
 import pytest
-from tes._digest import SessionDigest, TurnDigest
-from tes.cost import (
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.cost import (
     NON_MODEL_IDS,
     _resolve_model,
     cache_read_multiplier,
@@ -135,7 +138,7 @@ def test_cache_read_multiplier_defaults_to_table_wide_value() -> None:
     assert cache_read_multiplier({"cache_read_multiplier": 0.05}, _PRICES) == 0.05
 
 
-# Rates published in tes/data/prices.json at b261c4b (before this change). A drift here means a
+# Rates published in tracegauge/data/prices.json at b261c4b (before this change). A drift here means a
 # legacy entry changed; the cost figures for old transcripts would silently move with it.
 _LEGACY = {
     "claude-fable-5": (10.0, 50.0),

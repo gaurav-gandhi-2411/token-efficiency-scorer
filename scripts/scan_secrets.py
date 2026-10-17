@@ -1,8 +1,11 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """scan_secrets.py — Pre-commit gate: scan pool JSONL for unmasked secrets.
 
-Scans ``content_snippet`` and ``task_description`` fields in a pool_adapted.jsonl
+Scans ``content_snippet`` and ``task_description`` fields in an adapted-session pool
 (or any compatible JSONL) file for live credentials.  Prints a report and exits
 with code 1 if any unmasked secrets are found, making it safe to use as a
 pre-commit hook gate.
@@ -10,7 +13,7 @@ pre-commit hook gate.
 Usage::
 
     python scripts/scan_secrets.py
-    python scripts/scan_secrets.py --path data/corpus_pool/pool_adapted.jsonl
+    python scripts/scan_secrets.py --path POOL.jsonl
 """
 
 import argparse
@@ -61,8 +64,6 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
 _COMPILED: list[tuple[re.Pattern[str], str]] = [
     (re.compile(pattern), label) for pattern, label in _SECRET_PATTERNS
 ]
-
-_DEFAULT_PATH = Path("data/corpus_pool/pool_adapted.jsonl")
 
 # Substrings that indicate an already-masked or placeholder value — not a live secret.
 _SAFE_SUBSTRINGS: tuple[str, ...] = (
@@ -135,7 +136,7 @@ def _scan_text(text: str, line_num: int, session_id: str) -> list[Hit]:
 
 
 def scan_file(path: Path) -> tuple[list[Hit], int]:
-    """Scan all records in a pool_adapted.jsonl file.
+    """Scan all records in an adapted-session pool file.
 
     Args:
         path: Path to a JSONL file whose records contain ``digest.task_description``
@@ -188,8 +189,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--path",
         metavar="FILE_OR_DIR",
-        default=str(_DEFAULT_PATH),
-        help=f"File or directory to scan (default: {_DEFAULT_PATH}).",
+        required=True,
+        help="File or directory to scan (required: the maintainer's pool is not in the repository).",
     )
     return parser.parse_args()
 

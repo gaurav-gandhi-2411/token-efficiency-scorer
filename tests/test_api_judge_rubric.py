@@ -1,10 +1,13 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Tests: API judge uses the same validated v3 rubric as the local Qwen judge."""
 
 from unittest.mock import MagicMock, patch
 
-from tes.judge import (
+from tracegauge.judge import (
     _JUDGE_USER_TEMPLATE,
     JUDGE_SYSTEM_PROMPT,
     ApiJudgeConfig,
@@ -60,7 +63,7 @@ def _make_mock_response(verdict: str = "MUCH_BETTER") -> MagicMock:
 def test_api_judge_uses_judge_system_prompt():
     """The system prompt sent to the API equals JUDGE_SYSTEM_PROMPT exactly."""
     config = ApiJudgeConfig(api_key="sk-key")
-    with patch("tes.judge.httpx.post", return_value=_make_mock_response()) as mock_post:
+    with patch("tracegauge.judge.httpx.post", return_value=_make_mock_response()) as mock_post:
         score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     call_kwargs = mock_post.call_args.kwargs
     sent_system = call_kwargs["json"]["system"]
@@ -71,7 +74,7 @@ def test_api_judge_user_prompt_from_same_template():
     """The user prompt sent to the API is built from _JUDGE_USER_TEMPLATE."""
     config = ApiJudgeConfig(api_key="sk-key")
     expected_prompt = _build_user_prompt(_MINIMAL_RECORD)
-    with patch("tes.judge.httpx.post", return_value=_make_mock_response()) as mock_post:
+    with patch("tracegauge.judge.httpx.post", return_value=_make_mock_response()) as mock_post:
         score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     call_kwargs = mock_post.call_args.kwargs
     messages = call_kwargs["json"]["messages"]
@@ -82,7 +85,7 @@ def test_api_judge_user_prompt_from_same_template():
 
 def test_api_and_local_use_same_system_prompt_constant():
     """Both code paths reference the SAME JUDGE_SYSTEM_PROMPT constant — not a copy."""
-    from tes.judge import JUDGE_SYSTEM_PROMPT as system_prompt_from_module
+    from tracegauge.judge import JUDGE_SYSTEM_PROMPT as system_prompt_from_module
 
     # The constant is the same object regardless of import path
     assert system_prompt_from_module is JUDGE_SYSTEM_PROMPT
@@ -90,14 +93,14 @@ def test_api_and_local_use_same_system_prompt_constant():
 
 def test_api_and_local_use_same_user_template_constant():
     """Both code paths reference the SAME _JUDGE_USER_TEMPLATE constant."""
-    from tes.judge import _JUDGE_USER_TEMPLATE as template_from_module
+    from tracegauge.judge import _JUDGE_USER_TEMPLATE as template_from_module
 
     assert template_from_module is _JUDGE_USER_TEMPLATE
 
 
 def test_verdict_enum_is_identical():
     """The API judge parses the same VERDICT_TO_FLOAT keys as the local judge."""
-    from tes.judge import VERDICT_TO_FLOAT
+    from tracegauge.judge import VERDICT_TO_FLOAT
 
     expected_verdicts = {"MUCH_BETTER", "BETTER", "SIMILAR", "WORSE", "MUCH_WORSE"}
     assert set(VERDICT_TO_FLOAT.keys()) == expected_verdicts
@@ -106,7 +109,7 @@ def test_verdict_enum_is_identical():
 def test_api_judge_returns_valid_judge_entry_format():
     """The API judge returns the same dict shape as score_trajectory (compatible with score_session)."""
     config = ApiJudgeConfig(api_key="sk-key")
-    with patch("tes.judge.httpx.post", return_value=_make_mock_response("BETTER")):
+    with patch("tracegauge.judge.httpx.post", return_value=_make_mock_response("BETTER")):
         result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
     assert result is not None
     # Must have same keys as local judge_entry
@@ -121,11 +124,11 @@ def test_api_judge_returns_valid_judge_entry_format():
 
 def test_api_judge_same_verdict_to_float_mapping():
     """Verdicts map to the same float scores regardless of local vs API path."""
-    from tes.judge import VERDICT_TO_FLOAT
+    from tracegauge.judge import VERDICT_TO_FLOAT
 
     config = ApiJudgeConfig(api_key="sk-key")
     for verdict, expected_score in VERDICT_TO_FLOAT.items():
-        with patch("tes.judge.httpx.post", return_value=_make_mock_response(verdict)):
+        with patch("tracegauge.judge.httpx.post", return_value=_make_mock_response(verdict)):
             result = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
         assert result is not None
         assert result["judge_score"] == expected_score

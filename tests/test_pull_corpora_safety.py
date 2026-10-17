@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """scripts/pull_corpora.py writes records derived from real sessions. It must never write into a
@@ -122,7 +125,9 @@ def test_main_refuses_before_pulling_anything_and_writes_nothing(
     monkeypatch.setattr(pull_corpora, "process_local", _must_not_run)
     target = repo / "tracked.jsonl"
     before = target.read_bytes()
-    monkeypatch.setattr(sys, "argv", ["pull_corpora.py", "--output", str(target)])
+    monkeypatch.setattr(
+        sys, "argv", ["pull_corpora.py", "--projects", "alpha", "--output", str(target)]
+    )
     with pytest.raises(SystemExit) as exc:
         pull_corpora.main()
     assert "refusing to write output" in str(exc.value)
@@ -135,7 +140,15 @@ def test_dry_run_does_not_need_a_safe_output(repo: Path, monkeypatch: pytest.Mon
     monkeypatch.setattr(
         sys,
         "argv",
-        ["pull_corpora.py", "--dry-run", "--skip-public", "--output", str(repo / "tracked.jsonl")],
+        [
+            "pull_corpora.py",
+            "--projects",
+            "alpha",
+            "--dry-run",
+            "--skip-public",
+            "--output",
+            str(repo / "tracked.jsonl"),
+        ],
     )
     pull_corpora.main()
     assert (repo / "tracked.jsonl").read_text(encoding="utf-8") == "{}\n"

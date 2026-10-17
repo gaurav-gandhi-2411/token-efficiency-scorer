@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """A raw U+2028/U+0085 inside a JSON string must not split (and so drop) a JSONL record.
@@ -11,9 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes._digest import reconstruct_digest
-from tes.adapt import _read_jsonl, adapt_session
-from tes.store import _count_turns_from_jsonl
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import _read_jsonl, adapt_session
+from tracegauge.store import _count_turns_from_jsonl
 
 SEPARATORS = ["\u2028", "\u2029", "\u0085"]  # \x0b-\x1e are escaped by json.dumps
 

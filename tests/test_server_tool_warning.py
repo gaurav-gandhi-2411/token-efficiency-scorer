@@ -1,23 +1,26 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_server_tool_warning.py — Tests for the S1 audit's server-side
 tool billing fix (0.10.2).
 
-Before this fix, tes.adapt._parse_usage read only 4 token-count fields from
+Before this fix, tracegauge.adapt._parse_usage read only 4 token-count fields from
 a Claude API response's `usage` dict and silently dropped `server_tool_use`
 (e.g. web search, billed at $10/1,000 searches on top of token costs) --
 zero warning of any kind, worse than the unknown-model case which at least
 partially flagged. This tests the full path: adapt.py detects it ->
-TurnDigest carries it -> tes.cost warns about it (never prices it) ->
-tes.score/report surface the warning.
+TurnDigest carries it -> tracegauge.cost warns about it (never prices it) ->
+tracegauge.score/report surface the warning.
 """
 
 import json
 from pathlib import Path
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.adapt import _parse_server_tool_use, adapt_session
-from tes.cost import compute_session_cost, compute_turn_cost
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.adapt import _parse_server_tool_use, adapt_session
+from tracegauge.cost import compute_session_cost, compute_turn_cost
 
 _PRICES: dict = {
     "as_of": "2026-08-15",
@@ -32,7 +35,7 @@ _PRICES: dict = {
 
 
 # ---------------------------------------------------------------------------
-# Unit tests — tes.adapt._parse_server_tool_use
+# Unit tests — tracegauge.adapt._parse_server_tool_use
 # ---------------------------------------------------------------------------
 
 
@@ -131,7 +134,7 @@ def test_adapt_session_without_server_tool_use_leaves_field_none(tmp_path: Path)
 
 
 # ---------------------------------------------------------------------------
-# tes.cost: server tool use is warned about, never priced.
+# tracegauge.cost: server tool use is warned about, never priced.
 # ---------------------------------------------------------------------------
 
 
@@ -228,14 +231,14 @@ def test_session_with_no_server_tool_use_has_empty_warnings_list() -> None:
 
 
 # ---------------------------------------------------------------------------
-# tes.report: the warning surfaces in human-readable output as a distinct,
+# tracegauge.report: the warning surfaces in human-readable output as a distinct,
 # clearly-marked line (never silently absent from a confident-looking total).
 # ---------------------------------------------------------------------------
 
 
 def test_report_surfaces_server_tool_warning_in_human_output() -> None:
-    from tes.report import format_human
-    from tes.score import (
+    from tracegauge.report import format_human
+    from tracegauge.score import (
         TOKEN_DOMAIN_OF_VALIDITY,
         TRAJECTORY_DOMAIN_OF_VALIDITY,
         WASTE_DOMAIN_OF_VALIDITY,
@@ -275,8 +278,8 @@ def test_report_surfaces_server_tool_warning_in_human_output() -> None:
 
 
 def test_report_no_not_priced_line_when_no_server_tool_warnings() -> None:
-    from tes.report import format_human
-    from tes.score import (
+    from tracegauge.report import format_human
+    from tracegauge.score import (
         TOKEN_DOMAIN_OF_VALIDITY,
         TRAJECTORY_DOMAIN_OF_VALIDITY,
         WASTE_DOMAIN_OF_VALIDITY,

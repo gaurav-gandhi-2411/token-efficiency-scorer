@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Dashboard session page: the cache-churn card in its three states (populated, empty, unavailable)."""
@@ -8,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.web.server import ServerConfig, create_app
+import tracegauge.cli as cli
+from tracegauge.web.server import ServerConfig, create_app
 
 from tests.churn_synth import build_chain
 
@@ -21,8 +24,8 @@ def _write(path: Path, recs: list[dict[str, Any]]) -> Path:
 
 
 def _score(monkeypatch: pytest.MonkeyPatch, db: Path, path: Path) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(db))
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(path), "--no-judge"])
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(path), "--no-judge"])
     try:
         cli.main()
     except SystemExit as exc:

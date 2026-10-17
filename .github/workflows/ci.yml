@@ -7,6 +7,11 @@ on:
     branches: [master]
   workflow_dispatch:
 
+# Least privilege for every job: none of them writes to the repository, comments, or publishes.
+# A job that ever needs more declares it on itself (secret-scan restates read for clarity).
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -30,7 +35,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      # AW2: the 608-pre-existing-findings backlog this comment used to
+      # The 608-pre-existing-findings backlog this comment used to
       # describe is triaged and resolved -- ~93% was E402 (a structural
       # false-positive against this repo's own future-import-first
       # convention, permanently exempted via pyproject.toml's
@@ -53,20 +58,20 @@ jobs:
       # None introduced by this change; same tightening note as lint above.
       - name: Type check (mypy, informational)
         continue-on-error: true
-        run: uv run mypy src/ tes/
+        run: uv run mypy src/ tracegauge/ tes/
 
       # Offline half of the release gate (release.yml runs it again with --pypi at tag time): a
       # version that disagrees between pyproject.toml, uv.lock and CHANGELOG fails here, not at release.
       - name: Release version sources agree
         run: uv run python scripts/check_release_version.py
 
-  # W1A item 8. The full suite on every OS x Python the package claims (classifiers say 3.10-3.14;
+  # The full suite on every OS x Python the package claims (classifiers say 3.10-3.14;
   # Windows and macOS were never exercised before). lint-and-test above stays ONE job for
   # lint/format/types/release checks -- those do not vary by platform, so 12x would only be noise --
   # and keeps its name because "lint-and-test" is a required status check. The tests moved here and
   # are still a merge gate through the required aggregate "python-compat (every leg)" below.
   #
-  # History kept for context (UU1, 0.11.1): test_cluster_validity.py and test_chat_grounding.py were
+  # History kept for context (0.11.1): test_cluster_validity.py and test_chat_grounding.py were
   # once excluded from CI because they read the real ~/.claude history; they were fixed at the test
   # level (synthetic cache dict; pytest.skip with a stated reason on a thin corpus), so the whole
   # suite runs unrestricted on every leg.
@@ -97,7 +102,7 @@ jobs:
       # (a Windows-only path, a skipped test) cannot flip the total across the threshold.
       - name: Unit tests (with the coverage ratchet)
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' }}
-        run: uv run pytest --cov=tes --cov-report=term-missing
+        run: uv run pytest --cov=tracegauge --cov-report=term-missing
 
       - name: Unit tests
         if: ${{ !(matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12') }}
@@ -143,13 +148,13 @@ jobs:
 
       - name: quickstart runs and shows a finding
         run: |
-          "$PY" -m tes quickstart | tee "$RUNNER_TEMP/quickstart.txt"
+          "$PY" -m tracegauge quickstart | tee "$RUNNER_TEMP/quickstart.txt"
           grep -q "REPEATED-FAILED-RETRY" "$RUNNER_TEMP/quickstart.txt"
 
       - name: score runs on the bundled sample
         run: |
-          SAMPLE=$("$PY" -c "import pathlib, tes; print(pathlib.Path(tes.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
-          "$PY" -m tes score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
+          SAMPLE=$("$PY" -c "import pathlib, tracegauge; print(pathlib.Path(tracegauge.__file__).parent / 'data' / 'quickstart_sample_session.jsonl')")
+          "$PY" -m tracegauge score "$SAMPLE" --json > "$RUNNER_TEMP/score.json"
           "$PY" -c "import json, sys; d = json.load(open(sys.argv[1], encoding='utf-8')); assert d, 'empty score output'" "$RUNNER_TEMP/score.json"
 
       # An editable install of this checkout (still no extras) satisfies tests/_checkout_guard.py,
@@ -160,7 +165,7 @@ jobs:
           "$PY" -m pip install --quiet -e . "pytest>=9.0.3,<10" "pytest-asyncio>=1,<2"
           "$PY" -m pytest tests/test_core_without_extras.py
 
-  # The classifiers claim Python 3.10-3.14 (audit D8, 2026-10-07; its first run found the package
+  # The classifiers claim Python 3.10-3.14 (an audit on 2026-10-07; its first run found the package
   # did not import on 3.10, see CHANGELOG). 3.10-3.13 now run in the `tests` matrix on three OSes;
   # this job keeps the pre-existing ubuntu 3.14 leg so no claimed version loses coverage. Its own
   # check name ("python-compat (3.14)") is not required; the aggregate below is.
@@ -210,7 +215,7 @@ jobs:
     # 2026-08-05 audit: a metric in .portfolio/metrics.json without a
     # committed artifact behind it can silently drift from what the portfolio
     # site shows, with nobody able to tell -- this is a build failure, not a
-    # warning. See gg-portfolio's provenance.md wave 19 section.
+    # warning.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -302,3 +307,25 @@ jobs:
             echo "gitleaks accepted a planted AWS key"
             exit 1
           fi
+
+  # Developer Certificate of Origin (CONTRIBUTING.md): every commit a PR adds must carry a
+  # Signed-off-by trailer matching its author or committer. Merge commits and bot commits
+  # (dependabot) are skipped. tests/test_check_dco.py proves the check fails on an unsigned commit
+  # and passes on a signed one, so this job cannot quietly stop finding anything.
+  dco:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Every commit in the PR has a valid Signed-off-by
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python scripts/check_dco.py --base "$BASE_SHA" --head "$HEAD_SHA"

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Synthetic stores for the legacy-row (upgrade path) tests. No real data: the transcript is the
@@ -8,8 +11,8 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.store import open_db
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.store import open_db
 
 FIXTURE = Path(__file__).parent / "fixtures" / "usage_dedupe" / "multi_block_session.jsonl"
 

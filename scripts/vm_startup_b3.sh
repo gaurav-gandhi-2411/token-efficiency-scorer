@@ -76,7 +76,7 @@ echo "[$(date)] === nvidia-smi ==="
 nvidia-smi
 echo "[$(date)] === End nvidia-smi ==="
 
-# Write ready marker (orchestrator polls this via serial port output)
+# Write ready marker (the launcher polls this via serial port output)
 echo "SETUP_COMPLETE $(date)" > /var/log/setup_complete
 echo "[$(date)] === SETUP COMPLETE - gemma3:27b ready for B3 scoring ==="
 

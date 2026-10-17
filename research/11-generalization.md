@@ -1,16 +1,17 @@
-# Report 11 — Generalization Validation: 172-Developer Corpus, Corpus Characterization, and Detector Limits
+# Report 11 — Generalization Validation: SWE-chat Corpus, Corpus Characterization, and Detector Limits
 
 **Author:** Gaurav Gandhi
 **Date:** 2026-06-05
+**Erratum (2026-10):** earlier versions of this report said "172 independent developers". That mixed two counts. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. All rates and conclusions below are computed on the 1,053 sessions and are unchanged; only the developer count is corrected.  
 **Status:** FINAL — B5 run complete; detectors frozen (byte-identical to B4)
 
 ---
 
 ## 0. Purpose
 
-B5 tests whether the B4 deterministic waste detectors (REPEATED-FAILED-RETRY, REDUNDANT-READ) generalize beyond the single 181-session pool. The dataset is SWE-chat (SALT-NLP/SWE-chat), a public corpus of real coding-agent sessions collected from real developers by the Entire.io CLI checkpoint logger. Two subsets: CC (1,053 sessions from 172 distinct users, processed through the native `claudecode_adapter`) and non-CC (893 sessions from OpenCode, Codex, Gemini CLI, Cursor; processed through `public_trace_adapter`).
+B5 tests whether the B4 deterministic waste detectors (REPEATED-FAILED-RETRY, REDUNDANT-READ) generalize beyond the single 181-session pool. The dataset is SWE-chat (SALT-NLP/SWE-chat), a public corpus of real coding-agent sessions collected from real developers by the Entire.io CLI checkpoint logger. Two subsets: CC (1,053 sessions with raw transcripts, from 58 attributed users plus 281 sessions with no user_id, processed through the native `claudecode_adapter`) and non-CC (893 sessions from OpenCode, Codex, Gemini CLI, Cursor; processed through `public_trace_adapter`).
 
-> Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). AW1: added retroactively — every derived statistic in this report (172 developers, 1,053 sessions, the 1.4%/6.6% rate comparison, etc.) is a "Produced Work" under ODC-BY §4.3, which requires this notice. See [../DATA_SOURCES.md](../DATA_SOURCES.md).
+> Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). Added retroactively — every derived statistic in this report (58 attributed developers, 1,053 sessions, the 1.4%/6.6% rate comparison, etc.) is a "Produced Work" under ODC-BY §4.3, which requires this notice. See [../DATA_SOURCES.md](../DATA_SOURCES.md).
 
 > **Provenance of the SWE-chat figures.** Every figure below computed over the 1,053 SWE-chat CC sessions is (the maintainer's unpublished local measurement): the SWE-chat transcripts and the per-session outputs are not redistributed in this repository, so only the aggregates in `data/generalization_compare.json` can be checked here.
 
@@ -22,9 +23,9 @@ This report supersedes report 10 §9 (cumulative limitations, single-developer s
 
 ## 1. The Headline: Detectors Generalize — Single-Developer Asterisk Partially Retired
 
-REPEATED-FAILED-RETRY fires across **172 independent developers**. PATH-A fires across real-world CC sessions from those same developers. Neither result required touching the detectors. The core finding B5 was built to produce:
+REPEATED-FAILED-RETRY fires across **58 attributed developers** (plus 281 sessions with no user_id). PATH-A fires across real-world CC sessions from those same developers. Neither result required touching the detectors. The core finding B5 was built to produce:
 
-**The observable-invariant waste patterns (exact-match retry loops, unchanged-file reads) are not artifacts of one developer's working style. They occur in real software engineering sessions from 172 developers worldwide using Claude Code.**
+**The observable-invariant waste patterns (exact-match retry loops, unchanged-file reads) are not artifacts of one developer's working style. They occur in real software engineering sessions from at least 58 attributed developers using Claude Code.**
 
 The single-developer generalization limitation in report 10 §9 — "derived from one 181-session CC pool; generalization to other agent tools or task domains is unvalidated" — is retired for REPEATED-FAILED-RETRY and REDUNDANT-READ PATH-A. These detectors fire on other developers' sessions. The boundary survives contact with external data.
 
@@ -39,7 +40,7 @@ The RFR fire rate is 1.4% on SWE-chat CC vs 6.6% in the pool — a 4.7x differen
 | | Pool (B4) | SWE-chat CC |
 |---|---|---|
 | Sessions | 181 | 1,053 (the maintainer's unpublished local measurement) |
-| Distinct developers | 1 | 172 |
+| Distinct developers | 1 | 58 attributed (+281 sessions with no user_id) |
 | Median session length (turns) | 224 | 112 |
 | RFR sessions fired | 12 | 15 |
 | RFR fire rate | 6.6% | 1.4% |
@@ -84,14 +85,14 @@ This is the sharpest finding B5 produces, and it qualifies all prior rate-based 
 The B2 baselines (report 08), the B4 detector fire rates (report 10), and the trajectory-quality judge calibration (reports 06–09) are all derived from this pool. That pool is now characterized as:
 - One developer (gaurav-gandhi-2411 + 36 armand0e sessions)
 - Skewed toward GCP/Cloud Run/GPU/ML-training/infra-debugging sessions
-- RFR fire rate 4.7x higher than 172 real-world developers on coding tasks
+- RFR fire rate 4.7x higher than the 58 attributed real-world developers on coding tasks
 - Session length 2x above the SWE-chat CC median
 
 **What this qualifies:**
 
 The **B2 token baselines** (report 08) are calibrated to high-intensity ML-ops sessions. A developer doing ordinary coding work will likely fall below the pool's p25 baseline rather than within the efficient band — not because they are inefficient, but because the pool's reference sessions are heavier. The domain-type taxonomy in B2 partially compensates (per-type baselines), but within each type, the pool developer's intensity skews the reference upward.
 
-The **B4 RFR rate** (6.6%) should be read as "rate in high-waste infra context," not "universal rate in CC sessions." The SWE-chat CC rate (1.4% across 172 developers) is the more generalizable figure for ordinary software development.
+The **B4 RFR rate** (6.6%) should be read as "rate in high-waste infra context," not "universal rate in CC sessions." The SWE-chat CC rate (1.4% across 1,053 sessions from 58 attributed developers plus 281 with no user_id) is the more generalizable figure for ordinary software development.
 
 This does not invalidate B2 or B4. The baselines are real; the detectors work. The characterization is: the system is calibrated for a specific operational context. Users in that context (heavy infra/ML-ops work) will get accurate measurements. Users doing lighter coding work are measured against a high-intensity reference.
 
@@ -207,11 +208,11 @@ Detectors ran on SWE-chat CC sessions via the native CC JSONL adapter (no adapta
 
 **Updated from B4 (generalization validation adds new specificity):**
 
-- **Corpus characterization (NEW — §3):** The 181-session pool is a high-waste infrastructure/ML-ops outlier. All rate baselines (B2 tokens, B4 waste rates) are calibrated to this context. The generalizable RFR rate for ordinary software development is ~1.4% (172 developers), not 6.6% (one infra-heavy developer). The pool's 6.6% is real for its context; it is not a universal baseline.
+- **Corpus characterization (NEW — §3):** The 181-session pool is a high-waste infrastructure/ML-ops outlier. All rate baselines (B2 tokens, B4 waste rates) are calibrated to this context. The generalizable RFR rate for ordinary software development is ~1.4% (58 attributed developers), not 6.6% (one infra-heavy developer). The pool's 6.6% is real for its context; it is not a universal baseline.
 
 - **PATH-B maintenance issue (NEW — §4):** PATH-B is silently broken on CC v2.1.38+ due to a format change in Read tool output (`\d+\t` tab → `   \d+→` arrow). The regex must be updated to `^\d+\t|^\s+\d+→` before PATH-B is meaningful on current CC sessions. All prior PATH-B counts are from pre-v2.1.38 sessions.
 
-- **Single-developer limitation (PARTIALLY RETIRED — §1):** Retired for RFR and PATH-A: both fire on sessions from 172 independent developers using Claude Code. Not retired for PATH-B (UNAVAILABLE, §4), for non-CC generalization (INCONCLUSIVE, §7), or for the task-mix calibration concern (pool remains infra-heavy, §3).
+- **Single-developer limitation (PARTIALLY RETIRED — §1):** Retired for RFR and PATH-A: both fire on sessions from 58 attributed developers (plus 281 sessions with no user_id) using Claude Code. Not retired for PATH-B (UNAVAILABLE, §4), for non-CC generalization (INCONCLUSIVE, §7), or for the task-mix calibration concern (pool remains infra-heavy, §3).
 
 - **Non-CC generalization (NOT VALIDATED — §7):** Cannot be tested with current public data; conversations.parquet lacks tool_result rows for OpenCode and Codex (90% of non-CC corpus). Gemini CLI (11 sessions, 0/11 RFR) is too small to claim.
 
@@ -225,7 +226,7 @@ Detectors ran on SWE-chat CC sessions via the native CC JSONL adapter (no adapta
 |---|---|
 | `data/swechat_cc_adapted.jsonl` | 1,053 SWE-chat CC sessions adapted via claudecode_adapter |
 | `data/swechat_noncc_adapted.jsonl` | 893 non-CC sessions adapted via public_trace_adapter |
-| `data/public_waste_signals.jsonl` | 1,946 records (1,053 CC + 893 non-CC) with per-session detector results |
+| `data/public_waste_signals.jsonl` | 1,946 records (1,053 CC + 893 non-CC) with per-session detector results. Not distributed: it is keyed by SWE-chat session ids, so it stays local and gitignored; regenerate it with `python scripts/generalization_run.py` (see `DATA_SOURCES.md`) |
 | `data/generalization_compare.json` | Three-way comparison: pool, SWE-chat CC, SWE-chat non-CC |
 | `scripts/public_trace_adapter.py` | New adapter for SWE-chat conversations.parquet (non-frozen) |
 | `scripts/generalization_run.py` | B5 pipeline: download, adapt, detect, compare |

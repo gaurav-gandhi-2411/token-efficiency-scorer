@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """export-contribution must never write a legacy (pre-0.15, overcounted ~2x) row into a
@@ -7,15 +10,15 @@ import json
 from pathlib import Path
 
 import pytest
-import tes.cli as cli
-from tes.contribution import build_contribution_payload
-from tes.store import open_db
+import tracegauge.cli as cli
+from tracegauge.contribution import build_contribution_payload
+from tracegauge.store import open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
 
 def _run(monkeypatch: pytest.MonkeyPatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     monkeypatch.setattr("builtins.input", lambda *a, **k: "y")
     with pytest.raises(SystemExit):
         cli.main()

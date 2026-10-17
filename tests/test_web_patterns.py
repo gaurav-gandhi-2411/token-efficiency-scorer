@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """test_web_patterns.py — Patterns page: honest framing, floor honored, validity shown.
 
 Tests:
@@ -15,13 +18,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import open_db, upsert_session
+from tracegauge.store import open_db, upsert_session
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,7 +77,7 @@ def _seed_sessions(db_path: Path, n: int) -> None:
 @pytest.fixture()
 def app_below_floor(tmp_path: Path):
     """App with fewer than 30 content sessions (below the clustering floor)."""
-    from tes.web.server import ServerConfig, create_app
+    from tracegauge.web.server import ServerConfig, create_app
 
     db = tmp_path / "below.db"
     _seed_sessions(db, 5)
@@ -90,7 +93,7 @@ def app_above_floor(tmp_path: Path):
 
     Patterns computation is mocked — we don't need real sklearn for these tests.
     """
-    from tes.web.server import ServerConfig, create_app
+    from tracegauge.web.server import ServerConfig, create_app
 
     db = tmp_path / "above.db"
     _seed_sessions(db, 35)
@@ -180,9 +183,9 @@ _MOCK_CACHE_BELOW_FLOOR = {
 class TestPatternsRouteStatus:
     def test_returns_200_below_floor(self, app_below_floor) -> None:
         with patch(
-            "tes.web.server.patterns.__wrapped__"
+            "tracegauge.web.server.patterns.__wrapped__"
             if hasattr(app_below_floor, "__wrapped__")
-            else "tes.web.server.get_or_compute_intelligence",
+            else "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
@@ -191,7 +194,7 @@ class TestPatternsRouteStatus:
 
     def test_returns_200_with_mocked_valid_cache(self, app_above_floor) -> None:
         with patch(
-            "tes.web.server.get_or_compute_intelligence",
+            "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_VALID,
         ):
             with app_above_floor.test_client() as c:
@@ -202,7 +205,7 @@ class TestPatternsRouteStatus:
 class TestPatternsFloorHonored:
     def test_below_floor_shows_not_enough_message(self, app_below_floor) -> None:
         with patch(
-            "tes.web.server.get_or_compute_intelligence",
+            "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
@@ -211,7 +214,7 @@ class TestPatternsFloorHonored:
 
     def test_below_floor_shows_n_sessions(self, app_below_floor) -> None:
         with patch(
-            "tes.web.server.get_or_compute_intelligence",
+            "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
@@ -221,7 +224,7 @@ class TestPatternsFloorHonored:
 
     def test_below_floor_no_archetype_grid(self, app_below_floor) -> None:
         with patch(
-            "tes.web.server.get_or_compute_intelligence",
+            "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
@@ -233,7 +236,7 @@ class TestPatternsFloorHonored:
 class TestPatternsAboveFloor:
     def _html(self, app_above_floor) -> str:
         with patch(
-            "tes.web.server.get_or_compute_intelligence",
+            "tracegauge.web.server.get_or_compute_intelligence",
             return_value=_MOCK_CACHE_VALID,
         ):
             with app_above_floor.test_client() as c:
@@ -283,8 +286,10 @@ class TestPatternsAboveFloor:
 class TestPatternsJudgeStatus:
     def test_ollama_status_shown_when_available(self, app_above_floor) -> None:
         with (
-            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
-            patch("tes.web.server._check_ollama", return_value=True),
+            patch(
+                "tracegauge.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID
+            ),
+            patch("tracegauge.web.server._check_ollama", return_value=True),
         ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
@@ -292,8 +297,10 @@ class TestPatternsJudgeStatus:
 
     def test_ollama_status_shown_when_unavailable(self, app_above_floor) -> None:
         with (
-            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
-            patch("tes.web.server._check_ollama", return_value=False),
+            patch(
+                "tracegauge.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID
+            ),
+            patch("tracegauge.web.server._check_ollama", return_value=False),
         ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
@@ -301,8 +308,10 @@ class TestPatternsJudgeStatus:
 
     def test_api_key_shown_when_present(self, app_above_floor) -> None:
         with (
-            patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID),
-            patch("tes.web.server._check_ollama", return_value=False),
+            patch(
+                "tracegauge.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID
+            ),
+            patch("tracegauge.web.server._check_ollama", return_value=False),
             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "sk-test"}),
         ):
             with app_above_floor.test_client() as c:
@@ -312,7 +321,9 @@ class TestPatternsJudgeStatus:
 
 class TestPatternsAskPanelPresent:
     def test_ask_panel_rendered(self, app_above_floor) -> None:
-        with patch("tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID):
+        with patch(
+            "tracegauge.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_VALID
+        ):
             with app_above_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()
         assert "ask-panel" in html
@@ -322,7 +333,8 @@ class TestPatternsAskPanelPresent:
     def test_ask_panel_rendered_below_floor_too(self, app_below_floor) -> None:
         """Ask panel must appear even below floor — just limits what context has."""
         with patch(
-            "tes.web.server.get_or_compute_intelligence", return_value=_MOCK_CACHE_BELOW_FLOOR
+            "tracegauge.web.server.get_or_compute_intelligence",
+            return_value=_MOCK_CACHE_BELOW_FLOOR,
         ):
             with app_below_floor.test_client() as c:
                 html = c.get("/patterns").data.decode()

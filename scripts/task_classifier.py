@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Task-type classifier for token-efficiency-scorer pool sessions.
@@ -6,11 +9,13 @@ Classifies each CC session into one of five task types using
 rule/keyword matching on the task description (or the first
 non-boilerplate user turn for <local-command-caveat> sessions).
 
-Usage:
-    python scripts/task_classifier.py --selftest
-    python scripts/task_classifier.py --session-id <session_id>
+Usage (the pool is an explicit argument; the maintainer's pool is not in the repository,
+the synthetic fixtures under tests/fixtures/ are):
+    python scripts/task_classifier.py --pool POOL.jsonl --selftest --judge-scores SCORES.jsonl
+    python scripts/task_classifier.py --pool POOL.jsonl --session-id <session_id>
 """
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -20,8 +25,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-POOL_ADAPTED_PATH = REPO_ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
-JUDGE_SCORES_PATH = REPO_ROOT / "data" / "pool_judge_scores.jsonl"
+# Input paths are explicit --pool / --judge-scores arguments of --selftest (the maintainer's pool is not in the repository).
 
 # ---------------------------------------------------------------------------
 # Session-level overrides (misclassification corrections)
@@ -200,14 +204,14 @@ def _match_type(text: str) -> str:
 
 
 def classify_session(record: dict) -> str:
-    """Classify a single pool_adapted record and return its task type.
+    """Classify a single adapted-session record and return its task type.
 
     Checks SESSION_OVERRIDES first; falls back to keyword matching.
 
     Parameters
     ----------
     record:
-        A dict parsed from one line of pool_adapted.jsonl.
+        A dict parsed from one line of an adapted-session pool.
 
     Returns
     -------
@@ -227,10 +231,10 @@ def classify_session(record: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _load_pool() -> list[dict]:
-    """Load all records from pool_adapted.jsonl."""
+def _load_pool(path: Path) -> list[dict]:
+    """Load all records from an adapted-session pool JSONL file."""
     records: list[dict] = []
-    with POOL_ADAPTED_PATH.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -238,10 +242,10 @@ def _load_pool() -> list[dict]:
     return records
 
 
-def _load_judge_scores() -> dict[str, dict]:
+def _load_judge_scores(path: Path) -> dict[str, dict]:
     """Load judge scores keyed by session_id."""
     scores: dict[str, dict] = {}
-    with JUDGE_SCORES_PATH.open("r", encoding="utf-8") as fh:
+    with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
             if line:
@@ -255,10 +259,10 @@ def _load_judge_scores() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 
-def run_selftest() -> None:
+def run_selftest(pool_path: Path, judge_scores_path: Path) -> None:
     """Run the full selftest and print results to stdout."""
-    pool = _load_pool()
-    judge_scores = _load_judge_scores()
+    pool = _load_pool(pool_path)
+    judge_scores = _load_judge_scores(judge_scores_path)
 
     scored_ids: set[str] = set(judge_scores.keys())
     strict_gate_ids: set[str] = {
@@ -362,22 +366,25 @@ def run_selftest() -> None:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    args = sys.argv[1:]
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Classify adapted sessions by task type.")
+    parser.add_argument("--pool", type=Path, required=True, help="adapted-session pool (JSONL)")
+    parser.add_argument("--selftest", action="store_true", help="classify the whole pool")
+    parser.add_argument(
+        "--judge-scores", type=Path, default=None, help="judge scores (JSONL), for --selftest"
+    )
+    parser.add_argument("--session-id", default=None, help="classify one session")
+    args = parser.parse_args(argv)
 
-    if "--selftest" in args:
-        run_selftest()
+    if args.selftest:
+        if args.judge_scores is None:
+            parser.error("--selftest needs --judge-scores")
+        run_selftest(args.pool, args.judge_scores)
         return
 
-    if "--session-id" in args:
-        idx = args.index("--session-id")
-        if idx + 1 >= len(args):
-            print("Error: --session-id requires a session ID argument", file=sys.stderr)
-            sys.exit(1)
-        target_id = args[idx + 1]
-        pool = _load_pool()
-        for record in pool:
-            if record["session_id"] == target_id:
+    if args.session_id is not None:
+        for record in _load_pool(args.pool):
+            if record["session_id"] == args.session_id:
                 task_type = classify_session(record)
                 effective_text, override_turn = _effective_task_description(record)
                 print(f"session_id:    {record['session_id']}")
@@ -386,14 +393,10 @@ def main() -> None:
                     print(f"caveat_turn:   {override_turn}")
                 print(f"task_snippet:  {effective_text[:120]!r}")
                 return
-        print(f"Error: session_id {target_id!r} not found in pool", file=sys.stderr)
+        print(f"Error: session_id {args.session_id!r} not found in pool", file=sys.stderr)
         sys.exit(1)
-        return
 
-    print("Usage:")
-    print("  python scripts/task_classifier.py --selftest")
-    print("  python scripts/task_classifier.py --session-id <session_id>")
-    sys.exit(0)
+    parser.error("give --selftest or --session-id")
 
 
 if __name__ == "__main__":

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """usage.speed / usage.inference_geo reach TurnDigest, and a subagent aggregate never mixes
@@ -12,7 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from tes.adapt import _parse_billing_modifiers, adapt_session, collect_subagent_usage
+from tracegauge.adapt import _parse_billing_modifiers, adapt_session, collect_subagent_usage
 
 MODEL = "claude-opus-5-5"
 

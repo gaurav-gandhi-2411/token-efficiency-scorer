@@ -1,24 +1,27 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_intelligence_cache_scoping.py — RR2: intelligence_cache.json
 must be scoped to the DB it was computed from, never a single fixed global
-path regardless of TES_DB_PATH.
+path regardless of TRACEGAUGE_DB_PATH.
 
-Real incident, not hypothetical: before this fix, tes.intelligence.cache's
+Real incident, not hypothetical: before this fix, tracegauge.intelligence.cache's
 _cache_path() was hardcoded to ~/.tes/intelligence_cache.json unconditionally
 -- computing patterns against an isolated test/scratch database (via
-TES_DB_PATH, exactly the pattern this project's own test suite and manual
+TRACEGAUGE_DB_PATH, exactly the pattern this project's own test suite and manual
 verification use) silently overwrote the REAL cache file, which a real
-`tes ask`/`tes patterns` call on the actual corpus would then read back as
+`tracegauge ask`/`tracegauge patterns` call on the actual corpus would then read back as
 if it were genuine. Found live during RR1 verification when a scratch-DB
-`tes patterns --recompute` run wrote 38-session clustering results from an
+`tracegauge patterns --recompute` run wrote 38-session clustering results from an
 unrelated test corpus into the real ~/.tes/intelligence_cache.json.
 """
 
 from pathlib import Path
 
 import pytest
-from tes.intelligence.cache import (
+from tracegauge.intelligence.cache import (
     _cache_path,
     get_or_compute_intelligence,
     load_cache,
@@ -69,17 +72,17 @@ def test_cache_path_is_named_after_and_colocated_with_its_db(tmp_path: Path):
 
 
 def test_default_cache_path_mirrors_resolve_db_path(monkeypatch):
-    """No explicit db_path and no TES_DB_PATH -- _cache_path's default must
-    track tes.store.resolve_db_path's own default exactly (RR2's fix
+    """No explicit db_path and no TRACEGAUGE_DB_PATH -- _cache_path's default must
+    track tracegauge.store.resolve_db_path's own default exactly (RR2's fix
     mirrors it, does not replace it). Compared against a live call rather
-    than a reconstructed ~/.tes path: tes.store._DEFAULT_DIR is a
+    than a reconstructed ~/.tes path: tracegauge.store._DEFAULT_DIR is a
     module-level constant baked in at import time from Path.home(), so it
     cannot be monkeypatched after import -- this comparison is robust to
     that regardless of which real home directory the test process has.
     """
-    from tes.store import resolve_db_path
+    from tracegauge.store import resolve_db_path
 
-    monkeypatch.delenv("TES_DB_PATH", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_DB_PATH", raising=False)
 
     expected_db = resolve_db_path(None)
     cache_path = _cache_path(None)
@@ -101,15 +104,15 @@ def test_save_and_load_for_one_db_never_touches_a_different_dbs_cache(tmp_path: 
 
 
 def test_env_var_and_explicit_arg_agree_on_the_same_cache_file(monkeypatch, tmp_path: Path):
-    """TES_DB_PATH and an explicit db_path pointing at the identical file
+    """TRACEGAUGE_DB_PATH and an explicit db_path pointing at the identical file
     must resolve to the identical cache path -- otherwise a caller reading
     via one route and writing via the other would silently diverge."""
     db = tmp_path / "shared.db"
 
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     via_env = _cache_path(None)
 
-    monkeypatch.delenv("TES_DB_PATH", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_DB_PATH", raising=False)
     via_explicit = _cache_path(db)
 
     assert via_env == via_explicit
@@ -121,18 +124,18 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
     """End-to-end (mocked store layer, real cache-path resolution): running
     get_or_compute_intelligence with an EXPLICIT scratch db_path must write
     ONLY to that scratch DB's own cache file. An explicit (non-None)
-    db_path short-circuits tes.store.resolve_db_path before it ever
-    consults Path.home()/TES_DB_PATH at all (confirmed by reading
+    db_path short-circuits tracegauge.store.resolve_db_path before it ever
+    consults Path.home()/TRACEGAUGE_DB_PATH at all (confirmed by reading
     resolve_db_path's own resolution order) -- this is what actually keeps
     this test safe regardless of the real machine's home directory, not a
-    Path.home() patch (tes.store._DEFAULT_DIR is a module-level constant
+    Path.home() patch (tracegauge.store._DEFAULT_DIR is a module-level constant
     baked in from Path.home() at import time, so patching it post-import
     has no effect -- see test_default_cache_path_mirrors_resolve_db_path's
     docstring for the same finding).
     """
     from unittest.mock import patch
 
-    monkeypatch.delenv("TES_DB_PATH", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_DB_PATH", raising=False)
 
     # Capture the REAL default cache file's state before this test runs --
     # never assert it "must not exist" (it may genuinely exist from real
@@ -140,7 +143,7 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
     # would itself violate this project's own "never touch real ~/.tes"
     # rule); instead prove this test's scratch-db run left it byte-for-byte
     # unchanged, which is the actually correct claim either way.
-    from tes.store import resolve_db_path
+    from tracegauge.store import resolve_db_path
 
     real_default_db = resolve_db_path(None)
     real_default_cache = real_default_db.parent / f"{real_default_db.stem}.intelligence_cache.json"
@@ -166,11 +169,11 @@ def test_get_or_compute_intelligence_isolates_scratch_db_from_real_cache(
         for i in range(n)
     ]
 
-    from tes.intelligence.cache import get_or_compute_intelligence
+    from tracegauge.intelligence.cache import get_or_compute_intelligence
 
     with (
-        patch("tes.store.open_db"),
-        patch("tes.store.list_sessions", return_value=fake_rows),
+        patch("tracegauge.store.open_db"),
+        patch("tracegauge.store.list_sessions", return_value=fake_rows),
     ):
         result = get_or_compute_intelligence(db_path=scratch_db, force_recompute=True)
 

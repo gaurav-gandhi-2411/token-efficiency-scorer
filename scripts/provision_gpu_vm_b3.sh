@@ -1,6 +1,6 @@
 #!/bin/bash
 # provision_gpu_vm_b3.sh — Run LOCALLY to provision the B3 Gemma3-27B second-judge VM.
-# Creates <your-vm> spot VM in example-project-000001.
+# Creates <your-vm> spot VM in <your-gcp-project>.
 #
 # Primary zone: asia-east1-a (confirmed available in B1/B2 reports)
 # Fallback zone: asia-east1-b
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PROJECT="example-project-000001"
+PROJECT="${GCP_PROJECT:?set GCP_PROJECT to your GCP project id}"
 VM_NAME="<your-vm>"
 ZONE="${1:-asia-east1-a}"
 FALLBACK_ZONE="asia-east1-b"
@@ -35,7 +35,7 @@ print(int(q['limit']) if q else 0)
 ")
 if [[ "$GLOBAL_LIMIT" -eq 0 ]]; then
   echo "ERROR: GPUS_ALL_REGIONS limit is still 0. Wait for quota approval."
-  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=example-project-000001"
+  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=<your-gcp-project>"
   exit 1
 fi
 echo "[$(date)] GPUS_ALL_REGIONS limit = $GLOBAL_LIMIT — quota approved."
@@ -101,7 +101,7 @@ gcloud billing budgets create \
 echo ""
 echo "Next steps (TWO-PHASE RUN):"
 echo ""
-echo "  Phase 1 — Wait for setup and validate:"
+echo "  Step 1 — Wait for setup and validate:"
 echo "    1. Wait ~20 min for startup (model pull). Monitor serial output:"
 echo "       gcloud compute instances get-serial-port-output $VM_NAME --project=$PROJECT --zone=$USED_ZONE 2>&1 | tail -30"
 echo ""
@@ -112,7 +112,7 @@ echo ""
 echo "    3. SSH in and review verdicts:"
 echo "       gcloud compute ssh $VM_NAME --project=$PROJECT --zone=$USED_ZONE -- 'tail -40 /var/log/validate.log'"
 echo ""
-echo "  Phase 2 — After orchestrator confirms verdicts, run full 143-session scoring:"
+echo "  Step 2 — After you confirm the verdicts, run full 143-session scoring:"
 echo "    4. Trigger full run (VM shuts down automatically when done):"
 echo "       gcloud compute ssh $VM_NAME --project=$PROJECT --zone=$USED_ZONE -- \\"
 echo "         'GITHUB_TOKEN=\$GITHUB_TOKEN bash /opt/scoring/repo/scripts/gpu_score_runner_b3_full.sh 2>&1 | tee /var/log/scoring.log'"

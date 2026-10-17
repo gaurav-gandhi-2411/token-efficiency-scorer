@@ -1,13 +1,20 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/verify_pool_pathb.py — GUARDRAIL 3: verify PATH-B pool re-run is byte-identical to B4.
 
-Loads B4 reference PATH-B events from data/pool_waste_signals.jsonl, re-runs
-detect_redundant_read on the full pool (181 sessions), and confirms:
+Usage (every path is explicit; the maintainer's pool is not in the repository):
+    python tests/verify_pool_pathb.py --pool POOL.jsonl --signals SIGNALS.jsonl
+
+Loads reference PATH-B events from the signals file, re-runs
+detect_redundant_read on the pool, and confirms:
   - Same set of session IDs with PATH-B events
   - For each session, same events (turns list, evidence dict values)
 """
 
+import argparse
 import dataclasses
 import json
 import sys
@@ -18,14 +25,11 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from waste_detectors import detect_redundant_read
 
-POOL_PATH = ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"
-B4_SIGNALS_PATH = ROOT / "data" / "pool_waste_signals.jsonl"
 
-
-def load_b4_pathb() -> dict[str, list[dict]]:
+def load_b4_pathb(signals_path: Path) -> dict[str, list[dict]]:
     """Load B4 reference: {session_id: [PATH-B WasteEvent dicts]}."""
     b4: dict[str, list[dict]] = {}
-    with B4_SIGNALS_PATH.open(encoding="utf-8") as f:
+    with signals_path.open(encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -39,10 +43,10 @@ def load_b4_pathb() -> dict[str, list[dict]]:
     return b4
 
 
-def load_pool() -> list[dict]:
+def load_pool(pool_path: Path) -> list[dict]:
     return [
         json.loads(line)
-        for line in POOL_PATH.read_text(encoding="utf-8").splitlines()
+        for line in pool_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
 
@@ -85,13 +89,17 @@ def compare_events(b4_events: list[dict], new_events: list[dict]) -> list[str]:
     return issues
 
 
-def main() -> None:
-    print("Loading B4 reference PATH-B events …")
-    b4 = load_b4_pathb()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Verify PATH-B events against a reference.")
+    parser.add_argument("--pool", type=Path, required=True, help="adapted-session pool (JSONL)")
+    parser.add_argument("--signals", type=Path, required=True, help="reference waste signals")
+    args = parser.parse_args(argv)
+    print("Loading reference PATH-B events …")
+    b4 = load_b4_pathb(args.signals)
     print(f"  B4 sessions with PATH-B events: {len(b4)}")
 
     print("Loading pool and re-running detect_redundant_read …")
-    pool = load_pool()
+    pool = load_pool(args.pool)
     new = run_pathb_on_pool(pool)
     print(f"  New run sessions with PATH-B events: {len(new)}")
 

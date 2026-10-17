@@ -1,17 +1,20 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """test_route_registration.py — Assert /patterns and /ask are on the production app.
 
 This test specifically guards against the "tests-pass-but-real-server-fails" gap:
   - pytest runs from the repo dir (repo is first on sys.path, repo code is imported)
-  - tes.exe / tes serve uses site-packages (PyPI-installed code)
+  - tes.exe / tracegauge serve uses site-packages (PyPI-installed code)
 
 A test that merely GETs a route via a test-fixture app passes in BOTH cases, because
-the fixture creates a fresh app from whatever `tes.web.server` is imported — and in
+the fixture creates a fresh app from whatever `tracegauge.web.server` is imported — and in
 pytest that is always the repo. So the fixture test cannot catch a missing route on
 the installed version.
 
 What this test does instead:
-  1. Imports `create_app` and `start_server` from tes.web.server (same import path
-     that `tes serve` uses).
+  1. Imports `create_app` and `start_server` from tracegauge.web.server (same import path
+     that `tracegauge serve` uses).
   2. Calls create_app() — exactly what start_server does.
   3. Inspects url_map — the Flask route table that Werkzeug uses to dispatch requests.
      If a route is not in url_map, it 404s on a real server regardless of what any
@@ -33,8 +36,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from tes.store import open_db
-from tes.web.server import ServerConfig, create_app, start_server  # same imports as `tes serve`
+from tracegauge.store import open_db
+from tracegauge.web.server import (  # same imports as `tracegauge serve`
+    ServerConfig,
+    create_app,
+    start_server,
+)
 
 # ---------------------------------------------------------------------------
 # Fixture
@@ -80,7 +87,7 @@ class TestProductionRouteTable:
             assert route in registered, (
                 f"Route {route!r} is missing from create_app url_map.\n"
                 f"Registered routes: {sorted(registered)}\n"
-                "If this test fails, `tes serve` will 404 on that path."
+                "If this test fails, `tracegauge serve` will 404 on that path."
             )
 
     def test_patterns_route_present(self, minimal_app) -> None:
@@ -115,7 +122,7 @@ class TestProductionRouteTable:
 
     def test_start_server_import_succeeds(self) -> None:
         """start_server must be importable — if its module has a syntax/import error,
-        `tes serve` would crash before registering any routes."""
+        `tracegauge serve` would crash before registering any routes."""
         # This is already proven by the import at the top of this file,
         # but make it an explicit named test so failure is obvious.
         assert callable(start_server), "start_server not callable after import"
@@ -140,7 +147,7 @@ class TestRoutesReachableViaTestClient:
 
         with (
             patch(
-                "tes.web.server.get_or_compute_intelligence",
+                "tracegauge.web.server.get_or_compute_intelligence",
                 return_value={
                     "valid": False,
                     "reason": "not_enough_sessions",
@@ -150,7 +157,7 @@ class TestRoutesReachableViaTestClient:
                     "domain_of_validity": "n/a",
                 },
             ),
-            patch("tes.web.server._check_ollama", return_value=False),
+            patch("tracegauge.web.server._check_ollama", return_value=False),
         ):
             with minimal_app.test_client() as c:
                 resp = c.get("/patterns")

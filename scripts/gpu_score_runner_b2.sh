@@ -1,17 +1,20 @@
 #!/bin/bash
 # gpu_score_runner_b2.sh — B2 pool scoring runner (181 CC sessions).
 #
-# Input:  data/corpus_pool/pool_adapted.jsonl  (181 adapted sessions)
+# Input:  the adapted-session pool, first argument (the maintainer's pool is not in the repository)
 # Output: data/pool_judge_scores.jsonl
 #
 # Shutdown strategy:
 #   Belt 1 (watchdog): background sleep+poweroff fires if Python hangs past 3h
 #   Belt 2 (EXIT trap): cleanup() fires on normal exit, error exit, or signal
 #
-# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_b2.sh
+# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_b2.sh ADAPTED_SESSIONS.jsonl
 # Env:   GITHUB_TOKEN — if set, pushes pool_judge_scores.jsonl to GitHub
 
 set -euo pipefail
+
+INPUT="${1:?usage: bash $0 ADAPTED_SESSIONS.jsonl (the maintainer's pool is not in the repository)}"
+INPUT="$(realpath "$INPUT")"
 
 REPO_DIR="/opt/scoring/repo"
 cd "$REPO_DIR"
@@ -81,7 +84,7 @@ echo "[$(date)] Timing probe: scoring first session to confirm GPU speed..."
 
 PROBE_SESSION=$(python3 -c "
 import json
-with open('data/corpus_pool/pool_adapted.jsonl') as f:
+with open('$INPUT') as f:
     first = json.loads(f.readline())
 print(first['session_id'])
 ")
@@ -90,7 +93,7 @@ echo "[$(date)] Probe session_id: $PROBE_SESSION"
 PROBE_START=$(date +%s)
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/corpus_pool/pool_adapted.jsonl \
+    --input-path "$INPUT" \
     --output-path data/pool_judge_scores.jsonl \
     --mode session \
     --session-id "$PROBE_SESSION" \
@@ -116,7 +119,7 @@ echo "[$(date)] Probe OK: ${PROBE_ELAPSED}s. Proceeding with full 181-session ru
 echo "[$(date)] Starting full B2 pool run (181 sessions)..."
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/corpus_pool/pool_adapted.jsonl \
+    --input-path "$INPUT" \
     --output-path data/pool_judge_scores.jsonl \
     --ollama-url http://localhost:11434
 
@@ -152,7 +155,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN not set."
     echo "  Retrieve manually:"
-    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/pool_judge_scores.jsonl data/pool_judge_scores.jsonl --zone=asia-east1-a --project=example-project-000001"
+    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/pool_judge_scores.jsonl data/pool_judge_scores.jsonl --zone=asia-east1-a --project=<your-gcp-project>"
 else
     git config user.email "gaurav.gandhi2411@gmail.com"
     git config user.name "gaurav-gandhi-2411"

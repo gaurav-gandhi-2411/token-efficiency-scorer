@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """The alarm gate over the user's store: threshold from the pool, fire/no-fire, e2e.
@@ -10,9 +13,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.alarm import AlarmConfig, check_alarm, threshold_for_live
-from tes.alarm_baseline import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.alarm import AlarmConfig, check_alarm, threshold_for_live
+from tracegauge.alarm_baseline import (
     DEFAULT_PERCENTILE,
     TIER_RECENT_ERA_TYPE,
     PoolRow,
@@ -20,9 +23,9 @@ from tes.alarm_baseline import (
     load_pool_rows,
     resolve_threshold,
 )
-from tes.live_monitor import LiveSessionState, score_live_session
-from tes.self_baseline import SelfBaselineState
-from tes.store import open_db
+from tracegauge.live_monitor import LiveSessionState, score_live_session
+from tracegauge.self_baseline import SelfBaselineState
+from tracegauge.store import open_db
 
 DAY = 86400.0
 NOW = 1_800_000_000.0
@@ -242,8 +245,8 @@ def test_monitor_cli_reads_the_store_end_to_end(
     """No seam on the threshold: the store's recent same-era rows decide exit 3 vs 0."""
     import time
 
-    import tes.live_monitor as lm
-    from tes import cli
+    import tracegauge.live_monitor as lm
+    from tracegauge import cli
 
     db = tmp_path / "tes.db"
     conn = open_db(db)
@@ -251,12 +254,12 @@ def test_monitor_cli_reads_the_store_end_to_end(
         _insert(conn, f"s{i}", 100_000 + i, ADAPTER_VERSION, model=S55, mtime=time.time() - 3600)
     conn.commit()
     conn.close()
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
 
     def run(tokens: int) -> tuple[int, dict[str, Any]]:
         monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: _live(tokens))
-        monkeypatch.setattr("sys.argv", ["tes", "monitor", "--json"])
+        monkeypatch.setattr("sys.argv", ["tracegauge", "monitor", "--json"])
         with pytest.raises(SystemExit) as exc:
             cli.main()
         return int(exc.value.code or 0), json.loads(capsys.readouterr().out)
@@ -275,8 +278,8 @@ def test_dashboard_monitor_page_shows_the_threshold_or_the_disabled_reason(
 ) -> None:
     import time
 
-    import tes.live_monitor as lm
-    from tes.web.server import ServerConfig, create_app
+    import tracegauge.live_monitor as lm
+    from tracegauge.web.server import ServerConfig, create_app
 
     db = tmp_path / "tes.db"
     conn = open_db(db)

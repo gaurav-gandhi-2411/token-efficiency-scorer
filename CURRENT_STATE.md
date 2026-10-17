@@ -280,7 +280,7 @@ The portfolio artifact.
 **Post-publish verification (real PyPI, 2026-06-15):**
 - `pip install --no-cache-dir --force-reinstall --no-deps tracegauge==0.7.0` from production
   PyPI (no `direct_url.json` confirms index install, not local wheel).
-- `tes.__file__` → `C:\Users\USER\anaconda3\Lib\site-packages\tes\__init__.py` (not repo).
+- `tes.__file__` → a `site-packages\tes\__init__.py` path in the base environment (not the repo).
 - `tes --version` → `tes 0.7.0` ✓
 - `tes patterns` → clean exit (KeyError fix confirmed in published artifact). Cache was stale
   (252 content sessions, up from 235); fresh compute ran end-to-end. k=3, silhouette=0.453,
@@ -425,8 +425,8 @@ honest trends, and building a trend feature now would draw confident lines throu
 
 - **research/01-11-*.md** — All immutable. Reports 01-10 inherited from B1–B4; report 11 is the
   B5 generalization validation final report. Do not edit any of these.
-- **data/corpus_pool/** and **data/pool_judge_scores.jsonl** — Do not re-score or modify.
-- **data/cc_baselines.json** — Locked for launch-1. Rebuild only for launch-2 with new data.
+- **data/pool_judge_scores.jsonl** — Do not re-score or modify. (`data/corpus_pool/` and the old
+  `data/cc_baselines.json` were removed from the tree later; see the CHANGELOG.)
 - **data/cost-log.jsonl** — Append-only. $5 cumulative Anthropic cap; currently ~$2.59.
 - **tes/_waste_detectors.py** — Byte-frozen. Do NOT modify without a new research arc.
 

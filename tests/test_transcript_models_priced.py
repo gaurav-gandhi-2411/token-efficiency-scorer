@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Always-on CI guard (and unit tests) for scripts/check_transcript_models_priced.py.
 
 CI has no real transcripts, so the fixture tests/fixtures/transcript_models/ is a committed,
@@ -19,11 +22,11 @@ from scripts.check_transcript_models_priced import (
     scan_transcript_models,
     unresolvable_models,
 )
-from tes.cost import load_price_table
+from tracegauge.cost import load_price_table
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "transcript_models"
 _OLD_TABLE = Path(__file__).parent / "fixtures" / "pricing" / "prices_b261c4b.json"
-_BUNDLED = Path(__file__).resolve().parent.parent / "tes" / "data" / "prices.json"
+_BUNDLED = Path(__file__).resolve().parent.parent / "tracegauge" / "data" / "prices.json"
 
 
 def _write_transcript(path: Path, models: list[str]) -> None:

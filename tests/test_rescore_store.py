@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """`rescore` at the store level (backfill_waste(only_legacy=...)): re-scores only readable
@@ -9,9 +12,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.legacy import count_legacy
-from tes.store import backfill_waste, open_db
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.legacy import count_legacy
+from tracegauge.store import backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store
 
@@ -80,7 +83,7 @@ def test_dry_run_writes_nothing_and_matches_the_real_run(mixed: MixedStore, tmp_
 
 def test_dry_run_on_a_store_that_predates_every_new_column(tmp_path: Path) -> None:
     """A 0.14 store: dry-run must neither migrate it nor crash on the missing columns."""
-    from tes import store
+    from tracegauge import store
 
     src = tmp_path / "t.jsonl"
     src.write_bytes(
@@ -125,7 +128,7 @@ def test_a_cost_failure_leaves_the_row_legacy_instead_of_stamping_it_current(
     def boom(*_a: Any, **_k: Any) -> None:
         raise RuntimeError("price table broke")
 
-    monkeypatch.setattr("tes.cost.compute_session_cost", boom)
+    monkeypatch.setattr("tracegauge.cost.compute_session_cost", boom)
     summary = backfill_waste(mixed.db, only_legacy=True)
     assert summary["refreshed"] == 0 and summary["errors"] == 3
     assert count_legacy(open_db(mixed.db)) == 4

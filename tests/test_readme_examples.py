@@ -1,10 +1,14 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""The README's example output blocks are generated, not typed.
+"""The example output blocks in docs/METHODOLOGY.md are generated, not typed.
 
 scripts/gen_readme_examples.py runs the real CLI on synthetic sessions with a frozen clock. This
-test regenerates every block and fails when README.md has drifted from the code's actual output, so
-a change to `tes cost`, `budget` or `monitor` output must regenerate the README in the same change.
+test regenerates every block and fails when docs/METHODOLOGY.md has drifted from the code's actual
+output, so a change to `tracegauge cost`, `budget` or `monitor` output must regenerate the document
+in the same change. (The README's own blocks are pinned by tests/test_readme_demo.py.)
 """
 
 import sys
@@ -22,11 +26,11 @@ def blocks() -> dict[str, str]:
     return gen.generate()
 
 
-def test_every_generated_block_is_in_the_readme(blocks: dict[str, str]) -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8").replace("\r\n", "\n")
-    missing = [k for k, v in blocks.items() if k != "monitor_exit_code" and v not in readme]
+def test_every_generated_block_is_in_the_methodology(blocks: dict[str, str]) -> None:
+    doc = (ROOT / "docs" / "METHODOLOGY.md").read_text(encoding="utf-8").replace("\r\n", "\n")
+    missing = [k for k, v in blocks.items() if k != "monitor_exit_code" and v not in doc]
     assert not missing, (
-        f"README.md is out of date for {missing}: python scripts/gen_readme_examples.py"
+        f"docs/METHODOLOGY.md is out of date for {missing}: python scripts/gen_readme_examples.py"
     )
 
 

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_judge_autodetect.py — 0.6.0 judge auto-detect + guide, consent preserved.
@@ -18,8 +21,8 @@ Covered:
 import socket
 
 import pytest
-import tes.cli as cli
-import tes.judge as judge
+import tracegauge.cli as cli
+import tracegauge.judge as judge
 
 
 def _make_session(dirpath, name="s.jsonl", mtime=1000.0):
@@ -49,7 +52,7 @@ def capture_scored(monkeypatch):
 
 
 def _run(monkeypatch, argv):
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:
@@ -58,7 +61,7 @@ def _run(monkeypatch, argv):
 
 @pytest.fixture
 def cc(tmp_path, monkeypatch):
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     d = tmp_path / "projects"
     d.mkdir()
     _make_session(d)

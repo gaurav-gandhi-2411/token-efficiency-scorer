@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""Rebuild tes/data/cc_baselines.json on the adapter_version-2 scale (usage counted once).
+"""Rebuild tracegauge/data/cc_baselines.json on the adapter_version-2 scale (usage counted once).
 
 The old builder (scripts/build_baselines.py) used the frozen per-record research pool, whose raw
 sessions are gone, so it cannot be re-run. Subcommands:
@@ -9,7 +12,7 @@ sessions are gone, so it cannot be re-run. Subcommands:
             eval/manifest.json (id, task_type, turns, real_tokens, size/mtime/sha256; no text/paths)
   build     derive the baseline from the manifest ALONE (reproducible after transcripts expire;
             deterministic: order statistics, bootstrap with random.Random(42))
-  evaluate  score Phase 0 set B with disjoint and leave-one-out bands, Wilson 95% intervals
+  evaluate  score the evaluation set with disjoint and leave-one-out bands, Wilson 95% intervals
   verify    re-hash the transcripts that still exist against the manifest
 
 The population is single-developer and NOT quality-gated; see POPULATION_LIMITATIONS.
@@ -33,13 +36,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tes.adapt import ADAPTER_VERSION, adapt_session  # noqa: E402
-from tes.baselines import compute_real_tokens  # noqa: E402
-from tes.classify import TASK_TYPES, classify_session  # noqa: E402
-from tes.discovery import iter_session_files  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION, adapt_session  # noqa: E402
+from tracegauge.baselines import compute_real_tokens  # noqa: E402
+from tracegauge.classify import TASK_TYPES, classify_session  # noqa: E402
+from tracegauge.discovery import iter_session_files  # noqa: E402
 
 MANIFEST_PATH = REPO_ROOT / "eval" / "manifest.json"
-BASELINES_PATH = REPO_ROOT / "tes" / "data" / "cc_baselines.json"
+BASELINES_PATH = REPO_ROOT / "tracegauge" / "data" / "cc_baselines.json"
 
 SEED = 42  # house rule: every stochastic step is seeded
 MIN_N = 10  # a cell is active only with at least this many sessions (same as the old builder)
@@ -49,7 +52,7 @@ MANIFEST_VERSION = 1
 
 POPULATION_DESCRIPTION = (
     "main (non-subagent) Claude Code sessions of a single developer found under "
-    "~/.claude/projects at freeze time, scored with tes.adapt.adapt_session "
+    "~/.claude/projects at freeze time, scored with tracegauge.adapt.adapt_session "
     f"(adapter_version {ADAPTER_VERSION}: usage counted once per API response)"
 )
 POPULATION_LIMITATIONS = (
@@ -154,7 +157,7 @@ def build_bands(entries: Iterable[dict[str, Any]], *, with_ci: bool = True) -> d
 
 
 def band_verdict(task_type: str, turn_count: int, real_tokens: int, bands: dict[str, Any]) -> str:
-    """Token-axis verdict, mirroring ``tes.score`` for the corpus baseline.
+    """Token-axis verdict, mirroring ``tracegauge.score`` for the corpus baseline.
 
     'unavailable' covers both out-of-scope (turns below the p10 gate) and an inactive cell.
     """
@@ -271,7 +274,7 @@ def freeze_manifest(
                 ),
                 # a file still being written has no stable hash worth pinning
                 "sha256": None if active else file_sha256(path),
-                "in_phase0_set_b": path.stem in eval_ids,
+                "in_eval_set": path.stem in eval_ids,
                 "included": reason is None,
                 "exclusion_reason": reason,
             }
@@ -365,7 +368,11 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     f = sub.add_parser("freeze", help="scan transcripts and write the manifest")
     f.add_argument("--projects-root", type=Path, default=Path.home() / ".claude" / "projects")
-    f.add_argument("--eval-selection", type=Path, help="c2-selection.json (key sel[B])")
+    f.add_argument(
+        "--eval-selection",
+        type=Path,
+        help="selection JSON; the evaluation set is the list under sel.B",
+    )
     f.add_argument("--eval-key", default="B")
     f.add_argument("--frozen-at", default=date.today().isoformat())
     sub.add_parser("build", help="derive cc_baselines.json from the manifest")
@@ -389,7 +396,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(BASELINES_PATH, build_baselines(manifest))
         print(f"wrote {BASELINES_PATH}")
     elif args.cmd == "evaluate":
-        ids = {x["session_id"] for x in manifest["sessions"] if x["in_phase0_set_b"]}
+        ids = {x["session_id"] for x in manifest["sessions"] if x["in_eval_set"]}
         old = json.loads(args.old_baselines.read_text("utf-8")) if args.old_baselines else None
         result = evaluate_set(manifest, ids, old)
         _write_json(args.out, result)

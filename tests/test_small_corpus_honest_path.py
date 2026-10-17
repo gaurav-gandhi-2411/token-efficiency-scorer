@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_small_corpus_honest_path.py — Verify the honest "not enough sessions" path.
@@ -14,13 +17,13 @@ This path protects new users whose corpora are too small for stable clustering.
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.intelligence.cache import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.intelligence.cache import (
     MIN_CONTENT_FOR_CACHE,
     format_intelligence_summary,
     get_or_compute_intelligence,
 )
-from tes.intelligence.chat import _build_user_message
+from tracegauge.intelligence.chat import _build_user_message
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -74,10 +77,10 @@ class TestSmallCorpusCacheLayer:
         fake_rows = _make_fake_rows(n_total, n_total)  # all are content sessions
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", return_value=None),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch("tracegauge.intelligence.cache.load_cache", return_value=None),
+            patch("tracegauge.intelligence.cache.save_cache"),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
@@ -118,10 +121,10 @@ class TestSmallCorpusCacheLayer:
         ]
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", return_value=None),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch("tracegauge.intelligence.cache.load_cache", return_value=None),
+            patch("tracegauge.intelligence.cache.save_cache"),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
@@ -146,10 +149,10 @@ class TestSmallCorpusCacheLayer:
         fake_rows = _make_fake_rows(n_total, n_total)  # no source_path key at all
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", return_value=None),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch("tracegauge.intelligence.cache.load_cache", return_value=None),
+            patch("tracegauge.intelligence.cache.save_cache"),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
@@ -181,7 +184,7 @@ class TestSmallCorpusCacheLayer:
 
         fake_features = []
         import numpy as _np
-        from tes.intelligence.features import SessionFeatures
+        from tracegauge.intelligence.features import SessionFeatures
 
         for i, row in enumerate(fake_rows):
             vec = _np.zeros(8)
@@ -203,7 +206,7 @@ class TestSmallCorpusCacheLayer:
             )
         fake_X = np.random.default_rng(42).random((n_total, 8))
 
-        from tes.intelligence.cluster import ArchetypeCluster, ClusteringResult
+        from tracegauge.intelligence.cluster import ArchetypeCluster, ClusteringResult
 
         mock_result = ClusteringResult(
             valid=True,
@@ -234,20 +237,20 @@ class TestSmallCorpusCacheLayer:
         )
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", return_value=None),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch("tracegauge.intelligence.cache.load_cache", return_value=None),
+            patch("tracegauge.intelligence.cache.save_cache"),
             patch(
-                "tes.intelligence.features.build_feature_matrix",
+                "tracegauge.intelligence.features.build_feature_matrix",
                 return_value=(
                     fake_features,
                     fake_X,
                     {"n_persisted": 0, "n_stub": 0, "n_no_source": 0, "n_failed": 0},
                 ),
             ),
-            patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
-            patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
+            patch("tracegauge.intelligence.cluster.run_clustering", return_value=mock_result),
+            patch("tracegauge.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
@@ -266,10 +269,13 @@ class TestSmallCorpusCacheLayer:
         fake_rows = _make_fake_rows(n, n)
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", side_effect=[None, _small_corpus_cache()]),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch(
+                "tracegauge.intelligence.cache.load_cache",
+                side_effect=[None, _small_corpus_cache()],
+            ),
+            patch("tracegauge.intelligence.cache.save_cache"),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 
@@ -283,7 +289,7 @@ class TestSmallCorpusCacheLayer:
         n_total = MIN_CONTENT_FOR_CACHE + 5
         fake_rows = _make_fake_rows(n_total, n_total)
         import numpy as _np2
-        from tes.intelligence.features import SessionFeatures
+        from tracegauge.intelligence.features import SessionFeatures
 
         fake_features = [
             SessionFeatures(
@@ -304,7 +310,7 @@ class TestSmallCorpusCacheLayer:
         ]
         fake_X = _np2.random.default_rng(42).random((n_total, 8))
 
-        from tes.intelligence.cluster import ArchetypeCluster, ClusteringResult
+        from tracegauge.intelligence.cluster import ArchetypeCluster, ClusteringResult
 
         mock_result = ClusteringResult(
             valid=True,
@@ -353,20 +359,20 @@ class TestSmallCorpusCacheLayer:
         }
 
         with (
-            patch("tes.store.open_db"),
-            patch("tes.store.list_sessions", return_value=fake_rows),
-            patch("tes.intelligence.cache.load_cache", side_effect=[None, stamped_cache]),
-            patch("tes.intelligence.cache.save_cache"),
+            patch("tracegauge.store.open_db"),
+            patch("tracegauge.store.list_sessions", return_value=fake_rows),
+            patch("tracegauge.intelligence.cache.load_cache", side_effect=[None, stamped_cache]),
+            patch("tracegauge.intelligence.cache.save_cache"),
             patch(
-                "tes.intelligence.features.build_feature_matrix",
+                "tracegauge.intelligence.features.build_feature_matrix",
                 return_value=(
                     fake_features,
                     fake_X,
                     {"n_persisted": 0, "n_stub": 0, "n_no_source": 0, "n_failed": 0},
                 ),
             ),
-            patch("tes.intelligence.cluster.run_clustering", return_value=mock_result),
-            patch("tes.intelligence.anomaly.detect_anomalies", return_value=[]),
+            patch("tracegauge.intelligence.cluster.run_clustering", return_value=mock_result),
+            patch("tracegauge.intelligence.anomaly.detect_anomalies", return_value=[]),
         ):
             result = get_or_compute_intelligence(db_path="/fake/scratch.db", verbose=False)
 

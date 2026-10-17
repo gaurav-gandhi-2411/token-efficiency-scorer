@@ -1,15 +1,18 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.web.server import ServerConfig, start_server
+from tracegauge.web.server import ServerConfig, start_server
 
 
 def test_server_binds_127_0_0_1(tmp_path: Path) -> None:
     """start_server must pass host='127.0.0.1' to Flask.run — never 0.0.0.0."""
     config = ServerConfig(host="127.0.0.1", port=9001, db_path=tmp_path / "tes.db")
-    with patch("tes.web.server.Flask.run") as mock_run:
+    with patch("tracegauge.web.server.Flask.run") as mock_run:
         start_server(config)
     mock_run.assert_called_once()
     call_kwargs = mock_run.call_args

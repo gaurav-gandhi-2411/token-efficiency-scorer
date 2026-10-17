@@ -1,7 +1,7 @@
 #!/bin/bash
 # gpu_score_runner_b3_full.sh — B3 full pool scoring runner (143 sessions, gemma3:27b).
 #
-# Input:  data/corpus_pool/pool_adapted.jsonl  (143 sessions, all <=551 turns)
+# Input:  the adapted-session pool, first argument (the maintainer's pool is not in the repository)
 #         data/pool_judge_scores.jsonl          (Qwen-scored set, 143 sessions)
 # Output: data/pool_judge_scores_m2.jsonl
 #
@@ -11,10 +11,13 @@
 #   Belt 1 (watchdog): background sleep+poweroff fires if Python hangs past 3h
 #   Belt 2 (EXIT trap): cleanup() fires on normal exit, error exit, or signal
 #
-# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_b3_full.sh 2>&1 | tee /var/log/scoring.log
+# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_b3_full.sh ADAPTED_SESSIONS.jsonl 2>&1 | tee /var/log/scoring.log
 # Env:   GITHUB_TOKEN — if set, pushes pool_judge_scores_m2.jsonl to GitHub
 
 set -euo pipefail
+
+INPUT="${1:?usage: bash $0 ADAPTED_SESSIONS.jsonl (the maintainer's pool is not in the repository)}"
+INPUT="$(realpath "$INPUT")"
 
 REPO_DIR="/opt/scoring/repo"
 cd "$REPO_DIR"
@@ -86,7 +89,7 @@ echo "[$(date)] Timing probe: scoring first session to confirm GPU speed..."
 
 PROBE_SESSION=$(python3 -c "
 import json
-with open('data/corpus_pool/pool_adapted.jsonl') as f:
+with open('$INPUT') as f:
     first = json.loads(f.readline())
 print(first['session_id'])
 ")
@@ -134,7 +137,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN not set."
     echo "  Retrieve manually:"
-    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/pool_judge_scores_m2.jsonl data/pool_judge_scores_m2.jsonl --zone=asia-east1-a --project=example-project-000001"
+    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/pool_judge_scores_m2.jsonl data/pool_judge_scores_m2.jsonl --zone=asia-east1-a --project=<your-gcp-project>"
 else
     git config user.email "gaurav.gandhi2411@gmail.com"
     git config user.name "gaurav-gandhi-2411"

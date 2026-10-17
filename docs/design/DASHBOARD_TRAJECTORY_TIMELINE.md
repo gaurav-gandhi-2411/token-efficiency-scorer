@@ -2,9 +2,9 @@
 
 Design only, per Q6.5. Routed for review before any implementation starts.
 
-## 6.1 — Audit: what `tes serve` renders today
+## 6.1 — Audit: what `tracegauge serve` renders today
 
-**Stack, confirmed by reading `tes/web/server.py` and `tes/web/templates/`**:
+**Stack, confirmed by reading `tracegauge/web/server.py` and `tracegauge/web/templates/`**:
 Flask + server-rendered Jinja2 templates (`base.html` + 8 page templates).
 **Zero client-side JavaScript anywhere in the current templates** — no
 `<script>` tags, no charting library, no `canvas`/SVG-driven UI. Every
@@ -34,7 +34,7 @@ sentence and a per-row table.
 **What's NOT reusable / genuinely new**: there is no existing per-turn
 sequence data surfaced to the template at all — `session` is a single
 flat DB row. A trajectory timeline needs the turn-by-turn structure that
-today only exists transiently during scoring (`tes/adapt.py`'s single-pass
+today only exists transiently during scoring (`tracegauge/adapt.py`'s single-pass
 parse) and is not persisted. This is the same "RR1 lesson" this project
 has hit repeatedly: information only available while the source JSONL is
 still on disk must be persisted at score time, or the timeline breaks for
@@ -46,7 +46,7 @@ deferred silently.**
 
 **Persistence, extending the RR1 pattern already established for
 `edit_operations`**: a new nullable `turn_sequence` column (JSON), populated
-at score time by extending `tes/adapt.py`'s existing single-pass parse loop
+at score time by extending `tracegauge/adapt.py`'s existing single-pass parse loop
 — the same mechanism `edit_operations` (AB3) already uses, not a new
 extraction pass. Each entry:
 
@@ -68,7 +68,7 @@ previous turn's — **explicitly NOT model "thinking time" vs. tool
 wall-clock separated**, because the raw JSONL does not reliably distinguish
 them; the timeline caption says "elapsed," never "compute time," matching
 this project's standing discipline against inventing precision the source
-data doesn't support (same discipline as `tes impact`'s explicit
+data doesn't support (same discipline as `tracegauge impact`'s explicit
 `prior_content_unknown` flag).
 
 **Legacy rows**: sessions scored before this column existed have
@@ -91,7 +91,7 @@ not a foregone conclusion:
    client-side filtering by role/tool without a full page reload.
 2. **A small amount of vanilla JS** (no framework, no bundler — one
    `<script>` block, matching the zero-build-step simplicity of the rest
-   of `tes serve`) for filter-by-role and expand/collapse without a
+   of `tracegauge serve`) for filter-by-role and expand/collapse without a
    round-trip. Stated advantage: real usability on long sessions (a 300+
    turn debugging session is exactly the case a timeline is most useful
    for, and exactly the case flat HTML struggles with).
@@ -99,8 +99,8 @@ not a foregone conclusion:
 **Recommendation: start with option 1** (pure CSS), ship it, and revisit
 option 2 only if a real long-session usability complaint materializes —
 this is the same "smallest first" discipline XX1 already used (ROI +
-coverage shipped before `tes impact`, not simultaneously). Not decided
-unilaterally here; flagged for GG's call before implementation.
+coverage shipped before `tracegauge impact`, not simultaneously). Not decided
+unilaterally here; flagged for the maintainer's call before implementation.
 
 ## Sub-agent spawn trees
 
@@ -110,7 +110,7 @@ whose `tool_name` indicates delegation (e.g. `Task`/`Agent`), followed by
 turns carrying a different, non-null `agent_name`.
 
 **Rendering**: indentation depth = tree depth (matches how this same
-information already renders in `tes impact`'s directory-churn indentation
+information already renders in `tracegauge impact`'s directory-churn indentation
 convention — reuse, not a new visual language). A collapsed sub-agent
 branch shows a one-line summary (turn count, wall-clock span, tool names
 used) — expand to see its own full timeline, recursively. **Cost/token
@@ -144,7 +144,7 @@ exactly, not introducing new ones:
 **Every number on screen carries its uncertainty where one exists (Q6.3's
 own requirement)**: duration is captioned "elapsed, not isolated compute
 time" (see 6.2); a sub-agent branch's cost total is captioned with the
-same `cost_domain_of_validity`/unpriced-model handling `tes cost` already
+same `cost_domain_of_validity`/unpriced-model handling `tracegauge cost` already
 uses — no new, uncaptioned number is introduced anywhere on this page that
 doesn't already have a caption pattern established elsewhere in this
 project.
@@ -158,8 +158,8 @@ shows, regardless of how strong the underlying evidence actually is for
 any *specific* signal. This project's differentiator is not a bigger
 disclaimer — it is doing what this whole engagement has already done
 for every other feature: **state, per number, exactly what is measured
-and what is not**, at the same granularity `tes cost`'s coverage
-reporting and `tes impact`'s `prior_content_unknown` fraction already do.
+and what is not**, at the same granularity `tracegauge cost`'s coverage
+reporting and `tracegauge impact`'s `prior_content_unknown` fraction already do.
 A waste event gets its real proof-turn citation (already true today,
 carried onto the timeline unchanged). A duration gets "elapsed," not
 "thinking time." A sub-agent cost total gets the same unpriced-coverage
@@ -170,7 +170,7 @@ by turn, not asserted once at the top of the page.
 ## 6.5 — Status
 
 Design only. No code written. Routed for review — the one open decision
-(6.2's pure-CSS vs. small-vanilla-JS choice) needs GG's call before
+(6.2's pure-CSS vs. small-vanilla-JS choice) needs the maintainer's call before
 implementation starts; everything else in this doc (data model, legacy-row
 handling, Calibration application, sub-agent tree structure) is a
 proposal ready to implement once approved.
