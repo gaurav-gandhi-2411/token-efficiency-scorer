@@ -281,6 +281,17 @@ def _with_lever_hint(result: ThreeAxisResult, attribution: object) -> ThreeAxisR
     return dataclasses.replace(result, lever_hint=hint, cost_breakdown=breakdown)
 
 
+def _with_cache_churn(result: ThreeAxisResult, path: Path) -> ThreeAxisResult:
+    """Attach the cache-churn object, computed on demand from the source JSONL (not stored).
+
+    Never raises: an unreadable transcript yields ``status: "unavailable"`` with a ``reason``
+    (``read_error`` / ``internal_error``; the traceback goes to the log), not a failure.
+    """
+    from tes.json_out import cache_churn_payload_for_path  # noqa: PLC0415
+
+    return dataclasses.replace(result, cache_churn=cache_churn_payload_for_path(path, _PRICES))
+
+
 def _legacy_count(store_conn: object) -> int:
     """Pre-0.15 rows in the open store, or 0 when there is no store or it cannot be read."""
     if store_conn is None:
@@ -402,7 +413,7 @@ def score_path(
         except Exception:
             pass  # baseline band lookup failure is non-fatal
 
-    result = _with_lever_hint(result, attribution)
+    result = _with_cache_churn(_with_lever_hint(result, attribution), path)
 
     if json_mode:
         print(format_json(result, _legacy_count(store_conn)))
@@ -509,7 +520,7 @@ def _score_path_with_api_judge(
         except Exception:
             pass
 
-    result = _with_lever_hint(result, attribution)
+    result = _with_cache_churn(_with_lever_hint(result, attribution), path)
 
     if json_mode:
         print(format_json(result, _legacy_count(store_conn)))
