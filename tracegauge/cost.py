@@ -224,7 +224,7 @@ def _resolve_model(model_str: str, prices: dict[str, Any]) -> tuple[str | None, 
         f"(known models: {known}). Set TRACEGAUGE_PRICE_TABLE to a JSON file with the same schema "
         "as tracegauge/data/prices.json containing an entry for this model, add one to "
         "~/.tes/prices.json, or open an issue at "
-        "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues if it should "
+        "https://github.com/gaurav-gandhi-2411/tracegauge/issues if it should "
         "ship built-in. This turn is excluded from the session's total_usd."
     )
     return None, True, reason

@@ -161,7 +161,7 @@ else
     git config user.name "gaurav-gandhi-2411"
     git add data/pool_judge_scores.jsonl
     git commit -m "feat(data): B2 pool judge scores (qwen3:30b-a3b, 181 CC sessions, L4 GPU)"
-    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/token-efficiency-scorer.git" master 2>&1 \
+    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/tracegauge.git" master 2>&1 \
         | sed "s/${GITHUB_TOKEN}/***REDACTED***/g" \
         || echo "[$(date)] Push FAILED — retrieve manually via gcloud compute scp"
     echo "[$(date)] Push step done."

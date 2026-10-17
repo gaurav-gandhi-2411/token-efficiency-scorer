@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Session-level efficiency scorer for the token-efficiency-scorer project.
+"""Session-level efficiency scorer for the tracegauge project.
 
 Classifies an adapted-session record, computes its real_tokens, and compares
 against the per-type baseline band from a baselines JSON.  Also accepts

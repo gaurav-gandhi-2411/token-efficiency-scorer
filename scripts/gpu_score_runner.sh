@@ -148,7 +148,7 @@ else
     git commit -m "feat(data): 69-session GPU calibration scores (qwen3:30b-a3b v3 us-central1 L4)"
     # Pipe through sed so the token is redacted if git ever echoes the URL in diagnostics.
     # set -o pipefail means the pipeline returns git's exit code even through sed.
-    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/token-efficiency-scorer.git" master 2>&1 \
+    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/tracegauge.git" master 2>&1 \
         | sed "s/${GITHUB_TOKEN}/***REDACTED***/g" \
         || echo "[$(date)] Push FAILED — retrieve manually: gcloud compute scp <your-vm>:/opt/scoring/repo/data/judge_scores.jsonl data/judge_scores.jsonl --zone=us-central1-a --project=<your-gcp-project>"
     echo "[$(date)] Push step done."
