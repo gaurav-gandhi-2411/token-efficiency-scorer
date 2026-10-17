@@ -12,6 +12,8 @@ B5 tests whether the B4 deterministic waste detectors (REPEATED-FAILED-RETRY, RE
 
 > Contains information from [SALT-NLP/SWE-chat](https://huggingface.co/datasets/SALT-NLP/SWE-chat) (Baumann et al., 2026, arXiv:2604.20779), made available under the [Open Data Commons Attribution License (ODC-BY) 1.0](https://opendatacommons.org/licenses/by/1-0/). AW1: added retroactively — every derived statistic in this report (172 developers, 1,053 sessions, the 1.4%/6.6% rate comparison, etc.) is a "Produced Work" under ODC-BY §4.3, which requires this notice. See [../DATA_SOURCES.md](../DATA_SOURCES.md).
 
+> **Provenance of the SWE-chat figures.** Every figure below computed over the 1,053 SWE-chat CC sessions is (the maintainer's unpublished local measurement): the SWE-chat transcripts and the per-session outputs are not redistributed in this repository, so only the aggregates in `data/generalization_compare.json` can be checked here.
+
 **Detectors frozen throughout.** `scripts/waste_detectors.py` and `scripts/adapters/claudecode_adapter.py` are byte-identical to B4. `git diff --exit-code` on both files: clean.
 
 This report supersedes report 10 §9 (cumulative limitations, single-developer scope) for the detector-generalization claim.
@@ -36,7 +38,7 @@ The RFR fire rate is 1.4% on SWE-chat CC vs 6.6% in the pool — a 4.7x differen
 
 | | Pool (B4) | SWE-chat CC |
 |---|---|---|
-| Sessions | 181 | 1,053 |
+| Sessions | 181 | 1,053 (the maintainer's unpublished local measurement) |
 | Distinct developers | 1 | 172 |
 | Median session length (turns) | 224 | 112 |
 | RFR sessions fired | 12 | 15 |
@@ -67,7 +69,7 @@ Three hypotheses were diagnostically tested:
 
 **H2 — SWE-chat sessions are shorter/simpler (secondary contribution).** Partially confirmed: SWE-chat sessions are shorter (2x), giving fewer retry opportunities per session. This contributes to the gap but cannot fully explain it, since longer pool sessions with more opportunities still fire at 4.7x the rate.
 
-**H3 — CC v2.1.38 format changes suppress RFR fires (ruled out).** The error format `Exit code N\n...` is identical in pool sessions and SWE-chat CC sessions. The diagnostic found 23/1,053 sessions (2.2%) where consecutive Bash errors had the same 60-character prefix but differed beyond that — non-deterministic tool metadata (package resolution counts, test timing) breaks the exact match. Even counting all 23 as suppressed fires, the SWE-chat CC rate rises from 1.4% to at most 3.6% — still less than half the pool's 6.6%. H3 is a minor, general limitation (§6) not a version-specific format problem.
+**H3 — CC v2.1.38 format changes suppress RFR fires (ruled out).** The error format `Exit code N\n...` is identical in pool sessions and SWE-chat CC sessions. The diagnostic found 23/1,053 sessions (2.2%, (the maintainer's unpublished local measurement)) where consecutive Bash errors had the same 60-character prefix but differed beyond that — non-deterministic tool metadata (package resolution counts, test timing) breaks the exact match. Even counting all 23 as suppressed fires, the SWE-chat CC rate rises from 1.4% to at most 3.6% — still less than half the pool's 6.6%. H3 is a minor, general limitation (§6) not a version-specific format problem.
 
 **The correct interpretation:** The rate gap is the detector correctly measuring a real population difference. High-intensity infra/ML-ops sessions produce more identical-failure retries. Ordinary coding sessions produce fewer. A detector that fires at different rates on genuinely different populations is discriminating correctly.
 
@@ -99,7 +101,7 @@ This does not invalidate B2 or B4. The baselines are real; the detectors work. T
 
 ## 4. PATH-B Version-Fragility (Finding 2 — Maintenance Flag)
 
-PATH-B of REDUNDANT-READ fires zero times on SWE-chat CC (1,053 sessions). This is not a generalization failure — it is a **CC version issue that breaks the detector on current Claude Code**.
+PATH-B of REDUNDANT-READ fires zero times on SWE-chat CC (1,053 sessions; (the maintainer's unpublished local measurement)). This is not a generalization failure — it is a **CC version issue that breaks the detector on current Claude Code**.
 
 ### 4.1 What happened
 
@@ -134,7 +136,7 @@ This matches both the pre-v2.1.38 tab format and the v2.1.38+ arrow format. The 
 
 ## 5. PATH-A: Confirmed Alive on Real-World Data
 
-PATH-A of REDUNDANT-READ fires on 4 SWE-chat CC sessions (4/1,053 = 0.38%). The "File unchanged since last read" CC hint is still present in some v2.1.38 sessions. This is a low rate — the hint may fire less frequently in v2.1.38 or the SWE-chat population simply reads files less redundantly — but PATH-A is operational. The tool-authoritative verdict still appears in real sessions from real developers.
+PATH-A of REDUNDANT-READ fires on 4 SWE-chat CC sessions (4/1,053 = 0.38%, (the maintainer's unpublished local measurement)). The "File unchanged since last read" CC hint is still present in some v2.1.38 sessions. This is a low rate — the hint may fire less frequently in v2.1.38 or the SWE-chat population simply reads files less redundantly — but PATH-A is operational. The tool-authoritative verdict still appears in real sessions from real developers.
 
 The pool also had 4 PATH-A sessions (4/181). The absolute counts match despite the 5.8x larger SWE-chat sample; the pool PATH-A rate (2.2%) is higher than SWE-chat CC's (0.38%), consistent with the corpus-characterization finding (§3) that the pool skews toward more-waste sessions.
 
@@ -142,7 +144,7 @@ The pool also had 4 PATH-A sessions (4/181). The absolute counts match despite t
 
 ## 6. H3 Detector Limitation: Non-Deterministic Tool Output (Minor)
 
-The near-miss analysis found 23/1,053 SWE-chat CC sessions (2.2%) where consecutive qualifying Bash errors had the same 60-character prefix but differed in the full 300-character snippet. Two confirmed patterns:
+The near-miss analysis found 23/1,053 SWE-chat CC sessions (2.2%, (the maintainer's unpublished local measurement)) where consecutive qualifying Bash errors had the same 60-character prefix but differed in the full 300-character snippet. Two confirmed patterns:
 
 1. **Package resolution count varies:** `Resolved, downloaded and extracted [18]` vs `[376]` — same workspace-dependency error, different package counts across resolution attempts. The exact-match check fails on the number.
 2. **Test framework metadata varies:** Same failing test suite, but test timing or ordering information beyond character 150 differs between runs. The first 150 chars match; the tail differs.

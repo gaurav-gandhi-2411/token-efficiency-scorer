@@ -143,8 +143,8 @@ The share of events that end up `UNEXPLAINED` does **not** generalise from one u
 * On the maintainer's own sessions, 3.2% of churn events (32 of 993, main and subagent chains
   together) were `UNEXPLAINED`.
 * Over a cross-developer corpus of public transcripts (1,053 transcripts from the SWE-chat dataset,
-  which tracegauge does not redistribute), 449 of 1,318 events (34.1%) were `UNEXPLAINED`. The
-  cluster-bootstrap 95% interval for that 34.1% is [26.4, 44.2], resampling developers as clusters
+  which tracegauge does not redistribute), 449 of 1,318 events (34.1%) were `UNEXPLAINED` (the maintainer's unpublished local measurement). The
+  cluster-bootstrap 95% interval for that 34.1% is [26.4, 44.2] (the maintainer's unpublished local measurement), resampling developers as clusters
   with each session that carries no user id as its own cluster.
 
 Both are the maintainer's unpublished local measurements: they are not reproducible from this
@@ -159,7 +159,7 @@ mechanism says why a human prompt would lose the prefix. Eleven invalidators tha
 transcript (permission or plan mode change, thinking setting change, Claude Code version change,
 microcompact, image in the prompt, history branch, working directory or git branch change, API
 error, local command, many new content blocks, model change) together explain only 34% of the 449 `UNEXPLAINED` events (153 of 449; the
-maintainer's unpublished local measurement). The model-change check is one of the eleven but cannot
+maintainer's unpublished local measurement; the 449 is the SWE-chat figure above). The model-change check is one of the eleven but cannot
 be an `UNEXPLAINED` event by construction, so the union covers ten invalidators within
 `UNEXPLAINED`. Transcripts hold usage counters, not requests: the system prompt, tool list, cache
 breakpoints and routing are not in them, so the transcript cannot settle the question.
