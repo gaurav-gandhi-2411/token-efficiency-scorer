@@ -90,8 +90,14 @@ writes anywhere else; `tests/test_store_location.py` checks that every default p
 
 ## Strings that changed in the output: update anything that parses them
 
-Scores, JSON schemas (field names and types) and exit codes are the same. Three human-readable
-strings are not, so a script that matches on them must be updated:
+Scores, JSON schemas (field names and types) and exit codes are the same. Human-readable
+strings are not all the same, so a script that matches on them must be updated. The three that
+scripts are most likely to match are in the table below. The others are rename-only wording in
+help text, hints and error messages: the command's argparse description, the `--db-path` help
+text, the "No sessions found" hint, the store schema error ("Upgrade tracegauge."), the price
+path in the report footer, the `approximate_reason` prose for an unknown model, the legacy-rows
+notice hint, and the `corpus`, `ask` and judge hints, which now name `tracegauge` and the
+`TRACEGAUGE_*` variables. Match on the field names, not on prose.
 
 | Where | Before | Now |
 |---|---|---|
