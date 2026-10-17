@@ -19,7 +19,7 @@ previously-uncredited attribution gap — see the entry below.
 - **What was derived from it:** the B5 generalization validation
   (`research/11-generalization.md`) — the "172 independent developers, 1,053
   SWE-chat CC sessions" figures and the 1.4% (SWE-chat) vs. 6.6% (calibration
-  pool) REPEATED-FAILED-RETRY rate comparison reported in README.md and
+  pool) REPEATED-FAILED-RETRY rate comparison (the maintainer's unpublished local measurement) reported in README.md and
   `research/09-cross-model.md`/`research/10-deterministic-waste.md`.
 - **Redistribution:** none. The raw SWE-chat data (`data/swechat_raw/`) and both
   adapted forms (`data/swechat_cc_adapted.jsonl`, `data/swechat_noncc_adapted.jsonl`)
