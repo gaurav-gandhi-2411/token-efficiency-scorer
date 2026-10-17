@@ -103,28 +103,92 @@ def _dollar_rows(block: str, start: str, stop: str) -> tuple[float, float]:
     for ln in rows:
         if ln.strip().startswith(stop):
             break
-        m = re.search(r"\$(\d+\.\d\d)", ln)
+        m = re.search(r"\$(\d+\.\d\d)", ln)
         if m and re.match(r"^\s+\S.*\s\d+\s+\$", ln):
             amounts.append(float(m.group(1)))
+    assert amounts, "no $ rows found between the markers"  # a parse failure must not read as 0
     total = float(re.search(r"\$(\d+\.\d\d)", lines[1]).group(1))  # type: ignore[union-attr]
     return round(sum(amounts), 2), total
+
+
+def _churn_row(block: str, label: str) -> float:
+    m = re.search(rf"^\s+{re.escape(label)}.*?\$(\d+\.\d\d)\s*$", block, flags=re.M)
+    assert m, label
+    return float(m.group(1))
+
+
+def _churn_mismatches(block: str) -> list[str]:
+    """Displayed figures that do not equal the sum of the rows beside them, as `$x.xx` strings.
+
+    Covers the cause rows versus the total, and the "plausibly avoidable" figure versus the
+    model-switch and TTL-gap rows it is made of.
+    """
+    found: list[str] = []
+    summed, total = _dollar_rows(block, "3 event(s)", "Plausibly")
+    if summed != total:
+        found += [f"${summed:.2f}", f"${total:.2f}"]
+    avoidable = float(re.search(r"avoidable[^$]*\$(\d+\.\d\d)", block).group(1))  # type: ignore[union-attr]
+    parts = round(_churn_row(block, "model switch") + _churn_row(block, "TTL gap"), 2)
+    if parts != avoidable:
+        found += [f"${parts:.2f}", f"${avoidable:.2f}"]
+    return found
+
+
+def _note_covers(readme: str, figures: list[str]) -> bool:
+    """True when nothing is mismatched, or the README says why and names every such figure."""
+    if not figures:
+        return True
+    return "rounded independently" in readme and all(f in readme for f in figures)
+
+
+def _quickstart_sum(excerpt: str) -> tuple[float, float]:
+    """Sum of the cost-split rows of the quickstart excerpt, and its stated priced total."""
+    rows = re.findall(r"^  (?!Total)\S.*?\$(\d+\.\d\d)\s+\d+\.\d%$", excerpt, flags=re.M)
+    assert rows, "no cost-split rows found in the quickstart excerpt"
+    total = re.search(r"Total \(priced\)\s+\$(\d+\.\d\d)", excerpt)
+    assert total, "no priced total found in the quickstart excerpt"
+    return round(sum(map(float, rows)), 2), float(total.group(1))
 
 
 def test_readme_says_so_when_displayed_rows_do_not_add_up_to_the_displayed_total(
     out: dict[str, str],
 ) -> None:
-    """Rows are rounded one by one, the total is not; where they differ the README must say why."""
-    summed, total = _dollar_rows(out["cache_churn"], "3 event(s)", "Plausibly")
+    """Every displayed churn figure that disagrees with its rows must be named in the README note."""
     readme = README.read_text(encoding="utf-8")
-    if summed != total:
-        assert "rounded independently" in readme and f"${summed:.2f}" in readme
-    # the quickstart cost split displays rows that add up exactly; that must stay true or get a note
-    rows = re.findall(
-        r"^  (?!Total)\S.*?\$(\d+\.\d\d)\s+\d+\.\d%$",
-        out["quickstart_excerpt"],
-        flags=re.M,
-    )
-    stated = float(
-        re.search(r"Total \(priced\)\s+\$(\d+\.\d\d)", out["quickstart_excerpt"]).group(1)
-    )  # type: ignore[union-attr]
-    assert round(sum(map(float, rows)), 2) == stated or "rounded independently" in readme
+    figures = _churn_mismatches(out["cache_churn"])
+    assert figures, "the example no longer shows a rounding mismatch; drop the README note"
+    assert _note_covers(readme, figures), f"README note must name {figures}"
+
+
+def test_quickstart_cost_split_rows_add_up_to_the_stated_total(out: dict[str, str]) -> None:
+    """The README carries no rounding note for the quickstart block, so its rows must add up."""
+    summed, stated = _quickstart_sum(out["quickstart_excerpt"])
+    assert summed == stated, f"rows add to ${summed:.2f}, total says ${stated:.2f}"
+
+
+_CHURN = """\
+── CACHE CHURN ──
+  3 event(s) where cached context was re-written instead of read: $0.38
+  above what reading it would have cost.
+    TTL gap (idle past the cache lifetime)      1       $0.06
+    model switch                                1       $0.16
+    compaction                                  1       $0.17
+  Plausibly avoidable (a judgement): $0.21; not avoidable: $0.17.
+"""
+
+
+def test_negative_control_churn_mismatches_are_detected_and_need_a_complete_note() -> None:
+    figures = _churn_mismatches(_CHURN)
+    assert figures == ["$0.39", "$0.38", "$0.22", "$0.21"]
+    assert not _note_covers("nothing here", figures)
+    assert not _note_covers("rounded independently, $0.39 vs $0.38", figures)  # avoidable missing
+    assert _note_covers("rounded independently $0.39 $0.38 $0.22 $0.21", figures)
+    consistent = _CHURN.replace("$0.21;", "$0.22;").replace("$0.38\n", "$0.39\n")
+    assert _churn_mismatches(consistent) == []
+
+
+def test_negative_control_quickstart_sum_mismatch_is_detected() -> None:
+    good = "  a   $1.00  50.0%\n  b   $1.00  50.0%\n  Total (priced)   $2.00\n"
+    assert _quickstart_sum(good) == (2.0, 2.0)
+    summed, stated = _quickstart_sum(good.replace("$2.00\n", "$1.99\n"))
+    assert summed != stated

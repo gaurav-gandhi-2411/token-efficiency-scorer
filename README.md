@@ -73,7 +73,7 @@ The cache-churn detector, on a second synthetic session with three planted cache
   Cause = a rule on transcript markers and timestamps, not a verified fact.
 ```
 
-Rows are rounded independently, so the three cause rows add to $0.39 while the $0.38 total sums the unrounded values.
+Every figure in this block is rounded independently, and totals use the unrounded values. So the three cause rows add to $0.39 while the $0.38 total is the sum of the unrounded amounts, and the $0.21 "plausibly avoidable" figure sits beside model-switch and TTL-gap rows ($0.16 + $0.06) that add to $0.22.
 
 ## Commands
 
