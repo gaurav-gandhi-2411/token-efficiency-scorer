@@ -1,8 +1,8 @@
 # Exit codes
 
-Every `tracegauge` / `tes` command exits with one of these codes. They are a contract for scripts,
+Every `tracegauge` / `tracegauge` command exits with one of these codes. They are a contract for scripts,
 Claude Code hooks and CI: new codes may be added, existing ones are never renumbered. The same
-table is in each command's `--help` epilog. The constants live in `tes/exit_codes.py`.
+table is in each command's `--help` epilog. The constants live in `tracegauge/exit_codes.py`.
 
 | Code | Meaning | Commands |
 |---:|---|---|
@@ -32,9 +32,9 @@ table is in each command's `--help` epilog. The constants live in `tes/exit_code
 * **A file that parses but has nothing to score** (empty, or only unreadable lines) is not an error:
   it scores as `unavailable` and exits 0. Exit 4 is for files the adapter cannot read at all.
 * **`monitor` exits 3 only when the alarm fires.** "No active session" and "not enough data to
-  score yet" exit 0 on purpose: a SessionEnd hook or cron job that runs `tes monitor` between
+  score yet" exit 0 on purpose: a SessionEnd hook or cron job that runs `tracegauge monitor` between
   sessions must not read an idle machine as a failure, and a distinct "nothing to monitor" code
-  would make `tes monitor && ...` chains fail on every idle run. With `--json`, the document says which case it was
+  would make `tracegauge monitor && ...` chains fail on every idle run. With `--json`, the document says which case it was
   (`"status": "no_active_session"`, `"active": false`, `"alarm": null`). There is no `--fail-on-alarm` flag:
   the alarm already is the failure condition, and it is itself data-gated (it stays silent until
   your own baseline for that task type is built).

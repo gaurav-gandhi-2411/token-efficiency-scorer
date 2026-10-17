@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Tests: community baseline always carries its domain-of-validity.
@@ -14,7 +17,7 @@ Covers (per spec.md's community-baseline requirement + the 0.9.0 build task):
 from unittest.mock import MagicMock, patch
 
 import httpx
-from tes.community_baseline import (
+from tracegauge.community_baseline import (
     MIN_CONTRIBUTORS,
     compute_community_baseline,
     fetch_community_baseline,
@@ -177,7 +180,7 @@ def test_one_below_floor_returns_none():
 def test_fetch_returns_none_on_timeout():
     """A network timeout degrades to None, never raises."""
     with patch(
-        "tes.community_baseline.httpx.get",
+        "tracegauge.community_baseline.httpx.get",
         side_effect=httpx.ConnectTimeout("timed out"),
     ):
         result = fetch_community_baseline("https://example.invalid/community_baseline.json")
@@ -187,7 +190,7 @@ def test_fetch_returns_none_on_timeout():
 def test_fetch_returns_none_on_connect_error():
     """A network/connection error degrades to None, never raises."""
     with patch(
-        "tes.community_baseline.httpx.get",
+        "tracegauge.community_baseline.httpx.get",
         side_effect=httpx.ConnectError("refused"),
     ):
         result = fetch_community_baseline("https://example.invalid/community_baseline.json")
@@ -200,7 +203,7 @@ def test_fetch_returns_none_on_http_error_status():
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "404", request=MagicMock(), response=MagicMock(status_code=404)
     )
-    with patch("tes.community_baseline.httpx.get", return_value=mock_response):
+    with patch("tracegauge.community_baseline.httpx.get", return_value=mock_response):
         result = fetch_community_baseline("https://example.invalid/community_baseline.json")
     assert result is None
 
@@ -210,7 +213,7 @@ def test_fetch_returns_none_on_malformed_json():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json.side_effect = ValueError("not JSON")
-    with patch("tes.community_baseline.httpx.get", return_value=mock_response):
+    with patch("tracegauge.community_baseline.httpx.get", return_value=mock_response):
         result = fetch_community_baseline("https://example.invalid/community_baseline.json")
     assert result is None
 
@@ -220,7 +223,7 @@ def test_fetch_returns_none_on_non_dict_json():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = [1, 2, 3]
-    with patch("tes.community_baseline.httpx.get", return_value=mock_response):
+    with patch("tracegauge.community_baseline.httpx.get", return_value=mock_response):
         result = fetch_community_baseline("https://example.invalid/community_baseline.json")
     assert result is None
 
@@ -231,7 +234,7 @@ def test_fetch_success_returns_parsed_dict():
     mock_response = MagicMock()
     mock_response.raise_for_status = MagicMock()
     mock_response.json.return_value = baseline
-    with patch("tes.community_baseline.httpx.get", return_value=mock_response) as mock_get:
+    with patch("tracegauge.community_baseline.httpx.get", return_value=mock_response) as mock_get:
         result = fetch_community_baseline(
             "https://example.invalid/community_baseline.json", timeout_s=5.0
         )

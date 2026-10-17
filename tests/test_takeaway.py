@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""tests/test_takeaway.py -- the shared finding logic (tes/takeaway.py).
+"""tests/test_takeaway.py -- the shared finding logic (tracegauge/takeaway.py).
 
 A lever hint ("finding") is an absolute rule that is quiet for most sessions; "context dominates"
 is never one (it held for 76 of 76 audited sessions, so it said nothing about any of them). The
@@ -8,8 +11,8 @@ informational breakdown has its own tests in tests/test_cost_breakdown.py.
 """
 
 import pytest
-from tes.attribution import AttributionResult
-from tes.takeaway import build_lever_hint
+from tracegauge.attribution import AttributionResult
+from tracegauge.takeaway import build_lever_hint
 
 
 def _attr(
@@ -46,7 +49,7 @@ def _attr(
 
 def test_dashboard_uses_the_shared_function() -> None:
     """No duplicated logic: the dashboard's finding IS the shared function."""
-    import tes.web.server as server
+    import tracegauge.web.server as server
 
     assert server.build_lever_hint is build_lever_hint
 

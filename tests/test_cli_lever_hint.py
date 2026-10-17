@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""`tes score` prints a neutral COST BREAKDOWN and, rarely, an absolute LEVER finding.
+"""`tracegauge score` prints a neutral COST BREAKDOWN and, rarely, an absolute LEVER finding.
 
 Synthetic sessions with a controlled token mix drive the outcomes: a context-heavy session (the
 usual case) gets the breakdown and NO lever; an output-heavy one fires the output finding; the
@@ -14,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -52,7 +55,7 @@ def _session(path: Path, model: str, *, input_tokens: int, cache_read: int, outp
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -61,7 +64,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], argv: list[str]
 ) -> tuple[str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:
@@ -146,7 +149,7 @@ def test_waste_finding_fires_through_the_real_pipeline(
     """The bundled sample has one retry loop worth ~$0.04: below the shipped threshold (quiet),
     above a lowered one (finding with dollars), so the wiring from waste events to the finding
     is exercised end to end without hand-building a $0.50 loop."""
-    import tes.takeaway as takeaway
+    import tracegauge.takeaway as takeaway
 
     out, _ = _run(monkeypatch, capsys, ["quickstart"])
     assert "LEVER" not in out  # shipped thresholds: quiet

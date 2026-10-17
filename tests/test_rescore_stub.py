@@ -1,7 +1,10 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Empty-stub legacy rows (0 turns, 0 real tokens, a transcript with no usage) can never be
-re-scored; `tes rescore` skips them and stamps them current WITHOUT touching a number, so the
+re-scored; `tracegauge rescore` skips them and stamps them current WITHOUT touching a number, so the
 command can exit 0. A usage-zero transcript under a row that DID have turns or tokens, and a
 garbage source under a real row, are still failures."""
 
@@ -11,10 +14,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.legacy import count_legacy
-from tes.store import backfill_waste, open_db
+from tracegauge import cli
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.legacy import count_legacy
+from tracegauge.store import backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
@@ -96,7 +99,7 @@ def test_cli_exit_zero_when_the_only_other_legacy_rows_are_stubs_or_gone(
     conn.commit()
     conn.close()
 
-    monkeypatch.setattr("sys.argv", ["tes", "rescore", "--json", "--db-path", str(db)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "rescore", "--json", "--db-path", str(db)])
     code = 0
     try:
         cli.main()
@@ -106,7 +109,7 @@ def test_cli_exit_zero_when_the_only_other_legacy_rows_are_stubs_or_gone(
     assert code == 0
     assert (doc["failed"], doc["skipped_empty_stub"], doc["remaining_legacy"]) == (0, 1, 0)
 
-    monkeypatch.setattr("sys.argv", ["tes", "rescore", "--db-path", str(db)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "rescore", "--db-path", str(db)])
     try:
         cli.main()
     except SystemExit as exc:

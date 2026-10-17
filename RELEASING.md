@@ -25,8 +25,8 @@ This document describes the actual flow, written after running it for real for `
    page) reads to learn the tool exists at all. A feature with a CHANGELOG entry but no
    README section is invisible to anyone who hasn't already installed the package.
 
-   **Real incident, not hypothetical:** `0.11.0` (`tes cost --week/--month/--since`) shipped
-   to PyPI with a correct, detailed CHANGELOG entry and zero mentions of `tes cost` anywhere
+   **Real incident, not hypothetical:** `0.11.0` (`tracegauge cost --week/--month/--since`) shipped
+   to PyPI with a correct, detailed CHANGELOG entry and zero mentions of `tracegauge cost` anywhere
    in the README — caught only after the release was already published and permanently
    locked into that version's PyPI page (PyPI does not allow re-uploading a version's
    metadata). Fixed in the next release, `0.11.1`, but the gap in `0.11.0`'s own published
@@ -62,8 +62,8 @@ This document describes the actual flow, written after running it for real for `
      actually running the block before it shipped.
    - **Any pin of THIS package's version inside a sibling repo's docs is not this repo's job to
      catch, but this repo's own version pins (in reproduction instructions, quick-start blocks,
-     the SDK example) get exactly this same re-check every time.** Real cross-repo incident
-     (BL2): `agentgauge`'s two academic papers both cited `agentgauge-harness==0.5.2` in their
+     the SDK example) get exactly this same re-check every time.** Real cross-repo incident:
+     `agentgauge`'s two academic papers both cited `agentgauge-harness==0.5.2` in their
      reproduction instructions a full release after `0.5.3` shipped — same failure mode this
      bullet exists to prevent here, just in a different repo.
 3. **Commit and open a PR.** CI (`ci.yml`) runs the normal lint/test suite against the
@@ -113,7 +113,7 @@ python scripts/check_usage_fields_priced.py            # every usage key path/va
 python scripts/check_price_table_vs_vendor.py        # table vs Anthropic's page (needs network)
 ```
 
-The first exits 1 and lists any model id found in your transcripts that `tes/data/prices.json`
+The first exits 1 and lists any model id found in your transcripts that `tracegauge/data/prices.json`
 cannot resolve (exit 2 = nothing could be scanned; `<synthetic>` is excluded by design). Fix a
 miss by adding the model from the official pricing page, then add its id to
 `tests/fixtures/transcript_models/` so the always-on CI test keeps guarding it. Not modelled by
@@ -150,12 +150,12 @@ change across all PyPI-published repos in this portfolio, not built yet).
 uv venv --python 3.11 C:\tg-verify
 uv pip install --no-cache tracegauge==X.Y.Z --index-url https://pypi.org/simple/ --python C:\tg-verify\Scripts\python.exe
 
-C:\tg-verify\Scripts\tes.exe --version   # confirm it reports X.Y.Z
+C:\tg-verify\Scripts\tracegauge.exe --version   # confirm it reports X.Y.Z
 
-# Confirm both license files actually shipped in the distribution's own metadata --
+# Confirm the license files actually shipped in the distribution's own metadata --
 # not just the SPDX header comments in source, the dist-info itself
 find C:\tg-verify\Lib\site-packages\tracegauge-X.Y.Z.dist-info -iname "*LICENSE*"
-# expect: .../licenses/LICENSE and .../licenses/LICENSE-APACHE
+# expect: .../licenses/LICENSE, .../licenses/NOTICE and, in the package itself, tracegauge/web/static/fonts/OFL-*.txt
 
 rm -rf C:\tg-verify
 ```

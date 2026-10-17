@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail if the package README would render with a dead link on pypi.org.
 
 PyPI shows the README on a page whose base URL is pypi.org/project/<name>/, so a relative link

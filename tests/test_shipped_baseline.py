@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Pins for the shipped adapter-v2 baseline: it must be exactly what eval/manifest.json builds."""
@@ -10,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import rebuild_baselines as rb  # noqa: E402
-from tes.adapt import ADAPTER_VERSION  # noqa: E402
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION  # noqa: E402
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines  # noqa: E402
 
 
 def test_shipped_baseline_is_exactly_what_the_manifest_builds() -> None:
@@ -52,7 +55,7 @@ def test_manifest_holds_no_transcript_text_or_paths() -> None:
         "size_bytes",
         "mtime_utc",
         "sha256",
-        "in_phase0_set_b",
+        "in_eval_set",
         "included",
         "exclusion_reason",
     }

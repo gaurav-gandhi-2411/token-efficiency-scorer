@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Packaging integrity tests.
@@ -18,7 +21,7 @@ import re
 
 def test_version_present() -> None:
     """__version__ is importable and looks like a semver string."""
-    from tes import __version__
+    from tracegauge import __version__
 
     assert isinstance(__version__, str)
     assert __version__ != ""
@@ -30,7 +33,7 @@ def test_version_present() -> None:
 
 def test_baselines_load_from_installed_package() -> None:
     """cc_baselines.json loads from the installed package location (not repo path)."""
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
 
     assert BUNDLED_BASELINES_PATH.exists(), (
         f"Bundled baselines not found at {BUNDLED_BASELINES_PATH}. "
@@ -56,7 +59,7 @@ def test_baselines_load_from_installed_package() -> None:
 
 def test_entry_point_importable() -> None:
     """The CLI entry point function is importable without error."""
-    from tes.cli import main  # noqa: F401 — import is the test
+    from tracegauge.cli import main  # noqa: F401 — import is the test
 
     assert callable(main)
 
@@ -69,25 +72,26 @@ def test_package_name_is_tracegauge() -> None:
     assert meta["Name"] == "tracegauge"
     # The version is deliberately not asserted here as a literal (it went stale on every release);
     # tests/test_version_consistency.py compares it with pyproject.toml, uv.lock and CHANGELOG.md.
-    # PEP 639: setuptools>=70 with license = "AGPL-3.0-only" (SPDX string) emits
+    # PEP 639: setuptools>=77 with license = "Apache-2.0" (SPDX string) emits
     # "License-Expression" in the METADATA file. Fall back to "License" for older
     # build backends that may use the legacy classifier-based field.
     license_expr = meta.get("License-Expression") or meta.get("License") or ""
-    assert "AGPL" in license_expr, (
-        f"Expected 'AGPL' in license metadata. "
+    assert license_expr == "Apache-2.0", (
+        f"Expected 'Apache-2.0' in license metadata. "
         f"License-Expression={meta.get('License-Expression')!r}, "
         f"License={meta.get('License')!r}"
     )
 
 
-def test_both_entry_points_resolve() -> None:
-    """Both 'tes' and 'tracegauge' console scripts resolve to tes.cli:main."""
+def test_console_scripts_resolve() -> None:
+    """tracegauge and tgauge run the CLI; the deprecated tes runs it behind a stderr notice."""
     from importlib.metadata import entry_points
 
     eps = entry_points(group="console_scripts")
-    ep_map = {ep.name: ep.value for ep in eps if ep.name in ("tes", "tracegauge")}
+    ep_map = {ep.name: ep.value for ep in eps if ep.name in ("tes", "tgauge", "tracegauge")}
 
-    assert "tes" in ep_map, "console_script 'tes' not found in installed metadata"
-    assert "tracegauge" in ep_map, "console_script 'tracegauge' not found in installed metadata"
-    assert ep_map["tes"] == "tes.cli:main"
-    assert ep_map["tracegauge"] == "tes.cli:main"
+    assert ep_map == {
+        "tracegauge": "tracegauge.cli:main",
+        "tgauge": "tracegauge.cli:main",
+        "tes": "tracegauge.cli:tes_main",
+    }

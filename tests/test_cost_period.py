@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""tests/test_cost_period.py — LL3: `tes cost` period report.
+"""tests/test_cost_period.py — LL3: `tracegauge cost` period report.
 
 Covers: empty period, single session, cross-boundary (exactly-one-period
 membership), per-project breakdown, sessions_missing_cost accounting
@@ -15,14 +18,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.cli import _project_label
-from tes.cost_period import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.cli import _project_label
+from tracegauge.cost_period import (
     _project_label_from_source_path,
     compute_period_cost,
     resolve_period,
 )
-from tes.store import open_db
+from tracegauge.store import open_db
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -108,7 +111,7 @@ def test_single_session_in_period_reports_it_correctly(tmp_path: Path):
     _insert_session(
         conn,
         "s1",
-        source_path="/fake/C--Users-USER-ml-projects-adk-tracegauge/s1.jsonl",
+        source_path="/fake/-home-user-projects-project-a/s1.jsonl",
         source_mtime=mid.timestamp(),
         scored_at=mid.isoformat(),
         cost_usd=1.50,
@@ -209,7 +212,7 @@ def test_filters_by_source_mtime_not_scored_at(tmp_path: Path):
         scored_at=(now + timedelta(days=30)).isoformat(),
         cost_usd=4.0,
     )
-    # The inverse: scored_at falls inside the window (someone re-ran `tes
+    # The inverse: scored_at falls inside the window (someone re-ran `tracegauge
     # score` on an old file this week), but the real usage (source_mtime)
     # was months ago. Must be EXCLUDED -- a scored_at-based filter would
     # wrongly include this in "this week's" spend.
@@ -271,7 +274,7 @@ def test_resolve_period_requires_exactly_one_of_week_month_since():
 
 
 def test_project_label_derivation_matches_cli_module():
-    path = "/fake/C--Users-USER-ml-projects-token-efficiency-scorer/abc123.jsonl"
+    path = "/fake/-home-user-projects-project-b/abc123.jsonl"
     assert _project_label_from_source_path(path) == _project_label(Path(path))
 
 

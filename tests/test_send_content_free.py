@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_send_content_free.py — Prove the ACTUAL POST payload is content-free.
@@ -19,15 +22,15 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from tes.contribution import ALLOWED_FIELDS
-from tes.corpus_client import (
+from tracegauge.contribution import ALLOWED_FIELDS
+from tracegauge.corpus_client import (
     ContentLeakGuardError,
     CorpusConfig,
     contribute,
     verify_payload_content_free,
 )
-from tes.score import ThreeAxisResult
-from tes.store import open_db, upsert_session
+from tracegauge.score import ThreeAxisResult
+from tracegauge.store import open_db, upsert_session
 
 from tests.legacy_store import stamp_current
 
@@ -124,7 +127,7 @@ def test_actual_post_body_byte_grep_no_planted_secrets() -> None:
         resp.raise_for_status.return_value = None
         return resp
 
-    with patch("tes.corpus_client.httpx.post", side_effect=fake_post) as mock_post:
+    with patch("tracegauge.corpus_client.httpx.post", side_effect=fake_post) as mock_post:
         result = contribute(
             conn,
             consent_given=True,
@@ -158,7 +161,7 @@ def test_actual_post_body_keys_are_exactly_allowed_fields() -> None:
         resp.raise_for_status.return_value = None
         return resp
 
-    with patch("tes.corpus_client.httpx.post", side_effect=fake_post):
+    with patch("tracegauge.corpus_client.httpx.post", side_effect=fake_post):
         contribute(
             conn,
             consent_given=True,
@@ -345,8 +348,10 @@ def test_contribute_never_calls_httpx_post_when_guard_blocks_poisoned_payload() 
     poisoned_payload.manifest.row_count = 1
     poisoned_payload.rows = [{**_legit_row(), "task_type": "sk-ant-api03-SUPERSECRETKEY123456"}]
 
-    with patch("tes.corpus_client.build_contribution_payload", return_value=poisoned_payload):
-        with patch("tes.corpus_client.httpx.post") as mock_post:
+    with patch(
+        "tracegauge.corpus_client.build_contribution_payload", return_value=poisoned_payload
+    ):
+        with patch("tracegauge.corpus_client.httpx.post") as mock_post:
             result = contribute(
                 conn,
                 consent_given=True,
@@ -362,7 +367,7 @@ def test_contribute_never_calls_httpx_post_when_guard_blocks_poisoned_payload() 
 def test_contribute_writes_non_transmitted_log_on_guard_failure(tmp_path, monkeypatch) -> None:
     """A blocked send writes a LOCAL log entry explaining what tripped the
     guard — the log itself never transmits."""
-    import tes.corpus_client as cc_module
+    import tracegauge.corpus_client as cc_module
 
     log_path = tmp_path / "contribution_blocked.log"
     monkeypatch.setattr(cc_module, "_BLOCKED_LOG_PATH", log_path)
@@ -372,8 +377,10 @@ def test_contribute_writes_non_transmitted_log_on_guard_failure(tmp_path, monkey
     poisoned_payload.manifest.row_count = 1
     poisoned_payload.rows = [{**_legit_row(), "model": "EVIDENCE_SNIPPET_CONTENT_123"}]
 
-    with patch("tes.corpus_client.build_contribution_payload", return_value=poisoned_payload):
-        with patch("tes.corpus_client.httpx.post") as mock_post:
+    with patch(
+        "tracegauge.corpus_client.build_contribution_payload", return_value=poisoned_payload
+    ):
+        with patch("tracegauge.corpus_client.httpx.post") as mock_post:
             contribute(
                 conn,
                 consent_given=True,

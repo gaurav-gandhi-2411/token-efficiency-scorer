@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_attribution_rules.py — Behavioral rules for each attribution bucket.
@@ -14,8 +17,8 @@ All tests use synthetic fixtures; no external files, no LLM calls.
 """
 
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import compute_attribution
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.attribution import compute_attribution
 
 # ---------------------------------------------------------------------------
 # Shared helpers

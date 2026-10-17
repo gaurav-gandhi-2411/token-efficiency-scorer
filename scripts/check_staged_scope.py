@@ -1,15 +1,17 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 # ruff: noqa: E402 -- pending PR #45's repo-wide E402 config exemption
 # landing on master (see that PR for the full reasoning); until then this
 # matches every other file's existing pattern under the same constraint.
 from __future__ import annotations
 
-"""scripts/check_staged_scope.py — AX2.2: pre-commit guard against an
+"""scripts/check_staged_scope.py — pre-commit guard against an
 accidentally-broad `git add`.
 
 A pre-commit hook cannot know a PR's *intended* scope -- that's a human
 decision, not something git-visible. What it CAN check is a cheap proxy that
-would have caught both of this session's real near-misses (2026-08-21,
-maintainer rule 39c): staging a suspiciously large number of files relative to
+would have caught two real near-misses (2026-08-21): staging a suspiciously large number of files relative to
 what a single deliberate commit normally touches. Not a hard cap -- some
 commits (a repo-wide mechanical lint pass, a codemod) genuinely need to touch
 many files; those opt in explicitly via LARGE_COMMIT_OK=1 rather than being

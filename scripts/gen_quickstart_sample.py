@@ -1,9 +1,12 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""Regenerates tes/data/quickstart_sample_session.jsonl (the SYNTHETIC `quickstart` demo).
+"""Regenerates tracegauge/data/quickstart_sample_session.jsonl (the SYNTHETIC `quickstart` demo).
 
 Why this exists: the sample must clear the research-recon turn gate of the shipped baseline
-(tes/data/cc_baselines.json scope_gates) so `quickstart` prints a real token verdict, and must
+(tracegauge/data/cc_baselines.json scope_gates) so `quickstart` prints a real token verdict, and must
 contain one deterministic waste event (a REPEATED-FAILED-RETRY with proof turns) so the first run
 shows a finding. It is fully synthetic: invented module names, placeholder file bodies, no real
 session content. Run `python scripts/gen_quickstart_sample.py` to rewrite the file; output is
@@ -13,7 +16,12 @@ deterministic (no randomness).
 import json
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parent.parent / "tes" / "data" / "quickstart_sample_session.jsonl"
+OUT = (
+    Path(__file__).resolve().parent.parent
+    / "tracegauge"
+    / "data"
+    / "quickstart_sample_session.jsonl"
+)
 MODEL = "claude-sonnet-5"
 BODY = "    pass  # synthetic body\n" * 16
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # provision_gpu_vm_b2.sh — Run LOCALLY to provision the B2 pool scoring VM.
-# Creates <your-vm> spot VM in example-project-000001.
+# Creates <your-vm> spot VM in <your-gcp-project>.
 #
 # Primary zone: asia-east1-a (confirmed available in B1 reports 06/07)
 # Fallback zone: asia-east1-b
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PROJECT="example-project-000001"
+PROJECT="${GCP_PROJECT:?set GCP_PROJECT to your GCP project id}"
 VM_NAME="<your-vm>"
 ZONE="${1:-asia-east1-a}"
 FALLBACK_ZONE="asia-east1-b"
@@ -35,7 +35,7 @@ print(int(q['limit']) if q else 0)
 ")
 if [[ "$GLOBAL_LIMIT" -eq 0 ]]; then
   echo "ERROR: GPUS_ALL_REGIONS limit is still 0. Wait for quota approval."
-  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=example-project-000001"
+  echo "Monitor: https://console.cloud.google.com/iam-admin/quotas?project=<your-gcp-project>"
   exit 1
 fi
 echo "[$(date)] GPUS_ALL_REGIONS limit = $GLOBAL_LIMIT — quota approved."

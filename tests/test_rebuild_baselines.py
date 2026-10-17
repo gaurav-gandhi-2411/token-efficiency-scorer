@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Tests for scripts/rebuild_baselines.py and the shipped adapter-v2 baseline it produces.
@@ -16,8 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import rebuild_baselines as rb  # noqa: E402
-from tes.adapt import ADAPTER_VERSION  # noqa: E402
-from tes.score import _score_session_impl  # noqa: E402
+from tracegauge.adapt import ADAPTER_VERSION  # noqa: E402
+from tracegauge.score import _score_session_impl  # noqa: E402
 
 
 def _entry(
@@ -31,7 +34,7 @@ def _entry(
         "size_bytes": 1,
         "mtime_utc": "2026-10-01T00:00:00Z",
         "sha256": "0" * 64,
-        "in_phase0_set_b": False,
+        "in_eval_set": False,
         "included": True,
         "exclusion_reason": None,
     }
@@ -135,7 +138,7 @@ def test_leave_one_out_differs_from_in_sample_for_an_outlier() -> None:
     # One extreme session: in-sample it can sit inside the band it helped set,
     # leave-one-out removes that influence.
     entries = [_entry(f"s{i}", "debug-fix", 1000 + i) for i in range(11)]
-    entries.append(_entry("big", "debug-fix", 10**6, in_phase0_set_b=True))
+    entries.append(_entry("big", "debug-fix", 10**6, in_eval_set=True))
     res = rb.evaluate_set(_manifest(entries), {"big"})
     assert res["n_eval"] == 1
     assert res["leave_one_out"]["above_p75"]["n"] == 1
@@ -146,7 +149,7 @@ def test_leave_one_out_differs_from_in_sample_for_an_outlier() -> None:
 
 def test_disjoint_cell_below_min_n_makes_the_eval_session_unavailable() -> None:
     entries = [_entry(f"s{i}", "debug-fix", 1000 + i) for i in range(5)]
-    entries += [_entry(f"e{i}", "debug-fix", 1000 + i, in_phase0_set_b=True) for i in range(6)]
+    entries += [_entry(f"e{i}", "debug-fix", 1000 + i, in_eval_set=True) for i in range(6)]
     res = rb.evaluate_set(_manifest(entries), {f"e{i}" for i in range(6)})
     assert res["disjoint_only"]["unavailable"]["n"] == 6
     assert res["disjoint_cells_active"] == []
@@ -194,7 +197,7 @@ def test_freeze_manifest_excludes_active_and_empty_and_stores_no_paths(tmp_path:
     )
     by_id = {e["session_id"]: e for e in m["sessions"]}
     assert set(by_id) == {"old1", "old0", "fresh"}
-    assert by_id["old1"]["included"] is True and by_id["old1"]["in_phase0_set_b"] is True
+    assert by_id["old1"]["included"] is True and by_id["old1"]["in_eval_set"] is True
     assert by_id["old1"]["task_type"] == "infra-deploy"
     assert by_id["old0"]["exclusion_reason"] == "no_usage"
     assert by_id["fresh"]["exclusion_reason"] == "active_within_quiescent_window"
@@ -221,7 +224,7 @@ def test_build_writes_lf_only_so_the_hash_is_platform_independent(
     assert b"\r" not in built
     # Compare to the committed file with any checkout-time CRLF translation undone (a Windows
     # working tree with core.autocrlf=true holds CRLF; git's blob is LF).
-    committed = (rb.REPO_ROOT / "tes" / "data" / "cc_baselines.json").read_bytes()
+    committed = (rb.REPO_ROOT / "tracegauge" / "data" / "cc_baselines.json").read_bytes()
     committed = committed.replace(b"\r\n", b"\n")
     assert hashlib.sha256(built).hexdigest() == hashlib.sha256(committed).hexdigest()
     payload = json.loads(built)

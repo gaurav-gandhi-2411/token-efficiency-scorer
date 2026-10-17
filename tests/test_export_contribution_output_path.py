@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_export_contribution_output_path.py — Issue #17: export-contribution's
@@ -5,7 +8,7 @@ default --output path is derived from the RESOLVED db_path, not a fixed ~/.tes/.
 
 Same class of bug (and same class of fix) as RR2's intelligence_cache.json fix:
 before this fix, running `export-contribution` against an isolated/scratch DB
-(via --db-path or TES_DB_PATH) silently dropped its default output file into the
+(via --db-path or TRACEGAUGE_DB_PATH) silently dropped its default output file into the
 REAL ~/.tes/ directory regardless of which database was actually in use.
 """
 
@@ -14,7 +17,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 
 from tests.legacy_store import stamp_current
 
@@ -51,8 +54,8 @@ def _insert_minimal_session(conn: sqlite3.Connection, session_id: str) -> None:
 @pytest.fixture
 def isolated_store(tmp_path, monkeypatch):
     db_path = tmp_path / "scratch.db"
-    monkeypatch.setenv("TES_DB_PATH", str(db_path))
-    from tes.store import open_db
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db_path))
+    from tracegauge.store import open_db
 
     conn = open_db(db_path)
     _insert_minimal_session(conn, "sess-1")
@@ -61,7 +64,7 @@ def isolated_store(tmp_path, monkeypatch):
 
 
 def _run(monkeypatch, argv: list[str]) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     monkeypatch.setattr("builtins.input", lambda *a, **k: "y")  # confirm the write prompt
     try:
         cli.main()
@@ -93,7 +96,7 @@ def test_default_output_path_derived_from_resolved_db_path_not_real_home(
     if not real_home_existed_before:
         assert not real_home_default_path.exists(), (
             "export-contribution wrote its default output into the REAL ~/.tes/ "
-            "directory despite TES_DB_PATH pointing at an isolated scratch DB"
+            "directory despite TRACEGAUGE_DB_PATH pointing at an isolated scratch DB"
         )
 
 

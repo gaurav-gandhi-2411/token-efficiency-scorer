@@ -21,6 +21,119 @@ still installs, with pip's yanked-release warning. Checked against the real inde
 
 ## [Unreleased]
 
+## [0.16.0] - unreleased — renamed to tracegauge (import package, command, environment variables), relicensed Apache-2.0, cache-churn detector
+
+Measurements and migration detail: [docs/releases/0.16.0.md](docs/releases/0.16.0.md). The scoring math and the
+bundled data are unchanged. The waste detectors are byte-identical to 0.15.0 (`git diff -M --numstat v0.15.0 HEAD --
+tes/_waste_detectors.py tracegauge/_waste_detectors.py` reports a rename with 0 added and 0 removed lines) and a
+test pins their sha256. Loaded as JSON, the bundled `cc_baselines.json` differs from 0.15.0 in two fields only
+(`baseline_population`, whose text names the renamed module, and `provenance.manifest_sha256`, because the
+manifest key `in_phase0_set_b` was renamed `in_eval_set`; every band, count and gate is identical) and
+`prices.json` differs in two `note` strings only (no rate, date or flag changed). The behavioural changes are:
+task classification no longer special-cases a single private session id; the score output gains a cache-churn
+section and the `score --json` output gains a `cache_churn` key (see Added); the deprecated `tes` command prints a
+deprecation notice to stderr, `import tes` raises a `DeprecationWarning` (Python hides it by default outside
+`__main__` unless warnings are enabled), and the `tracegauge` command prints a stderr notice when it reads a
+`TES_*` environment variable ("TES_DB_PATH is deprecated; use TRACEGAUGE_DB_PATH. The TES_ names will be removed in
+0.18."); and several user-visible strings and the dashboard's identity (logo, favicon, fonts) changed (see BREAKING
+and Changed).
+
+### BREAKING: read before upgrading
+
+1. **The import package, the command and the environment variables are renamed from `tes` to `tracegauge`.**
+   `import tracegauge`, `tracegauge score ...`, `TRACEGAUGE_DB_PATH` and the other `TRACEGAUGE_*` variables
+   replace `import tes`, `tes score ...` and `TES_*`. `tgauge` is a short alias for `tracegauge`. The old names
+   keep working with a deprecation notice and are removed in 0.18: `import tes` is an alias of the same module
+   objects (one `DeprecationWarning` per process), the `tes` command prints one line to stderr first (silence it
+   with `TRACEGAUGE_NO_DEPRECATION_NOTICE=1`), and a `TES_*` variable is read when its `TRACEGAUGE_*` twin is
+   unset. The store stays at `~/.tes/`. User-visible strings changed, among them: `--version` prints
+   `tracegauge <version>`, the prose of the JSON field `cost_domain_of_validity` names `TRACEGAUGE_PRICE_TABLE`, the
+   text report banner reads `TRACEGAUGE`, the command's argparse description and `--db-path` help text, the
+   "No sessions found" hint, the store schema error, the price path in the report footer, the prose of the
+   `approximate_reason` field for an unknown model, and the legacy-rows notice hint (it now names
+   `TRACEGAUGE_NO_NOTICE`). Scores, JSON field names and types, and exit codes are the same.
+   Steps and the full list: [docs/MIGRATING_FROM_TES.md](docs/MIGRATING_FROM_TES.md).
+2. **The licence is Apache-2.0 from this release.** `LICENSE` is the Apache-2.0 text, `pyproject.toml` declares
+   `license = "Apache-2.0"`, first-party Python files carry an SPDX header (exceptions: `tracegauge/_waste_detectors.py`, which is
+   byte-frozen and pinned by sha256 in `tests/test_prior_features_intact.py`, so no header was added, and the
+   three files under `src/token_efficiency/`, which are not part of the published wheel), and `NOTICE` states the boundary.
+   Releases up to and including 0.15.0 were published under AGPL-3.0-only and stay under it for anyone who
+   received them, except that `tes/cost.py`, `tes/_digest.py` and `tes/discovery.py` carried a dual
+   "AGPL-3.0-only OR Apache-2.0" header. The grant covers tracegauge's own code and text only: bundled fonts keep
+   SIL OFL 1.1 and the datasets keep their own terms (see [DATA_SOURCES.md](DATA_SOURCES.md)), and it gives no
+   right to the "tracegauge" name or logo.
+
+### Added
+
+- **Cache-churn detector** (`tracegauge.cache_churn`, documented in [docs/CACHE_CHURN.md](docs/CACHE_CHURN.md)).
+  Finds turns where Claude Code re-wrote cached context instead of reading it, prices the difference with the same
+  price table as `tracegauge cost`, and gives each event at most one rule-based cause (compaction, model switch,
+  idle gap past the cache lifetime), otherwise `UNEXPLAINED`. Surfaces: a CACHE CHURN section in
+  `tracegauge score`, a `cache_churn` object in `tracegauge score --json`, and a card on the dashboard's session
+  page. Computed from the transcript on demand, nothing is stored. A model missing from the price table is shown
+  as unpriced, never `$0.00`. The cause is a rule on transcript markers and timestamps, not a verified fact.
+- **`tgauge`** short alias, **`TRACEGAUGE_*`** environment variables and `python -m tracegauge` (see above).
+- **DCO sign-off check:** `scripts/check_dco.py` and a `dco` job in `.github/workflows/ci.yml` fail a pull request
+  with a commit that lacks a well-formed `Signed-off-by:` matching its author or committer
+  ([CONTRIBUTING.md](CONTRIBUTING.md)). Making `dco` a required status check is a repository setting and is not
+  done by this change.
+- **Secret scan:** a gitleaks pre-commit hook and a `secret-scan` CI job (pinned release, sha256-verified) using one
+  shared `.gitleaks.toml`.
+- **Docs:** [docs/METHODOLOGY.md](docs/METHODOLOGY.md) (the methodology and every caveat that used to be in the
+  README, moved unchanged), [docs/COMMANDS.md](docs/COMMANDS.md) (long-form usage and the SDK),
+  [docs/MIGRATING_FROM_TES.md](docs/MIGRATING_FROM_TES.md) and [docs/RENAME_REPO.md](docs/RENAME_REPO.md) (the
+  owner's steps for renaming the repository).
+
+### Changed
+
+- **The README leads with what the tool finds:** a one-line pitch, a recording of `tracegauge quickstart` on the
+  bundled sample, a three-line install, real output including the cache-churn detector, a commands table, supported
+  agents (Claude Code only; others are planned, none is supported), and a methodology summary. The example blocks
+  and the recording are generated by `scripts/gen_readme_demo.py` and pinned by `tests/test_readme_demo.py`.
+- **The dashboard has a new identity:** new logo, favicon and webfonts (`TG Sans` / `TG Mono`, see Bundled fonts).
+- **The waste detectors are pinned by sha256** in `tests/test_prior_features_intact.py` as well as by `git diff`, so a
+  committed change to them fails CI (the `git diff` check alone passed on any committed edit).
+- **Bundled fonts:** the OFL texts now ship in the wheel, and the IBM Plex subsets are renamed `TG Sans` / `TG Mono`
+  because IBM Plex reserves the name "Plex" (OFL clause 3).
+- **Dataset attribution corrected** in `DATA_SOURCES.md`: SWE-ZERO is Apache-2.0 (not MIT), CC-Bench is MIT (not
+  CC-BY-4.0), and each third-party trajectory dataset now lists its licence, what is used and whether it is
+  redistributed.
+- **Scripts that defaulted to the maintainer's own session data** (`scripts/pull_corpora.py` and others) now require
+  explicit input paths; `scripts/pull_corpora.py` also refuses to write into a tracked or un-ignored path.
+
+### Removed
+
+- **Third-party and derived material this release no longer redistributes:** the 50 SWE-Gym corpus entries (no
+  licence stated on the dataset card; the trace files themselves were never committed) with their annotations; the nebius trajectory text (derived numbers kept);
+  free-text judge and rater commentary about the SWE-Gym sessions; and `data/public_waste_signals.jsonl` (see below).
+  `DATA_SOURCES.md` discloses what derived material remains. What stays in git history (for example at the `v0.15.0` tag) is the 50 SWE-Gym rows of
+  `data/validation-corpus/corpus_manifest.jsonl` and the annotation and heuristic-output files removed here; the trace
+  files were gitignored and never committed.
+- **PR-evidence screenshots under `reports/screenshots/`** (11 images that shipped in 0.15.0; 6 more added to the
+  development branch after 0.15.0, 17 in all, were also removed), which showed local paths or real session ids. No
+  README or document references them.
+
+### Known gaps
+
+- **The removed screenshots (11 from 0.15.0, 17 counting those added after it) were not re-captured.** The dashboard changes they documented (cost breakdown, lever
+  rule, unpriced display, cache-churn card) have no screenshot in the repository; the behaviour is covered by tests.
+- **Figures that came from removed data cannot be re-derived from a clone.** The research reports' pool statistics
+  and the pre-0.15.0 bands are the maintainer's unpublished local measurement (see the next two entries).
+- **Repository rename not done yet:** links in the README, `pyproject.toml` and the docs still use the old repository
+  name until the owner follows [docs/RENAME_REPO.md](docs/RENAME_REPO.md), including updating the PyPI Trusted
+  Publisher before the first release from the renamed repository.
+
+### Data changes (from the unreleased section)
+
+- **The scoring tests no longer read the maintainer's own session text.** They run on a seeded (42) synthetic pool,
+  synthetic judge scores and synthetic baselines under `tests/fixtures/`, produced by
+  `scripts/gen_synthetic_fixtures.py`; waste entries are produced by running the real detectors over the fixture
+  digests. The maintainer's adapted pool, its waste signals, its session digests and the old `data/cc_baselines.json`
+  are removed from the tree. Scripts that defaulted to them (`scripts/efficiency_score.py`, `scripts/build_baselines.py`,
+  `scripts/run_waste_analysis.py` and others) now take explicit input paths. Figures that came from those files (the
+  research reports' pool statistics, the pre-0.15.0 bands) are the maintainer's unpublished local measurement. The shipped `tracegauge/data/cc_baselines.json`, `eval/manifest.json` and the waste detectors are unchanged.
+- **`data/public_waste_signals.jsonl` is no longer distributed.** It held per-session detector results keyed by 1,946 SWE-chat session ids (the maintainer's unpublished local measurement), and SWE-chat-derived data stays local (see `DATA_SOURCES.md`). It is now gitignored; regenerate it with `scripts/generalization_run.py`, which gained `--signals-out`, and read it with `--swechat-signals` (`scripts/diagnose_rfr_rate.py`) or `--signals` (`scripts/fix_noncc_signals.py`).
+
 ## [0.15.0] - 2026-10-11 — token and cost totals were counted once per content block (tokens ~2.4x, cost ~2.3x too high)
 
 Measurements and migration detail: [docs/releases/0.15.0.md](docs/releases/0.15.0.md). Figures called "the
@@ -56,8 +169,10 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   on every content-block record; ccusage dedupes the same way (`ccusage/ccusage@c3a4eb0ecdcfbd3655dbcec8205644b046032332`,
   `rust/adapters/claude/src/lib.rs:345-366`). Waste events and proof turns are unchanged.
   [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
-- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); reproducible from `eval/manifest.json` with
-  `scripts/rebuild_baselines.py build`. [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
+- **Bundled baseline rebuilt from 71 sessions** (was 75 quality-gated); `scripts/rebuild_baselines.py build`
+  re-derives the bands from `eval/manifest.json`, which holds ids, hashes and per-session counts only: the counts came
+  from transcripts that are not in the repository, so the baseline itself is the maintainer's unpublished local measurement.
+  [Details](docs/releases/0.15.0.md#usage-was-counted-once-per-content-block).
 - **Subagent usage is rolled into its parent session** (`subagent_tokens`, `subagent_cost_usd`, `subagent_count`)
   instead of scoring each subagent file as an empty session; `real_tokens` and the verdict stay main-chain.
   [Details](docs/releases/0.15.0.md#added-and-fixed-in-this-release).
@@ -176,6 +291,8 @@ maintainer's" are unpublished local measurements on the maintainer's own transcr
   release is the first one whose published PyPI page actually carries the notice — every prior
   published version's page remains permanently non-compliant (PyPI does not allow re-uploading
   a version's metadata; see RELEASING.md, "do not yank").
+  (Erratum, 2026-10: the figure quoted above, "172 independent developers, 1,053 sessions", was
+  wrong. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. The entry is left as published.)
 - Two internal research-corpus documentation errors, unrelated to any public claim but worth
   a clean record: `research/09-cross-model.md` twice mis-described the project's own real
   Spearman ρ≈0.79 trajectory-judge figure as correlating against a "5-session human-rated set"

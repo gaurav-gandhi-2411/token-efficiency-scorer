@@ -1,8 +1,11 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Measure how much spend subagent transcripts add on top of their parent sessions.
 
-Before W1A the adapter ignored ``<project>/<sid>/subagents/agent-*.jsonl`` entirely (every
+Before 0.15.0 the adapter ignored ``<project>/<sid>/subagents/agent-*.jsonl`` entirely (every
 record is ``isSidechain: true``), so this spend was in no total. This script reports it, per
 session set, in tokens and USD, with prices as they stand in the bundled table, and flags
 models that are missing from it.
@@ -16,7 +19,7 @@ cannot silently point it elsewhere:
         --selection selection.json \\
         --out invisible_spend.md
 
-Two bases are reported: "adapter" = what ``tes`` totals for the parent; "deduped" = each API
+Two bases are reported: "adapter" = what ``tracegauge`` totals for the parent; "deduped" = each API
 response (``message.id``) counted once, computed here independently. Since adapter_version 2
 the two agree (before it, the adapter counted every assistant *record*, and Claude Code writes
 one record per content block of the same API response, so "adapter" was ~2.4x "deduped"); the
@@ -30,10 +33,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from tes._digest import TurnDigest, reconstruct_digest
-from tes.adapt import _message_dedup_key, _parse_usage, _read_jsonl, adapt_session
-from tes.cost import compute_turn_cost, load_price_table
-from tes.discovery import SUBAGENTS_DIRNAME, iter_session_files
+from tracegauge._digest import TurnDigest, reconstruct_digest
+from tracegauge.adapt import _message_dedup_key, _parse_usage, _read_jsonl, adapt_session
+from tracegauge.cost import compute_turn_cost, load_price_table
+from tracegauge.discovery import SUBAGENTS_DIRNAME, iter_session_files
 
 
 @dataclass
@@ -146,7 +149,7 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
     lines = [
         "# Item 1d: spend invisible before subagent roll-up",
         "",
-        f"Price table: bundled `tes/data/prices.json`, as_of `{prices.get('as_of')}`. USD counts "
+        f"Price table: bundled `tracegauge/data/prices.json`, as_of `{prices.get('as_of')}`. USD counts "
         "priced turns only; tokens of models missing from the table are listed separately and "
         "are NOT in any USD figure (so USD is a floor wherever a model is flagged).",
         "",
@@ -164,7 +167,7 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
             "",
             "| | billed tokens | real tokens | output tokens | USD (priced) |",
             "|---|---:|---:|---:|---:|",
-            f"| main, adapter basis (what `tes` showed) | {ma.billed:,} | {ma.real:,} | "
+            f"| main, adapter basis (what `tracegauge` showed) | {ma.billed:,} | {ma.real:,} | "
             f"{ma.output:,} | ${ma.usd:,.2f} |",
             f"| main, deduped basis | {md.billed:,} | {md.real:,} | {md.output:,} | "
             f"${md.usd:,.2f} |",
@@ -199,7 +202,11 @@ def render(pops: list[Population], prices: dict[str, Any], extra: list[str]) -> 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Measure subagent spend on top of parent sessions.")
     ap.add_argument("--cc-path", required=True, type=Path)
-    ap.add_argument("--selection", type=Path, help="c2-selection.json (frozen set B paths).")
+    ap.add_argument(
+        "--selection",
+        type=Path,
+        help="JSON with the frozen evaluation-set paths (sel.B) and subagent file paths (sel.A).",
+    )
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
 
@@ -212,9 +219,9 @@ def main() -> None:
         set_b = [Path(p) for p in sel["sel"]["B"]]
         missing = [p for p in set_b if not p.exists()]
         if missing:
-            raise SystemExit(f"{len(missing)} frozen set-B files no longer exist")
-        pops.append(measure(set_b, f"Phase 0 set B ({len(set_b)} frozen main sessions)", prices))
-        # Set A's 46 subagent files: which parents do they belong to, how big are they.
+            raise SystemExit(f"{len(missing)} frozen evaluation-set files no longer exist")
+        pops.append(measure(set_b, f"Evaluation set ({len(set_b)} frozen main sessions)", prices))
+        # The subagent files in sel.A: which parents do they belong to, how big are they.
         set_a_sub = [Path(p) for p in sel["sel"]["A"] if SUBAGENTS_DIRNAME in Path(p).parts]
         parents = defaultdict(int)
         sub_billed = 0
@@ -230,9 +237,9 @@ def main() -> None:
                     seen[k] = [max(a, b) for a, b in zip(seen.get(k, [0] * 4), c, strict=True)]
             sub_billed += sum(sum(v) for v in seen.values())
         extra += [
-            "## Phase 0 set A subagent files",
+            "## Earlier-scored subagent files",
             "",
-            f"{len(set_a_sub)} subagent files (the ones `tes score` picked in Phase 0), belonging "
+            f"{len(set_a_sub)} subagent files (the ones `tracegauge score` picked before subagent roll-up), belonging "
             f"to {len(parents)} parent sessions; {sub_billed:,} billed tokens in total that "
             "scored as 0 tokens / UNAVAILABLE.",
             "",

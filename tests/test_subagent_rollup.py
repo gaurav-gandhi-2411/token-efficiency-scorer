@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Subagent usage is rolled up into the parent session (D6) without double counting.
@@ -13,13 +16,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes._digest import reconstruct_digest
-from tes.adapt import adapt_session, collect_subagent_usage
-from tes.attribution import compute_attribution
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.cost import compute_session_cost, load_price_table
-from tes.score import score_session
-from tes.store import get_session, open_db, upsert_session
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import adapt_session, collect_subagent_usage
+from tracegauge.attribution import compute_attribution
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.cost import compute_session_cost, load_price_table
+from tracegauge.score import score_session
+from tracegauge.store import get_session, open_db, upsert_session
 
 PRICED = "claude-sonnet-4-6"  # $3 in / $15 out per MTok in the bundled table
 UNPRICED = "claude-test-unpriced-9"
@@ -255,16 +258,16 @@ def test_legacy_digest_dict_without_subagent_fields_still_loads() -> None:
 def test_cli_score_shows_subagent_breakdown(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import tes.cli as cli
+    import tracegauge.cli as cli
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     parent = _make_session(tmp_path)
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(parent), "--no-judge"])
     cli.main()
     human = capsys.readouterr().out
     assert "Includes 2 subagent transcript(s)" in human
 
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(parent), "--no-judge", "--json"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(parent), "--no-judge", "--json"])
     cli.main()
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])
@@ -279,11 +282,11 @@ def test_explicit_subagent_file_scores_without_crashing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """An explicit path to a subagent transcript still works (it just has no main chain)."""
-    import tes.cli as cli
+    import tracegauge.cli as cli
 
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     agent = _make_session(tmp_path).with_suffix("") / "subagents" / "agent-aaa.jsonl"
-    monkeypatch.setattr("sys.argv", ["tes", "score", str(agent), "--no-judge", "--json"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "score", str(agent), "--no-judge", "--json"])
     cli.main()
     out = capsys.readouterr().out
     data = json.loads(out[out.index("{") :])

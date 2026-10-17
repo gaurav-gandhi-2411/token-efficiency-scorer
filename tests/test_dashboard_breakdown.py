@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """The session page shows the cost breakdown as labelled information and a finding only when an
@@ -6,19 +9,19 @@ absolute rule fires: "context dominates" is not a banner any more."""
 from pathlib import Path
 
 import pytest
-import tes.cli as cli
+import tracegauge.cli as cli
 from flask.testing import FlaskClient
-from tes.store import open_db
-from tes.web.server import ServerConfig, create_app
+from tracegauge.store import open_db
+from tracegauge.web.server import ServerConfig, create_app
 
 from tests.test_cli_lever_hint import PRICED, UNPRICED, _session
 
 
 def _page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: Path) -> str:
     db = tmp_path / "dash.db"
-    monkeypatch.setenv("TES_DB_PATH", str(db))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(db))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
-    monkeypatch.setattr("sys.argv", ["tes", "--quiet", "score", str(path), "--no-judge"])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "--quiet", "score", str(path), "--no-judge"])
     try:
         cli.main()
     except SystemExit:
@@ -70,8 +73,8 @@ def test_unpriced_session_page_says_not_computed(
 
 
 def test_dashboard_uses_the_shared_breakdown_function() -> None:
-    """No duplicated logic: the page's breakdown IS the one `tes score` prints."""
-    import tes.web.server as server
-    from tes.takeaway import build_cost_breakdown
+    """No duplicated logic: the page's breakdown IS the one `tracegauge score` prints."""
+    import tracegauge.web.server as server
+    from tracegauge.takeaway import build_cost_breakdown
 
     assert server.build_cost_breakdown is build_cost_breakdown

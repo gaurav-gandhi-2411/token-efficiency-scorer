@@ -1,9 +1,9 @@
 # The live alarm: what it compares against, and how that was chosen
 
-The live alarm (`tes monitor`, `tes serve --alarm`, the watcher) tells you that the
+The live alarm (`tracegauge monitor`, `tracegauge serve --alarm`, the watcher) tells you that the
 session you are in right now is already larger than your usual, and that re-sent context dominates it, so
 `/compact` would help. This page says exactly what "larger than your usual" means, why, and what it costs in
-false alarms. It is opt-in: `tes serve` only checks with `--alarm`; `tes monitor` checks the active session once.
+false alarms. It is opt-in: `tracegauge serve` only checks with `--alarm`; `tracegauge monitor` checks the active session once.
 
 ## The rule
 
@@ -34,12 +34,12 @@ A fallback chain picks the first tier with at least **10** sessions:
 | `recent_type` | recent, any era, same task type | `... of <type> sessions` |
 | `recent` | recent, any era, any type | `... of sessions` |
 | `shipped` | the bundled reference band for the type: upper 95% bound of its p75 | says "not your own history" |
-| `disabled` | none of the above qualifies | the alarm is silent and `tes monitor` prints why |
+| `disabled` | none of the above qualifies | the alarm is silent and `tracegauge monitor` prints why |
 
-`tes monitor` always prints the threshold and its provenance, or the one-line reason the alarm is disabled, e.g.
+`tracegauge monitor` always prints the threshold and its provenance, or the one-line reason the alarm is disabled, e.g.
 `No alarm: alarm disabled: needs at least 10 of your sessions from the last 30 days (have 3, 1 of type ml-eval)
 and the bundled reference has no usable ml-eval band.` `--json` carries the same in `alarm_baseline` (see
-`docs/JSON_OUTPUT.md`). `tes monitor` exits 3 only when the alarm fired.
+`docs/JSON_OUTPUT.md`). `tracegauge monitor` exits 3 only when the alarm fired.
 
 Knobs (`AlarmConfig`, all optional; the old two-field constructor still works): `percentile` (0.85),
 `window_days` (30), `min_n` (10). `check_alarm(live, self_baseline, config)` without a `threshold` keeps the
@@ -58,11 +58,11 @@ on a copy of the maintainer's store, 0/50 because all 1,452 rows are stale. Neit
 
 ## How the percentile was chosen (data)
 
-Setting: 50 main sessions of one developer (the maintainer; the transcripts are not published, the method is `tes.alarm_baseline`, so these figures are an unpublished local measurement). 48 have tokens; one more was
+Setting: 50 main sessions of one developer (the maintainer; the transcripts are not published, the method is `tracegauge.alarm_baseline`, so these figures are an unpublished local measurement). 48 have tokens; one more was
 extracted with 0 tokens and one has no assistant usage at all, so 49 sessions were extracted and the 2 that cannot
 exceed any threshold count as "no fire" in the denominator of 50. Counts below written "of 49" are over the 49
 extracted sessions (the 0-token one is placed in the `recent` tier, giving 9 rather than 8 there). Each finished session is scored once as if it were the live
-session, with `score_live_session` and `tes.alarm_baseline.resolve_threshold`, against other sessions only.
+session, with `score_live_session` and `tracegauge.alarm_baseline.resolve_threshold`, against other sessions only.
 **This is a retrospective analogue, not a live alarm**: the monitor checks only the currently active session,
 once, with a partial transcript; here the finished session is scored whole, so its token count is its final
 count. Two settings: *chronological* (only sessions that ended before the scored one: what was known then) and

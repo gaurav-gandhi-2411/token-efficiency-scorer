@@ -1,14 +1,18 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """fix_noncc_signals.py — One-shot fixer for missing non-CC detector results.
 
 Reads swechat_noncc_adapted.jsonl (already adapted in previous run),
-runs frozen detectors, appends to public_waste_signals.jsonl, and
+runs frozen detectors, appends to the SWE-chat signals file (--signals), and
 rewrites generalization_compare.json with correct non-CC stats.
 
 Does NOT touch waste_detectors.py or claudecode_adapter.py.
 """
 
+import argparse
 import dataclasses
 import json
 import sys
@@ -21,6 +25,7 @@ from waste_detectors import detect_redundant_read, detect_repeated_failed_retry
 
 # Paths
 NONCC_ADAPTED = ROOT / "data" / "swechat_noncc_adapted.jsonl"
+# Derived from SWE-chat sessions: local only (gitignored), never distributed; --signals overrides it.
 SIGNALS_PATH = ROOT / "data" / "public_waste_signals.jsonl"
 COMPARE_PATH = ROOT / "data" / "generalization_compare.json"
 
@@ -32,7 +37,15 @@ _POOL_RR_PATH_A_SESSIONS = 4
 _POOL_RR_PATH_B_SESSIONS = 18
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Add non-CC detector results to the SWE-chat signals."
+    )
+    parser.add_argument(
+        "--signals", type=Path, default=SIGNALS_PATH, help="SWE-chat signals file (JSONL)"
+    )
+    signals_path: Path = parser.parse_args(argv).signals
+
     if not NONCC_ADAPTED.exists():
         print(f"ERROR: {NONCC_ADAPTED} not found", file=sys.stderr)
         sys.exit(1)
@@ -93,11 +106,11 @@ def main() -> None:
     print(f"Agent breakdown: {agent_counts}")
 
     # --- Read existing CC signals ---
-    if not SIGNALS_PATH.exists():
-        print(f"ERROR: {SIGNALS_PATH} not found - run CC detector phase first", file=sys.stderr)
+    if not signals_path.exists():
+        print(f"ERROR: {signals_path} not found - run CC detector phase first", file=sys.stderr)
         sys.exit(1)
 
-    cc_lines = SIGNALS_PATH.read_text(encoding="utf-8").splitlines()
+    cc_lines = signals_path.read_text(encoding="utf-8").splitlines()
     cc_signals = [json.loads(l) for l in cc_lines if l.strip()]
 
     # Validate: all existing signals should be CC source
@@ -113,11 +126,11 @@ def main() -> None:
 
     # --- Rebuild combined signals file ---
     all_signals = cc_signals + noncc_signals
-    SIGNALS_PATH.write_text(
+    signals_path.write_text(
         "\n".join(json.dumps(r) for r in all_signals) + "\n",
         encoding="utf-8",
     )
-    print(f"Wrote {len(all_signals)} total signal records to {SIGNALS_PATH}")
+    print(f"Wrote {len(all_signals)} total signal records to {signals_path}")
 
     # --- Rebuild compare JSON ---
     existing_compare = json.loads(COMPARE_PATH.read_text(encoding="utf-8"))

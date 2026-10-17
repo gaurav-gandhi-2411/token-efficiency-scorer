@@ -28,9 +28,11 @@ We assembled a 200-session in-distribution corpus from three SWE-bench Verified 
 |---|-----------------|---------|----------|----------|-------------|
 | 1 | `nebius/SWE-agent-trajectories` | CC-BY-4.0 | 80 | `swe_agent` | Llama-3 70B, 8B, 405B |
 | 2 | `nebius/SWE-rebench-openhands-trajectories` | CC-BY-4.0 | 70 | `openhands_nebius` | *unknown* |
-| 3 | `SWE-Gym/OpenHands-Sampled-Trajectories` | CC-BY-4.0 | 50 | `openhands_swegym` | *unknown* |
+| 3 | `SWE-Gym/OpenHands-Sampled-Trajectories` | not stated on the dataset card (this row previously said CC-BY-4.0, which was wrong) | 50 (removed from the repository in 0.16.0) | `openhands_swegym` | *unknown* |
 
 All three datasets draw from SWE-bench Verified (arXiv:2310.06770 [Jimenez et al., 2023]).
+
+**Licence note (0.16.0).** The SWE-Gym dataset card states no licence, so its 50 traces, and the per-turn annotations and verbatim text derived from them, were removed from the repository tree. The figures in this document were measured on the 200-session corpus as it stood before that removal and are kept as the historical record; they cannot be re-derived from the current tree (150 sessions remain). Earlier git history, and released versions up to 0.15.0, still contain those files.
 
 **Model coverage gap:** The `model` field is unpopulated for all 120 OpenHands sessions (datasets 2 and 3 do not expose per-row model metadata in the Parquet schema). This is a corpus documentation failure; model diversity for two-thirds of the corpus is unknown.
 
@@ -66,7 +68,7 @@ We sourced 15 sessions from two out-of-distribution datasets:
 | `zai-org/CC-Bench-trajectories` | 10 | `claude_code` | frontend_development, app_development, ui_optimization, build_deployment, data_analysis |
 | Synthetic (constructed) | 5 | `claude_code` | data_analysis, TypeScript refactor, shell scripting, docs update, Go bug fix |
 
-CC-Bench contains 370 real Claude Code sessions with structured tool calls (Claude Code session JSON format), token totals, and tool call counts. Licenses: CC-BY-4.0 (CC-Bench), CC0 (synthetic).
+CC-Bench contains 370 real Claude Code sessions with structured tool calls (Claude Code session JSON format), token totals, and tool call counts. Licenses: MIT (CC-Bench, per its dataset card; an earlier version of this note said CC-BY-4.0), CC0 (synthetic).
 
 ---
 
@@ -115,10 +117,8 @@ To establish an IAA baseline before Haiku annotation runs, we manually labeled 1
 | tool_result_used | 19/19 | 100% | All turns use their context |
 | redundant_read | 1/19 | 5.3% | Turn 18 — same file re-read within session |
 
-**Notable examples:**
-- **is_retry (t36, hydra-2189):** Agent repeatedly applies identical `str_replace` where `old_str == new_str` — a no-op edit retried after an import error.
-- **is_backtrack (t92, dask-9378):** `undo_edit` call + "Alternative Approach: Instead of using map_blocks..." — textbook backtrack.
-- **redundant_read (t32, pydantic-8316):** Reads `_fields.py` at line 125 in t22, then re-reads at line 195 in t32 with no write between.
+Per-trace examples were removed in 0.16.0 with the traces they described (see the licence note
+in `DATA_SOURCES.md`); only the counts above remain.
 
 ### 2.4 IAA: Structural GT vs Sonnet Spot-Check
 
@@ -380,4 +380,4 @@ python scripts/06_evaluate_ood.py
 2. Yang, J., et al. (2026). SWE-ABS: Unifying the Evaluation of AI Software Engineering Agents. arXiv:2603.00520
 3. Tang, X., et al. (2024). AgentDiet: Improving the Efficiency of LLM-based Agents via Diet Strategy. arXiv:2509.23586
 4. Wang, P., et al. (2024). Math-Shepherd: Verify and Reinforce LLMs Step-by-step without Human Annotations. arXiv:2312.08935
-5. CC-Bench-trajectories. zai-org/CC-Bench-trajectories. HuggingFace Datasets. CC-BY-4.0.
+5. CC-Bench-trajectories. zai-org/CC-Bench-trajectories. HuggingFace Datasets. MIT (per the dataset card).

@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block title_suffix %} — {{ session.session_id[:12] }}{% endblock %}
+{% block content %}
+
+{# ── Session header ──────────────────────────────────────────────── #}
+<h1><span class="mono">{{ session.session_id }}</span></h1>
+<p style="margin-top:-1rem; margin-bottom:1.5rem; font-size:0.8rem; color:var(--graphite);">
+  {{ session.task_type }}
+  &middot; {{ session.scored_at[:19] | replace("T", " ") }} UTC
+  &middot; <span style="color:var(--tick);">{{ session.source_path }}</span>
+</p>
+
+{% if is_legacy %}
+<div class="caveat" id="legacy-banner">
+  <strong>{{ legacy_label }}.</strong> This session was scored before 0.15: the tokens, cost and
+  verdict stored for it count each response's usage once per content block (about 2x too high) and
+  are not compared with your baseline. {% if attribution %}The attribution below is recomputed from
+  the transcript with the current accounting. {% endif %}<code>tracegauge rescore</code> replaces the stored
+  figures when the transcript still exists.
+</div>
+{% endif %}
+
+{# ── Takeaway ────────────────────────────────────────────────────── #}
+{% if attribution_takeaway %}
+<div class="takeaway" id="finding">{{ attribution_takeaway }}</div>
+{% endif %}
+
+{% if cost_breakdown %}
+<div class="card" id="cost-breakdown">
+  <div class="card-title">Cost breakdown <span class="badge badge-unavailable">{{ cost_breakdown.label }}</span></div>
+  {% if cost_breakdown.total_usd %}
+  <table style="width:auto;">
+    <thead><tr><th>Bucket</th><th style="text-align:right;">Cost</th><th style="text-align:right;">Share</th></tr></thead>
+    <tbody>
+    {% for b in cost_breakdown.buckets %}
+      <tr>
+        <td>{{ b.label }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.2f"|format(b.usd) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if b.share_pct is not none %}{{ "%.1f"|format(b.share_pct) }}%{% else %}n/a{% endif %}</td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td><strong>Total (priced)</strong></td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;"><strong>${{ "%.2f"|format(cost_breakdown.total_usd) }}</strong></td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% if cost_breakdown.note %}<p class="cost-approx">{{ cost_breakdown.note }}</p>{% endif %}
+  <p class="text-faint" style="font-size:0.78rem; margin-top:0.6rem;">{{ breakdown_note }}</p>
+</div>
+{% endif %}
+
+{# ── Attribution ─────────────────────────────────────────────────── #}
+{% set bcolors = {"B1": "#f59e0b", "B2": "#f97316", "B3": "#3b82f6", "B4": "#8b5cf6", "B5": "#94a3b8", "B6": "#0ea5e9"} %}
+
+<div class="section">
+  <div class="section-label">Attribution — where did the cost go?</div>
+
+  {% if attribution and attribution_rows %}
+
+  {# ---- Dual stacked bar SVG ---- #}
+  {# Two parallel horizontal bars: top = Cost%, bottom = Tokens%. Same bucket order (cost-ranked).
+     The visual difference between the two bars IS the insight (e.g. 95% tok vs 49% cost for B3). #}
+  {% set bar_w = 660 %}
+  {% set bar_h = 34 %}
+  {% set label_w = 58 %}
+  {% set gap = 10 %}
+  {% set svg_h = bar_h * 2 + gap + 18 %}
+  {% set svg_w = label_w + bar_w + 4 %}
+
+  <div style="margin-bottom:0.75rem; overflow-x:auto;">
+  <svg viewBox="0 0 {{ svg_w }} {{ svg_h }}"
+       xmlns="http://www.w3.org/2000/svg"
+       style="width:100%; max-width:{{ svg_w }}px; display:block; overflow:visible;">
+
+    <!-- Y-axis labels -->
+    <text x="{{ label_w - 6 }}" y="{{ (bar_h / 2 + 5) | round(1) }}"
+          text-anchor="end" font-size="11" fill="var(--tick)"
+          font-family="var(--font-mono)">Cost</text>
+    <text x="{{ label_w - 6 }}" y="{{ (bar_h + gap + bar_h / 2 + 5) | round(1) }}"
+          text-anchor="end" font-size="11" fill="var(--tick)"
+          font-family="var(--font-mono)">Tokens</text>
+
+    <!-- X-axis ticks — Calibration gauge motif: short marks at 0/25/50/75/100%, label at each end -->
+    {% set tick_y0 = bar_h * 2 + gap %}
+    {% for tick_pct in [0, 25, 50, 75, 100] %}
+      {% set tick_x = (label_w + bar_w * tick_pct / 100.0) | round(1) %}
+      <line x1="{{ tick_x }}" y1="{{ tick_y0 }}" x2="{{ tick_x }}" y2="{{ tick_y0 + 5 }}"
+            stroke="var(--tick)" stroke-width="1"/>
+    {% endfor %}
+    <text x="{{ label_w }}" y="{{ svg_h }}"
+          font-size="9" fill="var(--tick)"
+          font-family="var(--font-mono)">0%</text>
+    <text x="{{ label_w + bar_w }}" y="{{ svg_h }}"
+          text-anchor="end" font-size="9" fill="var(--tick)"
+          font-family="var(--font-mono)">100%</text>
+
+    {# ---- Cost bar (top) ---- #}
+    {% set ns = namespace(cx=label_w | float) %}
+    {% for row in attribution_rows %}
+      {% set seg_w = (row.cost_pct / 100.0 * bar_w) | round(2) %}
+      {% if seg_w > 0.5 %}
+        <rect x="{{ ns.cx | round(2) }}" y="0"
+              width="{{ seg_w }}" height="{{ bar_h }}"
+              fill="{{ bcolors.get(row.bucket, '#94a3b8') }}">
+          <title>{{ row.bucket }} {{ row.label }}: {{ row.cost_pct }}% cost / {{ row.tok_pct }}% tokens</title>
+        </rect>
+        {% if seg_w >= 32 %}
+          <text x="{{ (ns.cx + seg_w / 2) | round(1) }}" y="{{ (bar_h / 2 + 4) | round(1) }}"
+                text-anchor="middle" font-size="10" fill="white" font-weight="600"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">{{ row.cost_pct }}%</text>
+        {% endif %}
+        {% set ns.cx = ns.cx + seg_w %}
+      {% endif %}
+    {% endfor %}
+    <!-- Cost bar border -->
+    <rect x="{{ label_w }}" y="0" width="{{ bar_w }}" height="{{ bar_h }}"
+          fill="none" stroke="var(--tick)" stroke-width="1"/>
+
+    {# ---- Token bar (bottom) — same bucket order, sized by tok_pct ---- #}
+    {% set ns = namespace(cx=label_w | float) %}
+    {% for row in attribution_rows %}
+      {% set seg_w = (row.tok_pct / 100.0 * bar_w) | round(2) %}
+      {% if seg_w > 0.5 %}
+        <rect x="{{ ns.cx | round(2) }}" y="{{ bar_h + gap }}"
+              width="{{ seg_w }}" height="{{ bar_h }}"
+              fill="{{ bcolors.get(row.bucket, '#94a3b8') }}" opacity="0.7">
+          <title>{{ row.bucket }} {{ row.label }}: {{ row.tok_pct }}% tokens / {{ row.cost_pct }}% cost</title>
+        </rect>
+        {% if seg_w >= 32 %}
+          <text x="{{ (ns.cx + seg_w / 2) | round(1) }}" y="{{ (bar_h + gap + bar_h / 2 + 4) | round(1) }}"
+                text-anchor="middle" font-size="10" fill="white" font-weight="600"
+                font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif">{{ row.tok_pct }}%</text>
+        {% endif %}
+        {% set ns.cx = ns.cx + seg_w %}
+      {% endif %}
+    {% endfor %}
+    <!-- Token bar border -->
+    <rect x="{{ label_w }}" y="{{ bar_h + gap }}" width="{{ bar_w }}" height="{{ bar_h }}"
+          fill="none" stroke="var(--tick)" stroke-width="1"/>
+
+  </svg>
+  </div>
+
+  {# ---- Companion table: both cost% and tok% per bucket ---- #}
+  <table style="width:auto; min-width:480px; margin-bottom:0.5rem;">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Bucket</th>
+        <th style="text-align:right;">Cost% ▼</th>
+        <th style="text-align:right;">Tok%</th>
+        <th style="text-align:right;">Cost ($)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in attribution_rows %}
+      <tr{% if row.is_waste %} style="color:var(--needle);"{% endif %}>
+        <td style="width:16px; padding-right:0;">
+          <span style="display:inline-block; width:10px; height:10px; border-radius:2px;
+                background:{{ bcolors.get(row.bucket, '#94a3b8') }}; vertical-align:middle;"></span>
+        </td>
+        <td style="font-weight:600;">{{ row.bucket }} <span class="text-muted" style="font-weight:400; font-size:0.82em;">{{ row.label }}</span></td>
+        <td style="text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">{{ row.cost_pct }}%</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums; color:var(--graphite);">{{ row.tok_pct }}%</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if session.unpriced_models and row.usd == 0 %}unpriced{% else %}${{ "%.4f" | format(row.usd) }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="font-weight:600; border-top:2px solid var(--tick);">
+        <td></td>
+        <td>TOTAL (billed)</td>
+        <td style="text-align:right;">100%</td>
+        <td style="text-align:right; color:var(--graphite);">100%</td>
+        <td style="text-align:right;">{{ attribution.total_usd | cost_display(session.unpriced_models, 4) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  {# Honesty element 3: billed-basis label + real_tokens != verdict note #}
+  <p style="font-size:0.78rem; color:var(--tick); margin-top:0.3rem; margin-bottom:0.25rem;">
+    Basis: {{ "{:,}".format(attribution.total_billed_tokens) }} total billed tokens (includes cached re-reads).
+    real_tokens (verdict basis): {{ "{:,}".format(attribution.real_tokens) }}
+    &mdash; cached re-reads are excluded from the verdict axis but included in this chart; do not compare attribution cost% directly to the real_tokens verdict.
+  </p>
+  <div class="caveat">{{ attribution.domain_of_validity }}</div>
+
+  {% else %}
+  {# Attribution source file not accessible #}
+  <div class="card">
+    <span class="badge badge-unavailable">UNAVAILABLE</span>
+    <p style="margin-top:0.5rem; font-size:0.875rem; color:var(--graphite);">
+      Source file not accessible — attribution requires the original JSONL log.
+      Ensure <code>source_path</code> is reachable, or re-run <code>tracegauge score &lt;path&gt;</code>.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Cache churn ─────────────────────────────────────────────────── #}
+{# States: unavailable (no transcript / unreadable), empty (analysed, 0 events), populated. There is
+   no loading state: like the attribution above, it is computed in the request, not fetched later. #}
+{% if cache_churn %}
+<div class="card" id="cache-churn">
+  <div class="card-title">Cache churn <span class="badge badge-unavailable">informational: cache re-written instead of read</span></div>
+  {% if cache_churn.status != "ok" %}
+  <span class="badge badge-unavailable">UNAVAILABLE</span>
+  <p style="margin-top:0.5rem; font-size:0.875rem; color:var(--graphite);">
+    Source file not accessible &mdash; cache churn is computed from the original JSONL log (nothing is stored).
+  </p>
+  {% elif cache_churn.events == 0 %}
+  <p style="font-size:0.9rem;">No cache churn detected: 0 events in {{ cache_churn.by_scope.main.chains + cache_churn.by_scope.subagent.chains }} transcript chain(s).</p>
+  {% else %}
+  <p style="font-size:0.9rem; margin-top:0;">
+    <strong>{{ cache_churn.events }}</strong> event(s) re-wrote cached context: <strong>${{ "%.2f"|format(cache_churn.churn_usd) }}</strong>
+    more than reading it would have cost{% if not cache_churn.priced %} <span class="cost-approx">(priced part only: {{ cache_churn.unpriced_events }} unpriced event(s) excluded)</span>{% endif %}.
+    Main chain ${{ "%.2f"|format(cache_churn.by_scope.main.churn_usd) }} ({{ cache_churn.by_scope.main.events }}),
+    subagents ${{ "%.2f"|format(cache_churn.by_scope.subagent.churn_usd) }} ({{ cache_churn.by_scope.subagent.events }}).
+  </p>
+  <table style="width:auto;">
+    <thead><tr><th>Cause</th><th style="text-align:right;">Events</th><th style="text-align:right;">Cost</th></tr></thead>
+    <tbody>
+    {% for key, label in [("TTL_GAP", "TTL gap (idle past the cache lifetime)"), ("MODEL_SWITCH", "Model switch"), ("COMPACTION", "Compaction"), ("UNEXPLAINED", "Unexplained (no cause claimed)")] %}
+      {% set b = cache_churn.by_cause[key] %}
+      {% if b.events %}
+      <tr><td>{{ label }}</td><td style="text-align:right;">{{ b.events }}</td>
+          <td style="text-align:right; font-variant-numeric:tabular-nums;">${{ "%.2f"|format(b.churn_usd) }}{% if b.unpriced_events %} <span class="cost-approx">+{{ b.unpriced_events }} unpriced</span>{% endif %}</td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-faint" style="font-size:0.78rem; margin-top:0.5rem;">
+    Plausibly avoidable (a judgement): ${{ "%.2f"|format(cache_churn.avoidable_usd) }} &middot;
+    not avoidable by a setting (idle over an hour, compaction): ${{ "%.2f"|format(cache_churn.unavoidable_usd) }}.
+  </p>
+  <div class="section-label" style="margin-top:1rem;">Largest events (proof turns)</div>
+  <table>
+    <thead><tr><th>Where</th><th>Turns</th><th>Cause</th><th style="text-align:right;">Gap / TTL</th>
+      <th style="text-align:right;">Read before &rarr; after</th><th style="text-align:right;">Written</th><th style="text-align:right;">Cost</th></tr></thead>
+    <tbody>
+    {% for e in cache_churn.events_listed %}
+      <tr>
+        <td>{{ "main" if e.scope == "main" else "subagent " ~ e.chain }}</td>
+        <td class="mono">{{ e.previous_turn.turn_index }}&rarr;{{ e.current_turn.turn_index }}</td>
+        <td>{{ e.cause }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if e.gap_s is not none %}{{ "{:,.0f}".format(e.gap_s) }}s / {% if e.ttl_s is not none %}{{ "{:,.0f}".format(e.ttl_s) }}s{% else %}unknown{% endif %}{% else %}n/a{% endif %}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(e.previous_turn.cache_read) }} &rarr; {{ "{:,}".format(e.current_turn.cache_read) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ "{:,}".format(e.churn_tokens) }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{% if e.priced %}${{ "%.2f"|format(e.churn_usd) }}{% else %}unpriced{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if cache_churn.events > cache_churn.events_listed|length %}
+  <p class="text-faint" style="font-size:0.78rem;">Showing the {{ cache_churn.events_listed|length }} largest of {{ cache_churn.events }}.</p>
+  {% endif %}
+  {% for a in cache_churn.advice %}
+  <div class="takeaway">Priced for this session: setting <code>{{ a.setting }}</code>=1h (env <code>{{ a.env_var }}</code>) would save about
+    ${{ "%.2f"|format(a.net_usd) }} net (${{ "%.2f"|format(a.saved_usd) }} of avoided re-writes minus ${{ "%.2f"|format(a.premium_usd) }}
+    higher write rate on {{ a.scope }} chains). {{ a.assumptions }}</div>
+  {% endfor %}
+  <div class="caveat">{{ cache_churn.judgement_note }}</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Token Economy ───────────────────────────────────────────────── #}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Token Economy</div>
+    <table style="width:auto;">
+      <tbody>
+        <tr>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Real Tokens</td>
+          <td class="cost-amount">{{ "{:,}".format(session.real_tokens) }}</td>
+        </tr>
+        <tr>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band Verdict</td>
+          <td>
+            {% if session.band_verdict == "above_p75" %}
+              <span class="badge badge-above">above_p75</span>
+            {% elif session.band_verdict == "below_p25" %}
+              <span class="badge badge-below">below_p25</span>
+            {% elif session.band_verdict == "within_band" %}
+              <span class="badge badge-within">within_band</span>
+            {% else %}
+              <span class="badge badge-unavailable">{{ session.band_verdict }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          {# Honesty element 5: "relative to YOUR OWN baseline" + element 6: baseline source #}
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Baseline</td>
+          <td>
+            {% set bs = session.get("baseline_source", "b2_corpus") %}
+            {% if bs == "self" %}
+              <span class="badge badge-self">self</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">
+                vs your own lean waste-free runs
+                {% if session.p25 is not none and session.p75 is not none %}
+                  ({{ "{:,}".format(session.p25) }}–{{ "{:,}".format(session.p75) }} token band)
+                {% endif %}
+              </span>
+            {% elif bs == "building" %}
+              <span class="badge badge-building">building</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">self-baseline not yet active</span>
+            {% elif bs == "corpus" %}
+              <span class="badge badge-corpus">corpus</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">infra-heavy fallback — your own baseline pending</span>
+            {% else %}
+              <span class="badge badge-corpus">b2</span>
+              <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">B2 reference corpus (infra-heavy single-developer; self-baseline not yet scored)</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if session.baseline_available %}
+        <tr>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Band</td>
+          <td class="text-muted" style="font-size:0.82rem;">
+            p25 {{ "{:,}".format(session.p25) if session.p25 is not none else "—" }}
+            &nbsp;·&nbsp; median {{ "{:,}".format(session.median) if session.median is not none else "—" }}
+            &nbsp;·&nbsp; p75 {{ "{:,}".format(session.p75) if session.p75 is not none else "—" }}
+          </td>
+        </tr>
+        {% endif %}
+        <tr>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Scope</td>
+          <td class="text-muted" style="font-size:0.82rem;">{{ session.scope_status }}</td>
+        </tr>
+        <tr>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Interpretation</td>
+          <td style="font-size:0.82rem;">{{ session.interpretation }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {# Honesty element 1: DOV caveat — visible, not buried #}
+    <div class="caveat">{{ session.token_domain_of_validity }}</div>
+  </div>
+</div>
+
+{# ── Trajectory Quality ──────────────────────────────────────────── #}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Trajectory Quality</div>
+
+    {% if traj_state == TrajectoryRenderState.UNAVAILABLE %}
+      {# Honesty element 4: UNAVAILABLE = calm invitation, not an error #}
+      <p style="margin-bottom:0.75rem;">
+        <span class="badge badge-unavailable">UNAVAILABLE</span>
+      </p>
+      <p style="font-size:0.875rem; color:var(--graphite); margin-bottom:0.6rem;">
+        Token and waste axes ran. Trajectory scoring is optional — enable with one of:
+      </p>
+      <ul style="list-style:disc; padding-left:1.25rem; font-size:0.875rem; color:var(--graphite); line-height:1.8; margin-bottom:0.75rem;">
+        <li>
+          <strong>Local (free, no data leaves your machine):</strong>
+          Install <a href="https://ollama.com">Ollama</a>, pull <code>qwen3:30b-a3b</code>
+          (~18 GB VRAM), then re-run <code>tracegauge score &lt;path&gt; --judge</code>
+        </li>
+        <li>
+          <strong>API (opt-in, uses your key):</strong>
+          <code>tracegauge score &lt;path&gt; --api-judge --api-judge-key YOUR_KEY</code>
+        </li>
+      </ul>
+      {# Honesty element 8: API-judge data-egress warning (ADDED — was absent from old template) #}
+      <p style="font-size:0.8rem; color:var(--tick);">
+        API judge note: sends session data &mdash; including 300-char snippets that may contain your code &mdash; to your configured provider. Explicit consent required at the CLI before any data is sent.
+      </p>
+
+    {% elif traj_state == TrajectoryRenderState.STALE %}
+      <p style="margin-bottom:0.5rem;">
+        <span class="badge badge-stale">{{ session.judge_verdict }}</span>
+        {% if session.judge_score is not none %}
+          <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">score {{ "%.2f" | format(session.judge_score) }}</span>
+        {% endif %}
+      </p>
+      {% if session.judge_reasoning %}
+        <p style="font-size:0.875rem; color:var(--graphite); margin-bottom:0.5rem;">{{ session.judge_reasoning }}</p>
+      {% endif %}
+      <p class="stale-note">Verdict from an earlier version of this session (session grew after judging). Re-run <code>tracegauge score &lt;path&gt;</code> to update.</p>
+
+    {% else %}
+      {# CURRENT #}
+      <p style="margin-bottom:0.5rem;">
+        <span class="badge badge-current">{{ session.judge_verdict }}</span>
+        {% if session.judge_score is not none %}
+          <span class="text-muted" style="margin-left:0.4rem; font-size:0.82rem;">score {{ "%.2f" | format(session.judge_score) }}</span>
+        {% endif %}
+      </p>
+      {% if session.judge_reasoning %}
+        <p style="font-size:0.875rem; color:var(--graphite);">{{ session.judge_reasoning }}</p>
+      {% endif %}
+    {% endif %}
+
+    {# Honesty element 1: trajectory DOV — visible #}
+    <div class="caveat">{{ session.trajectory_domain_of_validity }}</div>
+  </div>
+</div>
+
+{# ── Deterministic Waste ─────────────────────────────────────────── #}
+<div class="section">
+  <div class="section-label">Deterministic Waste</div>
+
+  {% if session.waste_event_count == 0 %}
+    <p class="text-muted" style="font-size:0.875rem; margin-bottom:0.5rem;">No waste detected.</p>
+  {% else %}
+    {# Compute total waste cost for collapsed-state signal (honesty element 7) #}
+    {% set wns = namespace(total=0.0) %}
+    {% for ev in session.waste_events %}
+      {% set wc = ev.get("wasted_cost_usd") %}
+      {% if wc is not none and wc > 0 %}{% set wns.total = wns.total + wc %}{% endif %}
+    {% endfor %}
+    {# Honesty element 7: collapsed state SHOWS count + cost; one click reveals evidence #}
+    <details>
+      <summary>
+        {{ session.waste_event_count }} waste event{{ 's' if session.waste_event_count != 1 else '' }}
+        {% if wns.total > 0.0001 %}
+          &nbsp;&mdash;&nbsp;<span class="waste-indicator">${{ "%.2f" | format(wns.total) }}</span>
+        {% endif %}
+        &nbsp;&middot;&nbsp;show proof turns
+      </summary>
+      <table style="margin-top:0.5rem;">
+        <thead>
+          <tr>
+            <th>Detector</th>
+            <th>Proof Turns</th>
+            <th>Wasted Cost</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in session.waste_events %}
+          <tr>
+            <td>{{ event.get("detector", "—") }}</td>
+            <td class="proof-turn">
+              {% set turns = event.get("turns", []) %}
+              {% if turns %}{{ turns | join(", ") }}{% else %}—{% endif %}
+            </td>
+            <td>
+              {% set wc = event.get("wasted_cost_usd") %}
+              {% if wc is not none and wc > 0 %}
+                <span class="cost-amount">~${{ "%.3f" | format(wc) }}</span>
+              {% else %}
+                <span class="text-faint">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% set evidence = event.get("evidence", {}) %}
+              {% if evidence %}<pre>{{ evidence | tojson(indent=2) }}</pre>{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  {# Honesty element 1: waste DOV — always visible #}
+  <div class="caveat">{{ session.waste_domain_of_validity }}</div>
+</div>
+
+{# ── Cost Annotation ─────────────────────────────────────────────── #}
+{% if session.get("session_cost_usd") is not none %}
+<div class="section">
+  <div class="card">
+    <div class="card-title">Cost Annotation</div>
+    <table style="width:auto;">
+      <tbody>
+        <tr>
+          <td style="padding-right:1.5rem; color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Session Cost</td>
+          <td>
+            <span class="cost-amount">{{ session.session_cost_usd | cost_display(session.unpriced_models) }}</span>
+            {% if session.get("subagent_count") %}
+              <span class="cost-approx">includes {{ session.subagent_count }} subagent transcript(s): {{ session.subagent_cost_usd | cost_display([], 2) }}</span>
+            {% endif %}
+            {% if session.get("cost_approximate") %}
+              <span class="cost-approx">[~] approximate</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">vs Your Baseline</td>
+          <td>
+            {% if cost_vs_baseline_pct is not none %}
+              {% if cost_vs_baseline_pct >= 0 %}
+                <span class="cost-above">+{{ cost_vs_baseline_pct }}% above your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+              {% else %}
+                <span class="cost-below">{{ cost_vs_baseline_pct }}% below your typical efficient run (~${{ "%.2f" | format(baseline_cost_median) }})</span>
+              {% endif %}
+            {% elif is_legacy %}
+              <span class="badge badge-unavailable">{{ legacy_label }}: not compared</span>
+            {% else %}
+              <span class="badge badge-unavailable">no baseline yet</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td style="color:var(--graphite); font-size:0.82rem; white-space:nowrap; vertical-align:top;">Price Basis</td>
+          <td class="text-muted" style="font-size:0.82rem;">{{ price_provenance }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-faint" style="font-size:0.78rem; margin-top:0.6rem;">
+      Cost is not a score. It annotates the token axis at API-equivalent rates.
+      Flat-plan users: marginal cost differs; token consumption is the honest metric.
+    </p>
+    {% if session.get("cost_domain_of_validity") %}
+    <details style="margin-top:0.5rem;">
+      <summary style="font-size:0.8rem; color:var(--graphite);">Cost domain of validity</summary>
+      <div class="caveat" style="margin-top:0.4rem;">{{ session.cost_domain_of_validity }}</div>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

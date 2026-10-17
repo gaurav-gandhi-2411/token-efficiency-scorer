@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """generalization_run.py — B5 generalization run: frozen waste detectors on SWE-chat public data.
@@ -9,7 +12,7 @@ Phases:
   3 — Download conversations.parquet + adapt non-CC → swechat_noncc_adapted.jsonl
   4 — Run detectors on CC adapted sessions
   5 — Run detectors on non-CC adapted sessions
-  6 — Write output files (public_waste_signals.jsonl, generalization_compare.json)
+  6 — Write output files (per-session signals JSONL, generalization_compare.json)
   7 — Print comparison report
 
 CLI flags:
@@ -50,6 +53,7 @@ DATA_DIR: Path = ROOT / "data" / "swechat_raw"
 TRANSCRIPTS_DIR: Path = DATA_DIR / "transcripts"
 CC_ADAPTED_PATH: Path = ROOT / "data" / "swechat_cc_adapted.jsonl"
 NONCC_ADAPTED_PATH: Path = ROOT / "data" / "swechat_noncc_adapted.jsonl"
+# Derived from SWE-chat sessions: written locally (gitignored), never distributed. --signals-out overrides it.
 SIGNALS_PATH: Path = ROOT / "data" / "public_waste_signals.jsonl"
 COMPARE_PATH: Path = ROOT / "data" / "generalization_compare.json"
 
@@ -399,18 +403,19 @@ def phase_6_write_outputs(
     cc_signals: list[dict[str, Any]],
     noncc_signals: list[dict[str, Any]],
     distinct_users: int,
+    signals_path: Path = SIGNALS_PATH,
 ) -> dict[str, Any]:
-    """Write public_waste_signals.jsonl and generalization_compare.json.
+    """Write the per-session signals file and generalization_compare.json.
 
     Returns the compare dict for use in phase 7.
     """
     # Write combined signals
     all_signals = cc_signals + noncc_signals
-    SIGNALS_PATH.write_text(
+    signals_path.write_text(
         "\n".join(json.dumps(r) for r in all_signals) + "\n",
         encoding="utf-8",
     )
-    print(f"Wrote {len(all_signals)} signal records to {SIGNALS_PATH}")
+    print(f"Wrote {len(all_signals)} signal records to {signals_path}")
 
     # CC stats
     cc_n = len(cc_signals)
@@ -626,6 +631,12 @@ def _parse_args() -> argparse.Namespace:
         help="Skip the non-CC phase entirely.",
     )
     parser.add_argument(
+        "--signals-out",
+        type=Path,
+        default=SIGNALS_PATH,
+        help="Where to write the per-session signals (JSONL; local only, derived from SWE-chat).",
+    )
+    parser.add_argument(
         "--max-cc",
         type=int,
         default=None,
@@ -698,7 +709,7 @@ def main() -> None:
 
     # --- Phase 6 ---
     print("\n=== PHASE 6: Write Outputs ===")
-    compare = phase_6_write_outputs(cc_signals, noncc_signals, distinct_users)
+    compare = phase_6_write_outputs(cc_signals, noncc_signals, distinct_users, args.signals_out)
 
     # --- Phase 7 ---
     print("\n=== PHASE 7: Comparison Report ===")

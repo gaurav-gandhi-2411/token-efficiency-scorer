@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 judge_agreement.py — Cross-model judge agreement analysis.
 
@@ -121,7 +124,7 @@ def compute_agreement(
     gemma_total:
         Total records in the Gemma file (for n reporting).
     turn_map:
-        Mapping from session_id to turn_count, loaded from pool_adapted.jsonl.
+        Mapping from session_id to turn_count, loaded from the adapted-session pool.
         Used to populate the ``turns`` field in waste_disagreements entries.
 
     Returns
@@ -455,8 +458,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--pool-path",
-        default=str(ROOT / "data" / "corpus_pool" / "pool_adapted.jsonl"),
-        help="Path to pool_adapted.jsonl for turn count lookup (default: data/corpus_pool/pool_adapted.jsonl)",
+        required=True,
+        help="Path to the adapted-session pool JSONL, for turn count lookup (required; the maintainer's pool is not in the repository)",
     )
     parser.add_argument(
         "--print-waste-details",

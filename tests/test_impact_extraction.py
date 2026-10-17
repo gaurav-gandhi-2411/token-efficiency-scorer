@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_impact_extraction.py — XX2: Edit/Write/MultiEdit/NotebookEdit
@@ -12,7 +15,7 @@ counting, churn ranking, inline fraction reporting per AB3.2).
 
 import json
 
-from tes.impact import compute_impact_report, extract_edit_operations
+from tracegauge.impact import compute_impact_report, extract_edit_operations
 
 # ---------------------------------------------------------------------------
 # extract_edit_operations

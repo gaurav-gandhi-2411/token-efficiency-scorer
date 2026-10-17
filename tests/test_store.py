@@ -1,17 +1,20 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""tests/test_store.py — Unit tests for tes/store.py SQLite persistence layer."""
+"""tests/test_store.py — Unit tests for tracegauge/store.py SQLite persistence layer."""
 
 import threading
 from pathlib import Path
 
-from tes.score import (
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,
     ThreeAxisResult,
 )
-from tes.store import (
+from tracegauge.store import (
     SCHEMA_VERSION,
     get_session,
     list_sessions,

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """diagnose_rfr_rate.py — Diagnose why RFR fires 4.7x less on SWE-chat CC vs pool.
@@ -18,6 +21,7 @@ Diagnostics:
      because snippets weren't exactly equal — quantifies suppression effect
 """
 
+import argparse
 import json
 import re
 import statistics
@@ -30,8 +34,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from waste_detectors import _is_error_result, _is_transient
 
 POOL_DIGESTS = ROOT / "data" / "layer1_outputs.jsonl"
-POOL_SIGNALS = ROOT / "data" / "pool_waste_signals.jsonl"
+# The pool waste signals are an explicit --pool-signals argument (the maintainer's pool is not in the repository).
 SWECHAT_CC_ADAPTED = ROOT / "data" / "swechat_cc_adapted.jsonl"
+# The SWE-chat waste signals are derived from SWE-chat sessions, so they are not distributed with the
+# repository; --swechat-signals defaults to the gitignored local file that generalization_run.py writes.
 SWECHAT_CC_SIGNALS = ROOT / "data" / "public_waste_signals.jsonl"
 
 # Pool data uses 'assistant' role (old adapter); SWE-chat CC uses 'ai'.
@@ -248,7 +254,18 @@ def find_near_miss_rfr(records: list[dict]) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Diagnose the RFR fire-rate gap.")
+    parser.add_argument(
+        "--pool-signals", type=Path, required=True, help="pool waste signals (JSONL)"
+    )
+    parser.add_argument(
+        "--swechat-signals",
+        type=Path,
+        default=SWECHAT_CC_SIGNALS,
+        help="SWE-chat waste signals (JSONL), regenerated locally by scripts/generalization_run.py",
+    )
+    args = parser.parse_args(argv)
     print("Loading pool digests...", end="", flush=True)
     pool_records = load_jsonl(POOL_DIGESTS)
     print(f" {len(pool_records)} sessions")
@@ -258,7 +275,7 @@ def main() -> None:
     print(f" {len(swechat_records)} sessions")
 
     # --- RFR fire rates (from signals files) ---
-    pool_signals = load_jsonl(POOL_SIGNALS)
+    pool_signals = load_jsonl(args.pool_signals)
 
     def _pool_has_rfr(r: dict) -> bool:
         if "rfr_fired" in r:
@@ -266,7 +283,9 @@ def main() -> None:
         return any(e.get("detector") == "REPEATED-FAILED-RETRY" for e in r.get("waste_events", []))
 
     pool_rfr = sum(1 for r in pool_signals if _pool_has_rfr(r))
-    swechat_signals = [r for r in load_jsonl(SWECHAT_CC_SIGNALS) if r.get("source") == "swechat_cc"]
+    swechat_signals = [
+        r for r in load_jsonl(args.swechat_signals) if r.get("source") == "swechat_cc"
+    ]
     swechat_rfr = sum(1 for r in swechat_signals if r.get("rfr_fired"))
 
     pool_n = len(pool_signals)  # 181 (confirmed)

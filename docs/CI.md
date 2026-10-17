@@ -29,18 +29,18 @@ Do not add a per-leg name to branch protection; it goes stale the day the matrix
 `pip install tracegauge` with no extras has no numpy or scikit-learn. `tests/test_core_without_extras.py`
 simulates that inside the full dev environment by blocking the imports in a subprocess; the `core-only` job is the
 real thing. In an empty venv it: builds and installs the wheel, asserts numpy/sklearn are absent, runs
-`tes quickstart` (must show the `REPEATED-FAILED-RETRY` finding), runs `tes score --json` on the bundled sample
+`tracegauge quickstart` (must show the `REPEATED-FAILED-RETRY` finding), runs `tracegauge score --json` on the bundled sample
 session, then installs the checkout editable (still without extras, which also satisfies
 `tests/_checkout_guard.py`) and runs `tests/test_core_without_extras.py`.
 
 ## Coverage policy
 
 `[tool.coverage.report] fail_under` in `pyproject.toml` is a ratchet, set to the measured total floored to an
-integer. It is enforced on **one** leg, ubuntu py3.12 (the only leg run with `--cov=tes`); the other legs run without
+integer. It is enforced on **one** leg, ubuntu py3.12 (the only leg run with `--cov=tracegauge`); the other legs run without
 coverage so a platform-dependent branch cannot flip the total across the line. Raise the number when coverage rises;
 do not lower it to make a PR pass. `omit` keeps `tests/`, `scripts/` and `notebooks/` out of the measure.
 
-Reproduce locally: `uv sync --frozen && uv run pytest --cov=tes --cov-report=term-missing`.
+Reproduce locally: `uv sync --frozen && uv run pytest --cov=tracegauge --cov-report=term-missing`.
 
 The floor is 86. The enforcing leg (ubuntu-latest, CPython 3.12) measured **86.70%** on the GitHub runner (5235
 statements, 696 missed), so the margin is 0.70 points. The number depends on the platform and on the commit; local
@@ -50,6 +50,6 @@ runs on other platforms differ by about a statement.
 
 Windows runs the suite locally; macOS is only covered by CI and static review. Reviewed and found portable:
 user paths come from `Path.home()` (tests redirect `HOME` and `USERPROFILE` together), every text read/write in
-`tes/` passes an explicit `encoding`, the only binary open is in `store.py`, and no `tes/` code uses `fcntl`,
+`tracegauge/` passes an explicit `encoding`, the only binary open is in `store.py`, and no `tracegauge/` code uses `fcntl`,
 `signal`, `chmod`, symlinks or `os.sep`. One real portability bug was found by running Python 3.10 (not by reading):
 `datetime.UTC` is 3.11+ (`tests/test_py310_compat.py` guards it).

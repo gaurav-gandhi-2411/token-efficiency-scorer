@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_attribution_reconcile.py — Invariant: all 6 token buckets sum to total_billed_tokens.
@@ -12,10 +15,10 @@ Invariant under test:
 """
 
 
-from tes._digest import SessionDigest, TurnDigest
-from tes.attribution import AttributionResult, attribution_fractions, compute_attribution
-from tes.cost import load_price_table
-from tes.intelligence.features import extract_features
+from tracegauge._digest import SessionDigest, TurnDigest
+from tracegauge.attribution import AttributionResult, attribution_fractions, compute_attribution
+from tracegauge.cost import load_price_table
+from tracegauge.intelligence.features import extract_features
 
 # ---------------------------------------------------------------------------
 # Shared helpers

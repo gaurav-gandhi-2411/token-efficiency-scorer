@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_corpus_rls.py — Static proof that corpus/schema.sql enforces the
@@ -17,7 +20,7 @@ import re
 from pathlib import Path
 
 import pytest
-from tes.contribution import ALLOWED_FIELDS
+from tracegauge.contribution import ALLOWED_FIELDS
 
 _SCHEMA_PATH = Path(__file__).parent.parent / "corpus" / "schema.sql"
 

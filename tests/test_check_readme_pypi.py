@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 import importlib.util
@@ -35,7 +38,7 @@ def _run(
 
 def test_slug_matches_github_style() -> None:
     assert check._slug("Quick start") == "quick-start"
-    assert check._slug("What `tes` measures?") == "what-tes-measures"
+    assert check._slug("What `tracegauge` measures?") == "what-tracegauge-measures"
 
 
 def test_heading_slugs_ignore_code_fences() -> None:

@@ -1,16 +1,19 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Tests: B3 DOV caveats present on both local judge and API judge verdict paths."""
 
 from unittest.mock import MagicMock, patch
 
-from tes.judge import (
+from tracegauge.judge import (
     JUDGE_SETUP_HINT_FULL,
     ApiJudgeConfig,
     build_api_judge_consent_notice,
     score_trajectory_api,
 )
-from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY
+from tracegauge.score import TRAJECTORY_DOMAIN_OF_VALIDITY
 
 # ---------------------------------------------------------------------------
 # The B3 caveats that MUST appear in TRAJECTORY_DOMAIN_OF_VALIDITY
@@ -123,8 +126,8 @@ _MINIMAL_RECORD = {
 
 def test_api_judge_verdict_is_compatible_with_score_session():
     """API judge_entry passes through score_session; result has API-specific DOV."""
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-    from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
+    from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tracegauge.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
 
     config = ApiJudgeConfig(api_key="sk-key")
     mock_resp = MagicMock()
@@ -137,7 +140,7 @@ def test_api_judge_verdict_is_compatible_with_score_session():
     }
     mock_resp.raise_for_status = MagicMock()
 
-    with patch("tes.judge.httpx.post", return_value=mock_resp):
+    with patch("tracegauge.judge.httpx.post", return_value=mock_resp):
         judge_entry = score_trajectory_api(_MINIMAL_RECORD, config, consent_given=True)
 
     baselines = load_baselines(BUNDLED_BASELINES_PATH)
@@ -158,8 +161,8 @@ def test_api_judge_verdict_is_compatible_with_score_session():
 
 def test_local_judge_verdict_uses_standard_dov():
     """Local judge (judge_path absent) still uses TRAJECTORY_DOMAIN_OF_VALIDITY."""
-    from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-    from tes.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
+    from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+    from tracegauge.score import TRAJECTORY_DOMAIN_OF_VALIDITY, score_session
 
     # A judge_entry without judge_path (local judge format)
     local_judge_entry = {

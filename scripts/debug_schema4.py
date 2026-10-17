@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """Find task description turn and check token totals coverage."""
 
 from __future__ import annotations

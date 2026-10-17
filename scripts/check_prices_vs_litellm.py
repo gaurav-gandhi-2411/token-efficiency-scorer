@@ -1,8 +1,11 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """scripts/check_prices_vs_litellm.py — OPTIONAL, NON-FATAL cross-check of the price table
 against LiteLLM's community price file.
 
 The official Anthropic page (scripts/check_price_table_vs_vendor.py) is the source of truth and
-is the only thing allowed to put a number in tes/data/prices.json. LiteLLM is a second,
+is the only thing allowed to put a number in tracegauge/data/prices.json. LiteLLM is a second,
 independent pair of eyes: it tends to carry a new Claude model within hours, so a first-party
 anthropic key it has that prices.json lacks is an early "go and read the official page" signal.
 It mixes providers, lags on retired models and can be wrong, so every finding here is a
@@ -37,12 +40,12 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from tes.cost import cache_read_multiplier, load_price_table  # noqa: E402
+from tracegauge.cost import cache_read_multiplier, load_price_table  # noqa: E402
 
 LITELLM_URL = (
     "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 )
-_BUNDLED_PRICES = _ROOT / "tes" / "data" / "prices.json"
+_BUNDLED_PRICES = _ROOT / "tracegauge" / "data" / "prices.json"
 _TIMEOUT_SECONDS = 30
 _DATE_SUFFIX_RE = re.compile(r"-\d{8}$")
 _EPS = 1e-9

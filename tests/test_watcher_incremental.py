@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Incremental ledger test: unchanged sessions must not be re-scored."""
@@ -8,9 +11,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.store import open_db
-from tes.watcher import WatcherConfig, _scan_once
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.store import open_db
+from tracegauge.watcher import WatcherConfig, _scan_once
 
 
 def _make_minimal_record(session_id: str = "test-session-001") -> dict:
@@ -42,12 +45,12 @@ def test_incremental_unchanged_not_rescored(tmp_path: Path) -> None:
     )
 
     # First scan: should score the session
-    with patch("tes.watcher.adapt_session", return_value=record):
+    with patch("tracegauge.watcher.adapt_session", return_value=record):
         count_1 = _scan_once(config, conn, baselines, _now=time.time() + 999)
     assert count_1 == 1, f"Expected 1 scored on first scan, got {count_1}"
 
     # Second scan: same file, same hash — should NOT re-score
-    with patch("tes.watcher.adapt_session", return_value=record) as mock_adapt:
+    with patch("tracegauge.watcher.adapt_session", return_value=record) as mock_adapt:
         count_2 = _scan_once(config, conn, baselines, _now=time.time() + 999)
     assert count_2 == 0, f"Expected 0 re-scored on second scan, got {count_2}"
     # adapt_session must NOT have been called (file was skipped before adapt)
@@ -72,14 +75,14 @@ def test_incremental_rescores_on_change(tmp_path: Path) -> None:
         db_path=tmp_path / "tes.db",
     )
 
-    with patch("tes.watcher.adapt_session", return_value=record):
+    with patch("tracegauge.watcher.adapt_session", return_value=record):
         count_1 = _scan_once(config, conn, baselines, _now=time.time() + 999)
     assert count_1 == 1
 
     # Modify the file (simulates session growing)
     jsonl_path.write_bytes(b'{"type":"v1"}\n{"type":"v2"}')
 
-    with patch("tes.watcher.adapt_session", return_value=record):
+    with patch("tracegauge.watcher.adapt_session", return_value=record):
         count_2 = _scan_once(config, conn, baselines, _now=time.time() + 999)
     assert count_2 == 1, f"Expected 1 re-scored after file change, got {count_2}"
 
@@ -131,7 +134,7 @@ def test_failure_isolation_continues_scan(
         db_path=tmp_path / "tes.db",
     )
 
-    with patch("tes.watcher.adapt_session", side_effect=fake_adapt_session):
+    with patch("tracegauge.watcher.adapt_session", side_effect=fake_adapt_session):
         # Must not raise
         scored = _scan_once(config, conn, baselines, _now=time.time() + 999)
 
@@ -158,7 +161,7 @@ def test_stability_window_skips_recent_files(tmp_path: Path) -> None:
 
     # Pass _now = current mtime (file was just written → age = 0 < 300s)
     mtime = jsonl_path.stat().st_mtime
-    with patch("tes.watcher.adapt_session") as mock_adapt:
+    with patch("tracegauge.watcher.adapt_session") as mock_adapt:
         count = _scan_once(config, conn, baselines, _now=mtime + 10)
     assert count == 0
     mock_adapt.assert_not_called()

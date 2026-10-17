@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_caveats_present.py — Verify domain-of-validity appears in formatted output.
@@ -12,8 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from tes.report import format_human, format_json
-from tes.score import (
+from tracegauge.report import format_human, format_json
+from tracegauge.score import (
     TOKEN_DOMAIN_OF_VALIDITY,
     TRAJECTORY_DOMAIN_OF_VALIDITY,
     WASTE_DOMAIN_OF_VALIDITY,

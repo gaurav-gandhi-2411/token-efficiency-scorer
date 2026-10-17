@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_projection_labeled.py — Budget projection is a labeled self-trend, never a forecast.
@@ -11,9 +14,9 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.budget import compute_budget_projection
-from tes.store import open_db
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.budget import compute_budget_projection
+from tracegauge.store import open_db
 
 UTC = timezone.utc  # datetime.UTC is 3.11+; this package supports 3.10
 
@@ -29,7 +32,7 @@ def _insert_session(
     ``compute_budget_projection`` now filters/orders on (issue #12);
     ``scored_at_dt`` defaults to the same instant but can be set
     independently to simulate a batch-scoring workflow, where every session
-    in one ``tes scan`` run shares the same ``scored_at`` regardless of when
+    in one ``tracegauge scan`` run shares the same ``scored_at`` regardless of when
     the real usage happened."""
     scored_at_dt = scored_at_dt if scored_at_dt is not None else source_mtime_dt
     conn.execute(

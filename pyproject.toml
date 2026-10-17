@@ -6,13 +6,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tracegauge"
-version = "0.15.0"
+version = "0.16.0"
 description = "Score your Claude Code sessions for token economy, trajectory quality and deterministic waste, locally; nothing leaves your machine unless you opt in."
 authors = [{ name = "Gaurav Gandhi", email = "gaurav.gandhi2411@gmail.com" }]
 requires-python = ">=3.10"
 readme = "README.md"
-license = "AGPL-3.0-only"
-license-files = ["LICENSE", "LICENSE-APACHE"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Only tes/intelligence (`tes patterns`, `tes ask`, the dashboard /patterns and /ask routes) imports
+# Only tracegauge/intelligence (`tes patterns`, `tes ask`, the dashboard /patterns and /ask routes) imports
 # these; scipy comes in through scikit-learn. Kept out of core so `uvx tracegauge` stays small and fast.
 patterns = [
     "numpy>=1.24,<3",
@@ -45,7 +45,7 @@ patterns = [
 ]
 
 [dependency-groups]
-# Wave 15 (gg-portfolio) — this repo had no declared dev dependencies at all;
+# This repo once had no declared dev dependencies at all;
 # lint/type-check/test were only ever run against a global/conda environment,
 # never reproducibly. Needed to make CI (added this same change) actually work.
 dev = [
@@ -65,6 +65,9 @@ dev = [
     "pandas>=2.0,<3",
     # >=23.0.1: GHSA (Arrow IPC pre-buffering use-after-free), fixed in 23.0.1.
     "pyarrow>=23.0.1,<26",
+    # tests/test_fonts_licence.py reads every name record of the shipped WOFF2 fonts (test-only).
+    "fonttools>=4.50,<5",
+    "brotli>=1.1,<2",
 ]
 
 [project.urls]
@@ -75,47 +78,49 @@ Issues = "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer/issues"
 Documentation = "https://github.com/gaurav-gandhi-2411/token-efficiency-scorer#readme"
 
 [project.scripts]
-tes = "tes.cli:main"
-tracegauge = "tes.cli:main"
+tracegauge = "tracegauge.cli:main"
+tgauge = "tracegauge.cli:main"
+# Deprecated alias, removed in 0.18: same command plus a one-line notice on stderr.
+tes = "tracegauge.cli:tes_main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["tes*"]
+include = ["tracegauge*", "tes*"]
 exclude = ["tests*", "scripts*", "src*"]
 
 [tool.setuptools.package-data]
-"tes" = ["py.typed", "data/cc_baselines.json", "data/prices.json", "data/quickstart_sample_session.jsonl", "web/templates/*.html", "web/static/brand/*.svg", "web/static/fonts/*.woff2"]
+"tracegauge" = ["py.typed", "data/cc_baselines.json", "data/prices.json", "data/quickstart_sample_session.jsonl", "web/templates/*.html", "web/static/brand/*.svg", "web/static/brand/OFL-*.txt", "web/static/fonts/*.woff2", "web/static/fonts/OFL-*.txt"]
 
 [tool.ruff]
 line-length = 100
 # py310 = requires-python's floor. It was py311, so ruff's UP017 autofix (#45) rewrote
 # `timezone.utc` to `datetime.UTC` (3.11+) and broke the package on 3.10 from 0.12.3 on.
 target-version = "py310"
-src = ["src", "tes"]
-# tes/_waste_detectors.py is a project invariant: byte-frozen since B4
+src = ["src", "tracegauge", "tes"]
+# tracegauge/_waste_detectors.py is a project invariant: byte-frozen
 # (tests/test_prior_features_intact.py::test_waste_detectors_byte_frozen
 # enforces `git diff --exit-code` on it), so it must never be touched by
-# `ruff check --fix` or `ruff format` -- AW2's repo-wide autofix pass caught
+# `ruff check --fix` or `ruff format` -- a repo-wide autofix pass once caught
 # this the hard way (reformatted it, broke the frozen-file test, reverted).
-extend-exclude = ["tes/_waste_detectors.py"]
+extend-exclude = ["tracegauge/_waste_detectors.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-# E402: this repo's own convention (maintainer rule 1) puts
+# E402: this repo's own convention puts
 # `from __future__ import annotations` before the module docstring, which
 # pycodestyle's E402 reads as "imports after a statement" for every import
 # that follows -- 608 pre-existing findings across 118/174 files, confirmed
 # by direct sampling to be ~93% this exact structural pattern (the remainder
 # are a handful of frozen, one-off release-verification scripts under
 # scripts/ that deliberately interleave imports with sequential executable
-# checks -- also not a real defect). AW2: decided as a permanent config
+# checks -- also not a real defect). Decided as a permanent config
 # exemption rather than reordering 118 files' docstrings (would violate
-# rule 1) or accumulating one-off `noqa`s PR by PR (the anti-pattern this
+# the convention) or accumulating one-off `noqa`s PR by PR (the anti-pattern this
 # decision exists to end).
 ignore = ["E501", "E402"]
 
 [tool.ruff.lint.per-file-ignores]
-# AW2: pre-existing findings that are NOT the E402 structural artifact above
+# Pre-existing findings that are NOT the E402 structural artifact above
 # -- genuine, individually-judged minor issues (unstrict zip(), unused loop
 # vars, ambiguous single-letter names, suppressible exceptions, etc.) that
 # would need real per-call review to fix correctly (e.g. B905's strict=True
@@ -123,11 +128,11 @@ ignore = ["E501", "E402"]
 # equal length) rather than mechanical cleanup. Scoped per-file, not
 # rule-level, so the same rule still catches NEW violations in code these
 # files gain later, and in every other file. Fixed instead where trivial
-# and low-risk (F821 in tes/intelligence/cache.py; see git history) --
+# and low-risk (F821 in tracegauge/intelligence/cache.py; see git history) --
 # this list is deliberately the residual after that, not the whole backlog.
 "scripts/**/*.py" = ["B905", "F841", "E741", "SIM105", "B007", "SIM102", "SIM103", "SIM110", "E701", "SIM118", "SIM117"]
 "tests/**/*.py" = ["B905", "F841", "E741", "SIM105", "B007", "SIM102", "SIM103", "SIM110", "E701", "SIM118", "SIM117"]
-"tes/**/*.py" = ["B905", "F841", "E741", "SIM105", "B007", "SIM102", "SIM103", "SIM110", "E701", "SIM118", "SIM117"]
+"tracegauge/**/*.py" = ["B905", "F841", "E741", "SIM105", "B007", "SIM102", "SIM103", "SIM110", "E701", "SIM118", "SIM117"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_plan_roi.py — XX1: plan-cost config loading and ROI proration.
@@ -14,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from tes.plan import (
+from tracegauge.plan import (
     PlanPeriod,
     compute_roi,
     load_plan_config,
@@ -80,12 +83,12 @@ def test_valid_config_parses_and_sorts_by_effective_from(tmp_path: Path):
 
 def test_resolve_plan_config_path_env_var(tmp_path: Path, monkeypatch):
     custom = tmp_path / "custom.json"
-    monkeypatch.setenv("TES_PLAN_PATH", str(custom))
+    monkeypatch.setenv("TRACEGAUGE_PLAN_PATH", str(custom))
     assert resolve_plan_config_path(None) == custom
 
 
 def test_resolve_plan_config_path_explicit_arg_wins_over_env(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("TES_PLAN_PATH", str(tmp_path / "env.json"))
+    monkeypatch.setenv("TRACEGAUGE_PLAN_PATH", str(tmp_path / "env.json"))
     explicit = tmp_path / "explicit.json"
     assert resolve_plan_config_path(explicit) == explicit
 

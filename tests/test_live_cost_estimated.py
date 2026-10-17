@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_live_cost_estimated.py — Live cost/context is always labeled estimated/in-progress.
@@ -12,7 +15,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from tes.live_monitor import find_active_session, score_live_session
+from tracegauge.live_monitor import find_active_session, score_live_session
 
 
 def _fake_record(turns: list[dict], session_id: str = "live-test") -> dict:
@@ -104,8 +107,8 @@ def test_score_live_session_labels_are_never_final(tmp_path: Path) -> None:
     fake_path.write_text("{}", encoding="utf-8")
 
     with (
-        patch("tes.live_monitor.adapt_session", return_value=record),
-        patch("tes.live_monitor.classify_session", return_value="infra-deploy"),
+        patch("tracegauge.live_monitor.adapt_session", return_value=record),
+        patch("tracegauge.live_monitor.classify_session", return_value="infra-deploy"),
     ):
         state = score_live_session(fake_path)
 
@@ -122,7 +125,7 @@ def test_score_live_session_none_when_no_turns(tmp_path: Path) -> None:
     fake_path = tmp_path / "empty.jsonl"
     fake_path.write_text("{}", encoding="utf-8")
 
-    with patch("tes.live_monitor.adapt_session", return_value=record):
+    with patch("tracegauge.live_monitor.adapt_session", return_value=record):
         assert score_live_session(fake_path) is None
 
 
@@ -130,7 +133,9 @@ def test_score_live_session_tolerates_adapt_failure(tmp_path: Path) -> None:
     fake_path = tmp_path / "corrupt.jsonl"
     fake_path.write_text("not json at all {{{", encoding="utf-8")
 
-    with patch("tes.live_monitor.adapt_session", side_effect=Exception("mid-write partial JSON")):
+    with patch(
+        "tracegauge.live_monitor.adapt_session", side_effect=Exception("mid-write partial JSON")
+    ):
         assert score_live_session(fake_path) is None
 
 
@@ -149,8 +154,8 @@ def test_resend_dominant_flag_matches_measured_attribution(tmp_path: Path) -> No
     fake_path.write_text("{}", encoding="utf-8")
 
     with (
-        patch("tes.live_monitor.adapt_session", return_value=record),
-        patch("tes.live_monitor.classify_session", return_value="infra-deploy"),
+        patch("tracegauge.live_monitor.adapt_session", return_value=record),
+        patch("tracegauge.live_monitor.classify_session", return_value="infra-deploy"),
     ):
         state = score_live_session(fake_path)
 
@@ -169,6 +174,10 @@ def test_completed_session_report_never_uses_live_estimate_wording() -> None:
     'estimated, in progress' phrasing — that label is exclusive to live_monitor.py.
     """
     report_src = (
-        Path(__file__).resolve().parents[1].joinpath("tes", "report.py").read_text(encoding="utf-8")
+        Path(__file__)
+        .resolve()
+        .parents[1]
+        .joinpath("tracegauge", "report.py")
+        .read_text(encoding="utf-8")
     )
     assert "estimated, in progress" not in report_src

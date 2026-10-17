@@ -336,7 +336,8 @@ human ground truth for judge calibration. Layer 3 is designed around a genuine h
 - **n = 40 sessions**, stratified: 5 domains × 2 resolution outcomes × 4 sessions per cell.
   Domains: lib_general, type_checker, data_ml, cloud_devops, graph_geo (the five largest by
   corpus count). Resolution: 2 resolved + 2 unresolved per domain.
-- Sessions drawn from existing `data/validation-corpus/traces_normalized/` — no new API calls.
+- Sessions drawn from existing `data/validation-corpus/traces_normalized/` (no longer committed; see
+  `DATA_SOURCES.md`) — no new API calls.
 
 **Rating scale (shown to annotator):**
 

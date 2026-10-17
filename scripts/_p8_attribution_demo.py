@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """One-shot script: run attribution on the two heaviest accessible sessions."""
@@ -6,10 +9,10 @@ import json
 import sqlite3
 from pathlib import Path
 
-from tes._digest import reconstruct_digest
-from tes.adapt import adapt_session
-from tes.attribution import compute_attribution
-from tes.waste import build_waste_entry
+from tracegauge._digest import reconstruct_digest
+from tracegauge.adapt import adapt_session
+from tracegauge.attribution import compute_attribution
+from tracegauge.waste import build_waste_entry
 
 db = Path.home() / ".tes" / "tes.db"
 conn = sqlite3.connect(str(db))

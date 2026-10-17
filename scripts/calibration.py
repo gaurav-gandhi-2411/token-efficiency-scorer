@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 """
 calibration.py — Compute Spearman rho calibration between judge, objective proxy,
 and (optionally) LLM provisional ratings and human gold.

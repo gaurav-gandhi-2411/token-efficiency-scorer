@@ -1,13 +1,16 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """LEGACY rows stay out of corrected figures (self-baseline, alarm pool) and are never altered."""
 
 from pathlib import Path
 
-from tes.alarm_baseline import load_pool_rows
-from tes.baselines import BUNDLED_BASELINES_PATH, load_baselines
-from tes.self_baseline import compute_self_baselines
-from tes.store import open_db
+from tracegauge.alarm_baseline import load_pool_rows
+from tracegauge.baselines import BUNDLED_BASELINES_PATH, load_baselines
+from tracegauge.self_baseline import compute_self_baselines
+from tracegauge.store import open_db
 
 from tests.legacy_store import build_mixed_store, insert_row
 

@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_waste_costs.py — Unit tests for annotate_waste_costs.
@@ -9,7 +12,7 @@ Tests the per-event cost annotation with the "redundant turns only" definition:
 """
 
 
-from tes.waste import annotate_waste_costs
+from tracegauge.waste import annotate_waste_costs
 
 
 def _rfr_event(turns: list[int], repeat_count: int = 2) -> dict:

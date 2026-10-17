@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """tests/test_price_override.py — Tests for the price-table override mechanism."""
@@ -7,8 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from tes._digest import TurnDigest
-from tes.cost import compute_turn_cost, load_price_table
+from tracegauge._digest import TurnDigest
+from tracegauge.cost import compute_turn_cost, load_price_table
 
 _CUSTOM_PRICES: dict = {
     "as_of": "2099-01-01",
@@ -25,7 +28,7 @@ _CUSTOM_PRICES: dict = {
 
 
 # ---------------------------------------------------------------------------
-# Test 1 — TES_PRICE_TABLE env var overrides bundled
+# Test 1 — TRACEGAUGE_PRICE_TABLE env var overrides bundled
 # ---------------------------------------------------------------------------
 
 
@@ -33,9 +36,9 @@ def test_env_var_overrides_bundled(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     custom_file = tmp_path / "custom_prices.json"
     custom_file.write_text(json.dumps(_CUSTOM_PRICES), encoding="utf-8")
 
-    monkeypatch.setenv("TES_PRICE_TABLE", str(custom_file))
-    monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
-    monkeypatch.setenv("TES_PRICE_TABLE", str(custom_file))
+    monkeypatch.setenv("TRACEGAUGE_PRICE_TABLE", str(custom_file))
+    monkeypatch.delenv("TRACEGAUGE_PRICE_TABLE", raising=False)
+    monkeypatch.setenv("TRACEGAUGE_PRICE_TABLE", str(custom_file))
 
     table = load_price_table()
     assert table["as_of"] == "2099-01-01"
@@ -54,9 +57,9 @@ def test_home_override_used_when_no_env_var(
     tes_dir.mkdir(parents=True)
     (tes_dir / "prices.json").write_text(json.dumps(_CUSTOM_PRICES), encoding="utf-8")
 
-    monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_PRICE_TABLE", raising=False)
 
-    with patch("tes.cost.Path.home", return_value=fake_home):
+    with patch("tracegauge.cost.Path.home", return_value=fake_home):
         table = load_price_table()
 
     assert table["as_of"] == "2099-01-01"
@@ -73,7 +76,7 @@ def test_explicit_path_takes_precedence(tmp_path: Path, monkeypatch: pytest.Monk
     file_a.write_text(json.dumps({**_CUSTOM_PRICES, "as_of": "file-a"}), encoding="utf-8")
     file_b.write_text(json.dumps({**_CUSTOM_PRICES, "as_of": "file-b"}), encoding="utf-8")
 
-    monkeypatch.setenv("TES_PRICE_TABLE", str(file_a))
+    monkeypatch.setenv("TRACEGAUGE_PRICE_TABLE", str(file_a))
 
     table = load_price_table(path=file_b)
     assert table["as_of"] == "file-b"
@@ -85,10 +88,10 @@ def test_explicit_path_takes_precedence(tmp_path: Path, monkeypatch: pytest.Monk
 
 
 def test_bundled_table_loads_when_no_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("TES_PRICE_TABLE", raising=False)
+    monkeypatch.delenv("TRACEGAUGE_PRICE_TABLE", raising=False)
 
     # Ensure ~/.tes/prices.json does not exist by pointing home to a temp dir without it
-    with patch("tes.cost.Path.home", return_value=Path("/nonexistent_temp_home_xyz")):
+    with patch("tracegauge.cost.Path.home", return_value=Path("/nonexistent_temp_home_xyz")):
         table = load_price_table()
 
     assert table["as_of"] == "2026-10-09"

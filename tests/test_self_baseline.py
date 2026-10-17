@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""tests/test_self_baseline.py — Tests for tes/self_baseline.py.
+"""tests/test_self_baseline.py — Tests for tracegauge/self_baseline.py.
 
 Covers the ten required cases:
   1. Lean-subset lower-half selection (p90-cap + lower-half + quartiles)
@@ -18,8 +21,8 @@ Covers the ten required cases:
 import sqlite3
 from pathlib import Path
 
-from tes.adapt import ADAPTER_VERSION, COST_VERSION
-from tes.self_baseline import (
+from tracegauge.adapt import ADAPTER_VERSION, COST_VERSION
+from tracegauge.self_baseline import (
     MIN_MEANINGFUL_TURNS,
     compute_self_baselines,
 )

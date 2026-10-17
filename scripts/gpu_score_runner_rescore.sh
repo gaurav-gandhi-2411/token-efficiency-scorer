@@ -1,7 +1,7 @@
 #!/bin/bash
 # gpu_score_runner_rescore.sh — B2 Step3 rescore runner (16 sessions).
 #
-# Input pool:    data/corpus_pool/pool_adapted.jsonl
+# Input pool:    the adapted-session pool, first argument
 # Session filter: data/rescore_sessions.json  (15 recoverable + 1 divergent)
 # Output:        data/rescore_scores.jsonl     (separate from pool_judge_scores.jsonl)
 #
@@ -14,10 +14,13 @@
 #   Belt 1 (watchdog): background sleep+poweroff fires if Python hangs past 1h
 #   Belt 2 (EXIT trap): cleanup() fires on normal exit, error exit, or signal
 #
-# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_rescore.sh
+# Usage: bash /opt/scoring/repo/scripts/gpu_score_runner_rescore.sh ADAPTED_SESSIONS.jsonl
 # Env:   GITHUB_TOKEN — if set, pushes data/rescore_scores.jsonl to GitHub
 
 set -euo pipefail
+
+INPUT="${1:?usage: bash $0 ADAPTED_SESSIONS.jsonl (the maintainer's pool is not in the repository)}"
+INPUT="$(realpath "$INPUT")"
 
 REPO_DIR="/opt/scoring/repo"
 cd "$REPO_DIR"
@@ -98,7 +101,7 @@ echo "[$(date)] Probe session_id: $PROBE_SESSION"
 PROBE_START=$(date +%s)
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/corpus_pool/pool_adapted.jsonl \
+    --input-path "$INPUT" \
     --output-path data/rescore_scores.jsonl \
     --mode session \
     --session-id "$PROBE_SESSION" \
@@ -126,7 +129,7 @@ echo "[$(date)] Probe OK: ${PROBE_ELAPSED}s. Proceeding with full 16-session res
 echo "[$(date)] Starting B2 Step3 rescore run (16 sessions)..."
 python3 scripts/layer2_judge.py \
     --model qwen3:30b-a3b \
-    --input-path data/corpus_pool/pool_adapted.jsonl \
+    --input-path "$INPUT" \
     --output-path data/rescore_scores.jsonl \
     --session-ids-file data/rescore_sessions.json \
     --ollama-url http://localhost:11434
@@ -177,7 +180,7 @@ echo "[$(date)] Checking GITHUB_TOKEN..."
 if [ -z "${GITHUB_TOKEN:-}" ]; then
     echo "[$(date)] WARNING: GITHUB_TOKEN not set."
     echo "  Retrieve manually:"
-    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/rescore_scores.jsonl data/rescore_scores.jsonl --zone=asia-east1-a --project=example-project-000001"
+    echo "  gcloud compute scp <your-vm>:/opt/scoring/repo/data/rescore_scores.jsonl data/rescore_scores.jsonl --zone=asia-east1-a --project=<your-gcp-project>"
 else
     git config user.email "gaurav.gandhi2411@gmail.com"
     git config user.name "gaurav-gandhi-2411"

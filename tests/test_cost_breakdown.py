@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""The informational COST BREAKDOWN (tes/takeaway.py, `tes score`, `score --json`).
+"""The informational COST BREAKDOWN (tracegauge/takeaway.py, `tracegauge score`, `score --json`).
 
 Dollars and share of priced cost per bucket. It is a breakdown, not a finding: the tests pin that
 the buckets partition the total, that unpriced models are named instead of read as $0.00, and
@@ -12,9 +15,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.attribution import AttributionResult
-from tes.takeaway import BREAKDOWN_LABEL, build_cost_breakdown, format_cost_breakdown_lines
+import tracegauge.cli as cli
+from tracegauge.attribution import AttributionResult
+from tracegauge.takeaway import BREAKDOWN_LABEL, build_cost_breakdown, format_cost_breakdown_lines
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -123,7 +126,7 @@ def _session(path: Path, model: str) -> Path:
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -132,7 +135,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], argv: list[str]
 ) -> str:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     try:
         cli.main()
     except SystemExit:

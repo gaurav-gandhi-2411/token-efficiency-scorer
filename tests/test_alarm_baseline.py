@@ -1,3 +1,6 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """The alarm's comparison distribution: recent, same-era, with a fallback chain.
@@ -7,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tes.alarm_baseline import (
+from tracegauge.alarm_baseline import (
     DEFAULT_MIN_N,
     DEFAULT_PERCENTILE,
     DEFAULT_WINDOW_DAYS,
@@ -23,7 +26,7 @@ from tes.alarm_baseline import (
     percentile_at_index,
     resolve_threshold,
 )
-from tes.store import open_db
+from tracegauge.store import open_db
 
 DAY = 86400.0
 NOW = 1_800_000_000.0

@@ -1,17 +1,20 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
 """Regression: `backfill-waste` (and anything sharing its refresh) must never overwrite a stored
 row from a zero-usage or unreadable transcript. `adapt_session` tolerates such a file by
 returning zero usage, so a refresh that trusted it wrote zeros over the stored numbers and
-stamped the row current. Same rule as `tes rescore`: count it as failed, leave the row alone."""
+stamped the row current. Same rule as `tracegauge rescore`: count it as failed, leave the row alone."""
 
 import sqlite3
 from pathlib import Path
 from typing import Any
 
 import pytest
-from tes import cli
-from tes.store import backfill_cost, backfill_waste, open_db
+from tracegauge import cli
+from tracegauge.store import backfill_cost, backfill_waste, open_db
 
 from tests.legacy_store import MixedStore, build_mixed_store, insert_row
 
@@ -65,7 +68,7 @@ def test_a_current_row_is_not_rewritten_from_a_zero_usage_transcript(
 def test_backfill_waste_cli_counts_rescored_skipped_failed_and_exits_4(
     mixed: MixedStore, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["tes", "backfill-waste", "--db-path", str(mixed.db)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "backfill-waste", "--db-path", str(mixed.db)])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     out = capsys.readouterr().out
@@ -80,7 +83,7 @@ def test_backfill_waste_cli_exits_0_when_nothing_failed(
     conn = open_db(db)
     insert_row(conn, "gone", source=str(tmp_path / "gone.jsonl"))
     conn.close()
-    monkeypatch.setattr("sys.argv", ["tes", "backfill-waste", "--db-path", str(db)])
+    monkeypatch.setattr("sys.argv", ["tracegauge", "backfill-waste", "--db-path", str(db)])
     with pytest.raises(SystemExit) as exc:
         cli.main()
     assert exc.value.code == 0

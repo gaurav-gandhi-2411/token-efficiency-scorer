@@ -1,6 +1,9 @@
+# Copyright 2026 Gaurav Gandhi
+# SPDX-License-Identifier: Apache-2.0
+
 from __future__ import annotations
 
-"""Golden-shape tests for `--json` on every reporting command (W1A item 6).
+"""Golden-shape tests for `--json` on every reporting command.
 
 Pinned per command: the exact key set (a key added or dropped must be a deliberate edit here and
 in docs/JSON_OUTPUT.md, with a SCHEMA_VERSION bump if it is a removal), that stdout is exactly one
@@ -13,8 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import tes.cli as cli
-from tes.json_out import SCHEMA_VERSION
+import tracegauge.cli as cli
+from tracegauge.json_out import SCHEMA_VERSION
 
 PRICED = "claude-sonnet-4-6"
 UNPRICED = "claude-test-unpriced-9"
@@ -159,7 +162,7 @@ def _session(path: Path, model: str, *, edit: bool = False) -> Path:
 
 @pytest.fixture(autouse=True)
 def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("TES_DB_PATH", str(tmp_path / "tes.db"))
+    monkeypatch.setenv("TRACEGAUGE_DB_PATH", str(tmp_path / "tes.db"))
     monkeypatch.setattr(cli, "is_judge_available", lambda *a, **k: False)
     monkeypatch.setattr(cli, "detect_env_api_key", lambda *a, **k: None)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -168,7 +171,7 @@ def _isolated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def _run(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
 ) -> tuple[int, str, str]:
-    monkeypatch.setattr("sys.argv", ["tes", *argv])
+    monkeypatch.setattr("sys.argv", ["tracegauge", *argv])
     code = 0
     try:
         cli.main()
@@ -254,8 +257,8 @@ def test_cost_json_roi_block_without_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
-    # No plan at the default location (TES_PLAN_PATH names it): "no_plan", still exit 0.
-    monkeypatch.setenv("TES_PLAN_PATH", str(tmp_path / "no-plan.json"))
+    # No plan at the default location (TRACEGAUGE_PLAN_PATH names it): "no_plan", still exit 0.
+    monkeypatch.setenv("TRACEGAUGE_PLAN_PATH", str(tmp_path / "no-plan.json"))
     code, out, _ = _run(monkeypatch, capsys, "cost", "--week", "--roi", "--json")
     assert code == 0
     roi = _doc(out)["roi"]
@@ -444,8 +447,8 @@ ALARM_BASELINE_KEYS = {
 
 
 def _stub_monitor(monkeypatch: pytest.MonkeyPatch, live: Any, baseline: Any) -> None:
-    import tes.alarm as alarm_mod
-    import tes.live_monitor as lm
+    import tracegauge.alarm as alarm_mod
+    import tracegauge.live_monitor as lm
 
     monkeypatch.setattr(lm, "find_active_session", lambda *a, **k: Path("/fake/active.jsonl"))
     monkeypatch.setattr(lm, "score_live_session", lambda *a, **k: live)
@@ -566,7 +569,7 @@ def test_patterns_json_not_enough_sessions(
 def test_patterns_json_valid_analysis_is_passed_through(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import tes.intelligence.cache as cache_mod
+    import tracegauge.intelligence.cache as cache_mod
 
     fake = {
         "valid": True,
@@ -589,7 +592,7 @@ def test_patterns_json_valid_analysis_is_passed_through(
 def test_patterns_missing_extra_prints_one_line_hint_and_exits_1(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from tes.patterns_extra import PATTERNS_EXTRA_HINT, PatternsExtraMissing
+    from tracegauge.patterns_extra import PATTERNS_EXTRA_HINT, PatternsExtraMissing
 
     def _missing() -> None:
         raise PatternsExtraMissing(PATTERNS_EXTRA_HINT)
@@ -604,7 +607,7 @@ def test_patterns_missing_extra_prints_one_line_hint_and_exits_1(
 
 
 def test_require_patterns_extra_passes_when_deps_import() -> None:
-    from tes.patterns_extra import require_patterns_extra
+    from tracegauge.patterns_extra import require_patterns_extra
 
     require_patterns_extra()  # numpy, scikit-learn, scipy are installed in the test env
 
@@ -614,7 +617,7 @@ def test_require_patterns_extra_raises_when_a_dep_is_missing(
 ) -> None:
     import importlib
 
-    from tes.patterns_extra import PatternsExtraMissing, require_patterns_extra
+    from tracegauge.patterns_extra import PatternsExtraMissing, require_patterns_extra
 
     real = importlib.import_module
 
@@ -684,7 +687,7 @@ def test_every_json_document_has_command_and_legacy_rows_excluded(
     """The documented envelope: every --json document carries both keys, with the right command."""
     path = _session(tmp_path / "proj" / "s.jsonl", PRICED, edit=True)
     _score_into_store(monkeypatch, capsys, tmp_path, PRICED)
-    monkeypatch.setenv("TES_NO_NOTICE", "1")
+    monkeypatch.setenv("TRACEGAUGE_NO_NOTICE", "1")
     cases = {
         "score": ["score", str(path), "--no-judge", "--json"],
         "cost": ["cost", "--week", "--json"],
@@ -704,7 +707,7 @@ def test_every_json_document_has_command_and_legacy_rows_excluded(
 
 
 def test_monitor_json_carries_legacy_rows_excluded() -> None:
-    from tes.json_out import monitor_payload
+    from tracegauge.json_out import monitor_payload
 
     doc = monitor_payload("no_active_session", "/x")
     assert doc["command"] == "monitor" and doc["legacy_rows_excluded"] == 0
