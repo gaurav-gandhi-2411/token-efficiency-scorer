@@ -150,7 +150,12 @@ def test_python_dash_m_tes_submodule_behaves_like_the_real_one() -> None:
     old, new = run("tes.community_baseline"), run("tracegauge.community_baseline")
     assert new.returncode == 0, new.stderr
     assert old.returncode == 0, old.stderr
-    assert old.stdout == new.stdout
+    # argparse (3.14+) prints the invoked module name in the usage line, so `-m tes.x` and
+    # `-m tracegauge.x` legitimately differ in that one token. Normalise only that token; every other
+    # byte of the help text must still match.
+    assert old.stdout.replace("-m tes.community_baseline", "-m <module>") == new.stdout.replace(
+        "-m tracegauge.community_baseline", "-m <module>"
+    )
     assert old.stderr.count(MESSAGE_FRAGMENT) == 1
     assert MESSAGE_FRAGMENT not in new.stderr
 
