@@ -29,8 +29,10 @@ tes/_waste_detectors.py tracegauge/_waste_detectors.py` reports a rename with 0 
 test pins their sha256. Loaded as JSON, the bundled `cc_baselines.json` differs from 0.15.0 in two fields only
 (`baseline_population`, whose text names the renamed module, and `provenance.manifest_sha256`, because the
 manifest key `in_phase0_set_b` was renamed `in_eval_set`; every band, count and gate is identical) and
-`prices.json` differs in two `note` strings only (no rate, date or flag changed). The one behavioural change is
-that task classification no longer special-cases a single private session id.
+`prices.json` differs in two `note` strings only (no rate, date or flag changed). The behavioural changes are:
+task classification no longer special-cases a single private session id; the score output gains a cache-churn
+section and the `score --json` output gains a `cache_churn` key (see Added); and the deprecated `tes` command and
+`import tes` print a deprecation notice (see BREAKING).
 
 ### BREAKING: read before upgrading
 
