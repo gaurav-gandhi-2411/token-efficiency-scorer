@@ -19,7 +19,7 @@ previously-uncredited attribution gap — see the entry below.
 - **What was derived from it:** the B5 generalization validation
   (`research/11-generalization.md`) — the 1,053 SWE-chat CC sessions (58 attributed developers plus 281 sessions with no
   user_id; see the correction below) and the 1.4% (SWE-chat) vs. 6.6% (calibration
-  pool) REPEATED-FAILED-RETRY rate comparison reported in README.md and
+  pool) REPEATED-FAILED-RETRY rate comparison (the maintainer's unpublished local measurement) reported in README.md and
   `research/09-cross-model.md`/`research/10-deterministic-waste.md`.
 - **Correction (2026-10):** earlier releases and research notes said "172 independent developers,
   1,053 sessions". That mixed two counts. sessions.parquet lists 4,852 Claude Code sessions from 172 attributed developers (1,660 of those sessions have no user_id); only 1,053 have a raw transcript, from 58 attributed developers plus 281 sessions with no user_id. The detector rates and conclusions are
