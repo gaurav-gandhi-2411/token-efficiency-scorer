@@ -181,7 +181,12 @@ def recording_seconds(svg: str) -> float:
 
 def generate() -> dict[str, str]:
     """Every generated artifact, keyed by name. Deterministic: seeded data, no clock."""
-    with tempfile.TemporaryDirectory(prefix="tracegauge-readme-demo-") as tmp:
+    # ignore_cleanup_errors: on Windows an antivirus or indexer can briefly lock a file in the
+    # throw-away directory and make the cleanup raise after the output was produced. Only the
+    # cleanup is tolerated; the output comparison in main() stays strict.
+    with tempfile.TemporaryDirectory(
+        prefix="tracegauge-readme-demo-", ignore_cleanup_errors=True
+    ) as tmp:
         home = Path(tmp) / "home"
         home.mkdir()
         quickstart = _run_cli(["quickstart"], home)

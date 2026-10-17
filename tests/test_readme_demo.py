@@ -71,6 +71,38 @@ def test_recording_is_at_most_twenty_seconds_and_has_no_script_or_external_refer
     assert "\\" not in svg.replace("\\n", "")  # no Windows path in the recording
 
 
+def test_check_mode_stays_strict_and_exits_nonzero_on_drift(
+    out: dict[str, str], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--check must still fail on a one-character README or SVG drift (the cleanup of the
+    throw-away directory is tolerant, the comparison is not)."""
+    readme = README.read_text(encoding="utf-8")
+    good_readme, good_svg = tmp_path / "README.md", tmp_path / "q.svg"
+    good_readme.write_text(readme, encoding="utf-8")
+    good_svg.write_text(SVG.read_text(encoding="utf-8"), encoding="utf-8")
+    argv = sys.argv
+    try:
+        sys.argv = ["gen_readme_demo.py", "--check", str(good_readme), str(good_svg)]
+        assert gen.main() == 0
+        drifted = readme.replace(
+            out["cache_churn"], out["cache_churn"].replace("3 event", "4 event")
+        )
+        assert drifted != readme
+        bad_readme = tmp_path / "bad.md"
+        bad_readme.write_text(drifted, encoding="utf-8")
+        sys.argv = ["gen_readme_demo.py", "--check", str(bad_readme), str(good_svg)]
+        assert gen.main() == 1
+        assert "cache_churn does not match" in capsys.readouterr().err
+        bad_svg = tmp_path / "bad.svg"
+        bad_svg.write_text(
+            SVG.read_text(encoding="utf-8").replace("<svg", "<svg ", 1), encoding="utf-8"
+        )
+        sys.argv = ["gen_readme_demo.py", "--check", str(good_readme), str(bad_svg)]
+        assert gen.main() == 1
+    finally:
+        sys.argv = argv
+
+
 def test_generation_is_deterministic(out: dict[str, str]) -> None:
     again = gen.generate()
     assert {k: again[k] for k in ("quickstart_excerpt", "cache_churn", "svg")} == {
