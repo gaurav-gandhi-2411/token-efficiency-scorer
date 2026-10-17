@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-"""Task-type classifier for token-efficiency-scorer pool sessions.
+"""Task-type classifier for tracegauge pool sessions.
 
 Classifies each CC session into one of five task types using
 rule/keyword matching on the task description (or the first

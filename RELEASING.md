@@ -80,8 +80,8 @@ This document describes the actual flow, written after running it for real for `
    `pypi` GitHub Environment's OIDC token. Confirm it actually succeeded — don't just trust
    a green checkmark, read the log for the real upload confirmation:
    ```bash
-   gh run list --repo gaurav-gandhi-2411/token-efficiency-scorer --workflow release.yml --limit 1
-   gh run view <run-id> --repo gaurav-gandhi-2411/token-efficiency-scorer --log | grep -A1 "View at"
+   gh run list --repo gaurav-gandhi-2411/tracegauge --workflow release.yml --limit 1
+   gh run view <run-id> --repo gaurav-gandhi-2411/tracegauge --log | grep -A1 "View at"
    ```
    A genuine publish ends with a Sigstore `Successfully verified SCT...` line and
    `View at: https://pypi.org/project/tracegauge/X.Y.Z/` — that URL is the actual proof, not

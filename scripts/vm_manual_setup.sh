@@ -7,7 +7,7 @@ export HOME=/root
 echo "[S1] $(date) - pulling qwen3:30b-a3b model..."
 ollama pull qwen3:30b-a3b
 echo "[S2] $(date) - pull done. cloning repo..."
-git clone https://github.com/gaurav-gandhi-2411/token-efficiency-scorer.git /opt/scoring/repo
+git clone https://github.com/gaurav-gandhi-2411/tracegauge.git /opt/scoring/repo
 echo "[S3] $(date) - repo cloned. installing deps..."
 cd /opt/scoring/repo
 pip3 install httpx --quiet || /opt/conda/bin/pip install httpx --quiet
