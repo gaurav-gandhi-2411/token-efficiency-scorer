@@ -16,7 +16,9 @@ The builders are pure (data in, dict out) so the shapes can be tested without a 
 """
 
 import json
+import logging
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tes.legacy import LEGACY_LABEL
@@ -26,6 +28,7 @@ if TYPE_CHECKING:
     from tes.alarm import AlarmResult
     from tes.alarm_baseline import AlarmThreshold
     from tes.budget import BudgetProjection
+    from tes.cache_churn import SessionChurn
     from tes.cost_period import PeriodCostReport
     from tes.impact import ImpactReport
     from tes.live_monitor import LiveSessionState
@@ -165,6 +168,161 @@ def budget_payload(
         legacy_rows_excluded=legacy_rows_excluded,
         message=projection.message,
     )
+
+
+# ----------------------------------------------------------------------------- cache churn
+
+
+def _churn_totals(t: Any) -> dict[str, Any]:
+    return {
+        "events": t.events,
+        "churn_tokens": t.churn_tokens,
+        "churn_usd": t.churn_usd,
+        "unpriced_events": t.unpriced_events,
+    }
+
+
+def _churn_proof(p: Any) -> dict[str, Any]:
+    return {
+        "turn_index": p.turn_index,
+        "record_index": p.record_index,
+        "message_id": p.message_id,
+        "model": p.model,
+        "cache_read": p.cache_read,
+        "cache_creation": p.cache_creation,
+        "cache_creation_1h": p.cache_creation_1h,
+    }
+
+
+logger = logging.getLogger(__name__)
+
+#: `cache_churn.reason` values when status is "unavailable".
+REASON_SOURCE_MISSING = "source_missing"  # no source transcript on disk to analyse
+REASON_READ_ERROR = "read_error"  # the transcript exists but could not be read (OSError)
+REASON_INTERNAL_ERROR = "internal_error"  # a bug in the analysis; the traceback is logged
+
+
+def cache_churn_payload(churn: SessionChurn | None, reason: str | None = None) -> dict[str, Any]:
+    """The `cache_churn` object of `score --json` (and the dashboard): a FIXED key set.
+
+    `status` is `"ok"` (the session was analysed; zero events is a result) or `"unavailable"`
+    (no source transcript / unreadable: every figure is `null`, never 0). Dollar figures sum the
+    *priced* events only; `priced` is false and `unpriced_events` says how many events were left
+    out when a model is not in the price table, so `churn_usd` is then a floor, never a total.
+    `events_listed` is the largest events by dollars (at most MAX_EVENTS_LISTED), each with its
+    two proof turns; `events` is the full count. Avoidable vs unavoidable is a judgement and
+    `judgement_note` says so. No transcript text appears anywhere in it.
+    """
+    from tes import cache_churn as cc  # noqa: PLC0415
+
+    thresholds = {
+        "min_prefix_tokens": cc.MIN_PREFIX_TOKENS,
+        "read_drop_ratio": cc.READ_DROP_RATIO,
+        "rewrite_share": cc.REWRITE_SHARE,
+        "ttl_grace_s": cc.TTL_GRACE_S,
+    }
+    base: dict[str, Any] = {
+        "status": "unavailable" if churn is None else "ok",
+        "reason": (reason or REASON_SOURCE_MISSING) if churn is None else None,
+        "events": None,
+        "churn_tokens": None,
+        "churn_usd": None,
+        "priced": None,
+        "unpriced_events": None,
+        "by_cause": None,
+        "by_scope": None,
+        "avoidable_usd": None,
+        "unavoidable_usd": None,
+        "advice": [],
+        "events_listed": [],
+        "duplicate_turns_dropped": None,
+        "unsplit_cache_write_tokens": None,
+        "thresholds": thresholds,
+        "judgement_note": cc.JUDGEMENT_NOTE,
+    }
+    if churn is None:
+        return base
+    total = churn.total
+    listed = sorted(
+        churn.events,
+        key=lambda e: (e.churn_usd is not None, e.churn_usd or 0.0, e.churn_tokens),
+        reverse=True,
+    )[: cc.MAX_EVENTS_LISTED]
+    by_scope = {
+        kind: {
+            **_churn_totals(t),
+            "chains": sum(1 for c in churn.chains if c.kind == kind),
+        }
+        for kind, t in churn.by_kind.items()
+    }
+    return {
+        **base,
+        "events": total.events,
+        "churn_tokens": total.churn_tokens,
+        "churn_usd": total.churn_usd,
+        "priced": total.unpriced_events == 0,
+        "unpriced_events": total.unpriced_events,
+        "by_cause": {b: _churn_totals(t) for b, t in churn.by_bucket.items()},
+        "by_scope": by_scope,
+        "avoidable_usd": churn.avoidable_usd,
+        "unavoidable_usd": churn.unavoidable_usd,
+        "advice": [
+            {
+                "scope": a.scope,
+                "setting": a.setting,
+                "env_var": a.env_var,
+                "value": a.value,
+                "premium_usd": a.premium_usd,
+                "saved_usd": a.saved_usd,
+                "net_usd": a.net_usd,
+                "events_avoided": a.events_avoided,
+                "chains": a.chains,
+                "assumptions": a.assumptions,
+            }
+            for a in churn.advice
+        ],
+        "events_listed": [
+            {
+                "scope": e.chain_kind,
+                "chain": e.chain_label,
+                "cause": e.cause,
+                "avoidability": e.avoidability,
+                "gap_s": e.gap_s,
+                "ttl_s": e.ttl_s,
+                "note": e.note,
+                "marker_index": e.marker_index,
+                "churn_tokens": e.churn_tokens,
+                "churn_usd": e.churn_usd,
+                "priced": e.churn_usd is not None,
+                "previous_turn": _churn_proof(e.prev),
+                "current_turn": _churn_proof(e.cur),
+            }
+            for e in listed
+        ],
+        "duplicate_turns_dropped": churn.duplicate_turns_dropped,
+        "unsplit_cache_write_tokens": churn.unsplit_write_tokens,
+    }
+
+
+def cache_churn_payload_for_path(path: Path, prices: dict[str, Any]) -> dict[str, Any]:
+    """`cache_churn_payload` for a transcript path; never raises.
+
+    A failure still yields `status: "unavailable"`, but with a machine-readable `reason`, and an
+    unexpected exception is logged with its traceback at WARNING (to stderr via the logging
+    last-resort handler, so a `--json` stdout stays one valid document).
+    """
+    from tes.cache_churn import analyze_session  # noqa: PLC0415
+
+    try:
+        if not path.exists():
+            return cache_churn_payload(None, REASON_SOURCE_MISSING)
+        return cache_churn_payload(analyze_session(path, prices))
+    except OSError:
+        logger.warning("cache churn: could not read %s", path.name, exc_info=True)
+        return cache_churn_payload(None, REASON_READ_ERROR)
+    except Exception:
+        logger.warning("cache churn: analysis failed for %s", path.name, exc_info=True)
+        return cache_churn_payload(None, REASON_INTERNAL_ERROR)
 
 
 # ----------------------------------------------------------------------------- rescore
