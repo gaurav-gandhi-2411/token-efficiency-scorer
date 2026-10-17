@@ -10,7 +10,12 @@ name: Release
 #                       a fresh non-editable install of the wheel reports that version; built twice on
 #                       two separate runners, and `reproducible` refuses unless both builds have the
 #                       same sha256 (scripts/build_dist.py, RELEASING.md)
+#   verify-artifact     the dist/ each build uploaded (artifact dist-a, dist-b) matches the
+#                       checked SHA256SUMS byte for byte (scripts/verify_dist.py)
 #   gate-canary         the latest SCHEDULED pypi-canary run on master is green and recent
+#
+# The publish job does NOT rebuild: it downloads build a's dist-a artifact, re-verifies it against
+# the same SHA256SUMS with the same script, and uploads exactly those files.
 #
 # `workflow_dispatch` runs the same preflights against the chosen ref and NEVER publishes (the
 # publish job is `if: github.event_name == 'push'`): run it on master before tagging. Why: 0.12.3 to
@@ -91,6 +96,14 @@ jobs:
         with:
           name: sha256-${{ matrix.build }}
           path: SHA256SUMS.txt
+          if-no-files-found: error
+
+      # The exact files hashed above: publish uploads these, it never rebuilds.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.build }}
+          path: dist/
+          if-no-files-found: error
 
       - name: twine check
         run: uvx twine check dist/*.whl dist/*.tar.gz
@@ -120,6 +133,39 @@ jobs:
           diff sha256-a/SHA256SUMS.txt sha256-b/SHA256SUMS.txt             || { echo "::error::two builds of the same commit produced different artifacts"; exit 1; }
           test "$(wc -l < sha256-a/SHA256SUMS.txt)" -eq 2
           echo "reproducible: both builds match"
+
+  verify-artifact:
+    # Runs on every event, including workflow_dispatch: the same download + verify the publish job
+    # does, so a dispatch run proves the artifact publish would consume equals the checked hashes.
+    name: Refuse to release if the uploaded dist differs from the checked hashes
+    needs: [reproducible]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sha256-*
+          path: sums
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-a
+          path: dist-a
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-b
+          path: dist-b
+      - name: Both uploaded dist directories equal the checked SHA256SUMS of both builds
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_dist.py dist-a sums/sha256-a/SHA256SUMS.txt sums/sha256-b/SHA256SUMS.txt
+          python3 scripts/verify_dist.py dist-b sums/sha256-a/SHA256SUMS.txt sums/sha256-b/SHA256SUMS.txt
+          test "$(ls dist-a | wc -l)" -eq 2
+          test "$(ls dist-b | wc -l)" -eq 2
+          echo "verify-artifact: dist-a and dist-b match the checked hashes"
 
   gate-canary:
     name: Refuse to release while the latest scheduled pypi-canary run is red or stale
@@ -165,7 +211,7 @@ jobs:
   publish:
     # Only a tag push publishes. A workflow_dispatch run stops after the preflights above.
     if: github.event_name == 'push'
-    needs: [preflight-version, preflight-build, reproducible, gate-canary]
+    needs: [preflight-version, preflight-build, reproducible, verify-artifact, gate-canary]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -185,11 +231,24 @@ jobs:
         with:
           python-version: "3.11"
 
+      # No rebuild: the files uploaded below are the ones the preflight built, hashed and compared.
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sha256-*
+          path: sums
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist-a
+          path: dist
+
+      - name: The downloaded dist equals the checked SHA256SUMS
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_dist.py dist sums/sha256-a/SHA256SUMS.txt sums/sha256-b/SHA256SUMS.txt
+          test "$(ls dist | wc -l)" -eq 2
+
       - name: Install uv
         run: pip install uv --quiet
-
-      - name: Build sdist + wheel
-        run: python scripts/build_dist.py dist
 
       - name: twine check
         run: uvx twine check dist/*.whl dist/*.tar.gz
