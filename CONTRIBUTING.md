@@ -8,8 +8,8 @@ fabricated numbers.
 ## Dev setup
 
 ```bash
-git clone https://github.com/gaurav-gandhi-2411/token-efficiency-scorer.git
-cd token-efficiency-scorer
+git clone https://github.com/gaurav-gandhi-2411/tracegauge.git
+cd tracegauge
 uv sync --frozen   # installs the exact locked dependency set, incl. dev deps
 ```
 

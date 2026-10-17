@@ -119,9 +119,6 @@ and Changed).
   rule, unpriced display, cache-churn card) have no screenshot in the repository; the behaviour is covered by tests.
 - **Figures that came from removed data cannot be re-derived from a clone.** The research reports' pool statistics
   and the pre-0.15.0 bands are the maintainer's unpublished local measurement (see the next two entries).
-- **Repository rename not done yet:** links in the README, `pyproject.toml` and the docs still use the old repository
-  name until the owner follows [docs/RENAME_REPO.md](docs/RENAME_REPO.md), including updating the PyPI Trusted
-  Publisher before the first release from the renamed repository.
 
 ### Data changes (from the unreleased section)
 

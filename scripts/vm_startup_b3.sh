@@ -36,7 +36,7 @@ apt-get install -y -q git 2>/dev/null || true
 
 # Clone the scoring repo
 mkdir -p /opt/scoring
-git clone https://github.com/gaurav-gandhi-2411/token-efficiency-scorer.git /opt/scoring/repo
+git clone https://github.com/gaurav-gandhi-2411/tracegauge.git /opt/scoring/repo
 # Make the repo writable by the default GCP SSH user (not just root).
 GCLOUD_USER=$(getent passwd 1000 | cut -d: -f1 2>/dev/null || echo "")
 if [ -n "$GCLOUD_USER" ]; then

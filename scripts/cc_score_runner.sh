@@ -171,7 +171,7 @@ else
     git config user.name "gaurav-gandhi-2411"
     git add data/cc_judge_scores.jsonl
     git commit -m "feat(data): CC session validation scores (qwen3:30b-a3b, 3 real CC sessions)"
-    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/token-efficiency-scorer.git" master 2>&1 \
+    git push "https://${GITHUB_TOKEN}@github.com/gaurav-gandhi-2411/tracegauge.git" master 2>&1 \
         | sed "s/${GITHUB_TOKEN}/***REDACTED***/g" \
         || echo "[$(date)] Push FAILED — retrieve manually via gcloud compute scp"
     echo "[$(date)] Push step done."
